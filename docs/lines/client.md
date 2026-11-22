@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-22 (the cache's, the engines' and the client calls' decision pages; `readMin`'s cut-stream fix found lost from the tree by merge `dd681539`, [`../decisions/client-calls.md`](../decisions/client-calls.md) §3.2), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-22 (the asking page; the cache's, the engines' and the client calls' decision pages; `readMin`'s cut-stream fix found lost from the tree by merge `dd681539`, [`../decisions/client-calls.md`](../decisions/client-calls.md) §3.2), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -119,7 +119,8 @@ Firefox 160 run; the Safari probe first). The reports' eleven lines:
 Y and the safety report at once over HTTP, provisional; no carrier until C and Lbusy rerun; PR 370 not merged as is). The phone route's ten
 lines: [`../decisions/phone-decode-route.md`](../decisions/phone-decode-route.md) §2 (PHONE-ROUTE-PAGE, 2026-11-22: the view
 first on every phone, no table or probe; the fill reports *G* ÷ *d*_V's rule; the switch and the split tested in the
-cloud first; B1 no for now, M17 first; cell 1 on a middle-band phone by a device cloud).
+cloud first; B1 no for now, M17 first; cell 1 on a middle-band phone by a device cloud). What a view asks for: [`../decisions/asking.md`](../decisions/asking.md) §2 (ASK-PAGE, 2026-11-22: the rule as the
+design, its hold tested first; no slice skipped; `span` and `holdEveryOther` removed; PR 96 held).
 
 ## Pointers
 
