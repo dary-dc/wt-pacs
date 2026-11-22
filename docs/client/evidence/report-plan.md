@@ -1505,3 +1505,35 @@ predicted "well under a millisecond" for the call alone; this counts assembly, s
 the grey series' fill record, not `dbts_c1`'s 4.9–6.6 KB), no load refused; the H arms keep 2 records a load (~2.2 KB),
 the Y arms and SESSION-1 3 (~2.65 KB). Ranked by kept bytes the H arms lead by ~17 %, past rule 2's 10 %, but rule 2
 ranks only passers; between BEACON-Y and KEEPALIVE-Y the kept bytes tie (2 647 against 2 649 B).
+
+### R, the receivers' cost (6 rounds, NGINX and RECEIVER behind nginx rotated, 2026-11-22 07:17–08:31 UTC)
+
+nginx 1.31.8 for both; recorded D1 bodies (`rows/r-bodies.jsonl`, 1.7 KB fill records); 60 s a burst, sent from
+⌈rate/5⌉ addresses in 127/8 (~200 client connections at 1 000/s, the re-review's n3, in RECEIVER's cost). Core share is
+the burst's CPU seconds over all the receiver's processes (nginx's master and worker; for RECEIVER also its own) over
+the burst's seconds. No burst saturated (the generator at most 0.22 of a core; host CPU at most 20 %). **A first
+attempt (06:18–07:16) is kept as `rows/r2-R.nginx-unwritable.jsonl` and judged nowhere**: this container's scratch
+path is mode 700, so nginx's worker, which drops root's rights, could not open its per-day log and NGINX wrote no line
+for any of its 204s. That was the host's, not the arm's; R was rerun whole from a worktree under `/home/user`.
+
+| receiver | rate | kind | rounds | sent, all answered 204 | lines written | refused | core share, median (max) | CPU s per 1 000, median | peak RSS, max | generator cores, max |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NGINX | 10/s | load | 6 | 3600 | 3600 | 0 | 0.23 (0.23) % | 0.233 | 4856 kB | 0.01 |
+| NGINX | 10/s | safety | 6 | 3600 | 3600 | 0 | 0.22 (0.23) % | 0.217 | 4860 kB | 0.01 |
+| NGINX | 100/s | load | 6 | 36000 | 36000 | 0 | 1.38 (1.45) % | 0.138 | 4860 kB | 0.04 |
+| NGINX | 100/s | safety | 6 | 36000 | 36000 | 0 | 1.31 (1.35) % | 0.131 | 4852 kB | 0.04 |
+| NGINX | 1000/s | load | 6 | 360000 | 360000 | 0 | 7.80 (7.97) % | 0.078 | 4860 kB | 0.20 |
+| NGINX | 1000/s | safety | 6 | 360000 | 360000 | 0 | 7.20 (7.35) % | 0.072 | 4872 kB | 0.20 |
+| RECEIVER behind nginx | 10/s | load | 6 | 3600 | 3600 | 0 | 0.79 (0.82) % | 0.792 | 4856 kB | 0.01 |
+| RECEIVER behind nginx | 10/s | safety | 6 | 3600 | 3600 | 0 | 0.88 (0.95) % | 0.883 | 4860 kB | 0.01 |
+| RECEIVER behind nginx | 100/s | load | 6 | 36000 | 36000 | 0 | 5.28 (5.45) % | 0.528 | 4864 kB | 0.03 |
+| RECEIVER behind nginx | 100/s | safety | 6 | 36000 | 36000 | 0 | 6.04 (6.33) % | 0.604 | 4860 kB | 0.04 |
+| RECEIVER behind nginx | 1000/s | load | 6 | 360000 | 360000 | 0 | 36.79 (38.21) % | 0.368 | 12120 kB | 0.20 |
+| RECEIVER behind nginx | 1000/s | safety | 6 | 360000 (not all 204) | 359744 | 0 | 42.58 (43.71) % | 0.426 | 14276 kB | 0.22 |
+
+**Against the bar (at 100 a second: ≤ 5 % of one core, every report written).** **NGINX passes**: 1.31–1.45 % of a core,
+every report written, nothing refused. **RECEIVER behind nginx misses the core bar**: 5.28–6.33 % (RECEIVER's own
+process ~3.1–4.1 %, its nginx ~2.0–2.3 %), every report written. At 1 000 a second (no bar) NGINX ~7–8 %, RECEIVER with
+its nginx ~37–44 %; one safety burst had 256 of 60 000 posts end in a client-side connection error, never answered and
+never written. Against §7.3's predictions: NGINX cheapest, as predicted; RECEIVER "about NGINX plus one local hop"
+is ~4× NGINX here, not about equal. **The server's row is not built** (§7.9): rule 4 has no server to judge.
