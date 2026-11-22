@@ -23,7 +23,7 @@ by anyone who can reach that file. The duty to protect it falls on whoever runs 
 entity or its business associate, under GDPR the controller — not on the code. The code's job is to give them a
 setting that meets their duty, and to say what each setting does.
 
-* **What is stored** (`client/viewer/store.js`): per series, a directory named after the session URL, holding the
+* **What is stored** (`client/view/store-worker.js`): per series, a directory named after the session URL, holding the
   decoded samples of every frame checked `true` and a manifest (the digest list, the frame's shape, the last open).
   No name, ID, birth date, accession number or UID: the ingest copies none ([`../FIXTURES.md`](../../FIXTURES.md)
   §The metadata). So the frames are bare pixels keyed by a URL, not de-identified data. The deployment can map the
