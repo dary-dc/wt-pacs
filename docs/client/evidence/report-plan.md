@@ -1591,7 +1591,7 @@ rig's, named for a build row, not patched here** (§7.8's rule):
   not free the driver (tried at 20:35). On this host it happened about once in 70–100 Firefox loads, so a 162-load
   cell rarely finishes.
 * **A Firefox load fails to fill about 2–3 % of the time** (`reached: "starting"`: 7 of 240 partial loads), never seen on
-  Chromium in this run's 1 134 counted loads; such a load sends no safety report, since nothing was decoded.
+  Chromium in this run's 972 counted loads; such a load sends no safety report, since nothing was decoded.
 * **Each Firefox load leaves its ~108 MB profile in `/tmp`** (`bidi.mjs` never removes it): 210 profiles filled the disk.
   The host's companion script now removes profiles no running Firefox holds (`claude/work-ledger:docs/queue/REPORT-RUN-2-push.sh`).
 

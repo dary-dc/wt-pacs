@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-22 (the reports' second run), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -58,6 +58,12 @@ exact frame bit for bit, and only checked claims on screen.
   KEEPALIVE-H/Y pass cell D (provisional: L, C, Y unbuilt), the Y timing leading by 50 points; BEACON-Y against
   KEEPALIVE-Y, rule 3 and the receivers not decided. D5's kill is timed from the page's send, not the mismatch, so
   D5a never tested its race. Owed: D5 retimed, cells L, C, Y, R, D6, Firefox and WebKitGTK.
+  The second run (REPORT-RUN-2, 2026-11-21 to 11-22, Chromium 153, report-plan.md §7.9, §Results 2): D5a, D5b retimed
+  (every arm 18/18 safety, the report handed on before every kill: the race is under 50 ms here), D6 under `--tun`
+  (18/18 safety, four predicted losses delivered), L idle within the bar, Lbusy VOID by its A/A, C's per-round fill bar
+  met by no arm nor by `off′`, R (NGINX passes at 100/s, RECEIVER behind nginx misses at 5.3–6.3 % of a core).
+  Firefox: mutants caught; counted cells not run, the BiDi driver hangs about once in 70–100 loads and leaks a profile
+  a load (a build row's). Owed: REPORT-VERDICT-2.
 
 ## PRs
 
