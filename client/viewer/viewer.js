@@ -124,7 +124,7 @@ function status() {
     `frame ${(view?.current ?? 0) + 1} of ${n}`,
     `client ${transport.client}`,
     `view ${where}`,
-    `received ${progress.have}, exact ${progress.seen.exact}, not exact ${progress.seen.inexact}, unchecked ${progress.seen.unchecked}`,
+    `received ${progress.have}, exact ${progress.seen.exact}, not exact ${progress.seen.inexact}, no digest ${progress.seen.unchecked}`,
     `routes: ${routes}`,
     `codec ${meta.codec ?? "htj2k"}`,
     `renderer ${rendererName}${soft}`,

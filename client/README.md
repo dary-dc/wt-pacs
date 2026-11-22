@@ -259,7 +259,7 @@ series of a pair, under the default view (`?view=page`, no URL flags):
    digest never reads *Lossless*).
 8. **No mark beside an optimal-quality frame; the label is green.** Its metadata carries no digests, since there is no
    source to check an optimal-quality frame against; the label says what it is, so only *NOT EXACT* is marked beside it
-   (`viewer/screen.test.mjs`). The status line's *unchecked* count is the same fact.
+   (`viewer/screen.test.mjs`). The status line's *no digest* count is the same fact.
 
 One level down, where a point needs it: a frame whose digest does not match is decoded once more on another path
 before it is called not exact (`decoder.js` `checked`; [`docs/adr/exactness-in-production.md`](../docs/adr/exactness-in-production.md)
@@ -528,7 +528,7 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   the slices, the touch gesture taking nothing the canvas uses (one finger stays window/level; the choice and its
   sources: `claude/slice-touch:docs/reviews/slice-touch.md`). Moving it pauses cine; every slice shown otherwise moves
   it; a focused slider answers the stepping keys itself, so the page skips them. Both views alike.
-* **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the frames per route, the
+* **The status line.** It shows the frame, the client, frames received, exact, not exact and *no digest*, the frames per route, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name. A tap
   (touch only; a mouse click does nothing) on it or on the quality label unfolds it whole, wrapped; the next folds it
   (`viewer/screen.js` `unfoldOnTap`).
