@@ -25,7 +25,9 @@ from the owner and no hands after, so every run is comparable and no valid load 
 cell 1 HTJ2K 18.9 ms effective at three decoders (DEVICE-THEORY's bands held, the protocol's missed), the view
 saturating at three; cell 2 *B faster* than A, 15 of 15, median 0.705 (DEVICE-THEORY predicted a tie); cell 3 not
 decided (no end batch arrived; BEACON-LOSS); cell 4 the hardware AV1 decoder allocated, full range back as `RGBA`.
-Owed: PHONE-READ-REVIEW.
+Reviewed 2026-11-22 (PHONE-READ-REVIEW, the file's §Review): every number recomputed; two blockers, B1 M4's HEVC and
+VP9 limits read from a vendor file without AV1 (the AV1-listing files declare 8192 × 8192 and 4096 × 4096), B2 C2's
+0.36–1.65 s ask gap (end to end, *C2 slower*). B faster and cell 1 unchanged. Owed: PHONE-READ-FIX, then its review.
 
 The next round's path, in order:
 
