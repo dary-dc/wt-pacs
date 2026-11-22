@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # REPORT-RUN-2: report-plan.md §7.9's cells in its order. Rows land in $W/lab/report-arms/rows/r2-*.jsonl.
 # W: a worktree of claude/report-arms; NGINX_BIN: nginx 1.31.8; FIREFOX_PATH: Firefox 160.0.1; LOG: a scratch dir.
+# RW: a second worktree whose every parent nginx's unprivileged worker can traverse (R's NGINX writes its own lines).
 set -u
 cd "$W"
 export CARGO_TARGET_DIR=$W/target NGINX_BIN FIREFOX_PATH
@@ -20,7 +21,7 @@ cell() {
 for E in ${CHROMIUM:-D5a D5b L Lbusy C}; do cell chromium $E; done
 if ! complete $R/r2-R.jsonl '"done"'; then
   keep_partial $R/r2-R.jsonl
-  node lab/report-arms/receivers.mjs --bodies $R/r-bodies.jsonl --rounds 6 --out $R/r2-R.jsonl >/dev/null 2>>"$LOG/run-stderr.log" \
+  (cd "${RW:-$W}" && node lab/report-arms/receivers.mjs --bodies $R/r-bodies.jsonl --rounds 6 --out "$W/$R/r2-R.jsonl") >/dev/null 2>>"$LOG/run-stderr.log" \
     && echo '{"done":"R"}' >> $R/r2-R.jsonl
 fi
 for E in ${CHROMIUM_TUN:-D6}; do cell chromium $E --tun; done
