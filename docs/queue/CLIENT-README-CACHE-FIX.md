@@ -1,9 +1,9 @@
 state: started
 started: 2026-11-22T14:47Z
-heartbeat: 2026-11-22T14:47Z
-outputs: (pending) branch `claude/client-readme-cache-fix` from `origin/claude/unified`
+heartbeat: 2026-11-22T14:48Z
+outputs: `claude/client-readme-cache-fix` `13d8365a` (PR pending)
 ## Resume
-Claimed. Next: branch `claude/client-readme-cache-fix` from `origin/claude/unified`; correct `client/README.md`
-*Frames*' "past 256 MiB …" sentence in place against `client/view/store.js`; m1; `scripts/check_links.py`, the
-comment budget; `docs/lines/client.md`; draft PR into `claude/unified`.
+Pushed `13d8365a` on `claude/client-readme-cache-fix` (README *Frames* corrected, `docs/lines/client.md` dated;
+`check_links` 0 unresolved, comment budget ok). Next: m1 in `docs/queue/CLIENT-README-CACHE.md`; the draft PR into
+`claude/unified`; state done.
 ## Result
