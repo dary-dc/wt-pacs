@@ -1,8 +1,14 @@
-state: started
+state: done
 started: 2026-11-22T13:16Z
-heartbeat: 2026-11-22T13:45Z
-outputs: findings in PR 421's body (claude/ingest-oq-tests)
+heartbeat: 2026-11-22T13:46Z
+outputs: PR 421 body §INGEST-OQ-TESTS-REVIEW; claude/ingest-oq-tests ff49feb3c (line doc)
 ## Resume
-Done: tools built; pair_contract_test.py on 12d921a8b: 0 fail, 7 known gaps, every cell's checks counted (10–11 a coded cell). Unmarked copy: 7 claims fail on today's code. Own scratch fix (never committed): marks kept → every gap "gap closed"; unmarked → passes (after D 17 caught the fix admitting 17 bits). Mutants on the fix: 13 of 15 killed (Q 0, D 11 uncut, header depth, lossy.depth, rescale, fingerprint over cut codes, G ignored, signed flag, offset, signed>10 coded, >16 admitted, groups split mid-way, exact digests dropped); survivors: cut truncating (T1's, out of scope), fingerprint via digests(av1) (equivalent: digests hash source frames). F1: scratch regex, gap closed / passes unmarked; 5 grammar mutants killed.
-Next (gate running; Docker Hub 429 once, retried; wasm-pack via cargo install): scripts/gate.sh --quick with PYTHON=.venv/bin/python on claude/ingest-oq-tests; then PR 421 body §INGEST-OQ-TESTS-REVIEW (findings: m1 no reason check in known gaps, m2 F1 guards lack length/even rule, m3 Generated-by footer in PR body; no blocker so far).
+Done: findings in PR 421's body (footer removed), line doc ff49feb3c on claude/ingest-oq-tests. Nothing left.
 ## Result
+No blocker; no fix rows appended. Reviewed 12d921a8b (contains origin/claude/unified).
+Every claim fails on today's code for its stated reason (marks removed: 7 fail); an independent scratch fix, never committed, flips every mark to "gap closed" and passes unmarked; the D 17 cell caught that fix admitting 17 bits.
+Mutants on the fix: 13 of 15 killed; survivors out of scope (cut truncating: T1's) or equivalent (digests(av1) hashes source frames). F1: TOMG/TON~x0 recomputed from contract.md; 5 grammar mutants killed.
+m1: a known gap accepts any failure, not the stated one. m2: F1's guards omit the server's even length 2–44. m3: the PR body's Generated-by footer, removed.
+Gate: scripts/gate.sh --quick, GATE OK in 592 s (PYTHON and INGEST_BUILD absolute: a relative INGEST_BUILD fails from-parser's build.rs). Skipped by name: --quick's rebuild and absence checks, native painter and window, viewer cross-codec and Firefox, nginx, nested workers.
+Fixtures: synthetic 64x48, 9 frames, one 4-core cloud host; nothing timed, no DBT volume, checkPair in node.
+Owner: nothing new.
