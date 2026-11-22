@@ -24,9 +24,10 @@ PR 368, `origin/claude/oq-integrity-build` `a59aa4310`. It decides nothing: the 
    in `metadata.json` (slope, window, photometric interpretation, the depth cut's shift); a held frame damaged in memory
    after its check; the painter drawing another frame's texture. None has a published rate. The first costs one hash
    a series to close, and that is the one recommended.
-4. **One state shows the wrong slice.** A frame withheld after two failed decodes relabels the view and paints
-   nothing, so the canvas keeps the previous frame's picture under the new frame's index (§5, read in code, not run).
-   "Blocked" has to remove the picture.
+4. **One state shows the wrong slice, and is asked again.** A view frame withheld after two failed decodes
+   relabels the view and paints nothing, so the canvas keeps the previous frame's picture under the new frame's index
+   (§5, read in code, not run). "Blocked" has to remove the picture. And a refused frame is not withheld for good: the
+   next want that names it asks it again, after every failure, with no bound, which amendment 22 does not allow (§6).
 5. **Three different failures share one label.** *Lossless check failed* is shown when the exact frame never came,
    when it came and failed its check, and when its series has no digest. Only the second is a failed check (§5).
 6. **A coded-bytes digest detects nothing new; it buys location.** Location is what decides the repair: only then
@@ -247,7 +248,8 @@ and whether anything is painted at all.
 | 10 | an exact-only series' frame *i*, no digest | nothing | the mark *unchecked* | yes |
 
 Row 8 is read in the controller on `claude/oq-integrity-build` (`#labelNotAsCoded`: "nothing of it is painted, so no
-paint relabels it"); it was not run here. The same holds on `claude/unified` for any refused frame.
+paint relabels it"); it was not run here. Row 8 lasts only until the next want that names the frame asks it again
+(§6), and ends if a later copy passes. The same holds on `claude/unified` for any refused frame.
 
 **The smallest true set** has five states for a pair and needs three changes of wording and one of picture:
 
@@ -262,7 +264,8 @@ paint relabels it"); it was not run here. The same holds on `claude/unified` for
    ([`lossless-after-a-failed-ask.md`](lossless-after-a-failed-ask.md), *Not done*); the model adds that row 7 belongs
    with 5, not 6.
 5. *Withheld*, for rows 8 and 9: the canvas cleared to a placeholder that names the failed check, never the previous
-   frame's picture and never the failed frame's pixels.
+   frame's picture and never the failed frame's pixels. The state assumes the frame stays withheld, which today a
+   refused frame does not (§6): building it needs the store to keep a refused frame out of later wants as well.
 
 ## 6 · A series without digests, a withheld frame, a re-ask
 
@@ -285,21 +288,45 @@ series there is no second series; the sources lean to block without reveal (the 
 open viewer read blocks). **Recommended: no reveal.** A withheld frame's pixels are the most dangerous thing the
 client holds: wrong by an unknown amount, and plausible.
 
-**What a re-ask can and cannot repair** (amendment 22 stands: only a lost ask is asked again, once).
+**What a re-ask can and cannot repair** (amendment 22 stands: only a lost ask is asked again).
 
-| the fault | a second decode | a re-ask | known to the client today? |
+| the fault | a second decode | a re-ask | the cause known to the client today? |
 | --- | --- | --- | --- |
-| decoder, engine, processor (row 9), transient | mends | cannot (the same bytes) | no |
+| decoder, engine, processor (row 9), transient | mends | mends, by a fresh decode of the same bytes, at a fetch's cost | no |
 | the same, deterministic | mends only on another decoder | cannot | no |
 | bytes wrong at rest (row 4) | cannot | cannot, until the store is restored | no |
 | bytes wrong on arrival, the store clean (rows 6, 8), transient | cannot | **mends** | no |
 | the same, a deterministic defect of the receive code | cannot | cannot; and a race that does not repeat is hidden unless reported | no |
 | the ask lost (the session gone, nothing received) | — | mends (amendment 22) | yes |
 
-Without location the client cannot tell the one row a re-ask mends from the rows it cannot, so "never a failed
-check" is the right rule today. With a coded-bytes digest that row is known: the coded digest failed. One re-ask
-there would mend rows 6 and 8, and a second copy failing with the same computed digest would prove the store wrong
-without the server's help. That would widen amendment 22 by one case; it is named in §9 and built nowhere.
+**What the client does today with a refused frame** (read in code at both refs, not run in a browser). A frame is
+*refused* when the controller does not store it: on PR 368, a view frame that failed its reconstruction digest twice
+(`controller.js:82–86`); on both refs, a depth cut's frame at the wrong depth (`:78–80` on `a59aa4310`, `:76–78` on
+`4a2b4277f`) and a fill frame the downloader reports failed, which is a server refusal or a decoder that threw
+(`consumer.js:136–138`, through `view-worker.js` and `viewer.js`'s `onError`). An exact frame that failed its check
+is not refused on either ref: it is stored with `exact: false` and painted under *NOT EXACT* (§5 row 9), and never
+asked again. A refused frame is acked first, so the downloader forgets it (`downloader.js`, the `ack` message), and
+`refused(i)` calls `store.failed(i)`, which drops it from the owed list: "A frame the downloader could not deliver: no
+longer owed, so a later want sends it again." (`store.js:85`). The next `want()` that names it sends it once more
+(`store.js:61–69`). In the worker view every step sends the view's want, which under a fill names every frame not
+held, so the next step after a refusal asks the frame again wherever it lies; in the page view, each step onto the
+frame asks it (`controller.js` `show()`). A failure starts the next re-ask: one re-ask per failure, with no count and
+no bound. A scratch run of `FrameStore` at both refs (not committed) shows the store's half: a want of 0–2, frames 0
+and 2 stored, frame 1 failed, then two equal wants, and the downloader is sent `[0,1,2]`, then `[1]` once. On PR 368
+the frame keeps its *not as coded* label until a copy passes, and a copy that passes is labelled by its paint alone
+(`controller.test.mjs:632`).
+
+So today a re-ask is what mends a transient fault (rows 6, 8 and a transient row 9), unknowingly, and a deterministic
+one (row 4, a deterministic row 9) costs a fetch and up to two decodes (×2.8–3.0 of a decode for AV1, §4.3) every
+time the reader steps, for as long as the series is open. That is **a finding against amendment 22**, not a case it
+allows: it names "never a refusal by the server (asking again returns the same refusal) nor a failed check", and the
+store's want re-asks both, the failed check on PR 368 only. The fault-bench cell is §8's cell 12.
+
+Without location the client cannot tell the one row a re-ask mends from the rows it cannot, so amendment 22's "never
+a failed check" is the right rule for the client to keep, and the store does not keep it yet. With a coded-bytes
+digest that row is known: the coded digest failed. One re-ask there would mend rows 6 and 8, and a second copy failing
+with the same computed digest would prove the store wrong without the server's help. That would widen amendment 22 by
+one case; it is named in §9 and built nowhere.
 
 ## 7 · The checks worth their cost, and those not
 
@@ -343,20 +370,29 @@ decoder), on the cloud's hosts unless said. A prediction is this model's, writte
    on SwiftShader. A phone's or a GPU's number is a device's, not the cloud's.
 10. **The pair as second path**: the view's frame withheld, the exact frame fetched unasked, at G 1 and G 16.
 11. Not the cloud's: a hardware AV1 decoder that differs by a sample (no host has one); Safari.
+12. **A refused frame, wanted again**: a view frame of PR 368 that fails its reconstruction digest on every decode
+    (a flip at the store), and a fill frame the server refuses, each under a fill and then on demand, the reader
+    stepping 20 times. Predicted (read in code): the frame is asked once after each failure, about once a step in the
+    worker view under a fill and once per step onto it in the page view, never stopping; with the store keeping a
+    refused frame out of later wants, asked never.
 
 ## 9 · For the owner, and what it would reopen
 
 Each is a yes or a no; INTEGRITY-PAGE carries them.
 
 1. The five states of §5, with *unavailable* apart from *check failed*, and no ✓ on *Optimal quality*.
-2. A withheld frame clears the canvas (part of *block*, decided 2026-11-14, not built); no reveal.
+2. A withheld frame clears the canvas and stays withheld: the store keeps a refused frame out of later wants (today
+   it asks it again after every failure, §6, against amendment 22); part of *block*, decided 2026-11-14, not built;
+   no reveal.
 3. No frame is stored without a digest.
 4. A digest over the metadata (a change to the store's content).
 5. The coded-bytes digest at the ingest, hashed on the client after a mismatch, and the server's re-check on a
-   report (structural).
+   report (structural). Today's unbounded re-ask (§6) is a defect to fix whichever way this goes; with 5, one re-ask
+   would be allowed for a coded-digest mismatch alone.
 6. PR 368 as it stands covers states 1 and 8's words; state 8's picture is a finding against it.
 
-**It would reopen**, each only if taken: amendment 22 by one case (a re-ask after a coded-digest mismatch, with 5);
+**It would reopen**, each only if taken: amendment 22 by one case (one re-ask after a coded-digest mismatch, with 5;
+today's code already re-asks every refused frame, which amendment 22 does not allow and item 2 removes);
 "the exact HTJ2K frame on an explicit Lossless request" by one case (the exact frame fetched unasked for a withheld
 view frame). Nothing here is built on either.
 
