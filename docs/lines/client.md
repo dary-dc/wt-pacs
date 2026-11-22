@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-22 (series that are not stacks, theory only), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -56,6 +56,12 @@ exact frame bit for bit, and only checked claims on screen.
 * **The owner's decisions of 2026-11-14 to 16** (amendments 16–23 of the client queue): in
   [`../client/design.md`](../client/design.md) §Decided, one row each, and the HTJ2K-only path with a reduced first
   picture and the 220-level checked hardware view in §Open; the rows that carry them, PRs 378, 389, 392, 394–397, 400.
+* **Series that are not stacks**, theory and sources only, 2026-11-22
+  ([`../client/evidence/non-cine-series.md`](../client/evidence/non-cine-series.md), row NON-CINE-OPTIONS): large
+  single frames (half the pictures of a DBT exam) keep the exact frame alone, with an exact level picture first as
+  the one arm worth a cloud run (its §7, predictions written); ultrasound stills are a stack of exact frames, held
+  back by three ingest refusals; over 12 bits waits. Read, not run: the painter makes no test against
+  `MAX_TEXTURE_SIZE`. Next: NON-CINE-REVIEW, then the `non-cine-series` page; the owner's five calls are its §8.
 * **The device model**, theory only, 2026-11-20 ([`../decode/mobile/device-model.md`](../decode/mobile/device-model.md)):
   a phone's decode, cache and decoder floors from its fast cores' speed and count, a range per price band, and the
   prediction for the 2026-11-21 round pre-registered (HTJ2K at 14–22 ms effective a `dbts_b1` frame with three
