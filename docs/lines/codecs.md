@@ -4,7 +4,7 @@ Last verified 2026-11-10 (the AV1 harvest of that morning: eight result branches
 no new measurement); the audits' corrections of 2026-11-11 ([`../av1/corrections.md`](../av1/corrections.md)) and
 their protocols measured 2026-11-12 (`claude/audit-measure`) added since; HTJ2K at screen resolution
 (`claude/htj2k-tiles`: theory, its review and its improvement, stages 0–2 measured 2026-11-11, stage 3 since)
-carried into Open 7. Stage A1 of the unification (2026-11-15) added Open 11. Stage B (2026-11-15) carried the tip's items 5, 7 and 8 as 12, 13 and 14. Transport pointers added 2026-11-17 and 2026-11-19. Open 15 (what the view may claim, theory) added 2026-11-21, its review's fix 2026-11-22.
+carried into Open 7. Stage A1 of the unification (2026-11-15) added Open 11. Stage B (2026-11-15) carried the tip's items 5, 7 and 8 as 12, 13 and 14. Transport pointers added 2026-11-17 and 2026-11-19. Open 15 (what the view may claim, theory) added 2026-11-21, its review's fix and its reads (measured) 2026-11-22.
 
 ## Goal
 
@@ -265,7 +265,11 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
     pre-registers nine re-reads of committed rows for VL-READS; its §6 lists what only an encode, a phone or a
     reader can decide. Fixtures as above: 19 DBT volumes of one dataset. Reviewed 2026-11-22 (PR 420's body); fixed
     the same day: §5 takes Δ from the AV1 specification's `Ac_Qlookup` (no row holds the steps), no prediction changed;
-    re-reviewed the same day with no blocker open (PR 420's body §Re-review), so VL-READS may run.
+    re-reviewed the same day with no blocker open (PR 420's body §Re-review), so VL-READS may run. VL-READS (2026-11-22, measured, re-reads only, its §5.1): R2 and R3 hold (at
+    the rule's Q the view removes 0.78–0.93 of the fine-band noise and adds 0.28–0.45 σ; the error is white wherever
+    x ≤ 2), so C and D stand; ν resolves the anchor to one Q on 15 of 19 volumes (r: 4), short of the predicted 17;
+    R5, R6, R8 (`dbts_b2`) and R9 are refuted: the window matters, the form is per volume, D costs 0.26–0.59 of HTJ2K
+    on the rungs read, and Q 8's ratio is 12–37 : 1.
 
 ## Decisions (the owner's)
 

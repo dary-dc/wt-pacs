@@ -385,6 +385,47 @@ the frame it was read on. R6 failing confines even the form to the volumes read.
 without a number until G runs. R8 and R9 are the costs VL-PAGE quotes. None of them can show the view visually
 lossless or task-safe.
 
+### 5.1 Reads, measured (row VL-READS, 2026-11-22)
+
+Run by a session that wrote none of this file, as §5 states it, on the committed rows only: nothing encoded or
+decoded. [`../../lab/av1/metrics/vl_reads.py`](../../lab/av1/metrics/vl_reads.py) writes every number below to
+`lab/av1/metrics/rows/vl-reads.json`; Δ from the specification fetched the same day (last modified 2023-05-25),
+parsed by `noise_point.spec_ac`. Every number here is *measured* (a re-read of committed rows). Fixtures: the 19 DBT
+volumes of one dataset (EA1141) as in the header, stored form; S's cells of forms `top10` and `window` are not read
+(x is defined on the stored form's σ). Checks: the quantizer model reproduces §1.1's first table (r 0.289, 0.575,
+0.805, 0.930, 0.974, 0.995; ν 1.04, 1.14, 1.10, 0.85, 0.61, 0.31: 0.61 where the table prints 0.62) and the zero
+bins ± 2.55, 2.70, 2.89 of its second; R1's reading of r on the worst frame gives the 4 of 19 single-Q bands of
+`b-summary.json`.
+
+| | prediction | reading | verdict |
+| --- | --- | --- | --- |
+| R1 | ν band one Q wide or less on ≥ 17 of 19 | a single Q on **15 of 19** (r: 4 of 19); a gap of one Q on the other four (`dbt10_d`, `dbts_b4`, `dbt10_ea1141`, `dbts_b5`, all 10-bit); ≤ 1 Q on all 19 | **missed, not refuted** (the bound is < 15) |
+| R2 | k ≥ 0.70 and 0.20 ≤ r_q ≤ 0.55 on all 19 | k 0.78–0.93, r_q 0.28–0.45 (median frame of each), r_q real on every frame | **holds** |
+| R3 | (a) 0.93 ≤ w_N ≤ 1.07 and 0.85 ≤ w₄ ≤ 1.10 where x ≤ 2; (b) w_N falls with Q from x 2; (c) 0.65 ≤ w_N ≤ 0.95 at the rule's Q on ≥ 15 | (a) 175 cells of B and S on all 19 volumes: w_N 0.99–1.05, w₄ 0.93–1.08; (b) no rise over 0.02 in 922 cells; (c) w_N 0.77–0.87 on 19 of 19 | **holds**, all three |
+| R4 | 0.15 ≤ L ≤ 0.75 at the rule's Q on all 19 | L 0.36–0.78 (at ρ = 0.27: 0.30–0.67); over 0.75 on `dbts_b3` and `dbts_b4` (0.781 each, Q 12); ≥ 1 on none | **missed on 2, not refuted** |
+| R5 | four cells under x\*: 1.05 ≤ R ≤ 1.30; two at x\*: 1.00 ≤ R ≤ 1.08, lowest decile 1.00–1.10 | under: `dbts_a1` G 1 1.160, G 16 1.162, `dbts_b1` G 16 1.142, `dbts_c1` G 16 **1.518**; at: `dbts_b1` G 1 1.029 (decile 1.003), `dbts_c1` G 1 Q 8 **1.089** (decile 1.004) | **refuted on `dbts_c1` G 1** (R over 1.08 by 0.009); the window matters on all four under x\* (none under 1.05) |
+| R6 | r's spread ≤ 0.03 in every bin on ≥ 17; ν's ≤ 0.06 on ≥ 15 | computable on 12 volumes (on seven, B's ladder leaves no 0.25-wide bin with two Qs); r ≤ 0.03 on 2 (`dbts_a1` 0.029, `dbts_a3` 0.006), up to 0.075; ν ≤ 0.06 on none (0.077–0.169) | **refuted**: within a volume neither r nor ν is a function of x alone at this resolution |
+| R7 | model r within 0.05 of measured in ≥ 80 % of cells with 3 ≤ x ≤ 5.5 | 145 cells (B, G 1 and 16; S has no ν): **68 %** (99); a t found for every cell; 44 of 46 misses are the model above the measurement, at x 3–3.5 (2 of 31 within) and 3.5–4 (19 of 30); from x 4, 78 of 84 | **missed, not refuted** (the bound is < 60 %) |
+| R8 | x ≤ 2: 0.22–0.55 on all 19; x ≤ 1: 0.45–0.80 | x ≤ 2: 0.26–0.59, **0.594 on `dbts_b2`** (Q 2); x ≤ 1: 0.48–0.77 | **refuted on `dbts_b2`** for x ≤ 2; holds for x ≤ 1 |
+| R9 | Q 8: over 25 : 1 on every 12-bit volume, under 15 : 1 on every 10-bit one | 12-bit 20.7–37.5 : 1 (under 25 on `dbts_c2`, `dbts_a3`, `dbts_a4`); 10-bit 11.9–29.4 : 1 (over 15 on `dbts_b1`, `b2`, `b4`, `b5`); at the rule's Q 19.9–36.3 (12-bit), 13.8–42.6 (10-bit) | **refuted** (7 volumes) |
+
+Limits of the reads. R8's Q is the highest *read*: S's ladder is 1, 2, 4, 8 and B's starts at 4, so on `dbts_a1`,
+`a2`, `a5` and `dbt12_ea1141` the pick is Q 2 with Q 3 unread, and on `dbts_b3`, `b4` B's Q 6 is picked where S alone
+gives Q 4 (the review's n1): the bytes are those of the rung, not of the highest Q with x ≤ 2. `ratio` counts the
+source at `bits_stored` per sample (`collect.py` `summary`), so R9's low confidence is resolved: it is the packed
+ratio, not one against 16-bit containers.
+
+**What the outcomes decide, by the rules above.** R2 and R3 hold: B's fact may be worded "removes 0.78–0.93 of the
+fine-band noise's amplitude and adds 0.28–0.45 of σ", and the error is white wherever the quietest frame has x ≤ 2,
+so C and D stand as derived bounds on every cell read. R1 did not hold as predicted, so it does not retire the bar
+question (0.1) by itself; it does show ν resolving the anchor to one Q on 15 volumes where r resolves 4, and to two
+adjacent Qs on the other four. R4 does not refute B. R5 refutes, narrowly, and the window matters on every cell read:
+the ratio over all tiles understates the quietest decile's by 14–52 % a rung under x\* and 3–9 % at it, so B's
+sentence holds for the tiles' mix, not for the quiet band. R6 confines even the form to the volume it was read on.
+R7 leaves §1.1's last row a description of AV1 from x 4 only; below it the model over-predicts r by up to about 0.09.
+For VL-PAGE: D costs 0.26–0.59 of HTJ2K's bytes on the rungs read (C 0.48–0.77); the label's ratio at Q 8 is
+12–37 : 1 and does not split by depth as predicted.
+
 ## 6 · What the rows cannot decide (for the next queue; each names its cost)
 
 * **E, only noise removed:** the three tests of §3.3 on decoded samples. The streams are not committed; coding them
