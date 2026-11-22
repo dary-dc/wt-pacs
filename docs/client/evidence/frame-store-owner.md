@@ -93,7 +93,7 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
   the same series is told *another tab holds this series' cache* and fills from the downloader alone. **The writer is
   one setting**, the lab's `?writer=` (`lab/viewer/levers.js`; the product's page always uses the default):
   * `store` (**the default**; *changed 2026-10-30:* no writer, so no cache, is the default until the owner turns the
-    cache on, §The core, assembled): `client/viewer/store.js` from `claude/opfs-cache-fixes`, unchanged but for its
+    cache on, §The core, assembled): `client/view/store-worker.js` from `claude/opfs-cache-fixes`, unchanged but for its
     pointers: one packed file a series, its lock the tab's, evicting least recently opened series. The view worker
     starts it as a nested worker and hands it a copy of each frame, transferred (a `SharedArrayBuffer` sent to it is
     never collected there); it reads back through it.
@@ -112,7 +112,7 @@ shape, beside today's path and chosen by one setting, the page's own `?view=page
 
 **Held by** the viewer check, run by the gate under both views on both clients, filled with a cine and on demand, and
 under `worker` across tabs for each writer (`client/viewer/run_check.sh`), and by `client/view/controller.test.mjs`,
-`client/view/view.test.mjs`, `client/view/cache.test.mjs`, `client/viewer/store.test.mjs` and
+`client/view/view.test.mjs`, `client/view/cache.test.mjs`, `client/view/store-worker.test.mjs` and
 `client/transport/downloader.test.mjs`. Each check was mutated and its mutant failed:
 
 | claim | check | mutant |
