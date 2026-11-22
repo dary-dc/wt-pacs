@@ -1497,7 +1497,7 @@ the bar's per-round one is for REPORT-VERDICT-2 to weigh (§7.5 rule 1 counts ev
 
 **Read as measured, beyond the bar**: the median ratios split by **which decoder worker the arm loads**, not by
 carrier alone. BEACON (the fault bench's decoder as `off`) 0.98–1.05; KEEPALIVE (its wrapped decoder) 1.07–1.14;
-SESSION (its own downloader and wrapped decoder, `lab/report-arms/README.md` §SESSION) 1.22–1.30, ~30 ms a fill on a
+SESSION (its own downloader and wrapped decoder, `claude/report-arms:lab/report-arms/README.md` §SESSION) 1.22–1.30, ~30 ms a fill on a
 ~120 ms fill. The page thread's own cost of a report is under 2 ms a load in every arm (median 0.44–1.73 ms; §7.3
 predicted "well under a millisecond" for the call alone; this counts assembly, serialization and every send).
 
