@@ -154,6 +154,8 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
 ## Open (ordered)
 
 0. **The owner's decisions this harvest needs** (yes or no; each says what it changes):
+   Decisions 1–4 and 9 are on one decision page since 2026-11-22, [`../decisions/visually-lossless.md`](../decisions/visually-lossless.md)
+   (claim nothing, the label's facts, Q 8 as an interim picture; PR 420 behind it).
    1. *One bar of 1.03 for the noise anchor?* Yes: every 12-bit timed volume reads Q 8 and 10-bit DBT moves to Q 12–16
       (0.04–0.10 of HTJ2K), on the plateau where audit F4 says the noise may be gone. No (bar 1.00): `dbts_a1`, `a2`
       move to Q 4 (0.27–0.28).
