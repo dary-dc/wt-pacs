@@ -512,3 +512,34 @@ until the user restarts the device". §3's and cell 5's quotes match these, the 
 
 **Verdict: no blocker open.** Amendment 17 starts no fix loop. RUNNER-AUTO may start; the owner's call on cell 3's
 guard (a) or (b) and on the run commit's merges (§1) stays before the round.
+
+## Amendment, 2026-11-22: the short round (counts changed after pre-registration)
+
+*PHONE-TONIGHT, 2026-11-22, before any data of either round. The owner may run tonight a short round
+(`round_plan.mjs --bench-reps 1 --rounds 12 --pairs 1`; [`TONIGHT.md`](TONIGHT.md)) in place of §6's. The counts
+below were chosen after the rules above were written, so every verdict they give is* provisional*; the full round
+keeps §4's rules unchanged.*
+
+**Time** (*derived*, §6's per-load times plus the 15 s gap, which give the full round's 144 loads 130 min): cell 1
+~30 s a load, cell 2 ~42.5 s (C2's 35 s in one of four), cell 3 ~85 s, a warm-up ~40 s.
+
+| cell | full (§4) | short | loads | time | its verdict at the short count |
+| --- | --- | --- | ---: | ---: | --- |
+| 1 | 3 repetitions + drift | 1 repetition + drift | 12 | 6 min | each arm one 50-frame load: the saturation point, HTJ2K at 3 decoders and the drift check are read, *provisional* (no spread across repetitions) |
+| warm-ups | 4 | 4 (fixed) | 4 | 3 min | not counted |
+| 2 | 16 rounds, 13 of 16 | 12 rounds (6 a series, three Williams periods) | 48 | 34 min | B against A and C2 against A + B by the same rule at n = 12: **10 of 12** (two-sided p 0.039) and the median ≤ 0.95, *provisional* |
+| 3 | 24 pairs, ≥ 16 to decide | 1 pair | 2 | 3 min | **unreachable**: under 16 pairs every measure and both guards are *not decided*; the pair measures cell 3's own load time on the phone (§6's 70 s is *derived*) |
+| 4 | after the round | only if time is left | 1 | 10 min | decides nothing, as before |
+
+Counted loads ~43 min, the round ~46 min with the warm-ups.
+
+**Why this allocation.** Cell 3 decides most (the view), but its rule needs 16 pairs, ~45 min alone with no margin
+(one VOID pair leaves it undecided), so no 40-minute round reaches it: it is left to the full round. Cell 2 then gets
+the time. Its rounds come in Williams periods of four, alternating the series: 8 rounds would need 8 of 8 (the
+no-margin case the review's finding 3 named), 12 keep a margin of two. Cell 1 is cheap and carries LINK-TARGETS' number
+and the device model's refutation line (`claude/device-theory:docs/decode/mobile/device-model.md` §2: HTJ2K over 26 ms
+effective at 3 decoders), so it keeps every arm and the drift check at one repetition.
+
+**What the device model's §2 becomes at these counts**: cell 1's bands are read as written; cell 2's outcome *no
+difference shown* stands, with `dbts_b1` 6 of 6 below 1 and `dbts_a1` 0–2 of 6, so 6–8 of 12 against the 10 needed;
+*B faster* would need 4 or more of `dbts_a1`'s 6.
