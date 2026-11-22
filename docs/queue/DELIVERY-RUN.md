@@ -1,12 +1,12 @@
 state: started
 started: 2026-11-22T22:17Z
-heartbeat: 2026-11-22T22:37Z
+heartbeat: 2026-11-22T22:58Z
 outputs: claude/delivery (rows; docs/client/evidence/delivery-comparison.md §Results)
 ## Resume
-Done: setup (iproute2, meson 1.9.1, dockerd, fetch_data, ingest/tools.sh, cargo release builds); series.sh /home/user/S;
-K2 pushed (claude/delivery 44510d21, rows/K2.jsonl, 27 loads, every one VOID by the relay's guard: p99 4-14 ms under decode load;
-idle, link_impair_check.sh's self-timing p99 is 0.23 ms; 3 other checks of that script fail: GE delivered 6551/8000, the
-1200 kbit trace's survivors 13, two pairs at 4 Mbit 0.50 s). Running: lab/delivery/k3.sh /home/user/S lab/delivery/rows.
-Next: inputs.mjs + predict.mjs -> push predictions.json; §11 amendment on the guard (judged both ways) before any counted row;
-pilots; cells CLEAN, PUB, LTE, LOSS, CR (`node lab/delivery/run.mjs --cell C --series /home/user/S --predictions lab/delivery/predictions.json ...`).
+Done (claude/delivery): K2 44510d21; K3 + inputs.json + predictions.json (xxh3 e7d61c6d15ea6bdb) + §11 A1-A3 c9a44bd1.
+Series in /home/user/S (lab/delivery/series.sh /home/user/S; ~2 min). Setup as above (iproute2, meson, dockerd, ingest/tools.sh, cargo --release).
+Running: pilots CLEAN then PUB (`node lab/delivery/run.mjs --cell C --series /home/user/S --predictions lab/delivery/predictions.json --pilot`).
+Next: pilots LTE LOSS CR; push rows/*-pilot.jsonl; judge each pilot (writes *.pilot-medians.json); §11 A4 (the guard: VOID on every
+decode-load row here -> report as written and guard-waived) before CLEAN's first counted row; then counted cells CLEAN, PUB, LTE, LOSS, CR,
+one background job each (`--pilot-medians lab/delivery/rows/C-pilot.pilot-medians.json`), rows pushed every 15 min.
 ## Result
