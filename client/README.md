@@ -505,8 +505,11 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   said each frame checked `true` is also written to OPFS by a store worker (`viewer/store.js`); no product module
   loads that worker (`viewer/viewer.js`: `writer = lab.writer`), so it is written only under the lab's `?writer=`
   (*Where the frames are*, below). With a writer, a reopened series fills only what is not there, a frame on disk is
-  read back re-checked and asked again if it fails, and past 256 MiB the frames on disk farthest from the current one
-  leave memory ([`docs/client/evidence/cache-in-opfs.md`](../docs/client/evidence/cache-in-opfs.md) §Proposed: the client cache in OPFS). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
+  read back re-checked and asked again if it fails, and no frame leaves memory, writer or not. *Corrected 2026-11-22:*
+  this said "past 256 MiB the frames on disk farthest from the current one leave memory"; `view/store.js`'s
+  `FrameStore` takes a `budget` in frames, `Infinity` unless given, and neither `viewer/viewer.js` nor
+  `view/view-worker.js` gives one. The 256 MiB window is a proposal
+  ([`docs/client/evidence/cache-in-opfs.md`](../docs/client/evidence/cache-in-opfs.md) §Proposed: the client cache in OPFS), not built. A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
   there is no fill, and each step asks its frame, the newest ask alone kept: a step superseded while it waits on
   its cancel asks nothing.
 * **Where the frames are.** `?view=page` (the default) or `?view=worker`. Either way `view/controller.js` holds the
