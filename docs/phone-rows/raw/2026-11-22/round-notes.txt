@@ -1,0 +1,5 @@
+Phone and laptop in the same room. The laptop's cable goes to a Wi-Fi repeater in that room; the phone's Wi-Fi is
+very likely on that repeater (RSSI -27 dBm before the round). The repeater reaches the main router (living room)
+wirelessly. Path of the dial: phone -> Wi-Fi -> repeater -> cable -> laptop; the repeater-to-router link is not
+expected on it (a repeater bridges its Wi-Fi client to its own wired port locally): assumed, not checked.
+Distance in metres and walls: not measured (same room, no wall between phone and repeater).
