@@ -1,0 +1,6 @@
+rho=0.216 leg=12: allahead=0.00s  ahead34=0.00s  centred=0.00s  rule=0.03s
+rho=0.216 leg=20: allahead=0.50s  ahead34=0.50s  centred=0.87s  rule=1.24s
+rho=0.216 leg=40: allahead=3.40s  ahead34=3.40s  centred=3.77s  rule=4.14s
+rho=0.8 leg=12: allahead=0.00s  ahead34=0.00s  centred=0.00s  rule=0.00s
+rho=0.8 leg=20: allahead=0.00s  ahead34=0.00s  centred=0.00s  rule=0.00s
+rho=0.8 leg=40: allahead=0.00s  ahead34=0.00s  centred=0.05s  rule=0.10s
