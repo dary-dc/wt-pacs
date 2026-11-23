@@ -53,10 +53,12 @@ exact frame bit for bit, and only checked claims on screen.
   [`../client/evidence/navigation-memory.md`](../client/evidence/navigation-memory.md); findings, no fix): the page view's
   frames are `SharedArrayBuffer`s held on the page's thread, which V8 does not count toward collection, so after a
   navigation they stay resident: one renderer 1.6 → 4.1 GiB over four `dbts_b1` loads in headless Chromium 153, the
-  view worker flat; not the back/forward cache. The releases in reach are the view worker (VIEW-PAGE's call) or
-  transferred buffers on the page view (a copy each paint, and an unrun experiment's to adopt).
-  Reviewed 2026-11-23 (PR 434 §MEMORY-LEAK-TRACE-REVIEW): one blocker open, the phone's worker-view loads grew
-  as much as its page-view loads, so the cause holds for the cloud page view only until MEMORY-LEAK-TRACE-FIX.
+  view worker flat in the cloud; not the back/forward cache. The cause is established for the cloud page view only:
+  on the phone the loads after its two worker-view loads grew +1 452 and +1 528 MiB, where the same order in the
+  cloud (`dbts_b1-q8-g8`) adds +7 and −43, so the phone's growth there is unexplained (the URL's view not proof of
+  what ran, hardware decode; PHONE-READ-CODE-CHECK open). The releases in reach are the view worker (VIEW-PAGE's
+  call) or transferred buffers on the page view (a copy each paint, and an unrun experiment's to adopt).
+  Reviewed 2026-11-23 (PR 434 §MEMORY-LEAK-TRACE-REVIEW, one blocker); fixed the same day (MEMORY-LEAK-TRACE-FIX).
 * **D0's hardware-decode probe** on `claude/hw-probe` (`lab/devices/`, row HW-PROBE-PAGE): built, headless test
   green in Chromium 153 on software paths only (2026-11-14); draft PR #393, reviewed 2026-11-15 (its body §Review):
   every RGB copy and WebGL2 read there fits studio-range expansion even where the frame says `fullRange: true`, so

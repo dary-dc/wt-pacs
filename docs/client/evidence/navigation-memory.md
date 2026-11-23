@@ -53,7 +53,7 @@ add about 0 (§2.1 measures that order: +7 and −43 MiB; load 26 adds one serie
 loads' uncollected ones). The phone grew +1 452 and +1 528 there, and every step is larger than one decoded series
 (812.5 MiB, §2). Open explanations, none checked:
 
-* the `view` field is the URL's request (`lab/devices/beacon.js`, `q.get("view") ?? "page"`), not proof that the
+* the `view` field is the URL's request (`claude/phone-run:lab/devices/beacon.js` line 58, `q.get("view") ?? "page"`), not proof that the
   view worker ran; PHONE-READ-CODE-CHECK, which checks the code each load ran, is not done;
 * the phone decoded the view in hardware (`c2.qti.av1.decoder` in its logcat), the cloud in software: buffers the
   hardware path holds are not the page's `SharedArrayBuffer`s;
