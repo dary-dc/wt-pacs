@@ -61,7 +61,8 @@ exact frame bit for bit, and only checked claims on screen.
   quoted and shown stale; 160.0.8173.0 named pre-release; WebKit WebTransport runtime-gated on 26, unconditional
   from 27; `createWritable`'s two settings). ENGINE-REVIEW-FIX-REVIEW, 2026-11-21 (PR 410's body §Re-review): B1 closed, every
   corrected cell matches the raw rows, the four sources re-fetched verbatim, nothing else changed; three nits, one
-  outside the fix (Chromium's cell-6 file holds two interleaved D1 runs, two loads of one failing to open). Next, ENGINES-PAGE.
+  outside the fix (Chromium's cell-6 file holds two interleaved D1 runs, two loads of one failing to open). ENGINES-PATH-FIX, 2026-11-23: `engines-smoke/c7-webkitgtk-cache-probe.log` lines 2
+  and 3 redacted, a container path made relative to the repository, for `scripts/check_personal_paths.sh`. Next, ENGINES-PAGE.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
