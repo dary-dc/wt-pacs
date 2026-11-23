@@ -1,7 +1,7 @@
 state: done (one blocker open; amendment 17 rows MEMORY-LEAK-TRACE-FIX and -FIX-REVIEW appended)
 started:2026-11-23T02:47Z
 heartbeat: 2026-11-23T02:51Z
-outputs: findings in PR 434's body §MEMORY-LEAK-TRACE-REVIEW (claude/memory-on-navigation at a462542a8; no commit to it)
+outputs: findings in PR 434's body §MEMORY-LEAK-TRACE-REVIEW (reviewed at a462542a8); line doc note 5ced2b4b2 on claude/memory-on-navigation
 ## Resume
 Done: PR 434 read at a462542a8; minimal rig re-run; V8 source fetched at a pinned revision; phone raw rows read; review in PR body; fix rows appended.
 Next: none (MEMORY-LEAK-TRACE-FIX takes B1, m1-m8).
