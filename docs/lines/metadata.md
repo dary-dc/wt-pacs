@@ -31,6 +31,7 @@ layout is our input contract. Depth over breadth; theory and a pre-registered me
   *Reconciled 2026-11-20* ([`rsync-updates.md`](../ingest/rsync-updates.md) §6.1): the bridge as above; #223's
   pre-registered rule on #234's own estimates gives E (P4) on satellite and on rural ADSL if rsync's file list
   compresses to ≤ 0.6× (M-R2, not run), else P3 there (*derived*). Neither compared the kept mirror.
+  *Reviewed 2026-11-23* (PR 417 §SYNC-RECONCILE-REVIEW): two blockers open; P4's conditions are restated by its fix.
 * **Layout:** the PCS's code and its design document agree at exam and series, disagree below; following the code
   now (A) is recommended, the design document's target is B. Not chosen.
 * The 2026-10-28 night items in the logs are leanings, not decisions.
