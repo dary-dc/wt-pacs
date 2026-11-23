@@ -48,9 +48,10 @@ each `after-k` snapshot of `resources.jsonl`; each load's view from `beacon.json
 | 27 | 2, A | worker | 6 052 | +1 452 |
 | 28 | 2, A | page | 7 580 | +1 528 |
 
-Under the cloud's cause a worker-view load leaves nothing behind, so the step after load 26 or 27 would add about 0
-whichever side of its document's end the snapshot fell; both grew as much as the steps after page loads, and every
-step is larger than one decoded series (812.5 MiB, §2). Open explanations, none checked:
+Under the cloud's cause a worker-view load leaves nothing behind once its document ends, so loads 27 and 28 would
+add about 0 (§2.1 measures that order: +7 and −43 MiB; load 26 adds one series, its own frames beside the page
+loads' uncollected ones). The phone grew +1 452 and +1 528 there, and every step is larger than one decoded series
+(812.5 MiB, §2). Open explanations, none checked:
 
 * the `view` field is the URL's request (`lab/devices/beacon.js`, `q.get("view") ?? "page"`), not proof that the
   view worker ran; PHONE-READ-CODE-CHECK, which checks the code each load ran, is not done;
@@ -59,7 +60,8 @@ step is larger than one decoded series (812.5 MiB, §2). Open explanations, none
 * the measures differ: the phone's is one process's RSS + swap, the cloud's PSS (`smaps_rollup`), and the phone's
   worker loads began with loads 24 and 25's frames still held, which a collection during them would have freed.
 
-§2.1 runs the phone's order on its fixture in the cloud, so the next phone round's snapshots can tell these apart.
+§2.1 runs the phone's order on its fixture in the cloud: there loads 27 and 28 add about nothing, so the phone's
+growth at those loads is not the cloud's cause.
 
 ## 2. The rows (*measured*)
 
@@ -89,6 +91,39 @@ the back/forward cache off (Playwright's default) matched the page arm (1 596, 2
 collection after each row (`HeapProfiler.collectGarbage` over CDP) brought the page arm back to one load
 (1 673, 1 570, 1 577, 1 726 MiB). *Corrected 2026-11-23 (PR 434's review, m3):* those two runs' rows were not kept;
 the numbers are as noted at the time. §2.1 repeats both, kept.
+
+### 2.1 The phone's order on the phone's fixture, in the cloud (*measured*, MEMORY-LEAK-TRACE-FIX)
+
+Fixtures and limits: `dbts_b1-q8-g8` (AV1, Q 8, G 8: the phone's arm A, `plan.json`) with `dbts_b1`, built in this
+container by `scripts/demo-series.sh`'s two lines for them; the rest as §2 (headless Chromium 153, software decode,
+one 4-core/15 GiB container, loopback; not a phone, no hardware decode). Each arm six loads in one browser, two
+rounds, the arm order reversed in the second (ABCD DCBA), not interleaved load by load
+(`lab/viewer/rows/navigation-memory-g8.jsonl`). PSS of the one renderer, MiB:
+
+| arm | load 0 | 1 | 2 | 3 | 4 | 5 |
+| --- | --- | --- | --- | --- | --- | --- |
+| the phone's order (page, page, worker, worker, page, page), round 1 | 1 549 | 2 395 | 3 240 | 3 247 | 3 204 | 1 564 |
+| the same, round 2 | 1 621 | 2 397 | 3 242 | 3 177 | 3 180 | 1 610 |
+| worker, round 1 | 1 597 | 1 682 | 1 544 | 1 598 | 1 627 | 1 587 |
+| worker, round 2 | 1 551 | 1 558 | 1 592 | 1 598 | 1 600 | 1 632 |
+| page, back/forward cache off, round 1 | 1 574 | 2 448 | 3 165 | 3 986 | 4 830 | 1 611 |
+| page, back/forward cache off, round 2 | 1 474 | 2 397 | 3 240 | 4 036 | 4 852 | 5 648 |
+| page, after a forced collection, round 1 | 1 525 | 1 601 | 1 603 | 1 558 | 1 580 | 1 605 |
+| page, after a forced collection, round 2 | 1 598 | 1 651 | 1 604 | 1 579 | 1 629 | 1 606 |
+
+(The forced-collection rows are each load's `afterGc`; before it they read 2 377–2 470 MiB from load 1 on: the
+current load plus the one before, which the collection frees.) Every `pagehide` reported `persisted: false`.
+
+Read against the phone's steps of §1.1 (24–28: +743, +1 577, +1 240, +1 452, +1 528):
+
+* **The cloud's order steps** +846, +845, +7, −43 MiB (round 1; round 2 +776, +845, −65, +3). The first worker load
+  grows by one series because the snapshot holds that load's own frames, in its live worker, beside the page loads'
+  shared frames not yet collected; the second worker load and the page load after it add about nothing. (PR 434's
+  review expected about 0 at 26 too; the cause predicts one series there.)
+* **The phone grew +1 452 and +1 528 at 27 and 28**, where the cause predicts about 0. That growth is not explained by
+  the cloud's cause, which leaves §1.1's open explanations; the next phone round's snapshots, with a fresh renderer
+  per load (amendment 28 item 8) or the same order kept, tell them apart.
+* The back/forward cache off grows as §2's page arm, past 5.6 GiB over six loads in round 2 before any collection.
 
 ## 3. The minimal page (*measured*)
 
@@ -144,5 +179,6 @@ nothing on Chromium). The bound's effect on the phone's memory needs transferred
 ```bash
 scripts/demo-pair.sh demo-series dbts_b1-q8-g16      # after scripts/demo-series.sh, or its dbts_b1 lines alone
 NODE_PATH=$(npm root -g) node lab/viewer/navigation-memory.mjs 6 [--view worker] [--gc] [--bfcache off] [--json]
+NODE_PATH=$(npm root -g) node lab/viewer/navigation-memory.mjs 6 --view page,page,worker,worker,page,page --json   # §2.1, on dbts_b1-q8-g8
 NODE_PATH=$(npm root -g) node lab/viewer/navigation-memory-minimal.mjs sab main
 ```
