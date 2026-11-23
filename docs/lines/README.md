@@ -27,6 +27,4 @@ P4, I2, I3 and R1 are cited from here only.
 "Last verified" is the newest date the line's state was checked; "branches" means only the branch and PR state was
 read again on that date, not the line's findings.
 
-What the product is: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. Every line shares one direction: most sessions at the lowest cost, low latency and fast fills, for mobile on lossy
-wireless; the exact frame bit-exact; breast imaging first. The PCS (the separate service that receives, parses and
-encodes studies) is upstream: our scope starts at the PACS, and the PCS's directory layout is our input contract.
+What the product is and the direction every line shares: [`../../README.md`](../../README.md) §Purpose.

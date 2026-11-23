@@ -2,6 +2,14 @@
 
 WebTransport PACS — web-native medical imaging transport (MIT).
 
+## Purpose
+
+wt-pacs lets a radiologist open a breast DBT or ultrasound study in a web browser — on a phone over unreliable
+wireless as well as on a workstation — and start reading sooner than today's web viewers allow: a fast first
+picture, a fast full fill, and low latency on every jump. Every frame the reader asks to see exactly is the
+original, bit for bit, and checked. It does this at the lowest server and network cost per reading session, as
+one small MIT-licensed server. Its input is what the PCS delivers; the PCS itself is out of scope.
+
 ## Prerequisites
 
 Linux on x86-64 (the server's read path uses io_uring; the pinned `wasm-opt` is x86-64), Rust 1.88 or newer
