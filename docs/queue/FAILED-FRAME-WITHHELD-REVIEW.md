@@ -1,10 +1,11 @@
 state: started
 started: 2026-11-23T10:27Z
-heartbeat: 2026-11-23T10:27Z
+heartbeat: 2026-11-23T10:29Z
 outputs: PR 438 body §FAILED-FRAME-WITHHELD-REVIEW (pending)
 ## Resume
-Claimed. Next: read PR 438 (claude/failed-frame-withheld) against its brief (amendment 28), revert the fix under its
-tests, mutate, gate; findings into PR 438's body. Skipped above it: SYNC-RECONCILE-REVIEW-FIX-REVIEW (its input moved
-10:19, under 20 minutes), BRIEF-1127 (the closing brief; it runs by its latest, 23:00, after PROGRAM-CLOSE),
-DOCS-SYNC-1123 and -1123-LATE (not before 12:00, amendment 27 item 4).
+Read: PR 438 diff (claude/failed-frame-withheld c319d4035 vs merge base). Tests fail on the base code with the tip's
+tests (3 of 40); hand mutants M1-M6 on store.js/controller.js all killed. Candidate B1: a lost ask whose re-dials ran out
+("the session was lost and could not be re-dialled", downloader.js resume()) is withheld for the session, every wanted
+frame with it. Next: gate (`cd /tmp/ffw && scripts/gate.sh --quick`), check_links, comment budget; then PR 438 body
+§FAILED-FRAME-WITHHELD-REVIEW via mcp__github__update_pull_request, append -FIX rows if a blocker stands.
 ## Result
