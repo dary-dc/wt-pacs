@@ -37,7 +37,7 @@ after it), not fetched. The minimal page of §3 shows the same with none of the 
 
 `claude/phone-run:docs/phone-rows/raw/2026-11-22/round/`: RSS + VmSwap of renderer `SandboxedProcessService0:85` in
 each `after-k` snapshot of `resources.jsonl`; each load's view from `beacon.jsonl`; arm A's URL from `plan.json`
-(`?overlay=1&view=page|worker`, series `dbts_b1-q8-g8`, no other option).
+(`?overlay=1&view=page|worker&beacon=cubic-restart`, series `dbts_b1-q8-g8`).
 
 | load | cell, arm | view (the URL's) | RSS + swap (MiB) | change |
 | --- | --- | --- | --- | --- |
@@ -50,8 +50,8 @@ each `after-k` snapshot of `resources.jsonl`; each load's view from `beacon.json
 
 Under the cloud's cause a worker-view load leaves nothing behind once its document ends, so loads 27 and 28 would
 add about 0 (§2.1 measures that order: +7 and −43 MiB; load 26 adds one series, its own frames beside the page
-loads' uncollected ones). The phone grew +1 452 and +1 528 there, and every step is larger than one decoded series
-(812.5 MiB, §2). Open explanations, none checked:
+loads' uncollected ones). The phone grew +1 452 and +1 528 there, and every step from load 25 on is larger than one decoded
+series (812.5 MiB, §2). Open explanations, none checked:
 
 * the `view` field is the URL's request (`claude/phone-run:lab/devices/beacon.js` line 58, `q.get("view") ?? "page"`), not proof that the
   view worker ran; PHONE-READ-CODE-CHECK, which checks the code each load ran, is not done;
@@ -98,7 +98,10 @@ Fixtures and limits: `dbts_b1-q8-g8` (AV1, Q 8, G 8: the phone's arm A, `plan.js
 container by `scripts/demo-series.sh`'s two lines for them; the rest as §2 (headless Chromium 153, software decode,
 one 4-core/15 GiB container, loopback; not a phone, no hardware decode). Each arm six loads in one browser, two
 rounds, the arm order reversed in the second (ABCD DCBA), not interleaved load by load
-(`lab/viewer/rows/navigation-memory-g8.jsonl`). PSS of the one renderer, MiB:
+(`lab/viewer/rows/navigation-memory-g8.jsonl`; its rows do not record the series served, which is known from this
+paragraph only). The rig's URL is `?view=…&load=k` (every row `opts: null`): not arm A's, which adds `overlay=1` and
+`beacon=cubic-restart`; neither the overlay's text nor the lab beacon is expected to hold a series (*theory*, not
+measured). PSS of the one renderer, MiB:
 
 | arm | load 0 | 1 | 2 | 3 | 4 | 5 |
 | --- | --- | --- | --- | --- | --- | --- |
