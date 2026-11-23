@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-23 (stale client code), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -123,11 +123,18 @@ exact frame bit for bit, and only checked claims on screen.
   wire-bound below ~470–660 if its unmeasured phone decode keeps the cloud's ratio; that decode is the first phone cell.
 * dav1d fetched only where WebCodecs refuses (a protocol with an A/A arm, not started); a wake before `l` asks (its
   phone row); the WebGL painter on a real GPU (the owner's machine); Firefox and WebKit.
+* **Stale client code** (STALE-CODE, 2026-11-23, `claude/stale-code`): measured in headless Chromium, a page opened
+  again runs a module older than the one served; `dev-server.py --revalidate` for the device round; the product's
+  two ways out cost round trips or a structural change, so they wait for the owner
+  ([`../client/evidence/stale-client-code.md`](../client/evidence/stale-client-code.md)).
 * Each of the view worker's open questions ([`../client/design.md`](../client/design.md) §Open) has its deciding run
   in its evidence file; none is queued.
 
 ## Waits for the owner
 
+Whether the product's modules are revalidated on every open (`no-cache`, one line) or served under a build key, now
+that a browser can run older client code than the server serves for a tenth of the build's age (2026-11-23,
+[`../client/evidence/stale-client-code.md`](../client/evidence/stale-client-code.md)).
 Any merge, close or removal (the frame clock's: `git revert 24b80bcd`, [`coordination.md`](coordination.md) §Open 7);
 which view is the target; the contradictions the fold left open ([`../client/design.md`](../client/design.md) §Open: the
 stride ADR against never skipping, the cache file's questions 3 and 4); the coded-bytes digest; turning the cache or telemetry on, and telemetry's rate, sink and retention; a series
