@@ -5,7 +5,8 @@ outputs: claude/phone-run 618dd9cd (docs/phone-rows/raw/2026-11-22/, 2110 files 
 ## Resume
 Done. PHONE-READ reads claude/phone-run:docs/phone-rows/raw/2026-11-22/ (round/ = target/round, plan.json, beacon.jsonl,
 out/; the rest plan: plan-rest.json, beacon-rest.jsonl, out-rest/, resources-rest.jsonl, steps 0-3 = loads 140-143).
-Cell 3 and the memory bound are queued by the coordinator; cell 3 needs another evening.
+The memory bound is queued by the coordinator. Cell 3 ran the same night, complete: PHONE-ROUND-3D.md
+(raw rows claude/phone-run f96e38a9, 48 of 48, with the beacon fix f5252051).
 ## Result
 * The round (run commit 3dbe295a3, RUN_CODE a8927df1; started ~19:27Z, stopped 20:08Z): 96 verdicts in all.
   Cell 1: 24 + 4 drift = 28, all ok. Cell 2: 68 (64 + 4 warm-ups), 66 ok, 2 VOID (loads 28 A 4.6 s, 29 B 2.0 s).
@@ -20,9 +21,13 @@ Cell 3 and the memory bound are queued by the coordinator; cell 3 needs another 
   and never acted (relaunch.jsonl empty): no relaunch happened. (3) Facebook, Instagram, WhatsApp force-stopped
   (am force-stop) before the round, the owner's choice. (4) Node ran with the data folder mounted too (demo-series
   is a symlink outside the worktree). (5) One adb memory read during load 96, to find the dead page.
-* Cell 3's lost records: not the relaunch (above). Hypothesis, not checked: leave()'s recorder.flush calls
-  navigator.sendBeacon, whose false return is ignored (lab/devices/beacon.js:6); in the dry run the same records
-  (~24 KB a load) arrived. The dev server's own output is discarded by round.py, so a 400 cannot be seen.
+* Cell 3's lost records: not the relaunch (above). leave()'s recorder.flush called navigator.sendBeacon, whose false
+  return was ignored (lab/devices/beacon.js:6); the dry run's --quick cell 3 made ~24 KB a load and arrived. Confirmed
+  in PHONE-ROUND-3D (corrected in place, 2026-11-22): a full-size end batch measured 88,438 bytes, over the keepalive
+  quota; with the batch POSTed and awaited, 48 of 48 arrived.
+* Owed check on this round's own loads: Chrome's HTTP cache served older lab code than the served tree in
+  PHONE-ROUND-3D, and round.py's HEAD check does not reach the page; whether tonight's loads ran 3dbe295a3's
+  client and lab code is not established (PHONE-ROUND-3D.md, Result).
 * Before/after: thermal 0 -> 1, battery 63 -> 83 % (USB charging), MemAvailable 3.1 -> 3.5 GB; round-*-before.txt
   (the round), round-*-before-dry.txt (the dry run), round-*-after.txt, round-meminfo-*.txt. Wi-Fi 5 GHz, RSSI -29.
 * resources.jsonl: 97 snapshots (start + after each load), resources-rest.jsonl 5; each about 0.46 s of adb in the
