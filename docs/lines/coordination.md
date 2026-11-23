@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23.
 
 ## Goal
 
@@ -127,6 +127,10 @@ small enough that every open item has an owner and a next step.
    in the status line, which README prints only once UNIFIED-PAGE finds §5's seven conditions met; FINAL-STATE-FIX-REVIEW next.
    FINAL-STATE-FIX-REVIEW (2026-11-23, the page's §Re-review): B1, B2 and m1–m6 closed, S15's PS3.8, S17 and S18
    re-fetched and verbatim; no blocker open, three nits (n1–n3); UNIFIED-PAGE's need met; the owner's yes or no on both names due.
+   UNIFIED-PAGE (2026-11-23, [`../decisions/unified-to-main.md`](../decisions/unified-to-main.md)): read, plus one test
+   merge of 20 branches onto `4a2b4277f` (conflicts only in line docs, and 419 against 418 in `demo-check.mjs`); the
+   seven conditions checked at the tip: 1, 2, 3 and 5 not met, 4 partly, 6 met for the track, 7 not checked; six
+   yes-or-no calls for the owner, four phase-2 rows before the evaluation release's PR into `main`.
 
 ## Unification (the owner, 2026-11-09)
 
