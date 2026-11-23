@@ -77,7 +77,7 @@ and the cloud's measured fills (B ÷ A 2.5–18.4), not by the model, which miss
 
 | arm | bytes a session (against B) | storage on the server | what the reader sees | checked |
 | --- | --- | --- | --- | --- |
-| A | 0.0686, 0.2161, 0.089 at Q 8 (**measured**); 0.10–0.28 at the noise rule's Q (**derived**); 4.6–14.6× fewer than B over 19 volumes (**source**, `payload-format.md`) | both forms: 1.07–1.22× B's at Q 8, 1.10–1.28× at the rule's Q (**derived**) | a lossy view, labelled lossy AV1 and its ratio ([`visually-lossless.md`](visually-lossless.md)) | in software; **unchecked when hardware decodes it** (the owner, 2026-11-23 ~02:00) |
+| A | 0.0686, 0.2161, 0.089 at Q 8 (**measured**); 0.10–0.28 at the noise rule's Q (**derived**); 4.6–14.6× fewer than B (**derived**: 1 ÷ the three volumes' Q 8 ratios) | both forms: 1.07–1.22× B's at Q 8, 1.10–1.28× at the rule's Q (**derived**) | a lossy view, labelled lossy AV1 and its ratio ([`visually-lossless.md`](visually-lossless.md)) | in software; **unchecked when hardware decodes it** (the owner, 2026-11-23 ~02:00) |
 | B | 1 | B's alone | the original | every frame, bit for bit |
 | C1 | A's + 1.02–2.15 MB a pressed frame | both forms | the view, the original on request | the exact frame, bit for bit |
 | C2 | A's + B's: 1.07–1.22× B's | both forms | the view, then the original everywhere | every exact frame |
@@ -143,7 +143,7 @@ phase 2).
 ## 5 · The mechanism
 
 A fill ends when the later of two clocks ends: the wire (bytes ÷ goodput, after a start of a few round trips) and the
-decode (frames × a frame's decode ÷ decoders). The view has 4.6–14.6× fewer bytes and a slower decode a frame; the exact
+decode (frames × a frame's decode ÷ decoders). The view has 4.6–14.6× fewer bytes (three volumes) and a slower decode a frame; the exact
 series the reverse. So on a slow or far link the wire binds both and the view, with its fewer bytes, wins; on a fast
 clean link the wire stops binding and the exact series, whose frames decode faster, wins once the link's goodput
 passes *G*★ = (the exact series' bytes less the view's first group) ÷ the view's decode floor. A phone's slower decode

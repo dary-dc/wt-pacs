@@ -57,10 +57,10 @@ All numbers **measured** on Chromium 153 headless, one 4-vCPU container, unless 
 | --- | --- | --- | --- | --- | --- | --- |
 | BEACON-H | every ending | 54/90 | 1.052 | 0/18 | page thread, ~51 ms | ~2.2 KB |
 | BEACON-Y | every ending | 90/90 | 0.976 (not told from `off`: sign test p 1.0, **derived**) | 1/18 | 50.84 ms | 2 647 B |
-| KEEPALIVE-H | every ending | 54/90 | 1.137 (+16.7 ms, p 0.001, **derived**) | 0/18 | worker, 2–9 ms | ~2.2 KB |
+| KEEPALIVE-H | every ending | 54/90 | 1.137 (+16.7 ms, p 0.001, **derived**) | 0/18 | worker, 2.46 ms (3.25 its largest round) | ~2.2 KB |
 | KEEPALIVE-Y | every ending | 90/90 | 1.072 (+9.2 ms, p 0.03, **derived**) | 3/18 | 2.46 ms | 2 649 B |
 | SESSION-1, -Y, -H | **0/18 in D8** (no session opened) | -1 and -Y in every load; -H fails the load bar (D1 0/18, D7 1/18) | 1.217–1.303 (+26 to +38 ms) | 0–1/18 | worker | ~2.65 KB |
-| `off′` (the A/A copy of `off`) | every ending | — | 0.989 | **3/18** | — | — |
+| `off′` (the A/A copy of `off`) | every ending | — | 1.013 (per-round median, as the column; 0.989 is the ratio of the medians) | **3/18** | — | — |
 
 | receiver | at 100 reports a second (R, 6 rounds, 1.7 KB bodies) | bar 5 % of a core | what it adds |
 | --- | --- | --- | --- |

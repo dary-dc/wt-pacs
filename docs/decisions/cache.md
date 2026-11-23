@@ -94,9 +94,10 @@ Whatever item 2 shows about IndexedDB's PSS, and item 5 about Cache Storage's er
 
 **Why an unjudged round should VOID the cell** (decision 3). A cell's rounds are one whole Williams period, so every
 arm follows every other equally often (§8.2). A round dropped from the judgement unbalances the period for every arm.
-"≥ 75 % of rounds" is also defined on the whole period (≥ 5 of 6, 9 of 12). **Measured here:** 0 of 66 `none` rounds
-errored in the counted L and B cells on either engine (`rows/<engine>/{L,B}-*.jsonl`; every summary's `unjudged` is
-empty), so the rule moves no verdict of this run. It binds the next one.
+"≥ 75 % of rounds" is also defined on the whole period (≥ 5 of 6, 9 of 12). **Measured here:** 0 of 72 `none` rounds
+(36 an engine) errored in the counted L and B cells (`rows/<engine>/{L,B}-*.jsonl`; 0 of 96 with the two
+`L-*-4x-none` cells); only the L cells' summaries carry `unjudged`, empty in each, and B's rows have no summary
+(corrected 2026-11-23, `README.md` §Review m1), so the rule moves no verdict of this run. It binds the next one.
 
 ## 6 · What would change the recommendation
 
