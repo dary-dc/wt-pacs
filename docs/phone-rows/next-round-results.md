@@ -15,7 +15,7 @@ room (RSSI −29 dBm before the round and −22 after, −27 before the dry run:
 calls the dry run's −27 the round's), through a repeater wired to the serving laptop (`round-notes.txt`), one
 laptop serving, one evening. Two DBT volumes of one dataset: `dbts_b1` (50 frames) and `dbts_a1`'s cut (56), each as
 the view (`-q8-g8`, AV1) and as its exact HTJ2K series. No breast ultrasound; no other phone, link or engine. Run
-commit `3dbe295a3` (RUN_CODE `a8927df1`). Software decode throughout cells 1–2 (no AV1 component in any load's
+commit `3dbe295a3` (RUN_CODE `a8927df1`); which code each load ran: §Which code each load ran. Software decode throughout cells 1–2 (no AV1 component in any load's
 `logcat`). The thermal status read 0 through load 28 and 1 from load 29 to the end (`resources.jsonl`). The server's
 first and last byte were not recorded, so no load has a measured wire time; *G* below is a lower bound.
 
@@ -33,6 +33,43 @@ first and last byte were not recorded, so no load has a measured wire time; *G* 
   (PHONE-ROUND-3D, 48 loads): read in §Cell 3.
 * **Cell 4**: one row (`probe/rows/`, quick mode). **Cell 5**, the report cells and M1–M22 were not in the run
   commit (`SATURDAY.md`) and did not run.
+
+## Which code each load ran
+
+*PHONE-READ-CODE-CHECK, 2026-11-23, by a session that wrote none of this file, the tools or the run branch. Owed
+because Chrome's HTTP cache served older lab code than the served tree in PHONE-ROUND-3D, and `round.py`'s `HEAD`
+check reaches the server, not the page. Read from `raw/2026-11-22/round/beacon{,-rest}.jsonl` at `618dd9cd` and
+`raw/2026-11-22-cell3/cell3-run/beacon-cell3.jsonl` at `85326fd3`, against the 2026-11-11 round's run commit
+`962226e8`.*
+
+**Every load ran code newer than the 11-11 round's, and none is set apart.** 101 loads of the round (steps 0–96 and
+the rest plan's 140–143) and PHONE-ROUND-3C's 2 each carry all four markers that apply to them; no result above
+changes (*measured*). The markers are fields that only the named commit's code writes:
+
+| marker | written by, from | loads that carry it |
+| --- | --- | --- |
+| `decoders` and `cores` on every record | `round-page.js` and `beacon.js`, `def86ef44` (11-18), each file's last change before `3dbe295a3` | 103 of 103 |
+| each frame's `route` (the 11-11 code names it `path`), in `bench`, `load` and `exactFill` frames | `decoder.js`, `htj2k.js`, `av1.js` and, for `load` frames, `controller.js`'s `about()`, `a5c086a4e` (11-12) | 103 of 103 that have frames |
+| each `bench` frame's `start` | `bench.js`, `4a3606285` (11-18), its last change | 28 of 28 cell-1 loads |
+| a `lossless` record on every C1 load | `round.mjs`, `95f7d3709` (11-18), its last change | 16 of 16 |
+
+So `beacon.js`, `round-page.js`, `bench.js` and `round.mjs` ran exactly as at `3dbe295a3`. `decoder.js`, `htj2k.js`,
+`av1.js` and `controller.js` ran code from `a5c086a4e` or later, and `lab/viewer/levers.js` code from `4e15708be`
+(11-15) or later, since every record has its `step` and `cell`. None of these is the 11-11 code, though the rows
+cannot tell those versions from later ones. *Derived* from the page's module graph at `3dbe295a3` (40 files, from
+`client/viewer/index.html` through every import and worker): 22 differ from `962226e8` and 7 are new. Of these 29,
+9 are covered above. `check-page.js` and `check-view.js` run only under `?check`, which the round did not use. The
+other 18 leave no field in the rows, so their version is **not established**: `viewer.js`, `head.js`, `screen.js`,
+`pair.js`, `client/viewer/store.js`, `view.js`, `view-worker.js`, `cache.js`, `painter.js`, `paint-worker.js`,
+`voi.js`, `consumer.js`, `downloader.js`, `ts/dist/session.js`, `av1-webcodecs.js`, `av1-frame.js`, `av1-payload.js`
+and `lab/viewer/hooks.js`. `index.html` and the JSON files cannot be stale: the dev
+server sends `Cache-Control: no-cache` for `text/html` and `application/json` (`server/dev-server.py` at
+`3dbe295a3`, `REVALIDATED`). JavaScript gets no such header.
+
+Check, repeatable from the rows: each marker is tested per load id; four mutants of the rows (one load's `route`
+renamed `path`; one load's `decoders` removed; one bench load's `start` removed; C1's `lossless` records dropped) each
+fail the check. Limits: one phone, one evening's loads; a marker shows that a module's code ran at or after its
+commit, not that every module did.
 
 ## Cell 1 · decode per frame (`dbts_b1`, 50 frames in memory)
 

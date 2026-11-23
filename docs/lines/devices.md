@@ -38,6 +38,11 @@ busy cine, 24 of 24 pairs: 0 against a median of 7 of 100 dropped, difference âˆ
 *no difference* (10 of 24), and so does everything else. Guard (a) does not bind; it is an *assumption*. It was read
 with a fresh Chrome per load, at lab-only `f5252051`, restarted at K=16. A review (by another session) is owed.
 
+**2026-11-23, which code each load ran** (PHONE-READ-CODE-CHECK, the results file's Â§Which code each load ran): all 103
+loads of the round and PHONE-ROUND-3C carry fields that only post-11-11 code writes (`route`, `decoders`, `start`, C1's
+`lossless`). The four round scripts ran as at `3dbe295a3`; none is set apart, and no result changes. 18 changed client
+modules leave no field, so their version is not established. A review (by another session) is owed.
+
 The next round's path, in order:
 
 ```text
