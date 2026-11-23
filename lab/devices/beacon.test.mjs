@@ -1,6 +1,6 @@
 /** node lab/devices/beacon.test.mjs — what the beacon sends, and when. */
 import assert from "node:assert/strict";
-import { recorder } from "./beacon.js";
+import { postBatch, recorder } from "./beacon.js";
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -117,6 +117,20 @@ test("drain awaits one post of the whole batch; a failed post falls back to the 
   f.record("verdict", { ok: false });
   await f.drain();
   assert.deepEqual(fallback.at(-1).map((x) => [x.kind, x.path, x.why]), [["verdict", undefined, undefined], ["drain", "sendBeacon", "TimeoutError"]]);
+});
+
+/** The post answers `null` only when the server took the batch: a refusal names its status and a failed fetch its error. */
+test("postBatch is null only on a 2xx, else why", async () => {
+  const real = globalThis.fetch;
+  try {
+    const answers = [new Response(null, { status: 204 }), new Response(null, { status: 400 }), Promise.reject(new DOMException("t", "TimeoutError"))];
+    const asked = [];
+    globalThis.fetch = (url, init) => (asked.push({ url, init }), Promise.resolve(answers.shift()));
+    assert.deepEqual([await postBatch("[]", 5000), await postBatch("[]", 5000), await postBatch("[]", 5000)], [null, "HTTP 400", "TimeoutError"]);
+    assert.deepEqual([asked[0].url, asked[0].init.method, asked[0].init.body, asked[0].init.signal instanceof AbortSignal], ["/lab/beacon", "POST", "[]", true]);
+  } finally {
+    globalThis.fetch = real;
+  }
 });
 
 let failed = 0;

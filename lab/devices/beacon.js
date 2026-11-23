@@ -5,7 +5,7 @@ export const BEACON_PATH = "/lab/beacon";
 const epochMs = () => performance.timeOrigin + performance.now();
 const sendBeacon = (body) => navigator.sendBeacon(BEACON_PATH, new Blob([body], { type: "application/json" }));
 /** `null` once the server took the batch, else why not. */
-const postAwaited = (body, ms) => fetch(BEACON_PATH, { method: "POST", headers: { "content-type": "application/json" }, body, signal: AbortSignal.timeout(ms) })
+export const postBatch = (body, ms) => fetch(BEACON_PATH, { method: "POST", headers: { "content-type": "application/json" }, body, signal: AbortSignal.timeout(ms) })
   .then((r) => (r.ok ? null : `HTTP ${r.status}`), (e) => e?.name ?? String(e));
 const DRAIN_MS = 5000;
 
@@ -13,8 +13,8 @@ const DRAIN_MS = 5000;
 export const frameRow = ({ i, route, refusal, wireBytes, decodeMs, decoded }) =>
   ({ i, route, ...(refusal && { refusal }), kb: wireBytes === undefined ? null : +(wireBytes / 1024).toFixed(1), decodeMs: decodeMs ?? null, decodedAt: decoded ?? null });
 
-/** Records of the load `load`, queued and sent as one JSON list: none before the fill ends, then at its end and each `flush`. */
-export function recorder(load, { send = sendBeacon, post = postAwaited, now = epochMs } = {}) {
+/** Records of the load `load`, queued and sent as one JSON list: none before the fill ends, then at its end, each `flush` and the `drain`. */
+export function recorder(load, { send = sendBeacon, post = postBatch, now = epochMs } = {}) {
   const queued = [];
   let filled = false;
   const flush = ({ leaving = false } = {}) => {
