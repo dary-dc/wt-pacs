@@ -13,6 +13,8 @@ from urllib.parse import unquote
 ROOT = Path(__file__).resolve().parents[1]
 # What the pages fetch; the rest of the checkout holds the dev key and .git. deploy/README.md
 SERVED = {"client", "fixtures", "lab"}
+# A re-packed catalog or an edited page must not be read stale from a heuristic cache.
+REVALIDATED = {"text/html", "application/json"}
 
 
 def policy(host: str) -> str:
@@ -35,6 +37,7 @@ class Handler(SimpleHTTPRequestHandler):
     # An optimal-quality series' exact series, by the id its metadata names: client/README.md §Optimal quality, exact on request
     exact: dict[str, Path] = {}
     log_requests = False
+    revalidate = False
     csp = policy("127.0.0.1")
 
     def __init__(self, *args, **kwargs):
@@ -68,13 +71,16 @@ class Handler(SimpleHTTPRequestHandler):
             return None
         return super().send_head()
 
+    def send_header(self, keyword, value):
+        super().send_header(keyword, value)
+        if keyword.lower() == "content-type" and (self.revalidate or value.split(";")[0].strip() in REVALIDATED):
+            super().send_header("Cache-Control", "no-cache")
+
     def end_headers(self):
         # Cross-origin isolation sets the clock floor: docs/rig-limits.md §6.
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")
         self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
-        # A heuristic cache would run a module older than the page: docs/client/evidence/stale-client-code.md.
-        self.send_header("Cache-Control", "no-cache")
         # The viewer's page alone: the lab's pages share its workers and run inline scripts.
         if unquote(self.path.split("?", 1)[0]) in VIEWER:
             self.send_header("Content-Security-Policy", self.csp)
@@ -94,6 +100,8 @@ def main():
     parser.add_argument("--transport", type=Path, help="serve this file as /wt/dev-transport.json")
     parser.add_argument("--exact-metadata", type=Path, help="a lossy --metadata's exact series: its metadata")
     parser.add_argument("--exact-transport", type=Path, help="and the transport file of the server that serves it")
+    parser.add_argument("--revalidate", action="store_true",
+                        help="no-cache on every response, modules too: docs/client/evidence/stale-client-code.md")
     parser.add_argument("--log-requests", action="store_true", help="print each path asked for (client/viewer/check.mjs)")
     args = parser.parse_args()
     if args.bind.is_unspecified:
@@ -105,6 +113,7 @@ def main():
     Handler.metadata = args.metadata and args.metadata.resolve()
     Handler.transport = args.transport and args.transport.resolve()
     Handler.log_requests = args.log_requests
+    Handler.revalidate = args.revalidate
     Handler.csp = policy(str(args.bind))
     if args.exact_metadata or args.exact_transport:
         if not (args.metadata and args.exact_metadata and args.exact_transport):
