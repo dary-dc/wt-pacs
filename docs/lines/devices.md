@@ -38,6 +38,22 @@ busy cine, 24 of 24 pairs: 0 against a median of 7 of 100 dropped, difference âˆ
 *no difference* (10 of 24), and so does everything else. Guard (a) does not bind; it is an *assumption*. It was read
 with a fresh Chrome per load, at lab-only `f5252051`, restarted at K=16. A review (by another session) is owed.
 
+**2026-11-23, the beacon's loss** (BEACON-LOSS, `claude/beacon-loss`, a draft PR into this branch): Chrome refuses a
+keepalive body once 64 KiB would be in flight (*source*: the Fetch standard; Chromium's `resource_fetcher.h`), and
+headless Chromium 157 does the same (*measured*: 65 536 B taken, 65 537 refused). `f5252051`'s awaited post is
+reviewed and kept. Its fallback now sends the `drain` record (which counts the batch) first, then the batch newest
+first in 16 KiB beacons until one is refused. `round_headless.sh` shows it on Chromium: a cell-3 load with the round's
+10 s cine has an 80.8 KB end batch, which arrives whole by the post. The pre-fix `flush` lost all of it, verdict
+included; a forced fallback keeps the verdict and lands 118 of 231 records. `resources.sh` is now in the kit. The
+product sends nothing at unload (`claude/unified`: no `sendBeacon` or `keepalive` in `client/`).
+
+**2026-11-23, its review** (BEACON-LOSS-REVIEW, PR 436's body): no blocker open. The quota is quoted correctly from
+both sources at their pins. The unit tests fail without the change, and six of seven of the review's own mutants are
+killed. `round_headless.sh` passes 31 of 31; with the post forced to fail, exactly its two new claims fail and the
+verdict still lands (174 of 233 records). Four minors are open: the fallback's first `send` unchecked; the read's
+dedup rule written nowhere a read looks, keyed on (load, kind, at); `chunks` counting UTF-16 units (worst 1.1 % in
+the real rows); `resources.sh` untested.
+
 The next round's path, in order:
 
 ```text
