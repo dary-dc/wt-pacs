@@ -58,7 +58,8 @@ exact frame bit for bit, and only checked claims on screen.
   cloud (`dbts_b1-q8-g8`) adds +7 and −43, so the phone's growth there is unexplained (the URL's view not proof of
   what ran, hardware decode; PHONE-READ-CODE-CHECK open). The releases in reach are the view worker (VIEW-PAGE's
   call) or transferred buffers on the page view (a copy each paint, and an unrun experiment's to adopt).
-  Reviewed 2026-11-23 (PR 434 §MEMORY-LEAK-TRACE-REVIEW, one blocker); fixed the same day (MEMORY-LEAK-TRACE-FIX).
+  Reviewed 2026-11-23 (PR 434 §MEMORY-LEAK-TRACE-REVIEW, one blocker); fixed the same day (MEMORY-LEAK-TRACE-FIX); re-reviewed (§Re-review): B1 open only in the
+  row's status Result, so round two (MEMORY-LEAK-TRACE-FIX-2).
 * **D0's hardware-decode probe** on `claude/hw-probe` (`lab/devices/`, row HW-PROBE-PAGE): built, headless test
   green in Chromium 153 on software paths only (2026-11-14); draft PR #393, reviewed 2026-11-15 (its body §Review):
   every RGB copy and WebGL2 read there fits studio-range expansion even where the frame says `fullRange: true`, so
