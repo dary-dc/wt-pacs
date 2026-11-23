@@ -1,0 +1,25 @@
+LTE dbts_a1 A  fill    predicted 1170 ms, median ×0.663 (0/6 in 0.75–1.33): CANNOT HOLD: 6 counted, median below; 4 VOID; round-paired ×0.643 misses
+LTE dbts_a1 A' fill    predicted 1170 ms, median ×0.652 (0/7 in 0.75–1.33): CANNOT HOLD: 7 counted, median below; 3 VOID; round-paired ×0.642 misses
+LTE dbts_a1 B  fill    predicted 14754 ms, median ×0.741 (4/9 in 0.75–1.33): MISSES below; 1 VOID
+LTE dbts_a1 C1 fill    predicted 1170 ms, median ×0.675 (0/9 in 0.75–1.33): MISSES below; 1 VOID
+LTE dbts_a1 C1 latency predicted 1033 ms, median ×0.452 (0/9 in 0.6–1.67): MISSES below; 1 VOID
+LTE dbts_a1 C2 fill    predicted 1170 ms, median ×0.682 (1/9 in 0.75–1.33): MISSES below; REGIME MISS (3 rounds); 1 VOID
+LTE dbts_a1 C2 span    predicted 14754 ms, median ×0.923 (6/9 in 0.6–1.67): MISSES in; 1 VOID
+LTE dbts_b1 A  fill    predicted 5683 ms, median ×0.473 (2/9 in 0.75–1.33): MISSES below; 1 VOID
+LTE dbts_b1 A' fill    predicted 5683 ms, median ×0.496 (1/10 in 0.75–1.33): MISSES below; REGIME MISS (6 rounds)
+LTE dbts_b1 B  fill    predicted 24996 ms, median ×0.936 (9/10 in 0.75–1.33): HOLDS
+LTE dbts_b1 C1 fill    predicted 5683 ms, median ×0.480 (3/10 in 0.75–1.33): MISSES below
+LTE dbts_b1 C1 latency predicted 1680 ms, median ×0.410 (1/10 in 0.6–1.67): MISSES below
+LTE dbts_b1 C2 fill    predicted 5683 ms, median ×0.498 (1/10 in 0.75–1.33): MISSES below; REGIME MISS (4 rounds)
+LTE dbts_b1 C2 span    predicted 24996 ms, median ×0.909 (7/10 in 0.6–1.67): MISSES in
+LTE dbts_c1 A  fill    predicted 1278 ms, median ×0.662 (0/9 in 0.75–1.33): MISSES below; 1 VOID
+LTE dbts_c1 A' fill    predicted 1278 ms, median ×0.696 (0/9 in 0.75–1.33): MISSES below; 1 VOID
+LTE dbts_c1 B  fill    predicted 12857 ms, median ×0.615 (4/10 in 0.75–1.33): MISSES below
+LTE dbts_c1 C1 fill    predicted 1278 ms, median ×0.663 (0/7 in 0.75–1.33): CANNOT HOLD: 7 counted, median below; 3 VOID; round-paired ×0.664 misses
+LTE dbts_c1 C1 latency predicted 915 ms, median ×0.502 (1/7 in 0.6–1.67): CANNOT HOLD: 7 counted, median below; 3 VOID; round-paired ×0.494 misses
+LTE dbts_c1 C2 fill    predicted 1278 ms, median ×0.654 (1/9 in 0.75–1.33): MISSES below; REGIME MISS (3 rounds); 1 VOID
+LTE dbts_c1 C2 span    predicted 12857 ms, median ×0.800 (6/9 in 0.6–1.67): MISSES in; 1 VOID
+A/A LTE/dbts_a1: A′ ÷ A median ×0.995
+A/A LTE/dbts_b1: A′ ÷ A median ×1.067
+A/A LTE/dbts_c1: A′ ÷ A median ×1.047
+predictions xxh3 e7d61c6d15ea6bdb; A/A input lab/delivery/rows/LTE.aa.json: lab/scripts/aa_rule.py lab/delivery/rows/LTE.aa.json --bar 0.05
