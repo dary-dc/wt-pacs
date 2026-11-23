@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, SELINUX-BUILD-RESTORE 2026-11-23.
 
 ## Goal
 
@@ -112,6 +112,10 @@ small enough that every open item has an owner and a next step.
    each `--no-ff` with its conflicts named in its message; `gate.sh --quick` OK, its skips named in the row's status file.
    DOCS-SYNC-1120 (2026-11-20): `device-theory` (PR 414, re-review with no blocker open), `--no-ff`, no conflict;
    `transport-design`'s §6.6 not merged (a run with no review row yet), the owner's to judge.
+   SELINUX-BUILD-RESTORE (2026-11-23, `claude/selinux-build-restore`, draft PR into unified): B2's merge
+   (`dd681539d`) took the tip's form of the client and deploy files and so dropped every hunk of `5ce4f0876` (the
+   decoder build unlabelled on SELinux hosts; rootless podman's run); restored, the gate OK. The same rule's other
+   absent hunks (twelve commits, a line match) are listed in that PR's body, unjudged.
 
 ## Unification (the owner, 2026-11-09)
 
