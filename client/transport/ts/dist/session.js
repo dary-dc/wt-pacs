@@ -250,10 +250,9 @@ function byobReader(stream) {
 async function readEnvelopeInto(reader, wire, min, onRead, onHead) {
   const head = await readInto(reader, new Uint8Array(8), min, onRead);
   if (head.filled === 0) return null;
-  if (head.filled < 4) return { ok: false, index: -1, lost: "truncated before its index" };
+  if (head.filled < 8) return { ok: false, index: -1, lost: "truncated before its index" };
   const len = be32(head.bytes);
   if (len < 4 || len > MAX_FRAME_LEN) throw new Error(`invalid frame length ${len}`);
-  if (head.filled < 8) return { ok: false, index: -1, lost: "truncated before its index" };
   const index = be32(head.bytes.subarray(4));
   onHead(index);
   const body = await readInto(reader, wire.take(len - 4), min, onRead);
@@ -266,9 +265,14 @@ async function readInto(reader, view, min, onRead) {
   let filled = 0;
   while (filled < length) {
     const rest = length - filled;
-    const { value, done } = await reader.read(new Uint8Array(buffer, byteOffset + filled, rest), {
-      min: Math.min(rest, min)
-    });
+    let read;
+    try {
+      read = await reader.read(new Uint8Array(buffer, byteOffset + filled, rest), { min: Math.min(rest, min) });
+    } catch (e) {
+      throw e;
+      return { bytes: new Uint8Array(0), filled };
+    }
+    const { value, done } = read;
     if (value) {
       buffer = value.buffer;
       filled += value.byteLength;
