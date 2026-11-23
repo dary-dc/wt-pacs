@@ -13,8 +13,6 @@ from urllib.parse import unquote
 ROOT = Path(__file__).resolve().parents[1]
 # What the pages fetch; the rest of the checkout holds the dev key and .git. deploy/README.md
 SERVED = {"client", "fixtures", "lab"}
-# A re-packed catalog or an edited page must not be read stale from a heuristic cache.
-REVALIDATED = {"text/html", "application/json"}
 
 
 def policy(host: str) -> str:
@@ -70,16 +68,13 @@ class Handler(SimpleHTTPRequestHandler):
             return None
         return super().send_head()
 
-    def send_header(self, keyword, value):
-        super().send_header(keyword, value)
-        if keyword.lower() == "content-type" and value.split(";")[0].strip() in REVALIDATED:
-            super().send_header("Cache-Control", "no-cache")
-
     def end_headers(self):
         # Cross-origin isolation sets the clock floor: docs/rig-limits.md §6.
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")
         self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
+        # A heuristic cache would run a module older than the page: docs/client/evidence/stale-client-code.md.
+        self.send_header("Cache-Control", "no-cache")
         # The viewer's page alone: the lab's pages share its workers and run inline scripts.
         if unquote(self.path.split("?", 1)[0]) in VIEWER:
             self.send_header("Content-Security-Policy", self.csp)

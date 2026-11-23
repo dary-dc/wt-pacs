@@ -103,13 +103,15 @@ class DevServer(unittest.TestCase):
             finally:
                 dev_server.Handler.exact = {}
 
-    def test_a_catalog_and_a_page_are_revalidated(self):
-        """Metadata and pages carry `no-cache` beside their validator; a module keeps heuristic caching."""
-        for path, want in [("/series/metadata", "no-cache"), ("/client/page.html", "no-cache"), ("/client/module.js", None)]:
+    def test_everything_is_revalidated(self):
+        """Metadata, pages, modules and an error carry `no-cache` beside their validator, so a page never runs a
+        module older than the tree served: docs/client/evidence/stale-client-code.md."""
+        for path in ["/series/metadata", "/client/page.html", "/client/module.js", "/nowhere.js"]:
             with self.subTest(path=path):
-                _, headers, _ = self.get(path)
-                self.assertEqual(headers.get("Cache-Control"), want)
-                self.assertIsNotNone(headers.get("Last-Modified"))
+                status, headers, _ = self.get(path)
+                self.assertEqual(headers.get("Cache-Control"), "no-cache")
+                if status == 200:
+                    self.assertIsNotNone(headers.get("Last-Modified"))
 
     def test_the_viewer_alone_carries_the_policy(self):
         """The viewer's page runs no inline script and connects on loopback alone; a lab page is left without a policy."""

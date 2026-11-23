@@ -1,14 +1,6 @@
 # The static host for the viewer, answering as server/dev-server.py does in development: deploy/README.md.
 # SERIES, EXACT_SERIES, TLS_LISTEN and WT_ORIGINS are substituted at container start.
 
-# A re-packed catalog or an edited page must not be read stale from a heuristic cache;
-# nginx's ETag and Last-Modified make each revalidation a 304.
-map $sent_http_content_type $revalidate {
-    ~^text/html         no-cache;
-    ~^application/json  no-cache;
-    default             "";
-}
-
 server {
     listen       8765;
     ${TLS_LISTEN}
@@ -23,7 +15,9 @@ server {
     add_header Cross-Origin-Opener-Policy   same-origin   always;
     add_header Cross-Origin-Embedder-Policy require-corp  always;
     add_header Cross-Origin-Resource-Policy same-origin   always;
-    add_header Cache-Control                $revalidate   always;
+    # A heuristic cache would run a module older than the page; ETag makes each revalidation a 304:
+    # docs/client/evidence/stale-client-code.md.
+    add_header Cache-Control                no-cache      always;
     # Scripts from this origin alone, connections to it and the transport; eval for the decoders' glue (wasm-glue.js).
     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ${WT_ORIGINS}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'" always;
 
