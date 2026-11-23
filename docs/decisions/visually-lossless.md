@@ -105,7 +105,9 @@ availability, which is A.
 Item 3's yes extends "the exact HTJ2K frame on an explicit Lossless request" (program §Decided approaches) to a
 fetch without a request; it is not built here and is sized by the `asking` and `delivery-per-link` pages. Item 1
 rewords the design of 2026-11-09 ("optimal quality plus the exact HTJ2K frame on request"): the approach stands,
-only "meant to be visually lossless" goes. Item 7's no keeps lag 0; nothing else is reopened.
+only "meant to be visually lossless" goes. Item 7's no keeps lag 0; nothing else is reopened. Under the owner's word of 2026-11-23 ~02:00
+(a view decoded in hardware shown unchecked; [`frame-integrity.md`](frame-integrity.md) §7) the label states no check
+of the view at all, which item 1's wording already does: it describes the view, lossy AV1 and its ratio.
 
 ## 8 · Rows and links
 

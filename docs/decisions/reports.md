@@ -29,8 +29,9 @@ HTTP, never on the session alone. Name no carrier until the two reruns that can 
 have run (phase 2, amendment 28 rule 2). Do not merge PR 370 as it is.** The carrier and the timing are
 **provisional**: no counted cell decides them (§Verdict review 2, rule 1).
 
-This serves the value statement in two ways. The safety report is how "every frame … checked" reaches whoever runs
-the server. And at 100 reports a second NGINX costs 1.3–1.5 % of a core, which keeps the server's cost per reading
+This serves the value statement in two ways. The safety report is how the check's failures reach whoever runs
+the server: the exact frame's, and the view's where it is still checked (the owner's word of 2026-11-23 ~02:00: a view decoded in hardware is
+shown unchecked). And at 100 reports a second NGINX costs 1.3–1.5 % of a core, which keeps the server's cost per reading
 session low.
 
 | # | the owner's yes or no | recommended | a yes changes | a no leaves |

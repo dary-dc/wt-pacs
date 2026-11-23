@@ -108,7 +108,10 @@ costs the reader the view, never the exact frame. Who codes it decides whether i
 encoder run (`lossy_args`, pinned aomenc) makes "optimal quality at Q" a statement about settings. Q and G must travel
 with the series because Q is per series; the trigger is the only carrier that needs no change from the PCS. The
 decode-back proves a frame decodes from its keyframe at the right size, not that it is the right picture, which is
-why a closeness bound is cheap insurance. σ_min is a few milliseconds a frame beside the exact path, but over all
+why a closeness bound is worth its cost, which is not yet known for the guard alone: I2-RUN measured the checks alone
+at 0.09–0.20 CPU s a megapixel and the full set (digest and coding error) at +48 to +60 % of the ingest's time against
+a 10 % bar (**measured**, `claude/work-ledger:docs/queue/I2-RUN.md`); at which budget the guard passes is phase 2's (amendment 28, "budgets are
+ranges"; corrected 2026-11-23, `README.md` §Review m10). σ_min is a few milliseconds a frame beside the exact path, but over all
 samples it reads the flat or noisy region outside the breast and lowers the rule's Q, so it must wait for the window.
 
 ## 6 · What would change the recommendation

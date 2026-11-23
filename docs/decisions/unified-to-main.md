@@ -59,8 +59,8 @@ Order and conflicts are **measured** here: one sequential `git merge --no-ff` of
 | 2 | 416 | AV1 audits' corrections applied | the same re-review: no blocker; merge after 415 | docs only (5 `lab/**/*.md`) | clean | sync row |
 | 3 | 428 | `client/README.md` *Frames*: no frame leaves memory | CLIENT-README-CACHE-FIX-REVIEW: no blocker | docs only | clean | sync row |
 | 4 | 432 | README opens with the value statement | VALUE-STATEMENT-REVIEW: no blocker, m1–m6 | docs only | clean | DOCS-SYNC-1123 |
-| 5 | 412 | remove `handoff/` | UNIFIED-REMOVALS-REVIEW: no blocker | `--quick` OK | clean | sync row (item 1) |
-| 6 | 411 | remove the frame clock (`git revert 24b80bcd`) | the same: no blocker, m1 m2 in docs | full, OK 790 s | clean | sync row (item 1) |
+| 5 | 412 | remove `handoff/` | UNIFIED-REMOVALS-REVIEW: no blocker | OK (811 s or 477 s, UNIFIED-REMOVALS, which does not say which branch took which); the review's merge gate `--quick` OK, 292 s | clean | sync row (item 1) |
+| 6 | 411 | remove the frame clock (`git revert 24b80bcd`) | the same: no blocker, m1 m2 in docs | OK (the other of 811 s and 477 s); the review's merge gate full, OK 790 s | clean | sync row (item 1) |
 | 7 | 423 | lab levers set on `Sessions` by one call | UNIFIED-BUILDS-REVIEW: no blocker | OK, 58 steps | clean | sync row |
 | 8 | 424 | the five lab crates in a workspace of their own | the same: no blocker; m1 the two locks unchecked | OK 754 s | conflict: `docs/lines/coordination.md` | sync row (item 1), the line doc resolved |
 | 9 | 425 | OpenJPH 0.31.0 → 0.33.0 in the decoder | the same: no blocker | `--quick` OK | conflict: `docs/lines/client.md` | sync row |
@@ -102,7 +102,7 @@ row's gate log is quoted).
 | 1 | the scope written | **not met**: README §Purpose is on PR 432 | DOCS-SYNC-1123 merges 432 |
 | 2 | complete, end to end, DBT and ultrasound | **not met**: the gate serves its small fixtures, no DBT volume (UNIFIED-SIMPLIFY-REVIEW: "no DBT volume served"; `demo-check.mjs` on `dbts_*` runs by hand, no gate step); `fixtures/us_cine_smoke/` is "3 frames, 19-byte placeholders … not HTJ2K" (`docs/FIXTURES.md`) | §4 row 2 |
 | 3 | every default chosen by measurement | **not met**: no table; `docs/reviews/understand/defaults.md` (2026-11-11, the demo tip) lists defaults with no measurement each | §4 row 1 |
-| 4 | lean | **partly**: `check_lab_absent.sh` and the comment budget pass on every track branch; 411 and 412 open; 47 `lab/` directories (26 391 code lines) read by no gate step | §3.1 rows 5–6, item 4 |
+| 4 | lean | **partly**: `check_lab_absent.sh` and the comment budget pass on every track branch; 411 and 412 open; 47 `lab/` directories (26 391 code lines) read by no gate step (this page's reading: `final-state.md` §5's condition 4 names no `lab/` directory; it rests on §Decided's "`lab/` on `main` is the harness only") | §3.1 rows 5–6, item 4 |
 | 5 | gate green, full, only the allowed skip | **not shown**: `gate.yml` runs on PRs into `claude/av1-unified-mainbase`, `claude/core` and `main`, not `claude/unified`; every cloud gate on the track skipped the native painter and window and the web host's check besides the allowed "the viewer's cross-codec arm and Firefox" | §4 row 3 |
 | 6 | reviewed, no blocker open | **met** for rows 1–11 of §3.1; owed for 433, 410's path fix, 434 | their review rows |
 | 7 | every number names its bench | **not checked** across `docs/`; the decision pages meet it | DECISION-PAGES-REVIEW, for the pages |

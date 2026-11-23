@@ -27,7 +27,7 @@ phone shows that route exists; let one cleaning row take native's lab settings o
 | # | the owner's yes or no | recommended | a yes changes | a no leaves |
 | ---: | --- | --- | --- | --- |
 | 1 | Native stays paused through phase 2 | **yes** | nothing | a resume: its first rows are §6's three, in that order |
-| 2 | B3: native is recorded as the 10-bit hardware route, conditional on a device (§4) | **yes** | one dated line in `docs/client/design.md` §Decided; resume is triggered by the phone's codec list (§6), not by a date | the route stays an open question on PR 392's page |
+| 2 | B3: native is recorded as the 10-bit hardware route, conditional on a device (§4); since the owner's word of 2026-11-23 ~02:00 a browser's hardware view may run unchecked, so what native adds is a *checked* view at 10 bits on hardware, not hardware itself | **yes** | one dated line in `docs/client/design.md` §Decided; resume is triggered by the phone's codec list (§6), not by a date | the route stays an open question on PR 392's page |
 | 3 | One cloud row moves native's lab settings out of `window.rs` and `count.rs` (an inventory first, then a draft PR) before `claude/unified` goes to `main` | **yes** | one Opus row in phase 2; the owner's merge is the removal's yes | `client/native` reaches `main` carrying lab code in a product module, against the cleaning rule; or the crate stays off `main` (§7) |
 | 4 | The viewer stays paused | **yes** | nothing | a resume: `viewer.md` §4 items 3, 4 first |
 | 5 | Option B (our painter inside Cornerstone3D) is not carried beside A while paused | **yes** | `viewer.md` §4 item 2 closes as "not carried while paused", reopened only with item 1 | B stays an open call; its phone run (§4 item 3) stays the only thing that decides it |
@@ -36,8 +36,9 @@ phone shows that route exists; let one cleaning row take native's lab settings o
 
 **How it serves the value statement** (amendment 27 item 7): the statement promises a study opened "in a web
 browser"; native is outside it, so resuming native would change the statement, not serve it. Items 2 and 3 keep the
-one place where native would serve it — "every frame … the original, bit for bit, and checked" on phone hardware at 10
-bits — recorded, without spending phase 2 on it. Items 4–7 keep "one small … server" and its client lean.
+one place where native would go past it — a view checked on phone hardware at 10 bits, which the statement's "every
+frame … checked" (said of the exact frame) does not ask and the owner's word of 2026-11-23 ~02:00 no longer asks of the view — recorded,
+without spending phase 2 on it. Items 4–7 keep "one small … server" and its client lean.
 
 ## 3 · The options
 
@@ -91,8 +92,9 @@ matters, and its frames are the large ones level 4.1 does not take whole (**deri
 clips are 8-bit and often colour (**theory**: the property, not measured here; no US clip run): the 10-bit question
 does not arise, a frame within 1080p falls inside what class V promises (**source**), but a hardware frame on Android
 Chrome still reaches the page as RGB with no samples to check (`hardware-10bit.md` §7, **source**), so native would be
-the only *checked* hardware route for US on a phone as well, at 8 bits. Whether a US clip's software decode is fast
-enough that no hardware route is needed is not yet known (no US cine fixture).
+the only *checked* hardware route for US on a phone as well, at 8 bits; under the owner's word of 2026-11-23 ~02:00 a browser's hardware
+route may show it unchecked. Whether a US clip's software decode is fast enough that no hardware route is needed is
+not yet known (no US clip run).
 
 ## 5 · The mechanism
 
@@ -101,7 +103,9 @@ an image (8-bit RGB, or opaque on Android), never as its planes, so the check ca
 planes. That is why native is the only 10-bit hardware route, and why it costs an app. But a hardware decoder helps a
 DBT frame only if it takes the frame's size and level, which no Android class promises, so the route's value is a
 device fact. The viewer is a different question: it adds tools on top of a client that already shows the frame exactly;
-nothing in phase 2's aim (the evaluation release) needs a viewer product.
+nothing in phase 2's aim (the evaluation release) needs a viewer product. Since the owner's word of 2026-11-23 ~02:00 the view need not
+be checked on hardware, so a browser's hardware route can serve the view, unchecked; native stays the only route that
+is both checked and 10-bit on hardware.
 
 ## 6 · What would change the recommendation
 
