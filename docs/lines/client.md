@@ -126,7 +126,8 @@ exact frame bit for bit, and only checked claims on screen.
 * **Stale client code** (STALE-CODE, 2026-11-23, `claude/stale-code`): measured in headless Chromium, a page opened
   again runs a module older than the one served; `dev-server.py --revalidate` for the device round; the product's
   two ways out cost round trips or a structural change, so they wait for the owner
-  ([`../client/evidence/stale-client-code.md`](../client/evidence/stale-client-code.md)).
+  ([`../client/evidence/stale-client-code.md`](../client/evidence/stale-client-code.md)). Reviewed 2026-11-23 (PR 437
+  §STALE-CODE-REVIEW): no blocker, both tables reproduced; the flag reaches no round until `claude/phone-run` carries it.
 * Each of the view worker's open questions ([`../client/design.md`](../client/design.md) §Open) has its deciding run
   in its evidence file; none is queued.
 
