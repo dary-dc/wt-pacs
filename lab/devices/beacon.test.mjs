@@ -134,7 +134,8 @@ const quota = (sent, refused = []) => {
 
 /**
  * A failed post over the quota still lands its drain record, which counts the batch, and as many of the batch's
- * records as the quota takes, in order, each beacon at most 16 KiB: a read sees a cut batch, never a silent one.
+ * records as the quota takes, newest first so the verdict is among them, each beacon at most 16 KiB: a read sees a
+ * cut batch, never a silent one.
  */
 test("a fallback over the keepalive quota lands its count first and then what fits", async () => {
   const sent = [];
@@ -142,14 +143,15 @@ test("a fallback over the keepalive quota lands its count first and then what fi
   const r = recorder({ load: "Q" }, { send: quota(sent, refused), post: async () => "TimeoutError", now: () => 1 });
   r.filled({ ...ledger, frames: [] }, meta);
   for (let i = 0; i < 400; i += 1) r.record("label", { n: i, text: "x".repeat(200) });
-  r.record("label", { n: 400 });
+  r.record("verdict", { n: 400, ok: true });
   await r.drain();
   const [fill, [drain], ...rest] = sent;
   assert.equal(fill[0].kind, "load");
   assert.deepEqual([drain.kind, drain.path, drain.records], ["drain", "sendBeacon", 401]);
   const labels = rest.flat();
   assert.ok(labels.length > 200 && labels.length < 400, `the quota cuts the batch (${labels.length} of 400 landed)`);
-  assert.deepEqual(labels.map((l) => l.n), labels.map((_, i) => i), "what lands is the batch's head, in order");
+  const ns = labels.map((l) => l.n).sort((a, b) => a - b);
+  assert.deepEqual(ns, ns.map((_, i) => 401 - ns.length + i), "what lands is the batch's tail, the verdict with it");
   assert.ok(rest.every((b) => JSON.stringify(b).length <= 16 * 1024));
   assert.equal(refused.length, 1, "nothing is offered after the first refusal, so no gap opens in what lands");
 });

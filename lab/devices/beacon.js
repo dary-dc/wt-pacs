@@ -40,13 +40,13 @@ export function recorder(load, { send = sendBeacon, post = postBatch, now = epoc
   return {
     record,
     flush,
-    /** The load's last batch, awaited before the page leaves; on a failed post, beacons the quota takes. lab/devices/README.md §The round */
+    /** The load's last batch, awaited before the page leaves; on a failed post, beacons the quota takes, newest first. lab/devices/README.md §The round */
     async drain() {
       const records = queued.splice(0);
       const why = await post(JSON.stringify([...records, { ...load, kind: "drain", at: now(), path: "post", records: records.length }]), DRAIN_MS);
       if (why === null) return;
       send(JSON.stringify([{ ...load, kind: "drain", at: now(), path: "sendBeacon", why, records: records.length }]));
-      for (const c of chunks(records, BEACON_BYTES)) if (!send(JSON.stringify(c))) break;
+      for (const c of chunks(records, BEACON_BYTES).reverse()) if (!send(JSON.stringify(c))) break;
     },
     /** The fill's end, from viewer.js's `lab.finished`: the fill as §7's Second amendment defines it, lab/devices/README.md §The round. */
     filled({ error, fillMs = null, issuedAt, boot, frames = [], errors = [] }, meta) {

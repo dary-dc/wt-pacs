@@ -184,8 +184,8 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
   250 ms, whose largest gap over 2 s makes the load **VOID: stopped** (the load's own work included: stricter than
   §3's bar, which counts gaps outside it); the fill's record (`beacon.js`), and the load's last batch POSTed and
   awaited before it leaves (5 s); its `drain` record names the path and counts the batch (`records`). A failed post
-  falls back to `sendBeacon`: the `drain` record first, then the batch in beacons of at most 16 KiB until one is
-  refused, since Chrome refuses a keepalive body once 64 KiB would be in flight (the Fetch standard's "greater than
+  falls back to `sendBeacon`: the `drain` record first, then the batch in beacons of at most 16 KiB, newest first
+  (the verdict with them), until one is refused, since Chrome refuses a keepalive body once 64 KiB would be in flight (the Fetch standard's "greater than
   64 kibibytes"; Chromium's `kKeepaliveInflightBytesQuota = 64 * 1024`, `resource_fetcher.h`); a read counts what
   arrived against `records`. A post that timed out after the server took it arrives twice: the beacon's copies are
   the post's records field for field, so a read keeps one record of each (load, kind, at); with
