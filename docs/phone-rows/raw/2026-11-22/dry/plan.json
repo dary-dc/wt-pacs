@@ -1,0 +1,447 @@
+{
+ "commit": "3dbe295a380e1202dbdcb0f3ba024bf55961e06c",
+ "gapS": 1,
+ "fillS": 120,
+ "budgetsS": {
+  "1": 600,
+  "2": 2100,
+  "3": 3600
+ },
+ "blocks": [
+  {
+   "name": "wifi",
+   "servers": [
+    {
+     "cmd": [
+      "WORKTREE/target/release/series-server",
+      "--port",
+      "4433",
+      "--congestion",
+      "cubic-restart",
+      "--series",
+      "WORKTREE/demo-series/dbts_b1-q8-g8.sbnd",
+      "--cert-pem",
+      "WORKTREE/server/dev-cert/cert.pem",
+      "--key-pem",
+      "WORKTREE/server/dev-cert/key.pem"
+     ],
+     "readyLine": "transport="
+    },
+    {
+     "cmd": [
+      "WORKTREE/target/release/series-server",
+      "--port",
+      "4434",
+      "--congestion",
+      "cubic-restart",
+      "--series",
+      "WORKTREE/demo-series/dbts_b1.sbnd",
+      "--cert-pem",
+      "WORKTREE/server/dev-cert/cert.pem",
+      "--key-pem",
+      "WORKTREE/server/dev-cert/key.pem"
+     ],
+     "readyLine": "transport="
+    },
+    {
+     "cmd": [
+      "python3",
+      "WORKTREE/server/dev-server.py",
+      "--bind",
+      "127.0.0.1",
+      "--port",
+      "8765",
+      "--beacon",
+      "WORKTREE/target/dry/beacon.jsonl",
+      "--metadata",
+      "WORKTREE/demo-series/dbts_b1-q8-g8.metadata.json",
+      "--transport",
+      "WORKTREE/target/dry/t-4433.json",
+      "--exact-metadata",
+      "WORKTREE/demo-series/dbts_b1.metadata.json",
+      "--exact-transport",
+      "WORKTREE/target/dry/t-4434.json"
+     ],
+     "ready": "http://127.0.0.1:8765/"
+    },
+    {
+     "cmd": [
+      "python3",
+      "WORKTREE/server/dev-server.py",
+      "--bind",
+      "127.0.0.1",
+      "--port",
+      "8767",
+      "--beacon",
+      "WORKTREE/target/dry/beacon.jsonl",
+      "--metadata",
+      "WORKTREE/demo-series/dbts_b1.metadata.json",
+      "--transport",
+      "WORKTREE/target/dry/t-4434.json"
+     ],
+     "ready": "http://127.0.0.1:8767/"
+    },
+    {
+     "cmd": [
+      "WORKTREE/target/release/series-server",
+      "--port",
+      "4435",
+      "--congestion",
+      "cubic-restart",
+      "--series",
+      "WORKTREE/demo-series/dbts_a1-q8-g8-cut.sbnd",
+      "--cert-pem",
+      "WORKTREE/server/dev-cert/cert.pem",
+      "--key-pem",
+      "WORKTREE/server/dev-cert/key.pem"
+     ],
+     "readyLine": "transport="
+    },
+    {
+     "cmd": [
+      "WORKTREE/target/release/series-server",
+      "--port",
+      "4436",
+      "--congestion",
+      "cubic-restart",
+      "--series",
+      "WORKTREE/demo-series/dbts_a1.sbnd",
+      "--cert-pem",
+      "WORKTREE/server/dev-cert/cert.pem",
+      "--key-pem",
+      "WORKTREE/server/dev-cert/key.pem"
+     ],
+     "readyLine": "transport="
+    },
+    {
+     "cmd": [
+      "python3",
+      "WORKTREE/server/dev-server.py",
+      "--bind",
+      "127.0.0.1",
+      "--port",
+      "8766",
+      "--beacon",
+      "WORKTREE/target/dry/beacon.jsonl",
+      "--metadata",
+      "WORKTREE/demo-series/dbts_a1-q8-g8-cut.metadata.json",
+      "--transport",
+      "WORKTREE/target/dry/t-4435.json",
+      "--exact-metadata",
+      "WORKTREE/demo-series/dbts_a1.metadata.json",
+      "--exact-transport",
+      "WORKTREE/target/dry/t-4436.json"
+     ],
+     "ready": "http://127.0.0.1:8766/"
+    },
+    {
+     "cmd": [
+      "python3",
+      "WORKTREE/server/dev-server.py",
+      "--bind",
+      "127.0.0.1",
+      "--port",
+      "8768",
+      "--beacon",
+      "WORKTREE/target/dry/beacon.jsonl",
+      "--metadata",
+      "WORKTREE/demo-series/dbts_a1.metadata.json",
+      "--transport",
+      "WORKTREE/target/dry/t-4436.json"
+     ],
+     "ready": "http://127.0.0.1:8768/"
+    }
+   ],
+   "loads": [
+    {
+     "cell": "1",
+     "arm": "htj2k-1",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 1,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-2",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 2,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-4",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 4,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-3",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 3,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-3",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 3,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-4",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 4,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-2",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 2,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 1,
+     "counted": true,
+     "rep": 0,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "counted": false,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "counted": false,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "counted": false,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "counted": false,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 0,
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 0,
+     "counted": true,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 0,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "round": 0,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "B",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 1,
+     "counted": true,
+     "url": "http://127.0.0.1:8768/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C1",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 1,
+     "counted": true,
+     "press": "lossless",
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "A",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 1,
+     "counted": true,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "2",
+     "arm": "C2",
+     "view": "page",
+     "series": "dbts_a1-q8-g8-cut",
+     "round": 1,
+     "counted": true,
+     "exactFill": 1,
+     "url": "http://127.0.0.1:8766/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 0,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart",
+     "steps": 3,
+     "cineS": 2
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 0,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart",
+     "steps": 3,
+     "cineS": 2
+    },
+    {
+     "cell": "3",
+     "arm": "worker",
+     "view": "worker",
+     "series": "dbts_b1-q8-g8",
+     "pair": 1,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=worker&beacon=cubic-restart",
+     "steps": 3,
+     "cineS": 2
+    },
+    {
+     "cell": "3",
+     "arm": "page",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "pair": 1,
+     "seq": "view",
+     "counted": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart",
+     "steps": 3,
+     "cineS": 2
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-1",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 1,
+     "counted": true,
+     "drift": true,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "htj2k-3",
+     "view": "page",
+     "series": "dbts_b1",
+     "bench": 50,
+     "decoders": 3,
+     "counted": true,
+     "drift": true,
+     "url": "http://127.0.0.1:8767/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-1",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 1,
+     "counted": true,
+     "drift": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    },
+    {
+     "cell": "1",
+     "arm": "view-3",
+     "view": "page",
+     "series": "dbts_b1-q8-g8",
+     "bench": 50,
+     "decoders": 3,
+     "counted": true,
+     "drift": true,
+     "url": "http://127.0.0.1:8765/?overlay=1&view=page&beacon=cubic-restart"
+    }
+   ]
+  }
+ ]
+}
