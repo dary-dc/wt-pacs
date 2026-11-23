@@ -1,0 +1,41 @@
+OK   s1 End-to-end software system tested in relevant environment, meeting predicted performance.
+OK   s1 Prototype implementations of the software demonstrated on full-scale, realistic problems.
+OK   s1 Well integrated with operational hardware/software systems
+OK   s1 End-to-end software elements implemented and interfaced with existing systems/simulations 
+OK   s1 Prototype implementations of the software demonstrated on full-scale, realistic problems. 
+OK   s1 Prototype software exists having all key functionality available for demonstration and tes
+OK   s2 validated in a relevant environment
+OK   s2 demonstrated in a relevant environment
+OK   s3 Major version zero (0.y.z) is for initial development. Anything MAY change at any time.
+OK   s3 If your software is being used in production, it should probably already be 1.0.0.
+OK   s4 3 - Alpha
+OK   s4 4 - Beta
+OK   s4 5 - Production/Stable
+OK   s5 An Alpha feature means:
+OK   s5 Disabled by default.
+OK   s5 Might be buggy. Enabling the feature may expose bugs.
+OK   s5 A Beta feature means:
+OK   s5 The feature is well tested. Enabling the feature is considered safe.
+OK   s5 Recommended for only non-business-critical uses because of potential for incompatible chan
+OK   s6 Stability: 1 - Experimental. The feature is not subject to semantic versioning rules. Non-
+OK   s6 1.2 - Release candidate. Experimental features at this stage are hopefully ready to become
+OK   s7 At Preview, products or features are ready for testing by customers. Preview offerings are
+OK   s8 Because Technology Preview features are still under development, Red Hat cannot guarantee 
+OK   s9 Advancing to Candidate Recommendation indicates that the document is considered complete a
+OK   s10 Minimal or no implementation has been done yet, or the repository is only intended to be a
+OK   s10 Initial development is in progress, but there has not yet been a stable, usable release su
+OK   s10 The project has reached a stable, usable state and is being actively developed.
+OK   s11 For a product in the laboratory research phase of development, and not represented as an e
+OK   s11 For Research Use Only. Not for use in diagnostic procedures.
+OK   s11 For Investigational Use Only. The performance characteristics of this product have not bee
+OK   s12 An IVD product should not be labeled RUO if it is intended for use in a clinical investiga
+OK   s13 Software verification provides objective evidence that the design outputs of a particular 
+OK   s13 For purposes of this guidance, FDA considers software validation to be "confirmation by ex
+OK   s14 For the purpose of this document, non-clinical bench performance testing is defined as per
+OK   s15a The Verification Service Class defines a service that verifies application level communica
+OK   s15b Any implementation that conforms to the DICOM Standard and has elected to support any one 
+OK   s16a The OHIF Viewer is NOT F.D.A. cleared or CE Marked. It is the users' responsibility to ens
+OK   s16b Slicer is NOT approved for clinical use and the distributed application is intended for re
+
+# Fetched 2026-11-23 with curl into a scratch directory (sources not committed); HTML stripped of tags, PDFs through pdftotext -layout.
+# W3C (S9): 403 with a browser User-Agent, 200 with curl/8 at https://www.w3.org/policies/process/20250818/ (meta revision dbe17f75).
