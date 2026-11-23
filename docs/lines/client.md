@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-23 (the delivery page), 2026-11-22 (the asking and non-cine pages; the cache's, the engines' and the client calls' decision pages; `readMin`'s cut-stream fix found lost from the tree by merge `dd681539`, [`../decisions/client-calls.md`](../decisions/client-calls.md) §3.2), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+Last verified 2026-11-23 (the delivery and view-target pages), 2026-11-22 (the asking and non-cine pages; the cache's, the engines' and the client calls' decision pages; `readMin`'s cut-stream fix found lost from the tree by merge `dd681539`, [`../decisions/client-calls.md`](../decisions/client-calls.md) §3.2), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
 questions: [`../client/design.md`](../client/design.md); the findings: [`../client/evidence/`](../client/evidence/).
 
@@ -124,7 +124,9 @@ design, its hold tested first; no slice skipped; `span` and `holdEveryOther` rem
 stacks: [`../decisions/non-cine-series.md`](../decisions/non-cine-series.md) §2 (NON-CINE-PAGE, 2026-11-22: the exact frame alone, no
 AV1 view; level 1 run first; stills a stack; the painter's texture refusal now; over 12 bits waits). The delivery per link: [`../decisions/delivery-per-link.md`](../decisions/delivery-per-link.md) §2
 (DELIVERY-PAGE, 2026-11-23: A + C1 on every link and class; B not a default until the switch test; C2 no; the next run's
-four changes).
+four changes). Which view is the target: [`../decisions/view-target.md`](../decisions/view-target.md) §2 (VIEW-PAGE,
+2026-11-23: the view worker the default, the start's fix its one order; the page view an arm until PHONE-ROUND-2's cell 3,
+the Safari probe and the phone's memory after worker loads, then removed).
 
 ## Pointers
 
