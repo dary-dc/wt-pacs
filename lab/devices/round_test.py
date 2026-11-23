@@ -23,7 +23,33 @@ case "$*" in
   "shell settings put global stay_on_while_plugged_in "*) echo "$6" > "$ADB_STATE" ;;
   "shell ps -A -o PID,NAME") printf '  PID NAME\\n  101 com.android.chrome\\n  202 com.android.chrome:sandboxed_process0\\n  303 system_server\\n' ;;
   "shell cat /proc/"*) echo "101 (chrome) S 1 2 3" ;;
+  "shell echo @meminfo"*) cat "$ADB_RESOURCES" ;;
+  "shell pidof com.android.chrome") echo 4242 ;;
 esac
+"""
+RESOURCES = """@meminfo
+MemTotal:       11534336 kB
+MemFree:          512000 kB
+MemAvailable:    4194304 kB
+Cached:          2097152 kB
+SwapTotal:       8388608 kB
+SwapFree:        6291456 kB
+@psi
+some avg10=0.50 avg60=0.20 avg300=0.10 total=12345
+full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+@vmstat
+pswpin 100
+pswpout 200
+pgmajfault 300
+@thermal
+Thermal Status: 1
+\tTemperature{mValue=31.5, mType=3, mName=SKIN, mStatus=0}
+\tTemperature{mValue=40.25, mType=0, mName=AP, mStatus=0}
+@chrome
+Name:\tcom.android.chrome VmRSS:\t  307200 kB VmSwap:\t   10240 kB 
+@top
+  RSS NAME
+ 1572864 com.android.chrome:sandboxed_process0
 """
 
 
@@ -46,7 +72,9 @@ class Rig:
         (bindir / "adb").chmod(0o755)
         self.adb_log = d / "adb.log"
         (d / "adb.state").write_text("3\n")
-        self.env = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}", "ADB_LOG": str(self.adb_log), "ADB_STATE": str(d / "adb.state")}
+        (d / "resources.txt").write_text(RESOURCES)
+        self.env = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}", "ADB_LOG": str(self.adb_log), "ADB_STATE": str(d / "adb.state"),
+                    "ADB_RESOURCES": str(d / "resources.txt")}
         blocks = []
         for b, n in enumerate(loads_per_block):
             port = free_port()
@@ -64,9 +92,9 @@ class Rig:
         self.port = free_port()
         self.out = d / "out"
 
-    def start(self):
+    def start(self, *flags: str):
         self.proc = subprocess.Popen([sys.executable, str(SCRIPT), str(self.plan), str(self.out), "--bind", "127.0.0.1", "--port", str(self.port),
-                                      "--tree", str(HERE)], env=self.env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+                                      "--tree", str(HERE), *flags], env=self.env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         return self.proc
 
     def get(self, path: str):
@@ -157,6 +185,60 @@ class RoundHost(unittest.TestCase):
             self.assertIn(f"{k:03d}-after-202.stat", kept)
             self.assertIn(f"{k:03d}-after.logcat.txt", kept)
         self.assertFalse(any("-303." in name for name in kept), "only Chrome's processes")
+
+    def test_a_resource_snapshot_before_the_press_and_after_each_load(self):
+        """By default resources.jsonl holds one snapshot at the start and one after each load, each parsed from the phone's own counters."""
+        self.rig = Rig(self.d, head())
+        self.rig.start()
+        self.walk()
+        snaps = [json.loads(line) for line in (self.rig.out / "resources.jsonl").read_text().splitlines()]
+        self.assertEqual([s["label"] for s in snaps], ["start", "after-0", "after-1", "after-2", "after-3"])
+        got = {k: snaps[0][k] for k in ("memTotalMiB", "memFreeMiB", "memAvailableMiB", "cachedMiB", "swapUsedMiB", "pswpin", "pswpout",
+                                        "pgmajfault", "thermalStatus", "skinC", "apC", "batC", "chrome", "top")}
+        self.assertEqual(got, {"memTotalMiB": 11264, "memFreeMiB": 500, "memAvailableMiB": 4096, "cachedMiB": 2048, "swapUsedMiB": 2048,
+                               "pswpin": 100, "pswpout": 200, "pgmajfault": 300, "thermalStatus": 1, "skinC": 31.5, "apC": 40.25, "batC": None,
+                               "chrome": [{"name": "com.android.chrome", "rssMiB": 300, "swapMiB": 10}],
+                               "top": [{"rssMiB": 1536, "name": "com.android.chrome:sandboxed_process0"}]})
+        self.assertEqual(len(snaps[0]["psiMemory"]), 2)
+
+    def test_no_resources_takes_no_snapshot(self):
+        """--no-resources: no resources.jsonl and no snapshot adb call."""
+        self.rig = Rig(self.d, head())
+        self.rig.start("--no-resources")
+        self.walk()
+        self.assertFalse((self.rig.out / "resources.jsonl").exists())
+        self.assertFalse(any("@meminfo" in c for c in self.rig.adb_calls()))
+
+    def test_fresh_chrome_relaunches_once_the_verdict_is_in_and_skips_without_it(self):
+        """--fresh-chrome: after a load whose verdict is in the beacon, a blank tab, a force-stop and Chrome on /next?after=k, in the gap
+        before the next load opens; a load with no verdict gets no relaunch, recorded with why; none after the last load."""
+        self.rig = Rig(self.d, head(), loads_per_block=(3,))
+        beacon = self.d / "beacon.jsonl"
+        beacon.write_text("".join(json.dumps(r, separators=(",", ":")) + "\n" for r in
+                                  [{"step": 0, "kind": "verdict", "ok": True}, {"step": 1, "kind": "fill"}, {"step": 2, "kind": "verdict"}]))
+        self.rig.start("--fresh-chrome", "--beacon", str(beacon))
+        self.walk()
+        events = [e for e in self.rig.events() if e["event"] in ("load opened", "load ended", "relaunch", "relaunch skipped")]
+        self.assertEqual([(e["event"], e.get("load", e.get("after"))) for e in events],
+                         [("load opened", 0), ("load ended", 0), ("relaunch", 0), ("load opened", 1), ("load ended", 1), ("relaunch skipped", 1),
+                          ("load opened", 2), ("load ended", 2)])
+        self.assertEqual(events[2]["pid"], "4242")
+        self.assertEqual(events[5]["why"], "no verdict within 8 s of load ended")
+        am = [c for c in self.rig.adb_calls() if " am " in f" {c} " or c.startswith("shell pidof")]
+        same_tab = "-e com.android.browser.application_id wtpacs.round com.android.chrome"
+        self.assertEqual(am, [f"shell am start -a android.intent.action.VIEW -d about:blank {same_tab}",
+                              "shell am force-stop com.android.chrome",
+                              f"shell am start -a android.intent.action.VIEW -d http://127.0.0.1:{self.rig.port}/next?after=0 {same_tab}",
+                              "shell pidof com.android.chrome"])
+
+    def test_fresh_chrome_without_a_beacon_is_refused(self):
+        """--fresh-chrome needs the beacon its gate reads: refused before any adb call."""
+        self.rig = Rig(self.d, head())
+        proc = self.rig.start("--fresh-chrome")
+        _, err = proc.communicate(timeout=30)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--fresh-chrome needs --beacon", err)
+        self.assertEqual(self.rig.adb_calls(), [])
 
     def test_stay_on_set_before_the_press_and_restored_after(self):
         """Before Start the setting is read, set to 7 and read back; after the round it is put back to what was read; one adb server start."""

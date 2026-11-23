@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """The round's laptop side: the plan behind `GET /next`, the servers per block, `adb` between loads.
 
-usage: round.py PLAN OUT [--port 8780] [--bind 0.0.0.0] [--tree .]   lab/devices/README.md §The round
+usage: round.py PLAN OUT [--port 8780] [--bind 0.0.0.0] [--tree .] [--no-resources] [--fresh-chrome --beacon FILE]
+lab/devices/README.md §The round
 """
 
 import argparse
@@ -23,6 +24,16 @@ ADB = os.environ.get("ADB", "adb")
 STAY_ON = "stay_on_while_plugged_in"
 # AC | USB | wireless, next-round.md §3; the dock's 8 left out.
 STAY_ON_ALL = "7"
+CHROME = "com.android.chrome"
+# Chrome opens a VIEW intent with this extra in the same tab each time.
+SAME_TAB = ("-e", "com.android.browser.application_id", "wtpacs.round")
+VERDICT_S, QUIET_S = 8, 2
+RESOURCES = """echo @meminfo; grep -E "^(MemTotal|MemFree|MemAvailable|Cached|SwapTotal|SwapFree):" /proc/meminfo
+echo @psi; cat /proc/pressure/memory 2>/dev/null
+echo @vmstat; grep -E "^(pswpin|pswpout|pgmajfault) " /proc/vmstat
+echo @thermal; dumpsys thermalservice | grep -E "Thermal Status:|mName=(SKIN|AP|BAT)," | head -4
+echo @chrome; for p in $(pgrep -f chrome); do grep -hE "^(Name|VmRSS|VmSwap):" /proc/$p/status 2>/dev/null | tr "\\n" " "; echo; done
+echo @top; ps -A -o RSS,NAME -k -rss | head -9"""
 PAGE_KEYS = ("cell", "arm", "press", "seq", "steps", "cineS", "stall", "fault", "decoders", "bench", "exactFill")
 
 
@@ -61,9 +72,55 @@ def commit_mismatches(plan: dict, tree: Path) -> list[str]:
     return out
 
 
+def parse_resources(raw: str) -> dict:
+    """`RESOURCES`'s output as one record: memory in MiB, swap and fault counters, thermal, each Chrome process, the top 8 by RSS."""
+    sec, cur = {}, None
+    for line in raw.splitlines():
+        if line.startswith("@"):
+            cur = line[1:].strip()
+            sec[cur] = []
+        elif cur and line.strip():
+            sec[cur].append(line.strip())
+    kb = {m[1]: int(m[2]) for line in sec.get("meminfo", []) if (m := re.match(r"(\w+):\s+(\d+)", line))}
+    mib = lambda name: round(kb[name] / 1024) if name in kb else None
+    vm = dict(line.split() for line in sec.get("vmstat", []) if len(line.split()) == 2)
+    thermal = sec.get("thermal", [])
+
+    def celsius(name):
+        return next((float(m[1]) for line in thermal if (m := re.search(rf"mValue=([0-9.]+), mType=\d+, mName={name},", line))), None)
+
+    chrome = []
+    for line in sec.get("chrome", []):
+        f = dict(re.findall(r"(Name|VmRSS|VmSwap):\s+(\S+)", line))
+        if f:
+            chrome.append({"name": f.get("Name"), "rssMiB": round(int(f.get("VmRSS", 0)) / 1024), "swapMiB": round(int(f.get("VmSwap", 0)) / 1024)})
+    top = [{"rssMiB": round(int(line.split()[0]) / 1024), "name": line.split(None, 1)[1]} for line in sec.get("top", []) if line.split()[0].isdigit()]
+    swap = round((kb["SwapTotal"] - kb["SwapFree"]) / 1024) if {"SwapTotal", "SwapFree"} <= kb.keys() else None
+    status = next((int(line.split(":")[1]) for line in thermal if line.startswith("Thermal Status:")), None)
+    return {"memTotalMiB": mib("MemTotal"), "memFreeMiB": mib("MemFree"), "memAvailableMiB": mib("MemAvailable"), "cachedMiB": mib("Cached"),
+            "swapUsedMiB": swap, "psiMemory": sec.get("psi", []), **{k: int(vm.get(k, 0)) for k in ("pswpin", "pswpout", "pgmajfault")},
+            "thermalStatus": status, "skinC": celsius("SKIN"), "apC": celsius("AP"), "batC": celsius("BAT"), "chrome": chrome, "top": top}
+
+
+def has_verdict(beacon: Path, k: int) -> bool:
+    if not beacon.exists():
+        return False
+    for line in beacon.read_text().splitlines():
+        if '"verdict"' in line:
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            if r.get("kind") == "verdict" and r.get("step") == k:
+                return True
+    return False
+
+
 class Round:
-    def __init__(self, plan: dict, out: Path, host: str):
+    def __init__(self, plan: dict, out: Path, host: str, resources: bool, beacon: Path | None):
+        """`beacon`, the dev server's beacon file, turns on a fresh Chrome before every load after the first."""
         self.plan, self.out, self.host = plan, out, host
+        self.resources, self.beacon = resources, beacon
         self.lock = threading.Lock()
         self.answers: dict[int | None, str | None] = {}
         self.opened: dict[int, float] = {}
@@ -97,6 +154,7 @@ class Round:
         back = (self.adb("shell", "settings", "get", "global", STAY_ON) or "").strip()
         self.note("stay-on", was=self.stay_on_was, now=back, holds=back == STAY_ON_ALL)
         self.adb("logcat", "-d", keep="before-round.logcat.txt")
+        self.snapshot("start")
         atexit.register(self.restore)
 
     def restore(self):
@@ -115,6 +173,48 @@ class Round:
         if when == "after":
             self.adb("logcat", "-d", keep=f"{k:03d}-after.logcat.txt")
             self.adb("logcat", "-c")
+            self.snapshot(f"after-{k}")
+
+    def snapshot(self, label: str):
+        """The phone's memory, swap, thermal and Chrome processes, one line of OUT/resources.jsonl."""
+        if not self.resources:
+            return
+        t0 = time.time() * 1000
+        raw = self.adb("shell", RESOURCES)
+        if raw is None:
+            return
+        with (self.out / "resources.jsonl").open("a") as f:
+            f.write(json.dumps({"kind": "resources", "label": label, "at": t0, "readMs": round(time.time() * 1000 - t0), **parse_resources(raw)}) + "\n")
+
+    def relaunch(self, k: int, ended: float):
+        """Once load `k`'s verdict is in the beacon and the file has been quiet `QUIET_S`, Chrome force-stopped and opened on /next?after=k."""
+        verdict = quiet = None
+        while time.monotonic() - ended < VERDICT_S:
+            if verdict is None and has_verdict(self.beacon, k):
+                verdict = time.monotonic()
+            if verdict is None:
+                time.sleep(0.2)
+                continue
+            size = self.beacon.stat().st_size
+            time.sleep(QUIET_S)
+            if self.beacon.stat().st_size == size:
+                quiet = time.monotonic()
+                break
+        if quiet is None:
+            why = "beacon not quiet" if verdict else "no verdict"
+            return self.note("relaunch skipped", after=k, why=f"{why} within {VERDICT_S} s of load ended")
+        # A blank page first closes the page's connections, so the reverse tunnels are not left flushing a dead socket.
+        self.adb("shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", "about:blank", *SAME_TAB, CHROME)
+        time.sleep(1.5)
+        self.adb("shell", "am", "force-stop", CHROME)
+        time.sleep(0.5)
+        self.adb("shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", f"{self.host}/next?after={k}", *SAME_TAB, CHROME)
+        pid = None
+        for _ in range(20):
+            if pid := (self.adb("shell", "pidof", CHROME) or "").strip():
+                break
+            time.sleep(0.5)
+        self.note("relaunch", after=k, verdictMs=round((verdict - ended) * 1000), quietMs=round((quiet - ended) * 1000), pid=pid or None)
 
     def stop_servers(self):
         for s in self.servers:
@@ -155,6 +255,7 @@ class Round:
     def advance(self, after: int | None) -> str | None:
         """next-round.md §3: a cell's budget sums its counted loads' open-to-end time; a block that cannot start fails its loads."""
         loads = self.plan["loads"]
+        ended = time.monotonic()
         if after is not None:
             self.note("load ended", load=after)
             if loads[after].get("counted", True):
@@ -182,7 +283,9 @@ class Round:
             self.restore()
             return None
         if after is not None:
-            time.sleep(self.plan["gapS"])
+            if self.beacon:
+                self.relaunch(after, ended)
+            time.sleep(max(0, self.plan["gapS"] - (time.monotonic() - ended)))
         self.reads(k, "before")
         self.note("load opened", load=k)
         self.opened[k] = time.monotonic()
@@ -240,9 +343,12 @@ def handler(round_: Round):
                 return self.reply(500, f"the round stopped: {e}".encode())
             if to is None:
                 return self.reply(200, b"<!DOCTYPE html><body style='font:20px system-ui'>round done")
-            self.send_response(302)
-            self.send_header("Location", to)
-            self.end_headers()
+            try:
+                self.send_response(302)
+                self.send_header("Location", to)
+                self.end_headers()
+            except OSError:  # the Chrome that asked was force-stopped; its relaunch asks again
+                round_.note("reply lost", to=to)
 
         def reply(self, code: int, body: bytes):
             self.send_response(code)
@@ -265,12 +371,18 @@ def main():
     p.add_argument("--bind", default="0.0.0.0")
     p.add_argument("--host", help="the origin the phone reaches this script at (default http://BIND:PORT)")
     p.add_argument("--tree", type=Path, default=Path(__file__).resolve().parents[2])
+    p.add_argument("--no-resources", action="store_true", help="no snapshot of the phone's memory and thermal in the gaps")
+    p.add_argument("--fresh-chrome", action="store_true", help="Chrome force-stopped and relaunched before every load after the first")
+    p.add_argument("--beacon", type=Path, help="the dev servers' --beacon file, whose verdict gates --fresh-chrome")
     args = p.parse_args()
+    if args.fresh_chrome and not args.beacon:
+        p.error("--fresh-chrome needs --beacon")
     plan = load_plan(args.plan)
     if wrong := commit_mismatches(plan, args.tree):
         print("refused: not the round's commit:\n  " + "\n  ".join(wrong), file=sys.stderr)
         sys.exit(1)
-    round_ = Round(plan, args.out, args.host or f"http://{args.bind}:{args.port}")
+    round_ = Round(plan, args.out, args.host or f"http://{args.bind}:{args.port}", resources=not args.no_resources,
+                   beacon=args.beacon.resolve() if args.fresh_chrome else None)
     round_.prepare()
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     server = ThreadingHTTPServer((args.bind, args.port), handler(round_))
