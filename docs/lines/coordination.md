@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review 2026-11-23.
 
 ## Goal
 
@@ -55,7 +55,9 @@ small enough that every open item has an owner and a next step.
   the two carry in full (76 branches, 63 open PRs) and what not (221, 176) with why: [`../reviews/merge-plan.md`](../reviews/merge-plan.md).
 * **Decision pages** (2026-11-19): every open question of the two weeks' program ends in a page the owner answers yes or
   no, `docs/decisions/` on `claude/reviews-2026-11-28` (draft PR into `claude/unified`, "do not merge: decision
-  pages"); its [`README.md`](../decisions/README.md) holds the form and each page's state.
+  pages"); its [`README.md`](../decisions/README.md) holds the form and each page's state. Reviewed 2026-11-23
+  (DECISION-PAGES-REVIEW, its §Review): three blockers, two pages stale against the owner's 02:00 word on the
+  unchecked view, PR 417 offered as reviewed, the final state's condition 2 met by a status line; the fix owed.
 
 ## Open (ordered)
 

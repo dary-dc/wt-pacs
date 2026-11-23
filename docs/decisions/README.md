@@ -51,7 +51,7 @@ Inputs that are not pages: [`lab-list.md`](lab-list.md), what reads each `lab/` 
 | [`non-cine-series`](non-cine-series.md) | what a series that is not cine-like gets | NON-CINE-OPTIONS (Fable), -REVIEW; NON-CINE-PAGE | 11-27 | written 2026-11-22: large single frames the exact frame alone, no AV1 view; level 1 of a level picture first run, nothing adopted; stills a stack of exact frames, the three ingest refusals to the PCS team; the painter refuses an oversized frame by name now; over 12 bits waits |
 | [`delivery-per-link`](delivery-per-link.md) | the view, the exact series, or both, per link | DELIVERY-PROTOCOL, -BUILD, -BUILD-REVIEW, -RUN, -VERDICT-REVIEW; DELIVERY-PAGE | 11-27 | written 2026-11-23: A + C1 on every link and class; B not a default for now (the route page's switch test first); C2 no; the next run with C1's wire time, a lossy-link model, the relay off the decoding cores and DELIVERY-FIT-ARM |
 | [`final-state`](final-state.md) | what the state `claude/unified` reaches before `main` is called, and its definition | FINAL-STATE (Fable), FINAL-STATE-REVIEW, FINAL-STATE-FIX, FINAL-STATE-FIX-REVIEW | 11-23 | written 2026-11-22: *bench-verified*, with its scope and a line saying what it is not; seven conditions for UNIFIED-PAGE; reviewed 2026-11-23, two blockers; fixed 2026-11-23: *evaluation release* kept as the release's name, *bench-verified* its state, the README line only once the seven conditions hold; re-reviewed 2026-11-23, no blocker open, three nits; the yes or no on both names due |
-| `README` | the order to decide in, and what the two weeks left open | DECISIONS-OPEN, DECISION-PAGES-REVIEW, PROGRAM-CLOSE (Fable), BRIEF-1127 | 11-28 | this file, opened 2026-11-19; the order and §Review owed |
+| `README` | the order to decide in, and what the two weeks left open | DECISIONS-OPEN, DECISION-PAGES-REVIEW, PROGRAM-CLOSE (Fable), BRIEF-1127 | 11-28 | this file, opened 2026-11-19; §Review 2026-11-23: three blockers (B1 two pages stale against the 02:00 word, B2 PR 417 unreviewed, B3 condition 2 by a status line), m1–m13; the fix owed; the order owed (PROGRAM-CLOSE) |
 
 ## Review
 
@@ -72,8 +72,8 @@ and 28, among them 2026-11-23 ~02:00: "we will accept hardware decoding and not 
 * Every inventory row is in its page: rows 1–22 in the page the inventory names, row 23 in `phone-decode-route` §2
   item 10 and §Trimmed. The three pages written after VALUE-STATEMENT (`unified-to-main`, `delivery-per-link`,
   `view-target`) each say how they serve the statement.
-* Of the 200 numbers, 188 match their source in value and label; the twelve that do not are m1–m8 and B3. None but
-  B3's changes a recommendation.
+* Of the 200 numbers, 189 match their source in value and label; ten do not (m1–m8 and B3's fixture claim) and one
+  could not be re-checked for its date (`repository`'s 118 open PRs on 11-22). None but B3's changes a recommendation.
 * No page recommends against a decided approach of 2026-11-19 without saying so in §7; `delivery-per-link`,
   `view-target` and `unified-to-main` already read the 02:00 word.
 
