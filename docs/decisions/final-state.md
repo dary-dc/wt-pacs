@@ -1,6 +1,7 @@
 # What to call the state `claude/unified` reaches before `main`
 
-Row FINAL-STATE of the program (`claude/work-ledger:docs/queue-2026-11-14.md`, amendment 27), written 2026-11-22.
+Row FINAL-STATE of the program (`claude/work-ledger:docs/queue-2026-11-14.md`, amendment 27), written 2026-11-22;
+corrected in place 2026-11-23 by FINAL-STATE-FIX (§Fix).
 Sources and reasoning only: nothing was built, run or timed, and the gate was not run. Every quotation is a
 **source**, fetched 2026-11-22 and listed in §8 with its URL, section and revision; every judgement of a term is
 **theory** (this page's reasoning); what is said of `claude/unified` was read at `4a2b4277`, not executed.
@@ -16,11 +17,19 @@ reader what the project claims.
 
 ## 2. The recommendation
 
-**Call the state *bench-verified*, always with its scope, and print one line beside it that says what it is not.**
+**Keep the owner's provisional *evaluation release* as the name of the release, call the state it is brought to
+*bench-verified*, always with its scope, and print one line beside them that says what neither is.**
 
-> **Status: bench-verified** for breast DBT and ultrasound stacks: complete for that scope, every default chosen by
-> measurement on the fixtures [`docs/FIXTURES.md`](../FIXTURES.md) names, reviewed, gate green. Not run in
-> production and not validated in a clinic; not a medical device.
+> **Evaluation release, bench-verified** for breast DBT and ultrasound stacks: complete for that scope, every default
+> chosen by measurement on the fixtures [`docs/FIXTURES.md`](../FIXTURES.md) names, reviewed, gate green. For
+> technical evaluation: not run in production and not validated in a clinic; not a medical device.
+
+They are two names because they name two things (**theory**): *release* names an artifact, the tree that goes into
+`main`, and *evaluation* says what a reader may do with it, §5's third axis; *bench-verified* names the state of its
+claims, §5's first two axes. Each passes a test the other fails (§3): *evaluation release* has no official definition
+and says nothing of its evidence (T3, T4), and *bench-verified* says what was shown but not what the artifact is for.
+Kept, the provisional term renames nothing (§7). "For technical evaluation" is there because medical-device law uses
+*evaluation* for the clinical assessment of a device (S18), which this release has not had.
 
 *Verified* is the quality vocabulary's word for exactly what was done: "objective evidence that the design outputs
 ... meet all of the specified requirements" (S13), and its official counterpart, *validated* ("conform to user needs
@@ -33,13 +42,18 @@ bench, for the stated scope, and no further.
 
 **The owner's yes or no.**
 
-* **Yes**: *bench-verified* gets one line in `docs/glossary.md`; `README.md` carries the status line above under the
-  value statement; `docs/lines/coordination.md` §Goal's "keep `main` deployment-ready" becomes "keep `main`
-  bench-verified"; UNIFIED-PAGE uses §5's seven conditions as its checklist for `claude/unified`. One docs-only row
-  does the three edits (not queued here: it waits for the yes).
+* **Yes**: *evaluation release* and *bench-verified* get one line each in `docs/glossary.md`;
+  `docs/lines/coordination.md` §Goal's "keep `main` deployment-ready" becomes "keep `main` bench-verified";
+  UNIFIED-PAGE uses §5's seven conditions as its checklist for `claude/unified`. `README.md` carries the status line
+  above, under the value statement, **only once UNIFIED-PAGE finds all seven conditions met at the tip**; until then it
+  carries the same line with each unmet condition stated in place of its claim, for example "**Evaluation release**,
+  toward bench-verified: DBT stacks measured, ultrasound stacks carried by theory; defaults not yet each traced to a
+  measurement. For technical evaluation: ..." (the unmet conditions at the tip: §5's last list). One docs-only row
+  does the edits (not queued here: it waits for the yes).
 * **No**: UNIFIED-PAGE still uses §5's conditions, as "the state of `final-state.md` §5", with no name; "production
-  ready" and "demo ready" stay unused; the owner names another row of §3, or a word of their own, and §5 stands under
-  it unchanged. The status line's second sentence is recommended whatever the name (§6).
+  ready" and "demo ready" stay unused; the owner names another row of §3, or a word of their own, for either name,
+  and §5 stands under it unchanged (§7 lists what a new release name renames). The status line's second sentence is
+  recommended whatever the names (§6).
 
 ## 3. The options
 
@@ -60,7 +74,7 @@ The terms in use, each from its official source (quotations in §8), then the te
 | preview, technology preview | "not necessarily feature-complete ... intended for use in test environments only" (S7); "still under development ... cannot guarantee their stability" (S8) | yes | **no** | no | no | yes | a vendor's support promise; this project sells no support |
 | experimental; release candidate | Node.js: "Use of the feature is not recommended in production environments"; its stage 1.2, "Release candidate ... hopefully ready to become stable" (S6) | yes; **no** | **no**; yes | no | no | yes | "experimental" undersells; a release candidate is a candidate *for* production |
 | `0.y.z` | "Major version zero (0.y.z) is for initial development. Anything MAY change at any time."; "If your software is being used in production, it should probably already be 1.0.0." (S3) | yes | weak | no | no | yes | **keep beside the name**: `series-server` is already `0.1.0`; a number, not a word |
-| TRL 5 or 6 | TRL 5: "End-to-end software system tested in relevant environment, meeting predicted performance." TRL 6: "Prototype implementations of the software demonstrated on full-scale, realistic problems." TRL 7: "Well integrated with operational hardware/software systems" (S1); EU: TRL 5 "validated in a relevant environment", TRL 6 "demonstrated in a relevant environment" (S2) | yes | **no** ("prototype") | partly | yes | yes | the closest official scale; my reading puts the branch at 5 to 6 and below 7, and the number invites that argument instead of ending it |
+| TRL 5 or 6 | TRL 5: "End-to-end software system tested in relevant environment, meeting predicted performance." TRL 6: "Prototype implementations of the software demonstrated on full-scale, realistic problems." TRL 7: "Well integrated with operational hardware/software systems" (S1); EU: TRL 5 "validated in a relevant environment", TRL 6 "demonstrated in a relevant environment" (S2) | yes | **no** ("prototype") | partly | yes | yes | the closest official scale; the branch reads at 5 to 6 and below 7 (**theory**), and the number invites that argument instead of ending it |
 | Candidate Recommendation | "considered complete and fit for purpose, and that no further refinement to the text is expected without additional implementation experience and testing" (S9) | yes | yes | no | yes | **no** | the right idea (complete, awaiting the field), but it is a specification's stage and W3C's own word |
 | repostatus "Active" or "WIP" | Active: "has reached a stable, usable state and is being actively developed"; WIP: "there has not yet been a stable, usable release suitable for the public"; Concept: "a limited example, demo, or proof-of-concept" (S10) | **no**; yes | yes; **no** | no | no | yes | two bins, and the branch is in neither |
 | research use only | "For a product in the laboratory research phase of development, and not represented as an effective in vitro diagnostic product ... 'For Research Use Only. Not for use in diagnostic procedures.'" (S11) | yes | weak | no | no | **no** | a label the regulation defines for in vitro diagnostic products, which this is not; it says who may use it, not what state it is in (§6) |
@@ -70,7 +84,8 @@ The terms in use, each from its official source (quotations in §8), then the te
 | *measured baseline* (generated) | — | yes | yes | yes | weak | **no** | DICOM: "JPEG Baseline Compression (coding Process 1)" (S15); the repo's `scripts/perf_counts.baseline` |
 | *verified core* (generated) | — | yes | yes | yes | no | **no** | "core" is history here (`claude/core`) and a glossary word (the native core, the `core` paint thread) |
 | *scope-complete* (generated) | — | yes | yes | partly | no | yes | says the first condition of §5 and none of the others |
-| **bench-verified** (generated) | bench: "performance testing, performed by either a device manufacturer or a third party testing facility" (S14); verified as above (S13) | yes | yes | **yes** | **yes** | see §6 | **recommended** |
+| **evaluation release** (the owner's provisional term, amendment 27 item 7) | no official definition found (searched 2026-11-23). Vendor practice: "Fully functional time-limited evaluation versions of Windows Server 2012" (S17). Medical-device law: "‘clinical evaluation’ means a systematic and planned process to ... assess the clinical data pertaining to a device in order to verify the safety and performance" (S18, MDR); "‘performance evaluation’ means an assessment and analysis of data to establish or verify the scientific validity, the analytical and, where applicable, the clinical performance of a device" (S18, IVDR) | yes | yes | no | no | weak | **kept, as the release's name**: it says what a reader may do with it, not what was shown; the regulations' *evaluation* is clinical, so the status line says "technical evaluation"; DICOM's *release* is "The graceful release of an association" (S15, PS3.8 §7.2), a protocol primitive spelled A-RELEASE, not a version, judged harmless |
+| **bench-verified** (generated) | bench: "performance testing, performed by either a device manufacturer or a third party testing facility" (S14); verified as above (S13) | yes | yes | **yes** | **yes** | see §6 | **recommended, as the state** |
 | *bench-measured* (generated) | "measured" is this repository's own label for a number (`CLAUDE.md` §Docs: "A claim that is not measured says so") | yes | yes | yes | yes | yes | the fallback if "verified" is refused (§6): weaker, a measurement proves nothing by itself |
 
 How two open-source medical imaging projects word the same thing (practice, not a definition): "The OHIF Viewer is
@@ -119,11 +134,11 @@ by the word "production".
 
 | # | condition | the check |
 | ---: | --- | --- |
-| 1 | **The scope is written**, in one place: what it serves (breast DBT and ultrasound stacks, a series of frames along one dimension), from what input (what the PCS delivers), to what client (a browser) | `README.md` opens with it (row VALUE-STATEMENT) |
+| 1 | **The scope is written**, in one place: what it serves (breast DBT and ultrasound stacks, a series of frames along one dimension), from what input (what the PCS delivers), to what client (a browser) | `README.md` opens with it (row VALUE-STATEMENT: README §Purpose on PR 432, until it merges into `claude/unified`) |
 | 2 | **Complete for that scope**: every step from a delivered series to a checked frame on screen is in the default build and run end to end by the gate, for a DBT stack and for an ultrasound clip | the gate's end-to-end steps, one per modality, on real coded frames |
-| 3 | **Every default chosen by measurement**: each default (a server flag, a client option, a codec setting) points to the document whose measurement chose it, or says "not measured" | one table of defaults, every row with a pointer or those two words |
+| 3 | **Every default chosen by measurement**: each default (a server flag, a client option, a codec setting) points to the document whose measurement chose it, or says "not measured" | one table of defaults, every row with a pointer or those two words; `docs/reviews/understand/defaults.md` its starting point |
 | 4 | **Lean**: nothing in the default build that no product path uses; no test lever outside `lab/`; the comment budget held | `scripts/check_lab_absent.sh`, `scripts/comment_budget.sh`; the unified track's removal PRs each merged or refused by name |
-| 5 | **Gate green**: the full gate at the tip, from a clean clone by `README.md` §Prerequisites, with no skip | `scripts/gate.sh` with neither `--quick` nor `--no-browser`, its log free of `SKIPPED` |
+| 5 | **Gate green**: the full gate at the tip, from a clean clone by `README.md` §Prerequisites, with no skip but those the CI workflow allows | `scripts/gate.sh` with neither `--quick` nor `--no-browser`, its log free of `SKIPPED` but the lines `.github/workflows/gate.yml` lists in `allowed` ("the viewer's cross-codec arm and Firefox": row INGEST's fetched studies and a GL display, which no runner has) |
 | 6 | **Reviewed**: every change arrived by a pull request reviewed by a session or person that did not write it; no blocker open | the unified track's review rows, all done |
 | 7 | **Every number names its bench**: a figure in `README.md` or `docs/` is labelled measured, derived, theory or source, with its fixtures and their limits | `CLAUDE.md` §Docs and §Measurement, as the decision pages already do |
 
@@ -145,7 +160,10 @@ Three things the definition would meet on the branch today (read, not run; UNIFI
   (`docs/FIXTURES.md`, the `fixtures/us_cine_smoke/` row), and the program's fixtures hold no breast ultrasound cine.
   Either an ultrasound clip is run end to end, or the status line says "DBT stacks measured; ultrasound stacks
   carried by theory";
-* condition 3: no single table of defaults was found; `docs/levers.md` lists levers, not defaults;
+* condition 3: no table of defaults with a pointer per default was found; `docs/levers.md` lists levers, not
+  defaults, and `docs/reviews/understand/defaults.md` (DEFAULTS-FIND, 2026-11-11, read at the demo tip `618e13c8`)
+  lists what the page, `series-server` and `dev-server.py` run with nothing set, with no measurement per default: the
+  table's starting point, not the table;
 * `docs/merge-readiness.md` (2026-10-14) names one hole "between it and a deployment: the product page takes code
   and pixels from any address a link names". Whether it stands at the tip was not checked; if it does, it is inside
   condition 2 (a correct product path), not outside under access control.
@@ -156,6 +174,9 @@ Three things the definition would meet on the branch today (read, not run; UNIFI
   level communication between peer DICOM AEs" (S15). It is a service's name, the code does not implement it, and
   the glossary's word for a frame is *checked*, so this page judges the clash harmless; `CLAUDE.md` §Names is the
   owner's rule, and if it is read strictly the name is *bench-measured*, with §5 unchanged.
+* **"Bench" is a project word too**: `lab/decode-bench/`, `lab/container-bench/`, `lab/disk-access-bench/`, "row
+  145's fault bench" (`docs/ARCHITECTURE.md`). Each means a lab rig, not the field, the sense S14 gives it, so T5's
+  objection (a project word meaning something else, as *core* does) does not apply; this page judges it harmless.
 * **A regulatory path.** If the owner ever intends a clearance, "verification" becomes a term with duties under a
   quality system, and a self-given "verified" beside it is unwise: *bench-measured* again.
 * **A site pilot planned.** Then a scale that says how far from operation the system is serves better than a state:
@@ -170,16 +191,20 @@ Three things the definition would meet on the branch today (read, not run; UNIFI
 
 ## 7. What it would reopen
 
-Nothing among the program's §Decided approaches. Amendment 1's "every frame checked, in production too" uses
+Nothing among the program's §Decided approaches. Keeping *evaluation release* renames nothing; replacing it renames
+what amendment 28 has built on it: phase 2's heading ("toward the evaluation release"), the branch
+`claude/eval-release`, its PR title "evaluation release candidate: the owner's review", and the rows of phase
+2's queue file that name them. Amendment 1's "every frame checked, in production too" uses
 "production" for the default build against the lab's, and stands. `docs/lines/coordination.md` §Goal's
 "deployment-ready" is a line's wording, not a decision; a yes replaces it.
 
 ## 8. Rows and links
 
-Rows: FINAL-STATE (this page); FINAL-STATE-REVIEW (findings in §Review below); UNIFIED-PAGE (needs this page);
+Rows: FINAL-STATE (this page); FINAL-STATE-REVIEW (findings in §Review below); FINAL-STATE-FIX (§Fix); UNIFIED-PAGE (needs this page);
 VALUE-STATEMENT (the scope sentence of condition 1). Status: `claude/work-ledger:docs/queue/FINAL-STATE.md`.
 
-Sources, all fetched 2026-11-22. A page with no revision of its own is cited by that date.
+Sources S1–S16 fetched 2026-11-22, S17–S18 and S15's PS3.8 2026-11-23. A page with no revision of its own is cited
+by its fetch date.
 
 | | source | section, revision | URL |
 | --- | --- | --- | --- |
@@ -192,13 +217,15 @@ Sources, all fetched 2026-11-22. A page with no revision of its own is cited by 
 | S7 | Google Cloud, *Products* | "Product launch stages", Preview | `https://cloud.google.com/products` |
 | S8 | Red Hat, *Technology Preview Features - Scope of Support* | first two paragraphs | `https://access.redhat.com/support/offerings/techpreview` |
 | S9 | W3C Process Document | 18 August 2025, §6.3.1 Maturity Stages on the Recommendation Track, Candidate Recommendation, the note | `https://www.w3.org/policies/process/` |
-| S10 | repostatus.org | "Project Statuses"; specification 2.1.0 (2020-11-28) | `https://www.repostatus.org/` |
+| S10 | repostatus.org | "Project Statuses"; no revision on the page, cited by its fetch date | `https://www.repostatus.org/` |
 | S11 | 21 CFR 809.10, *Labeling for in vitro diagnostic products* | (c)(2)(i) and (ii); annual edition revised as of 2025-04-01, title 21 volume 8 | `https://www.govinfo.gov/content/pkg/CFR-2025-title21-vol8/xml/CFR-2025-title21-vol8-sec809-10.xml` |
 | S12 | FDA, *Distribution of In Vitro Diagnostic Products Labeled for Research Use Only or Investigational Use Only* | §IV.A.1, Research Use Only Labeling; issued 2013-11-25 | `https://www.fda.gov/media/87374/download` |
 | S13 | FDA, *General Principles of Software Validation; Final Guidance for Industry and FDA Staff* | §3.1.2 Verification and Validation; issued 2002-01-11 (its cover notes the Quality Management System Regulation, effective 2026-02-02, came after it) | `https://www.fda.gov/media/73141/download` |
 | S14 | FDA, *Recommended Content and Format of Non-Clinical Bench Performance Testing Information in Premarket Submissions* | §I Introduction and Scope; issued 2019-12-20 | `https://www.fda.gov/media/113230/download` |
-| S15 | DICOM PS3.4 2026e, Annex A Verification Service Class; DICOM PS3.5 2026e, §8.2.1 JPEG Image Compression | 2026e | `https://dicom.nema.org/medical/dicom/current/output/chtml/part04/chapter_A.html`, `https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_8.2.html` |
+| S15 | DICOM PS3.4 2026e, Annex A Verification Service Class; DICOM PS3.5 2026e, §8.2.1 JPEG Image Compression; DICOM PS3.8 2026e, §7.2 A-RELEASE Service | 2026e | `https://dicom.nema.org/medical/dicom/current/output/chtml/part04/chapter_A.html`, `https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_8.2.html`, `https://dicom.nema.org/medical/dicom/current/output/chtml/part08/sect_7.2.html` |
 | S16 | OHIF, *General FAQ*; 3D Slicer, *About 3D Slicer* (practice, not definitions) | "Does The OHIF Viewer have 510(k) Clearance ..."; "What is 3D Slicer?", the note | `https://docs.ohif.org/faq/general/`, `https://slicer.readthedocs.io/en/latest/user_guide/about.html` |
+| S17 | Microsoft Learn, *Evaluation Versions and Upgrade Options for Windows Server 2012* (practice, not a definition) | "Evaluation versions of Windows Server 2012"; a previous-versions page, cited by its fetch date | `https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/jj574204(v=ws.11)` |
+| S18 | Regulation (EU) 2017/745 (MDR) and Regulation (EU) 2017/746 (IVDR) | Article 2, points 44; the text as adopted, 5 April 2017 | `https://www.legislation.gov.uk/eur/2017/745/article/2/adopted`, `https://www.legislation.gov.uk/eur/2017/746/article/2/adopted` |
 
 The quotations of §3 in full, where the table shortened them:
 
@@ -244,7 +271,16 @@ The quotations of §3 in full, where the table shortened them:
   encompasses all bench testing and will be dependent upon the specifics of the actual device or device type."
 * S15, PS3.5 §8.2.1: "Any implementation that conforms to the DICOM Standard and has elected to support any one of
   the Transfer Syntaxes for 8-bit Lossy JPEG Image Compression, shall support the JPEG Baseline Compression (coding
-  Process 1)."
+  Process 1)."; PS3.8 §7.2: "The graceful release of an association between two AEs shall be performed through ACSE
+  A-RELEASE request, indication, response, and confirmation primitives."
+* S17: "Fully functional time-limited evaluation versions of Windows Server 2012 are available for the following
+  editions"; "you have 10 days to complete online activation, at which point the evaluation period begins and runs
+  for 180 days."
+* S18, MDR Article 2(44): "‘clinical evaluation’ means a systematic and planned process to continuously generate,
+  collect, analyse and assess the clinical data pertaining to a device in order to verify the safety and
+  performance, including clinical benefits, of the device when used as intended by the manufacturer"; IVDR Article
+  2(44): "‘performance evaluation’ means an assessment and analysis of data to establish or verify the scientific
+  validity, the analytical and, where applicable, the clinical performance of a device".
 
 ## Review
 
@@ -296,3 +332,19 @@ Minors, each a line where it stands:
 
 **Verdict: two blockers.** FINAL-STATE-FIX and FINAL-STATE-FIX-REVIEW are appended to the program
 (`claude/work-ledger:docs/queue-2026-11-14.md`, amendment 17), and UNIFIED-PAGE now waits on the re-review.
+
+## Fix
+
+**FINAL-STATE-FIX**, 2026-11-23, a session that wrote neither the page nor its review. Docs only; nothing run.
+Each finding of §Review corrected in place:
+
+* **B1**: *evaluation release* is a row of §3 ("no official definition found"; S17's vendor practice and S18's
+  regulatory *evaluation* quoted), judged on T1–T5; §2 keeps it as the release's name, with *bench-verified* as its
+  state, and adds "for technical evaluation" to the status line; §7 names what a replacement renames.
+* **B2**: §2's yes prints the status line only once UNIFIED-PAGE finds all seven conditions met; until then the README
+  line states each unmet condition.
+* **m1** condition 5 allows the workflow's listed skip; **m2** `docs/reviews/understand/defaults.md` named in
+  condition 3 and its finding; **m3** *bench* judged under T5 in §6; **m4** S10 cited by its fetch date; **m5** the
+  TRL placement labelled theory, impersonal; **m6** condition 1's check points at PR 432.
+
+S15's PS3.8 §7.2, S17 and S18 fetched 2026-11-23; their quotations in §8 are verbatim from the fetched text.
