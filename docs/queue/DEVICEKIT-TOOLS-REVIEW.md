@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-23T09:07Z
-heartbeat: 2026-11-23T09:07Z
+heartbeat: 2026-11-23T09:10Z
 outputs: (this file's §Result)
 ## Resume
-Claimed. Review ace5af899..26383bf82 on claude/phone-run (DEVICEKIT-TOOLS): each test reverted against its change, mutants re-run, the change scoped to its brief (amendment 28). BRIEF-1127 skipped above it: its content is "since BRIEF-MON", not done yet; it runs by its latest (23:00).
+Reading done (ace5af899, 26383bf82 at claude/phone-run d0fca3589); round_test.py 22 OK. Mutants R1-R10 on round.py running (a scratch copy, restored after); then devtools.test.mjs and its mutants D1-D4; findings into §Result here (the brief: findings in this status file). Nothing pushed to claude/phone-run.
 ## Result
