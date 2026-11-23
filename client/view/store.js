@@ -13,8 +13,10 @@ export class FrameStore {
   #reading = false;
   /** The misses last sent, in their order. */
   asked = [];
-  /** Of those, the ones not yet arrived or failed: a want whose misses equal these is not sent again. */
+  /** Of those, the ones not yet arrived or withheld: a want whose misses equal these is not sent again. */
   #owed = [];
+  /** Frames refused, by index, with why: never asked again (docs/client/design.md §Decided, the lost ask; the downloader re-asks that itself). */
+  withheld = new Map();
   /** The index the memory window is centred on; past the budget, the frame farthest from it goes first. */
   near = 0;
   /** Under the worker view, the downloader's client the misses go to; under the page view, none, and the controller asks. */
@@ -62,7 +64,7 @@ export class FrameStore {
     this.#order = order;
     this.#read.clear();
     this.#readCache();
-    const misses = order.filter((i) => !this.#frames.has(i) && !this.cache?.present.has(i));
+    const misses = order.filter((i) => !this.#frames.has(i) && !this.cache?.present.has(i) && !this.withheld.has(i));
     if (same(misses, this.#owed)) return misses;
     this.asked = this.#owed = misses;
     this.downloader?.want(misses);
@@ -82,8 +84,9 @@ export class FrameStore {
     return this.#waiting.get(i).promise;
   }
 
-  /** A frame the downloader could not deliver: no longer owed, so a later want sends it again. */
-  failed(i) {
+  /** A frame the downloader could not deliver, or the controller refused. */
+  withhold(i, reason) {
+    this.withheld.set(i, reason);
     this.asked = this.asked.filter((k) => k !== i);
     this.#owed = this.#owed.filter((k) => k !== i);
     this.#settle(i);

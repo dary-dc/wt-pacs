@@ -45,7 +45,7 @@ function paint(frame, display, { read = false } = {}) {
   const same = frame === lastPainted;
   lastPainted = frame;
   const { width, height, dpr } = controller.size;
-  const draw = () => painter.paint({ frame: asPainted(frame.info), same, display, width: Math.round(width * dpr), height: Math.round(height * dpr), dpr, read, settle });
+  const draw = () => painter.paint({ frame: frame && asPainted(frame.info), same, display, width: Math.round(width * dpr), height: Math.round(height * dpr), dpr, read, settle });
   return gl.ready ? draw() : gl.promise.then(draw);
 }
 

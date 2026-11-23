@@ -204,18 +204,18 @@ test("each failure is said with its scope", async () => {
   const wants = [];
   const { c, events } = rig({ held: [0], fillMode: false, wants, paint: () => Promise.reject(new Error("context lost")) });
   c.show(3);
-  c.refused(3, "refused by the server");
+  c.refused(2, "refused by the server");
   c.refused(-1, "no decoder");
   await c.repaint();
   const failures = events.filter(([t]) => t === "failed").map(([, e]) => e);
   assert.deepEqual(failures, [
-    { scope: "frame", i: 3, reason: "refused by the server" },
+    { scope: "frame", i: 2, reason: "refused by the server" },
     { scope: "series", reason: "no decoder" },
     { scope: "worker", reason: "paint: context lost" },
   ]);
 });
 
-/** A refused frame is withheld: no later want of the worker view's store names it again, whatever the steps. */
+/** A refused frame is withheld: no later want of the worker view's store names it again, and a step onto it waits for nothing. */
 test("a refused frame stays out of every later want", async () => {
   const wants = [];
   const { c } = rig({ held: [0], wants });
@@ -223,7 +223,9 @@ test("a refused frame stays out of every later want", async () => {
   c.refused(2, "refused by the server");
   c.show(1);
   c.show(3);
-  assert.deepEqual(wants, ["1,2,3", "1,3", "3,1"]);
+  assert.deepEqual(wants, ["1,2,3", "3,1"]);
+  const step = await Promise.race([c.show(2).then(() => "painted"), new Promise((r) => setTimeout(r, 50, "waiting"))]);
+  assert.equal(step, "painted", "a step onto it waits for no arrival");
 });
 
 /** A step of the page view onto a refused frame asks nothing, and so does a step onto a frame whose ask failed. */
@@ -244,9 +246,9 @@ test("a withheld current frame paints nothing in its place", async () => {
   c.client.requestFrame = () => new Promise(() => {});
   c.show(1);
   c.refused(1, "a depth cut's frame decoded at 16 bits");
-  await c.repaint();
   assert.equal(painted.at(-1).f, null);
-  assert.deepEqual(events.filter(([t]) => t === "shown").at(-1)[1], { i: 1, withheld: "a depth cut's frame decoded at 16 bits" });
+  await c.repaint();
+  assert.deepEqual(events.filter(([t]) => t === "withheld").at(-1)[1], { i: 1, reason: "a depth cut's frame decoded at 16 bits" });
   await c.show(1);
   assert.equal(painted.at(-1).f, null, "a step back onto it clears again");
 });

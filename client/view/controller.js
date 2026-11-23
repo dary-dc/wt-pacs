@@ -58,7 +58,7 @@ export class Controller {
   #exactAsks = new Map();
   #cutShift;
 
-  /** `paint(frame, display, { read })` draws a held frame; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR. */
+  /** `paint(frame, display, { read })` draws a held frame, and a null one as the cleared canvas; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR. */
   constructor({ meta, fillMode, paint, emit, size, budget }) {
     this.store = new FrameStore({ arrived: (i, frame) => this.#arrived(i, frame), budget });
     this.store.painted = () => this.#painting;
@@ -119,8 +119,14 @@ export class Controller {
         this.#dirty = false;
         const i = this.current;
         const f = this.#shownFrame(i);
-        if (!f) continue;
+        const withheld = this.store.withheld.get(i);
+        if (!f && withheld === undefined) continue;
         try {
+          if (!f) {
+            this.lastPaint = await this.paint(null);
+            this.#emit("withheld", { i, reason: withheld });
+            continue;
+          }
           const d = this.display(i, f.info);
           this.lastPaint = await this.paint(f, d);
           const drawn = this.lastPaint?.drawn ?? at();
@@ -145,9 +151,9 @@ export class Controller {
     this.store.near = this.current;
     if (this.store.downloader) {
       this.store.want(this.want());
-      return this.store.has(this.current) ? this.repaint() : this.store.arrival(this.current);
+      return this.#paintable(this.current) ? this.repaint() : this.store.arrival(this.current);
     }
-    if (this.store.has(this.current)) return this.repaint();
+    if (this.#paintable(this.current)) return this.repaint();
     // A frame not here is asked of the downloader; the OPFS store would be asked first: docs/adr/frame-path.md §3.
     const want = this.current;
     if (this.#asks.has(want)) return;
@@ -161,7 +167,7 @@ export class Controller {
     try {
       this.take(await this.client.requestFrame(want));
     } catch (e) {
-      if (this.#asks.get(want) === step) this.#emit("failed", { scope: "frame", i: want, reason: e.message });
+      if (this.#asks.get(want) === step) this.refused(want, e.message);
     } finally {
       if (this.#asks.get(want) === step) this.#asks.delete(want);
     }
@@ -169,6 +175,11 @@ export class Controller {
 
   want() {
     return wantFrom(this.current, this.#n, this.#fillMode, this.ascending);
+  }
+
+  /** Held, or withheld and so painted as nothing. */
+  #paintable(i) {
+    return this.store.has(i) || this.store.withheld.has(i);
   }
 
   /** The frame painted at `i`: its exact frame once that is here and checked, else the store's. */
@@ -214,11 +225,12 @@ export class Controller {
     return this.repaint();
   }
 
-  /** A frame the downloader could not deliver; index -1 is the series. */
+  /** A frame the downloader could not deliver, withheld for the session; index -1 is the series. */
   refused(i, reason) {
     if (i < 0) return this.#emit("failed", { scope: "series", reason });
-    this.store.failed(i);
+    this.store.withhold(i, reason);
     this.#emit("failed", { scope: "frame", i, reason });
+    if (i === this.current) this.repaint();
   }
 
   /** Any of `window` (null: the metadata's), `invert`, `pose`; the current frame painted again. */

@@ -89,6 +89,13 @@ const on = {
     follow(view?.current ?? s.i);
     status();
   },
+  withheld: ({ i }) => {
+    shown = null;
+    markEl.className = markEl.textContent = "";
+    showQuality({ quality: null });
+    follow(view?.current ?? i);
+    status();
+  },
   failed: ({ scope, i, reason }) => fail(scope === "frame" ? `frame ${i}: ${reason}` : `${scope}: ${reason}`),
 };
 const emit = (type, event) => on[type](event);
@@ -99,7 +106,7 @@ let worker = null;
 if (where === "page") {
   const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`), lab: { settle: lab.settle } });
   painter.renderer.then((r) => ((boot.gl = at()), emit("renderer", { renderer: r })), (e) => emit("renderer", { error: e.message }));
-  controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
+  controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(f && asPainted(f.info), d, o) });
 } else {
   boot.viewWorker = at();
   worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit,
@@ -113,7 +120,7 @@ function showQuality({ quality, about }) {
   qualityEl.className = label.className;
   qualityEl.textContent = label.text;
   losslessEl.textContent = quality === "lossless" || quality === "asking" ? "optimal quality" : "lossless";
-  if (!overlayEl.hidden) overlayEl.textContent = overlayText(about, quality, meta.lossy);
+  if (!overlayEl.hidden) overlayEl.textContent = about ? overlayText(about, quality, meta.lossy) : "";
 }
 overlayEl.hidden = q.get("overlay") !== "1";
 
