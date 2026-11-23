@@ -13,12 +13,12 @@ const frame = (i, bits = 16) => ({
 });
 
 /** A controller on a series of `frames`, its paints and the client's calls recorded; `held` frames already here; `wants`, the worker view's store. */
-function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy, bitsStored, bits, width = 3, height = 2, window = { center: [3], width: [6] } } = {}) {
+function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy, bitsStored, channels, bits, width = 3, height = 2, window = { center: [3], width: [6] } } = {}) {
   const painted = [];
   const calls = [];
   const events = [];
   const c = new Controller({
-    meta: { frameCount: frames, width, height, bitsStored, ...(window && { window }), ...(lossy && { codec: "av1", lossy, exactSeries: "s" }) },
+    meta: { frameCount: frames, width, height, bitsStored, channels, ...(window && { window }), ...(lossy && { codec: "av1", lossy, exactSeries: "s" }) },
     fillMode,
     size: { width: 2, height: 3, dpr: 1 },
     emit: (type, e) => events.push([type, e]),
@@ -129,6 +129,57 @@ test("the memory window defaults to 256 MiB of the series' frames", () => {
   }
 });
 
+/** A colour series counts three one-byte samples a pixel, as it is decoded at any depth: 291 frames of 640×480×3 in 256 MiB, where a grey one at 12 bits holds 436. */
+test("the memory window counts a colour frame's three samples", () => {
+  for (const [channels, bitsStored, held] of [[3, 8, 291], [3, 16, 291], [1, 12, 436]]) {
+    const { c } = rig({ frames: 500, width: 640, height: 480, bitsStored, channels });
+    assert.equal(c.want().length, held, `${channels} channels at ${bitsStored} bits`);
+  }
+});
+
+/** Page view, a series over its window and no cache: the fill asks the window alone, nearest first, and in ascending order the frames ahead first. */
+test("page view: the fill of a series over the window asks the window alone", () => {
+  const { c } = rig({ frames: 10, budget: 4 });
+  assert.deepEqual(c.want(), [0, 1, 2, 3]);
+  c.current = 5;
+  assert.deepEqual(c.want(), [5, 6, 4, 7]);
+  c.ascending = true;
+  assert.deepEqual(c.want(), [5, 6, 7, 4]);
+  assert.deepEqual(rig({ frames: 4, budget: 4 }).c.want(), [0, 1, 2, 3]);
+});
+
+/** Worker view, a series over its window and no cache: each step asks only the frame entering the window, and every frame asked is kept on arrival. */
+test("worker view: a step past the window asks only what the window keeps", async () => {
+  const wants = [];
+  const { c } = rig({ frames: 10, budget: 4, wants });
+  const deliver = () => wants.at(-1).split(",").map(Number).forEach((i) => (c.take(frame(i)), assert.ok(c.store.has(i), `frame ${i} kept`)));
+  c.show(0);
+  deliver();
+  for (const s of [1, 2, 3, 4, 5]) {
+    const sent = wants.length;
+    c.show(s);
+    if (wants.length > sent) deliver();
+  }
+  assert.deepEqual(wants, ["0,1,2,3", "4", "5", "6", "7"]);
+});
+
+/** Over the window with no cache, the fill is the window's: its time is taken, and progress reports it whole, once the window's frames are here. */
+test("the fill of a series over the window ends with the window", () => {
+  const { c, events } = rig({ frames: 10, budget: 4 });
+  for (const i of [0, 1, 2]) c.take(frame(i));
+  assert.equal(c.fillMs, null);
+  c.take(frame(3));
+  assert.notEqual(c.fillMs, null);
+  assert.deepEqual(events.filter(([t]) => t === "progress").at(-1)[1].total, 4);
+});
+
+/** With a cache the whole series is still wanted past the window: a frame let go is on disk, not asked again. */
+test("cache: the want stays the whole series past the window", () => {
+  const { c } = rig({ frames: 6, budget: 2 });
+  c.store.cache = cacheOf([], []);
+  assert.deepEqual(c.want(), [0, 1, 2, 3, 4, 5]);
+});
+
 /** At equal distance from the current frame the earlier one goes, as the want ranks it last; the frame the want ranks first stays. */
 test("the memory window lets go what the want ranks last", () => {
   const { c } = rig({ frames: 4, budget: 2 });
@@ -145,7 +196,7 @@ test("worker view: a frame let go past the budget is asked again", async () => {
   for (const i of [0, 1, 2]) c.take(frame(i));
   assert.deepEqual([...c.store.keys()].sort(), [0, 1]);
   c.show(2);
-  assert.deepEqual(wants, ["0,1,2", "2"]);
+  assert.deepEqual(wants, ["0,1", "2"]);
   const sent = [];
   const all = rig({ frames: 3, wants: sent }).c;
   all.show(0);

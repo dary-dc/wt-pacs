@@ -46,7 +46,7 @@ on threads ([`../native/README.md`](../native/README.md) §Built). The page's co
 * The want stays ordered down to the wire; the server does not reorder ([`../adr/reject-server-ordering.md`](../adr/reject-server-ordering.md)).
 * A frame is (series, index, metadata version); the generation steps only when the series or its version changes.
 * At most `K` frames are dispatched and unacked (credits), so a full store reaches the wire as a pause.
-* A frame leaves memory only over the byte budget (256 MiB of decoded frames by default, [*M, the budget*](evidence/what-a-view-asks-for.md)), only once written, farthest from the current frame first.
+* A frame leaves memory only over the byte budget (256 MiB of decoded frames by default, [*M, the budget*](evidence/what-a-view-asks-for.md)), farthest from the current frame first; with a writer, its ack waits for its write, and with none the fill stops at the window, so nothing it asks is let go on arrival.
 * Under `worker` no frame, pixel or port reaches the page; VOI is part of paint.
 * Paint first: the frame on screen is painted before its cache write, and no write runs on the view worker's thread.
 * An exact frame is checked against its ingest digest before it is handed on; a frame not checked `true` is never shown as exact.

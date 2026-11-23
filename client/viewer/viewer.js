@@ -2,7 +2,7 @@
 import { DownloaderClient } from "/client/transport/consumer.js";
 import { built } from "/client/decode/wasm-glue.js";
 import { Painter } from "/client/paint/painter.js";
-import { asPainted, Controller, FIT, wantFrom } from "/client/view/controller.js";
+import { asPainted, Controller, FIT, memoryWindow, wantFrom } from "/client/view/controller.js";
 import { View, ViewWorker } from "/client/view/view.js";
 import { checkPair, pairOf } from "/client/viewer/pair.js";
 import { labelOf, lastError, markOf, overlayText, unfoldOnTap } from "/client/viewer/screen.js";
@@ -139,14 +139,13 @@ const decoder = options.decoder ?? (meta.codec === "av1"
   : await built("openjph"));
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
 const groups = meta.lossy?.g > 1 ? { groupLength: meta.lossy.g, frameCount: n } : {};
-const all = [...Array(n).keys()];
 // A lab harness slows the CPU from here: lab/viewer/levers.js.
 await lab.started?.();
 issuedAt = at();
 boot.connect = issuedAt;
 const connectOpts = {
   transport: transport.module,
-  ...(fillMode && { fill: all }),
+  ...(fillMode && controller && { fill: controller.want() }),
   // The file follows a restarted server; a pair the lab named stays pinned.
   transportFile: lab.pinned ? undefined : transportFile,
   digests,
@@ -156,7 +155,7 @@ const connectOpts = {
 };
 try {
   // What the page dials with, under the lab's `pageDials`: the view worker's first want, unless a cache or a half-held store shapes it.
-  const firstWant = options.pageDials && !writer && !options.holdEveryOther ? wantFrom(0, n, fillMode, Boolean(options.waitAhead)) : undefined;
+  const firstWant = options.pageDials && !writer && !options.holdEveryOther ? wantFrom(0, n, fillMode, Boolean(options.waitAhead), memoryWindow(meta)) : undefined;
   if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer, firstWant }, issuedAt);
   else {
     controller.issuedAt = issuedAt;
