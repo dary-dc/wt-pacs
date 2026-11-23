@@ -1,0 +1,3 @@
+LTE/dbts_a1 {"n": 5, "arm": 0.9948, "aa": 0.9948, "sd": 0.0106, "mdl": 0.0297, "verdict": "tie"}
+LTE/dbts_b1 {"n": 9, "arm": 1.067, "aa": 1.067, "sd": 0.0661, "mdl": 0.1354, "verdict": "not conclusive"}
+LTE/dbts_c1 {"n": 8, "arm": 1.047, "aa": 1.047, "sd": 0.054, "mdl": 0.1156, "verdict": "not conclusive"}
