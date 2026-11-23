@@ -281,6 +281,102 @@ the headless shell 157.0.8103.78 for K3 (`claude/transport-arms` `9fad9d9b`'s ru
 
 ---
 
+## Results (2026-11-23, DELIVERY-RUN)
+
+**Measured**, 2026-11-23 00:30Z–05:53Z, one counted period (10 rounds, 150 loads) a cell, in §6's order, on the host of
+§11 and the predictions file `e7d61c6d15ea6bdb` (A1–A3), pushed before the first counted row. Rows:
+`claude/delivery:lab/delivery/rows/<CELL>.jsonl`; the judge's output `rows/judged/<CELL>.txt`; §7's A/A verdicts
+`rows/judged/<CELL>.aa.txt`. CLEAN's first pass, cut by the container's restart, is in no bar (A5).
+
+Each cell: the ratio measured ÷ predicted, its median, the counted rounds in the band (§8), the verdict. No load
+failed (no frame not exact, no C1 without *✓ Lossless*, no C2 short of its exact series); no cell printed
+`UNBALANCED`.
+
+| cell | arm | clock | `dbts_a1` | `dbts_b1` | `dbts_c1` |
+| --- | --- | --- | --- | --- | --- |
+| CLEAN | A | fill | ×0.923 9/9 holds | ×1.052 10/10 holds | ×1.011 10/10 holds |
+| CLEAN | A' | fill | ×0.936 4/4 cannot hold | ×1.049 9/9 holds | ×1.006 9/9 holds |
+| CLEAN | B | fill | ×0.999 10/10 holds | ×1.000 10/10 holds | ×1.000 10/10 holds |
+| CLEAN | C1 | fill | ×0.933 9/9 holds | ×1.045 10/10 holds | ×1.006 10/10 holds |
+| CLEAN | C1 | latency | ×1.285 7/9 misses in | ×1.323 5/10 misses in | ×1.378 4/10 misses above |
+| CLEAN | C2 | fill | ×0.911 9/9 holds | ×1.051 10/10 holds | ×1.049 8/8 holds |
+| CLEAN | C2 | span | ×1.001 9/9 holds | ×1.002 10/10 holds | ×1.002 8/8 holds |
+| PUB | A | fill | ×0.915 8/8 holds | ×1.000 9/9 holds | ×1.033 7/7 cannot hold |
+| PUB | A' | fill | ×0.915 10/10 holds | ×1.031 8/8 holds | ×0.978 8/8 holds |
+| PUB | B | fill | ×0.999 10/10 holds | ×1.000 10/10 holds | ×1.000 10/10 holds |
+| PUB | C1 | fill | ×0.918 6/6 cannot hold | ×1.020 10/10 holds | ×1.008 10/10 holds |
+| PUB | C1 | latency | ×1.251 6/6 cannot hold | ×1.346 3/10 misses above | ×1.289 8/10 holds |
+| PUB | C2 | fill | ×0.926 9/9 holds | ×1.058 10/10 holds | ×1.011 10/10 holds |
+| PUB | C2 | span | ×1.002 9/9 holds | ×1.002 10/10 holds | ×1.002 10/10 holds |
+| LTE | A | fill | ×0.663 0/6 cannot hold | ×0.473 2/9 misses below | ×0.662 0/9 misses below |
+| LTE | A' | fill | ×0.652 0/7 cannot hold | ×0.496 1/10 misses below, regime miss | ×0.696 0/9 misses below |
+| LTE | B | fill | ×0.741 4/9 misses below | ×0.936 9/10 holds | ×0.615 4/10 misses below |
+| LTE | C1 | fill | ×0.675 0/9 misses below | ×0.480 3/10 misses below | ×0.663 0/7 cannot hold |
+| LTE | C1 | latency | ×0.452 0/9 misses below | ×0.410 1/10 misses below | ×0.502 1/7 cannot hold |
+| LTE | C2 | fill | ×0.682 1/9 misses below, regime miss | ×0.498 1/10 misses below, regime miss | ×0.654 1/9 misses below, regime miss |
+| LTE | C2 | span | ×0.923 6/9 misses in | ×0.909 7/10 misses in | ×0.800 6/9 misses in |
+| LOSS | A | fill | ×0.457 4/9 misses below | ×0.546 2/10 misses below | ×0.614 2/10 misses below |
+| LOSS | A' | fill | ×0.606 4/8 misses below | ×0.573 1/9 misses below | ×0.442 4/10 misses below |
+| LOSS | B | fill | ×0.830 5/10 misses in | ×0.841 7/10 misses in | ×0.754 6/10 misses in |
+| LOSS | C1 | fill | ×0.479 3/9 misses below | ×0.476 1/9 misses below | ×0.465 1/9 misses below |
+| LOSS | C1 | latency | ×0.346 2/9 misses below | ×0.316 1/9 misses below | ×0.350 1/9 misses below |
+| LOSS | C2 | fill | ×0.563 4/9 misses below | ×0.445 2/10 misses below | ×0.650 3/9 misses below |
+| LOSS | C2 | span | ×0.748 7/9 misses in | ×0.839 10/10 holds | ×0.685 7/9 misses in |
+| CR | A | fill | ×0.966 9/9 holds | ×1.012 10/10 holds | ×0.979 9/9 holds |
+| CR | A' | fill | ×0.964 10/10 holds | ×1.005 7/7 cannot hold | ×0.981 10/10 holds |
+| CR | B | fill | ×0.994 10/10 holds | ×1.000 10/10 holds | ×0.995 10/10 holds |
+| CR | C1 | fill | ×0.967 10/10 holds | ×1.007 8/8 holds | ×0.981 10/10 holds |
+| CR | C1 | latency | ×1.110 10/10 holds | ×1.080 8/8 holds | ×1.088 10/10 holds |
+| CR | C2 | fill | ×0.964 10/10 holds | ×1.011 10/10 holds | ×0.983 10/10 holds |
+| CR | C2 | span | ×0.995 10/10 holds | ×1.000 10/10 holds | ×0.996 10/10 holds |
+
+**`VOID`** (§6), kept in the rows: CLEAN 13, PUB 15, LTE 17, LOSS 9, CR 7 of 150, none over 25 %, so each cell is read
+strict alone. Reasons: the relay's guard 52, the page's timers stopped 4, past 3× the pilot's median 4, three decoders
+read back on C2's exact fill 2. A (cell, volume, arm) left with under 8 counted rounds is `CANNOT HOLD` (§8, the build's
+fix), never a miss: 9 of the 105, five with their median in the band (CLEAN, PUB, CR), four below it (LTE).
+
+**§7, the A/A pair.** A′ ÷ A is a **tie** on CLEAN `dbts_a1`, PUB `dbts_c1`, LTE `dbts_a1` and all three CR volumes;
+**not conclusive** elsewhere. Where not a tie, the band is widened to the pair's own per-round range
+(`rows/judged/aa-widened.txt`; computed from the rows by `aa-widened.mjs` there, a reading aid, not a reviewed tool).
+CLEAN's and PUB's ranges (×0.87–1.12) and LOSS `dbts_a1`'s lie inside their bands and change nothing; LTE's
+(×0.73–2.86) and LOSS `dbts_b1`, `dbts_c1`'s (×0.47–3.14) do not. Read both ways, three verdicts change, all on LOSS:
+B on `dbts_b1` (×0.841) and `dbts_c1` (×0.754) and C2's span on `dbts_c1` (×0.685) miss strict and hold widened. A
+band that wide no longer tests the model, so the strict reading is the one carried below.
+
+### What held, what missed, and against which prediction
+
+* **The decode side holds** (CLEAN, PUB: A, A′, C1's and C2's fills, every one predicted decode-bound): medians
+  ×0.91–1.05 on all three volumes. The predicted direction, above the prediction by the receive path's cost (§8), held
+  on `dbts_b1` (×1.05) and not on `dbts_a1` (×0.91–0.94), whose fill came in under the makespan of §4.1.
+* **The wire side holds on clean forms**: B and C2's span ×0.999–1.002 on CLEAN and PUB, ×0.994–1.000 on CR; the view's
+  wire-bound fills on CR ×0.96–1.01. **A2's theory for CR missed**: it said CR's small fills would land below their
+  band because *S* absorbed the slow start; they landed in it, so the line through CR's two prefixes is linear down to a
+  view's 1.4–23 MB.
+* **The exact frame on request misses at short round trips**: C1's latency ×1.25–1.38 on CLEAN and PUB, above the band
+  on CLEAN `dbts_c1` and PUB `dbts_b1`, in it but under 8 of 10 rounds elsewhere; it **holds on CR** (×1.08–1.11). A
+  fixed cost outside §4.1's RTT + slow start + one decode + one paint, some tens of ms, is the likely reading
+  (*theory*, not isolated here); at an 800 ms round trip it is lost in the slow start.
+* **The lossy forms miss, as A2 said, and past it.** LTE and LOSS: every fill shorter than K3's second prefix (A, A′,
+  C1, C2's fill) and C1's exact frame land **below** their band (×0.32–0.70), A2's pre-registered direction. A2 also
+  said B and C2's span would land in their band: that held only for LTE B `dbts_b1` (×0.936) and LOSS C2's span
+  `dbts_b1` (×0.839); elsewhere they sit in or below the band in under 8 rounds (×0.62–0.92), a fill's own draw of
+  loss and blackouts, which the band ×0.75–1.33 does not cover. Four (cell, volume, arm) on LTE miss their regime too:
+  predicted wire-bound, read back near or decode-bound in 3–6 rounds, because the fill went faster than *G*.
+* **So the fill model** — max(wire, decode floor) with one start and one goodput per form — carries to a device class
+  only through: the decode-bound view (software AV1 on two decoders) at 90 Mbit/s and a 2–20 ms round trip; wire-bound
+  HTJ2K and wire-bound views on the clean forms, short round trip or 800 ms; the exact frame on request at an 800 ms
+  round trip. It does **not** carry through any lossy form: a link with loss needs a goodput that depends on the fill's
+  size (the first megabytes go at ~3× the late ones here), not one *G*.
+
+**Where the host saturates**: the browser's two cores in every decode-bound load (CLEAN, PUB), which is this host's
+decode, never a phone's; the relay's guard (its timing beside the decode) voided 52 loads, and with no decode it held
+(A1). Nothing is claimed above 90 Mbit/s or for a radio (§9).
+
+**Fixtures and limits**: three DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`; 56, 50, 69 frames), the view
+at Q 8 G 8 only, no breast ultrasound; one 4-core container (Intel Xeon @ 2.10 GHz) without a GPU, software decode,
+full Chromium 153 headless; a userspace TUN relay at ≤ 90 Mbit/s, its forms scaled and assumed, none a radio; one
+period a cell. Nothing here ranks the arms or decides which one the product serves (§8).
+
 ## Fixtures and limits
 
 Three DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`; 56, 50, 69 frames), the view at Q 8 G 8 only, no
