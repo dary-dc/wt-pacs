@@ -18,7 +18,7 @@ exact frame bit for bit, and only checked claims on screen.
   the canvas is cleared in its place, never the previous slice's picture; tests in `view/controller.test.mjs`, seven
   mutants killed. Not changed: an exact-only series' frame that fails its check twice is still painted under
   *NOT EXACT* (the decision of 2026-11-14 to block it is not built), and the words on screen for a withheld frame
-  are the `frame-integrity` page's.
+  are the `frame-integrity` page's. PR 438; gate green but the decoders' rebuild (Docker Hub 429).
 * **The unified branch** `claude/unified-client` (the client, optimal-quality and native lines): the demo tip with the
   cleaning and the renames merged; one `info.path` left in `lab/faultbench/index.html` (now `info.route`), a finding in
   #382. Reaches `main` through #367 then #250, on the owner's word ([`coordination.md`](coordination.md)).
