@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-23 (the memory a navigation leaves), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -49,6 +49,12 @@ exact frame bit for bit, and only checked claims on screen.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
+* **The memory a navigation leaves** (MEMORY-LEAK-TRACE, 2026-11-23,
+  [`../client/evidence/navigation-memory.md`](../client/evidence/navigation-memory.md); findings, no fix): the page view's
+  frames are `SharedArrayBuffer`s held on the page's thread, which V8 does not count toward collection, so after a
+  navigation they stay resident: one renderer 1.6 → 4.1 GiB over four `dbts_b1` loads in headless Chromium 153, the
+  view worker flat; not the back/forward cache. The releases in reach are the view worker (VIEW-PAGE's call) or
+  transferred buffers on the page view (a copy each paint, and an unrun experiment's to adopt).
 * **D0's hardware-decode probe** on `claude/hw-probe` (`lab/devices/`, row HW-PROBE-PAGE): built, headless test
   green in Chromium 153 on software paths only (2026-11-14); draft PR #393, reviewed 2026-11-15 (its body §Review):
   every RGB copy and WebGL2 read there fits studio-range expansion even where the frame says `fullRange: true`, so
