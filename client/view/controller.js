@@ -3,6 +3,8 @@ import { FrameStore } from "./store.js";
 import { CUT_DEPTH, cutShift } from "../viewer/pair.js";
 
 const at = () => performance.timeOrigin + performance.now();
+/** Decoded frames a tab holds by default, in bytes. docs/client/evidence/what-a-view-asks-for.md, *M, the budget* */
+const VIEW_MEMORY = 256 * 2 ** 20;
 export const FIT = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false };
 
 export const asPainted = (info) => ({ pixels: info.pixels, width: info.width, height: info.height, bits: info.bits, components: info.components, signed: info.signed, cutShift: info.cutShift });
@@ -23,6 +25,12 @@ export function wantFrom(c, n, fillMode, ascending) {
   const order = [c];
   for (let d = 1; order.length < n; d++) for (const i of [c + d, c - d]) if (i >= 0 && i < n) order.push(i);
   return order;
+}
+
+/** How many of the series' decoded frames fit in `bytes`; a sample is one byte at 8 bits or in colour, else two. */
+function framesWithin(bytes, { width, height, channels = 1, bitsStored }) {
+  const sample = channels === 3 || bitsStored <= 8 ? 1 : 2;
+  return Math.floor(bytes / (width * height * channels * sample));
 }
 
 export class Controller {
@@ -58,8 +66,8 @@ export class Controller {
   #exactAsks = new Map();
   #cutShift;
 
-  /** `paint(frame, display, { read })` draws a held frame; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR. */
-  constructor({ meta, fillMode, paint, emit, size, budget }) {
+  /** `paint(frame, display, { read })` draws a held frame; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR; `budget` in frames. */
+  constructor({ meta, fillMode, paint, emit, size, budget = framesWithin(VIEW_MEMORY, meta) }) {
     this.store = new FrameStore({ arrived: (i, frame) => this.#arrived(i, frame), budget });
     this.store.painted = () => this.#painting;
     this.#meta = meta;

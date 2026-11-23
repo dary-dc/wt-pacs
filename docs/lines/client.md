@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-23 (the view's default memory bound), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -13,6 +13,10 @@ exact frame bit for bit, and only checked claims on screen.
 
 ## In flight
 
+* **The view's memory bound** (VIEW-MEMORY-BOUND, 2026-11-23, `claude/view-memory-bound`, a draft into
+  `claude/unified`): the view holds 256 MiB of decoded frames a tab by default, in the series' frames, farthest first
+  ([`../client/evidence/what-a-view-asks-for.md`](../client/evidence/what-a-view-asks-for.md) *M, the budget*); the
+  size per device class is phase 2's; on V8 the bound is on what the store keeps, not on resident memory (not measured).
 * **The unified branch** `claude/unified-client` (the client, optimal-quality and native lines): the demo tip with the
   cleaning and the renames merged; one `info.path` left in `lab/faultbench/index.html` (now `info.route`), a finding in
   #382. Reaches `main` through #367 then #250, on the owner's word ([`coordination.md`](coordination.md)).

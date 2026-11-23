@@ -216,7 +216,7 @@ the owner); <a href="design.md#open">the view worker's open table</a> (the cine 
 <h3>The frame store</h3>
 <p><b>Does:</b> decides where a frame comes from: memory, then the cache, then the downloader; acks a frame once held;
 is the only part that talks to the downloader.</p>
-<p><b>Holds:</b> the frames held in memory; a frame leaves memory only over the byte budget, only once written,
+<p><b>Holds:</b> the frames held in memory; a frame leaves memory only over the byte budget (256 MiB of decoded frames by default), only once written,
 farthest from the current frame first. A frame is (series, index, metadata version). The ring of slots is behind a
 lab setting (<a href="evidence/frame-memory-ownership.md">frame memory ownership</a>).</p>
 <table><tr><th>cost</th><th>condition</th><th>source</th></tr>

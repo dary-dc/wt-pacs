@@ -13,12 +13,12 @@ const frame = (i, bits = 16) => ({
 });
 
 /** A controller on a series of `frames`, its paints and the client's calls recorded; `held` frames already here; `wants`, the worker view's store. */
-function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy, bitsStored, bits, window = { center: [3], width: [6] } } = {}) {
+function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy, bitsStored, bits, width = 3, height = 2, window = { center: [3], width: [6] } } = {}) {
   const painted = [];
   const calls = [];
   const events = [];
   const c = new Controller({
-    meta: { frameCount: frames, bitsStored, ...(window && { window }), ...(lossy && { codec: "av1", lossy, exactSeries: "s" }) },
+    meta: { frameCount: frames, width, height, bitsStored, ...(window && { window }), ...(lossy && { codec: "av1", lossy, exactSeries: "s" }) },
     fillMode,
     size: { width: 2, height: 3, dpr: 1 },
     emit: (type, e) => events.push([type, e]),
@@ -118,6 +118,15 @@ test("the memory window lets the farthest frame go", async () => {
   await c.show(3);
   assert.deepEqual(calls, ["ask 3"]);
   assert.deepEqual([...c.store.keys()].sort(), [1, 3]);
+});
+
+/** Given no budget, the view holds the whole frames of the series that fit in 256 MiB: 8 of 4096² at 12 bits, 16 at 8 bits, 14 of 3000² at 12 bits. */
+test("the memory window defaults to 256 MiB of the series' frames", () => {
+  for (const [side, bitsStored, held] of [[4096, 12, 8], [4096, 8, 16], [3000, 12, 14]]) {
+    const { c } = rig({ frames: 20, width: side, height: side, bitsStored });
+    for (let i = 0; i < 20; i++) c.take(frame(i));
+    assert.deepEqual([...c.store.keys()].sort((a, b) => a - b), Array.from({ length: held }, (_, i) => i), `${side}² at ${bitsStored} bits`);
+  }
 });
 
 /** At equal distance from the current frame the earlier one goes, as the want ranks it last; the frame the want ranks first stays. */

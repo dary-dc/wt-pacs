@@ -152,7 +152,15 @@ store budget = W frames
 **M, the budget.** **Assumed**, for the owner (question 1): `navigator.deviceMemory × 128 MiB` where the browser offers
 it (Chromium; 8 GB → 1 GiB, 4 GB → 512 MiB, 2 GB → 256 MiB), else 256 MiB — the budget the ring of slots was carved from
 ([`frame-memory-ownership.md`](frame-memory-ownership.md) §Proposed, *How the ring works*); a deployment setting overrides it. That puts
-Firefox and Safari desktops at 256 MiB until the owner sets otherwise, the conservative choice. Under it:
+Firefox and Safari desktops at 256 MiB until the owner sets otherwise, the conservative choice. *Built 2026-11-23
+(VIEW-MEMORY-BOUND; the owner, 2026-11-22: "The memory limit was my idea ... the specific number should be decided by
+you or the other session"):* the view's default is **256 MiB** of decoded frames a tab, counted in the series' whole
+frames (`client/view/controller.js`, `framesWithin`: width × height × channels × one byte at 8 bits or in colour, else
+two), the farthest first, a frame let go asked again on return. It is a default for the next phone round;
+`navigator.deviceMemory` is named as an input, not built, and the size per device class is a phase 2 measurement. **Not
+measured:** on V8 a frame let go is a `SharedArrayBuffer` freed only at a collection
+([`frame-memory-ownership.md`](frame-memory-ownership.md), M2), so the bound holds on what the store keeps, not yet on
+the tab's resident memory. Under it:
 
 | series | s_d (D) | W at 256 MiB | W at 1 GiB |
 | --- | ---: | ---: | ---: |
