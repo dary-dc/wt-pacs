@@ -7,8 +7,9 @@ DELIVERY-VERDICT-REVIEW's §Verdict review, no blocker, m1–m5; `lab/delivery/r
 median below in seconds is the prediction × its median ratio); [`../transport/link-profiles.md`](../transport/link-profiles.md)
 §2 and §4; [`phone-decode-route.md`](phone-decode-route.md) (ROUTE-POLICY's policies, PHONE-ROUTE-PAGE);
 [`../client/evidence/optimal-quality-bytes.md`](../client/evidence/optimal-quality-bytes.md);
-`claude/phone-run:docs/phone-rows/next-round-results.md` §Cell 2. **Missing:** PHONE-READ-CODE-CHECK is not done, so the
-phone's cell 2 numbers below are loads it may set apart. Every row of this question is done; the recommendation rests
+`claude/phone-run:docs/phone-rows/next-round-results.md` §Cell 2. PHONE-READ-CODE-CHECK was done 2026-11-23 07:34
+(`claude/phone-run` `2b242245`): no load set apart, no result corrected (corrected here 2026-11-23, `README.md` §Review
+m3). Every row of this question is done; the recommendation rests
 on no phone number alone, so it is **not provisional**.
 
 Labels: **source**, **theory**, **derived**, **measured**; *the view* is the optimal-quality AV1 series, *the exact
@@ -107,7 +108,7 @@ being measured, not a phone's. The TUN at 100 Mbit/s; nothing is claimed above 9
   lossy-form fill shorter than K3's second prefix (×0.32–0.70, below, as amendment A2 foresaw); B and C2's span on LTE
   and LOSS but two (×0.62–0.92); amendment A2's CR note (small fills below their band: they held); the predicted
   direction of decode-bound loads (above prediction: held on `dbts_b1`, not on `dbts_a1`, mixed on `dbts_c1`, m4).
-* **On the phone** (cell 2, *measured*, pending PHONE-READ-CODE-CHECK): B was the faster fill on `dbts_b1` and
+* **On the phone** (cell 2, *measured*; PHONE-READ-CODE-CHECK set no load apart): B was the faster fill on `dbts_b1` and
   `dbts_a1` at ≥ 568–595 Mbit/s (B ÷ A 0.513, 0.771), the direction §3's premium row gives; the phone's A was slower
   than DEVICE-THEORY's premium range, so its *G*★ (~242 Mbit/s on `dbts_b1`) sits below that row.
 

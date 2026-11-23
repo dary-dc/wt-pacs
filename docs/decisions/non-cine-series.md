@@ -136,6 +136,9 @@ preview* unless the owner reads an exact level of the same codestream as the que
 low-resolution preview (decided: none); it is one lossless codestream served at the screen's resolution, whose further
 levels complete it", quoted in the file §9); V *AV1 only for cine-like series*; C *XXH3 the frame check, every frame
 checked*, for lossy-source stills; R below 12 bits the 2026-10-10 line "frames of 12 bits or fewer are filled".
+DELIVERY-FIT-ARM (amendment 28, phase 2: "each frame first at the resolution level that fits the screen", HTJ2K only)
+is option L read as one codestream, for stacks; it reopens nothing under that reading, and its result is evidence for
+L here (added 2026-11-23, `README.md` §Review m12).
 
 ## 8 · Rows and links
 
