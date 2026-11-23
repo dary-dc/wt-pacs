@@ -105,6 +105,7 @@ exact frame bit for bit, and only checked claims on screen.
 | #367, #250 | the demo tip into `claude/core`, then `claude/core` into `main` | open; the owner's word |
 | #382 | the unified branch's review record | open |
 | #401 | stage A of the merge queue: the client line's 62 branches into `claude/merge-a-client` (2026-11-15), the gate and `demo-check.mjs` green; reviewed 2026-11-15, no blocker (`direction`'s line-doc sections owed to the plan's §6 item 5) | draft |
+| `claude/readmin-restore` | `readMin`'s cut-stream fix `4019518a`, lost at `dd681539` (stage B2), restored with its dispatch clause (2026-11-23) | draft; review owed (READMIN-RESTORE-REVIEW) |
 | #370 | the client load report | draft; review owed |
 | #368 | the integrity and coding-error check on the label ([`optimal-quality.md`](optimal-quality.md)) | draft; the owner's |
 | #369 | a separate proposal, kept out of the unified branch | draft |

@@ -228,7 +228,8 @@ owner's: an ask during a fill ([`ask-during-a-fill.md`](evidence/ask-during-a-fi
 3. The phone run's 10-minute rule stopped its Wi-Fi block after four of six octets: does the rule stand against a
    six-octet reading, and do the run's two `bbr` failures withdraw `bbr`? ([`view-target.md`](evidence/view-target.md),
    [`congestion-controller.md`](evidence/congestion-controller.md)).
-4. `readMin`'s cut-stream fix is not merged and its default is open ([`../merge-readiness.md`](../merge-readiness.md) H3).
+4. `readMin`'s default is open; its cut-stream fix, lost at `dd681539`, is restored (corrected 2026-11-23,
+   `claude/readmin-restore`) ([`../merge-readiness.md`](../merge-readiness.md) H3).
 5. The visually-lossless bar, 1.00 or 1.03 of the noise, and whether denoising counts (the owner's questions of
    2026-11-10; [`which-quality-is-visually-lossless.md`](evidence/which-quality-is-visually-lossless.md)).
 6. The ring's Firefox result was run on Firefox 155, not the 159 its bar was set on
