@@ -348,3 +348,35 @@ Each finding of §Review corrected in place:
   TRL placement labelled theory, impersonal; **m6** condition 1's check points at PR 432.
 
 S15's PS3.8 §7.2, S17 and S18 fetched 2026-11-23; their quotations in §8 are verbatim from the fetched text.
+
+## Re-review
+
+**FINAL-STATE-FIX-REVIEW**, 2026-11-23, a session that wrote none of the page, its review or its fix. Read at
+`164864df8` against `0cfd3017d`; `origin/claude/unified` still at `4a2b4277`. Docs only; nothing run, the gate not
+run; `scripts/check_links.py` the same 13 unresolved, none in this page; the comment budget ok. Fetched again
+2026-11-23: S15's PS3.8 §7.2 (its page says "DICOM PS3.8 2026e"), S17 and S18; each quotation of §3 and §8 from
+them is verbatim, and S18's two point-44 definitions are verbatim in the Official Journal's text on EUR-Lex too
+(CELEX 32017R0745 and 32017R0746). The check's script and output: `claude/work-ledger:docs/queue/FINAL-STATE-FIX-REVIEW/`.
+
+* **B1 closed.** §3 has the row, "no official definition found", S17 and S18 quoted, T1–T5 judged; §2 keeps the
+  term as the release's name and says how it relates to *bench-verified*; §7 names what a replacement renames.
+* **B2 closed.** §2's yes prints the status line only once UNIFIED-PAGE finds §5's seven conditions met, and gives
+  the line with the unmet conditions stated until then.
+* **m1 closed**: condition 5 quotes `.github/workflows/gate.yml`'s `allowed` entry as it stands at `4a2b4277`.
+  **m2 closed**: `docs/reviews/understand/defaults.md` is on `claude/unified` and named as the starting point.
+  **m3 closed**: §6's second item. **m4 closed**: S10 by its fetch date. **m5 closed**: "(**theory**)", impersonal.
+  **m6 closed**: `claude/value-statement` (PR 432) opens `README.md` with §Purpose, the statement verbatim.
+
+New, none a blocker:
+
+* **n1.** §2, "Each passes a test the other fails (§3)": by §3's table *bench-verified* passes T1–T4 and *evaluation
+  release* fails T3 and T4, so no test of T1–T5 is passed by the release's name alone; what it adds (what a reader
+  may do with it) is §5's third axis, not a test. Say "each says what the other does not". Its T5 "weak" beside a
+  clash judged harmless wants its reason in a clause (the regulations' clinical *evaluation*, presumably).
+* **n2.** The preamble says every quotation was "fetched 2026-11-22"; §8 says S17, S18 and S15's PS3.8 were fetched
+  2026-11-23. Point the preamble at §8.
+* **n3.** S18 is cited from legislation.gov.uk, the UK's copy; the EU's official publication is EUR-Lex (the text
+  is the same, checked above). Cite EUR-Lex.
+
+**Verdict: no blocker open.** The loop closes in round one: UNIFIED-PAGE's need on this page is met, and the owner's
+yes or no on both names (§2) is due.
