@@ -1,0 +1,11 @@
+E holds on adsl 0.5, ct: compressed listing <= 34.2 KB
+E holds on adsl 0.5, 2000: compressed listing <= 221.5 KB
+adsl 0.5, 2000, raw 300 KB at 0.6x: 4.34 s
+adsl 0.5, 2000, raw 360 KB at 0.6x: 4.91 s
+adsl 0.5, 2000, raw 420 KB at 0.6x: 5.49 s
+sat 2 Mbit/s, ct, metadata per file (zlib): 0.92-1.72 s
+sat 1 Mbit/s, ct, metadata per file (zlib): 1.84-3.44 s
+sat 2 {'ct': 0.3, '2000': 1.8}
+sat 1 {'ct': 0.6, '2000': 3.61}
+adsl 1 {'ct': 0.6, '2000': 3.61}
+adsl 0.5 {'ct': 1.2, '2000': 7.22}
