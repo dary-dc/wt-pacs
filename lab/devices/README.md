@@ -230,5 +230,5 @@ codec on 2 decoders, the viewer never filling; C2's exact fill after the view's,
 `decoders=1`, no two of its frames decoding at once; the bench's frame times its decoder's own start to end, one
 frame at a time on each decoder, its span from `t0`; and against the exact series' metadata with one digest changed,
 a bench load and a C2 load each failing by name; every load's last batch posted, none left to the beacon; cell 3
-at the round's size (20 steps, 10 s cine), its end batch arriving whole. Each check also failed once with its code broken. Not
+with the round's 10 s cine (9 steps, the most 20 frames allow), its end batch over 64 KiB arriving whole. Each check also failed once with its code broken. Not
 tested: a phone, `adb` itself, `podman` images, Wi-Fi, a page hidden or a screen turned off.

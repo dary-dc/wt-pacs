@@ -57,7 +57,7 @@ const loads = [
   { url: viewer(8765, "page"), cell: "2", arm: "A", decoders: 1 },
   { url: viewer(8769, "page"), cell: "1", arm: "htj2k-2", bench: 50, decoders: 2 },
   { url: viewer(8770, "page"), cell: "2", arm: "C2", exactFill: 1 },
-  { url: viewer(8765, "page"), cell: "3", arm: "page", seq: "view", steps: 20, cineS: 10 },
+  { url: viewer(8765, "page"), cell: "3", arm: "page", seq: "view", steps: 9, cineS: 10 },
 ];
 const head = execFileSync("git", ["-C", ROOT, "rev-parse", "HEAD"]).toString().trim();
 const blocks = [{ name: "wifi", servers: [quic(4433, "synth-q8-g8"), quic(4434, "synth"), page(8765, 4433, beacon), page(8767, 4499, beacon), exactPage(8768, beacon), wrongExact(8769, beacon), wrongPair(8770, beacon)], loads }];
@@ -149,10 +149,11 @@ check(filled[4]?.decoders === null, "a load without the lever records no count")
 const drains = loads.map((_, k) => of(k, "drain"));
 check(drains.every((d) => d.length === 1 && d[0].path === "post"),
   `every load's last batch posted and awaited, none left to the beacon (${drains.map((d) => d.map((x) => x.path).join("+") || "none").join(" ")})`);
-// The drain's batch: every record of the load after its fill's own batch left.
+// The drain's batch: every record of the load after its fill's own batch left. 9 steps, the most 20 frames allow.
 const full = records.filter((r) => r.step === 18 && r.kind !== "load" && r.at >= of(18, "load")[0]?.at);
-check(of(18, "frameChange")[0]?.steps.length === 40 && of(18, "cine").length === 2 && of(18, "exactFrame").length === 2 && drains[18][0]?.records === full.length - 1,
-  `cell 3 at the round's size (20 steps, 10 s cine): its end batch arrives whole (${full.length} records, ${JSON.stringify(full).length} B)`);
+check(of(18, "frameChange")[0]?.steps.length === 18 && of(18, "cine").length === 2 && of(18, "exactFrame").length === 2
+  && drains[18][0]?.records === full.length - 1 && JSON.stringify(full).length > 64 * 1024,
+  `cell 3 with the round's 10 s cine: its end batch, over the 64 KiB keepalive quota, arrives whole (${full.length} records, ${JSON.stringify(full).length} B)`);
 const adb = readFileSync(`${dir}/adb.log`, "utf8").trim().split("\n");
 check(adb.filter((l) => l === "start-server").length === 1 && adb.filter((l) => l.startsWith("logcat -d")).length === loads.length + 1,
   "one adb server; logcat read once before the press and after each load");
