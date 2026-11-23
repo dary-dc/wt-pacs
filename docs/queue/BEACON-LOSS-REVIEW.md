@@ -1,12 +1,14 @@
-state: started
+state: done
 started: 2026-11-23T05:47Z
-heartbeat: 2026-11-23T05:49Z
-outputs: PR 436 body §BEACON-LOSS-REVIEW (pending)
+heartbeat: 2026-11-23T05:58Z
+outputs: PR 436 body §BEACON-LOSS-REVIEW (reviewed at claude/beacon-loss 05b9c66b); docs/lines/devices.md 783674e01 on claude/beacon-loss
 ## Resume
-Claimed. Reviewing claude/beacon-loss 97633c38..05b9c66b (PR 436, draft into claude/phone-run) and the harness fix f5252051/86a8a350 on claude/phone-run; findings go in PR 436's body.
-DELIVERY-RUN skipped though its heartbeat (03:48Z) is over 60 min: its CR rows pushed to claude/delivery at 05:32Z, the detached chain still running.
-Done: beacon.test.mjs 11/11 at 05b9c66b; pre-fix beacon.js fails it (no `chunks` export); seven own mutants of beacon.js, six killed, `(size = 1)`->`(size = 0)` survives.
-Sources fetched and match (Fetch fetch.bs d7fc0fdb line 6211; Chromium 412608bf resource_fetcher.h:762, .cc:2841). resources.sh diff vs both raw copies: the two lines the PR names. build.sh failed: Docker Hub 429 (prebuilt wasm committed, skip named).
-Running detached: /tmp/claude-0/scr/hl.sh (tools.sh, round_headless at HEAD, then with the post forced to fail); logs /tmp/claude-0/scr/hl-*.log.
-Next: round_headless.sh at 05b9c66b (cd /tmp/claude-0/bl; ingest/tools.sh; lab/devices/round_headless.sh) with and without 2143b71dd; sources (Fetch d7fc0fdb, Chromium 412608bf resource_fetcher.h/.cc) fetched; findings into PR 436 body §BEACON-LOSS-REVIEW.
+Done. Nothing left. No blocker, so no fix rows appended; the minors m1–m4 are for whoever next touches lab/devices/beacon.js (DEVICEKIT-TOOLS or PHONE-ROUND-2's preparation).
+DELIVERY-RUN was not taken though its heartbeat (03:48Z) was over 60 min: its CR rows were still pushing to claude/delivery (05:32Z).
 ## Result
+* No blocker open. Sources fetched at their pins and match: Fetch d7fc0fdb fetch.bs:6211; Chromium 412608bf resource_fetcher.h:762, .cc:2841.
+* beacon.test.mjs 11/11, fails at the base; six of seven own mutants killed (the opening-bracket `size = 1` survives, one byte).
+* round_headless.sh 31/31 at 05b9c66b; post forced to fail: exactly the two new claims fail, verdict kept, 174/233 records landed.
+* Minors: m1 the fallback's first send unchecked; m2 dedup by (load, kind, at) written in README only, not in next-round.md's read rules, and not unique by construction (no collision in 13 431 real records, measured); m3 chunks counts UTF-16 units (worst 1.1 % over, measured); m4 resources.sh untested and unnamed in "Not tested".
+* Skipped: build.sh (Docker Hub 429; committed client/decode/wasm/built/ used); gate.sh not run (review only; the PR's --quick run stands).
+* Fixtures: synthetic 10-bit pair 64x48, 20 frames, cell 3 at 9 steps; one 4-vCPU container, headless Chromium, no GPU, no phone; real-record counts from the committed 2026-11-22 raw rows of one phone.
