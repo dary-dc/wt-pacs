@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review 2026-11-23.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review and its fix 2026-11-23.
 
 ## Goal
 
@@ -57,7 +57,9 @@ small enough that every open item has an owner and a next step.
   no, `docs/decisions/` on `claude/reviews-2026-11-28` (draft PR into `claude/unified`, "do not merge: decision
   pages"); its [`README.md`](../decisions/README.md) holds the form and each page's state. Reviewed 2026-11-23
   (DECISION-PAGES-REVIEW, its §Review): three blockers, two pages stale against the owner's 02:00 word on the
-  unchecked view, PR 417 offered as reviewed, the final state's condition 2 met by a status line; the fix owed.
+  unchecked view, PR 417 offered as reviewed, the final state's condition 2 met by a status line. Fixed 2026-11-23
+  (DECISION-PAGES-FIX, the README's §Fix): B1–B3 and m1–m12 in place, m13 left as the review said; the re-review
+  owed (DECISION-PAGES-FIX-REVIEW).
 
 ## Open (ordered)
 
