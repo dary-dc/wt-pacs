@@ -1,6 +1,49 @@
 # Coordination
 
-Last verified 2026-11-09 (branches and PRs read from `origin`); §Open 6 added 2026-11-15, stage A2 and its review the same day.
+Last verified 2026-11-23 02:10 UTC (§Resume 2026-11-23; earlier: 2026-11-09, branches and PRs read from `origin`); §Open 6 added 2026-11-15, stage A2 and its review the same day.
+
+## Resume 2026-11-23 (read this first; everything below it is older)
+
+A session that coordinates wt-pacs starts here. Everything lives on `origin`; nothing is held only on a machine.
+
+**The plan.** `docs/queue-2026-11-14.md` on this branch: its **Amendment 27** (the rest of the program by 2026-11-23
+23:59; six rows at once; Fable one at a time; scope breast US and DBT, stacks first, no row dropped; FINAL-STATE;
+VALUE-STATEMENT) and **Amendment 28** (the owner's yes of 2026-11-22: reviewed PRs merge into `claude/unified`
+without a word, gate green, never `main`; recommended measurements run; **phase 2, 2026-11-24 to 11-27, toward the
+evaluation release**, written by PHASE2-PLAN on 11-23 into `docs/queue-2026-11-24.md`; and every owner word of the
+evening, quoted: transport stays a main investment, the HTJ2K fit control arm, the cache as which store, budgets as
+ranges, limitations with how found, improvement rounds, the view's memory bound, the device kit kept, hardware-decoded
+view frames shown unchecked with the mark describing the view).
+
+**The routines** (claude.ai routines; their prompts switch from the program to phase 2 on 11-24 00:00 and close
+after 11-27 23:59): queue workers (Opus) A `trig_01Y6vNmyv6K54Uqcs8RXV1Gu` at :45, B `trig_014L1Sgp7h8TW8qnzWMZ1HEQ`
+at :05, C `trig_01Ax5o7S1Su75LUsYrg99mgu` at :25; Fable worker `trig_01YLsjSbhwbThdUxmqydUve2` at :20; CACHE-DESIGN
+(Fable with subagents) `trig_01J8qVddPdmn495MrJuiJXXo`, once on 2026-11-24 00:30 (disable it after). One-offs that
+ran: PHONE-TONIGHT, RESULTS-BRIEF, PHONE-READ-3D (`trig_01Hm8kXPmbo3K4Nj7pi7dou1`, started 01:52). A routine fires at
+most hourly; a one-off has an empty cron and is started with `run`.
+
+**The phone, 2026-11-22** (Samsung-class Android phone, Chrome; local session; records on this branch
+`docs/queue/PHONE-ROUND.md`, `PHONE-ROUND-3C.md`, `PHONE-ROUND-3D.md`; raw rows on `claude/phone-run` under
+`docs/phone-rows/raw/2026-11-22*/`): cells 1, 2 and 4 complete (cell 2 biased by the memory carry-over); cell 3 complete
+in 3D (48 loads, a fresh Chrome per load, the lab-only beacon fix `f5252051`, follow-up `86a8a350`). Read: PHONE-READ
+(main round) done; PHONE-READ-CODE-CHECK and PHONE-READ-3D (cell 3: **which view won, page or worker**) owed.
+Found and queued as bugs, each with test and review: MEMORY-LEAK-TRACE (a renderer kept each same-origin load's
+memory; test the SharedArrayBuffer accounting first), VIEW-MEMORY-BOUND (256 MiB a tab, our number), BEACON-LOSS
+(the end batch over the beacon quota; the product's report paths too), STALE-CODE (Chrome ran cached older code),
+DEVICEKIT-TOOLS (the session tools into `lab/devices`). PHONE-ROUND-2 (cell 3 needs no rerun now; what the pages ask
+of a phone, with the fixes) on the owner's next evening; its preparation is PHASE2-PLAN's. The built worktree for it:
+`~/Desktop/projects/wt-pacs-phone-962` on `claude/phone-run` (clean; node and openssl through containers, its
+`PHONE-TONIGHT` and `TONIGHT.md` say how).
+
+**Results.** `claude/reviews-2026-11-28:docs/reviews/results-2026-11-22.md` (RESULTS-BRIEF, every result with how
+found and limits, §9 refuted, §10 unknown). Bugs it named, queued: FAILED-FRAME-WITHHELD (§8.1, a failed frame
+leaves the previous slice on screen), READMIN-RESTORE (§4.2, a fix lost in a merge). Decision pages:
+`claude/reviews-2026-11-28:docs/decisions/` (FINAL-STATE: *bench-verified* the state, *evaluation release* the name).
+
+**Owed to the owner** (weekend 2026-11-28/29, ~21-01 UTC): the brief with one table of every yes/no; the merge words for
+`claude/eval-release` into `main`; the second phone round. **Open, no owner word needed:** UNIFIED-SYNC-1122 blocked
+on a personal path in PR 410's log (ENGINES-PATH-FIX appended); the delivery rig's relay should get its own CPU core so
+decode cannot void the loads (RESULTS-BRIEF §1.12; for DELIVERY-PAGE, not mid-run).
 
 ## Goal
 
