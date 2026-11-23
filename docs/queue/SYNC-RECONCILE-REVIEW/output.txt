@@ -1,0 +1,11 @@
+sat 2 Mbit/s listing x1.0: ct 0.30 s (E), 2000 1.80 s (E)
+sat 1 Mbit/s listing x1.0: ct 0.60 s (E), 2000 3.61 s (E)
+ADSL 0.5 Mbit/s listing x1.0: ct 1.20 s (P3), 2000 7.22 s (P3)
+ADSL 0.5 Mbit/s listing x0.6: ct 0.90 s (E), 2000 4.91 s (E)
+ADSL 0.5, 2000, raw listing 300 KB at 0.6x: 4.34 s (E)
+ADSL 0.5, 2000, raw listing 360 KB at 0.6x: 4.91 s (E)
+ADSL 0.5, 2000, raw listing 420 KB at 0.6x: 5.49 s (P3)
+compressed listing at which E holds on ADSL 0.5, ct: <= 34.2 KB
+compressed listing at which E holds on ADSL 0.5, 2000: <= 221.5 KB
+round trips back-solved, satellite 700 ms, ct: P3 1.96, P4 1.96
+round trips back-solved, satellite 700 ms, 2000: P3 3.00, P4 2.99
