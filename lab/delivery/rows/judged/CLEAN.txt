@@ -1,0 +1,25 @@
+CLEAN dbts_a1 A  fill    predicted 1770 ms, median ×0.923 (9/9 in 0.85–1.15): HOLDS; 1 VOID
+CLEAN dbts_a1 A' fill    predicted 1770 ms, median ×0.936 (4/4 in 0.85–1.15): CANNOT HOLD: 4 counted, median in; 6 VOID; round-paired ×0.936 misses
+CLEAN dbts_a1 B  fill    predicted 6291 ms, median ×0.999 (10/10 in 0.85–1.15): HOLDS
+CLEAN dbts_a1 C1 fill    predicted 1770 ms, median ×0.933 (9/9 in 0.85–1.15): HOLDS; 1 VOID
+CLEAN dbts_a1 C1 latency predicted 150 ms, median ×1.285 (7/9 in 0.75–1.33): MISSES in; 1 VOID
+CLEAN dbts_a1 C2 fill    predicted 1770 ms, median ×0.911 (9/9 in 0.85–1.15): HOLDS; 1 VOID
+CLEAN dbts_a1 C2 span    predicted 6291 ms, median ×1.001 (9/9 in 0.75–1.33): HOLDS; 1 VOID
+CLEAN dbts_b1 A  fill    predicted 5746 ms, median ×1.052 (10/10 in 0.85–1.15): HOLDS
+CLEAN dbts_b1 A' fill    predicted 5746 ms, median ×1.049 (9/9 in 0.85–1.15): HOLDS; 1 VOID
+CLEAN dbts_b1 B  fill    predicted 9971 ms, median ×1.000 (10/10 in 0.85–1.15): HOLDS
+CLEAN dbts_b1 C1 fill    predicted 5746 ms, median ×1.045 (10/10 in 0.85–1.15): HOLDS
+CLEAN dbts_b1 C1 latency predicted 256 ms, median ×1.323 (5/10 in 0.75–1.33): MISSES in
+CLEAN dbts_b1 C2 fill    predicted 5746 ms, median ×1.051 (10/10 in 0.85–1.15): HOLDS
+CLEAN dbts_b1 C2 span    predicted 9971 ms, median ×1.002 (10/10 in 0.75–1.33): HOLDS
+CLEAN dbts_c1 A  fill    predicted 2217 ms, median ×1.011 (10/10 in 0.85–1.15): HOLDS
+CLEAN dbts_c1 A' fill    predicted 2217 ms, median ×1.006 (9/9 in 0.85–1.15): HOLDS; 1 VOID
+CLEAN dbts_c1 B  fill    predicted 6553 ms, median ×1.000 (10/10 in 0.85–1.15): HOLDS
+CLEAN dbts_c1 C1 fill    predicted 2217 ms, median ×1.006 (10/10 in 0.85–1.15): HOLDS
+CLEAN dbts_c1 C1 latency predicted 135 ms, median ×1.378 (4/10 in 0.75–1.33): MISSES above
+CLEAN dbts_c1 C2 fill    predicted 2217 ms, median ×1.049 (8/8 in 0.85–1.15): HOLDS; 2 VOID
+CLEAN dbts_c1 C2 span    predicted 6553 ms, median ×1.002 (8/8 in 0.75–1.33): HOLDS; 2 VOID
+A/A CLEAN/dbts_a1: A′ ÷ A median ×1.063
+A/A CLEAN/dbts_b1: A′ ÷ A median ×1.012
+A/A CLEAN/dbts_c1: A′ ÷ A median ×0.997
+predictions xxh3 e7d61c6d15ea6bdb; A/A input lab/delivery/rows/CLEAN.aa.json: lab/scripts/aa_rule.py lab/delivery/rows/CLEAN.aa.json --bar 0.05
