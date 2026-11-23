@@ -20,7 +20,7 @@ simplifications. Each changes a default, merges a PR or queues a row, so each is
 | ---: | --- | --- | --- | --- |
 | 1 | `pixels: "transfer"` (§3.1) | **stays off; cell T queued** as a cloud run in phase 2 (amendment 28 rule 2; no product code) | one run row; the default changes only if T and W both hold, W not runnable yet | the setting built, never run |
 | 2 | `readMin`'s cut-stream fix (§3.2) | **yes: restore it**, by a row like SELINUX-BUILD-RESTORE; `readMin` stays **off** by default | `4019518a`'s two hunks back on `claude/unified` with their test, the docs corrected in place | a known defect in an opt-in path, and three docs that say the fix is "not merged" while history says it was |
-| 3 | dav1d fetched on need, form (c) (§3.3) | **yes, provisionally**: queue rule (3)'s registered re-read (cloud, no product code), then build (c) as a draft PR if it holds | ~13 lines of `av1.js`, `head.js`, `viewer.js`, reviewed; −0.24 to −0.64 MB a page WebCodecs serves | form (a): every AV1 page fetches dav1d three times |
+| 3 | dav1d fetched on need, form (c) (§3.3) | **yes, provisionally**: queue rule (3)'s registered re-read (cloud, no product code), then build (c) as a draft PR if it holds | ~13 lines of `av1.js`, `head.js`, `viewer.js`, reviewed; −0.24 to −0.64 MB a page WebCodecs serves (**theory**, the source's assumption: one dav1d fetch saved, 243 779 B gzipped or 636 484 B raw) | form (a): every AV1 page fetches dav1d three times |
 | 4 | a wake before the exact ask (§3.4) | **stops here: a phone row decides** | — | — |
 | 5 | the WebGL painter on a GPU (§3.5) | **stops here: a GPU decides** | — | — |
 | 6 | a WebGPU painter (B14) (§3.6) | **no: not designed now**; stops at the GPU and the phone | — | a design row with nothing to measure it on |
@@ -62,7 +62,7 @@ names the merge by `git log -S`, so the two may share a cause. So design.md's co
 frame whole and §Open, and `merge-readiness.md` H3 are right about the code and wrong about the history; corrected in
 place by the restore row.
 
-**Options** for the default, from `CLIENTS.md` §Reading a frame whole, **measured** on a cloud host: 16 KB ties
+**Options** for the default, from `CLIENTS.md` §Reading a frame whole, **measured** on the workstation (RMD4, 2026-10-03, Chrome 148; corrected 2026-11-23, `README.md` §Review m7), not a cloud host: 16 KB ties
 frame 0 (+2.6 and +8.4 ms, within noise), takes 97 ms of downloader CPU off a fill at 4× throttle and 38 MB off the
 renderer's peak; its cost is a re-dial of any session slower than 16 KB per `stallMs` (< 44 kbit/s, **derived**).
 Off (today) costs nothing. **Recommended:** restore the fix (a failing test first: the rig case comes back with it),
@@ -144,11 +144,30 @@ Fixtures: 19 DBT volumes of one dataset, three timed (`dbts_a1`, `dbts_b1`, `dbt
 4-core cloud hosts without a GPU, software WebCodecs, headless Chromium; loopback, a userspace relay or netem, not a
 radio. No phone, no GPU, no WebKit in any cell here.
 
-## 5 · What it would reopen
+## 5 · The mechanism
+
+Given in place for 3.1–3.3 and 3.9; one line each for the rest (added 2026-11-23, `README.md` §Review m9):
+
+* 3.4: a message sent on the exact session at `pointerdown` starts an idle radio's promotion one tap (~50–150 ms)
+  before the ask at `click`, so the ask pays max(0, P − L) of it (`wake-before-lossless.md` §Theory, **theory**).
+* 3.5: SwiftShader and llvmpipe paint on the CPU, so their times and exactness say nothing about a GPU's texture path.
+* 3.6: no source here says WebGPU paints a grey frame more exactly or faster than WebGL2, so a design has no gain
+  to aim at.
+* 3.7: a mutant survives where the code it breaks does not run under the view the check drives (A, the page view).
+* 3.8: the worker posts progress at most every 100 ms and the check read it ~100 ms after the jump, so it raced the
+  post.
+
+## 6 · What would change the recommendation
+
+Given in place for 3.1–3.3 and 3.9; for the rest: 3.4, the phone row's 20 dwells an arm at ≥ 30 ms adopt the wake;
+3.5, a GPU's paint inexact or over `lab/paint-floor`'s 0.34 ms; 3.6, a source or a GPU showing WebGPU paints a grey
+frame more exactly or faster; 3.7 and 3.8, the review of PRs 418 and 419 finding a blocker.
+
+## 7 · What it would reopen
 
 Nothing among the decided approaches. §3.3 keeps WebCodecs first and dav1d the fallback; §3.2 keeps the default off.
 
-## 6 · Rows and links
+## 8 · Rows and links
 
 DEMO-CHECK-MUTANTS (PR 418, `claude/demo-check-mutants` `7567248b`), WORKER-FLAKE (PR 419, `claude/worker-flake`
 `5ca31b35`, `docs/reviews/worker-flake.md`); OPT-SIMPLIFY (`claude/demo-simplify` `d70ccb9f`); P6 (`claude/dav1d-lazy`,
