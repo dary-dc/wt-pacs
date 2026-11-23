@@ -287,6 +287,53 @@ against a slower start did not bind, but its 52 ms bound is an assumption. This 
 Wi-Fi, one 50-frame AV1 series, one evening, with a fresh Chrome before every load and a synthetic busy page. Another
 phone, link or real page workload is untested.
 
+### Cell 3 review
+
+*PHONE-READ-3D-REVIEW, 2026-11-23, by a session that wrote none of this file, `next-round.md`, the tools, the run or
+PHONE-READ-3D. Every number of §Cell 3 recomputed from `raw/2026-11-22-cell3d/round3d/` at `f96e38a9` with one short
+script over `beacon-cell3*.jsonl`, `relaunch-cell3*.jsonl`, `resources-cell3*.jsonl` and `plan-cell3*.json`; the
+rule checked against `next-round.md` §4 cell 3; `device-model.md` §2 read at `cf9f0b43`; the reductions checked
+against `lab/devices/round-page.js` at `f5252051` (line 98: a step's `ms` is `painted − due`). Labels as above.
+Fixtures and limits: the read's, as its §Fixtures and limits states; this review measured nothing.*
+
+**Verdict: no blocker.** Every cell of the table reproduces to its printed digit: the counts below / above / ties,
+the median ratios, the medians per view, the paired differences and their intervals (order statistics 7 and 18 of
+24; coverage 1 − 2·P(Bin(24, ½) ≤ 6) = 97.73 %, *derived*), and p = 2·2⁻²⁴ = 2⁻²³ ≈ 1.19 × 10⁻⁷ for 24 of 24. So do
+the code check (48 loads, one `drain` each, path `post`; one load id per step), 48 `ok` verdicts with the largest
+gap 1 467 ms, 50 of 50 frames `av1-webcodecs` and no error in every load, 20 + 20 steps and 100 + 100 frames due per
+load, 7 halves where the worker painted 101 of 100, 114 of 480 and 129 of 480 busy steps over 50 ms, the page's busy
+drops 1–16, the first record being the wake lock in all 48 loads, thermal status 0 in all 50 snapshots, both plans at
+`f5252051` with the rest's 32 loads equal to the last 32 of `plan-cell3.json` (every field, URLs included),
+`stopAt − quietAt` 1–2 ms in the first run and 1 586–1 617 ms in the rest, and the Wi-Fi lines (5 GHz, 11ac, RSSI
+−31 and −28). The verdicts follow from §4's rule at 24 pairs (threshold 18). The DEVICE-THEORY quote holds: "this
+model adds nothing to the protocol's predictions".
+
+* **m1. The relaunches are after each load, not before.** Each record carries `after: k`, 0–15 and 0–31: 48
+  relaunches, one after every load, so loads 1–15 and 17–47 start in a fresh Chrome, and loads 0 and 16 open their
+  runs with no relaunch record of their run before them (load 0 with DevTools attached and the cache cleared; load 16
+  after run one's relaunch past load 15, then adb's drop and the restart, so its start state is not in the rows). The
+  blank tab likewise precedes loads 17–47, not 16, so pair 8 is mixed (its page load 16 without, its worker load 17
+  with), and "both arms alike" holds for pairs 9–23. Deviations 1 and 4 and the fixtures line want that wording. No
+  verdict moves: without pairs 0 and 8 (22 pairs, threshold 17), busy cine is 22 of 22, *worker faster*; every other
+  measure, both guards included, stays *no difference shown* (*derived*).
+* **m2. §Against the predictions reads the rule's prediction line only.** The theory table's rows can be set
+  against too: (a) busy frame-change, "worker lower by ~one long task in some steps": *missed* (the worker's steps
+  over 50 ms are 129 to the page's 114, and its median is higher); (b) the first picture, "worker later by ≥ 16.7
+  ms": +8.6 [−4.2, +27.1] ms neither shows nor excludes it, *not decided*. One line each.
+* **m3. Deviation 4, read pair by pair** (here, post hoc, deciding nothing; *derived*). Pairs 0–7 against 8–23,
+  median paired difference: first picture +26.0 against +5.8 ms (1 of 8 below 1 against 6 of 16), busy cine −7.5
+  against −6.5 frames, fill −81 against −13 ms, busy frame-change −0.4 against +1.3 ms. Eight pairs are under the
+  rule's 16, so nothing is decided by them; but the guard's "not binding" rests mostly on pairs 8–23, read after
+  the blank tab and the restart. Say so beside deviation 4, and let PHONE-ROUND-2 run its cell 3 under one condition
+  throughout.
+* **n1.** "The worker never saved the second task the theory gave it" is an aggregate: 10 of 24 pairs are below 1.
+  "did not, in the median or in the steps over 50 ms" says what was measured.
+* **n2.** The fill is read from `fillMs` (the dial to the last frame); `statusFillMs` gives 15 / 9 / 0, ratio
+  0.997, the same verdict. Name the field in §Reductions.
+
+VIEW-PAGE may use §Cell 3 as read: the busy-cine verdict holds on every subset tried here; the first-picture guard
+stays an *assumption*, now with m3 beside it.
+
 ## Cell 4 · the hardware-decode probe (exploratory, deciding nothing)
 
 *Measured*, one row; the forms of `claude/hw-decode:docs/decode/hardware.md` §17 at 16 × 16 and 256 × 256:

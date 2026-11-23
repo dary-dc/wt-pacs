@@ -40,7 +40,9 @@ ways (*no difference* summed, *C2 slower* end to end). Re-reviewed 2026-11-22 (P
 `f96e38a9`): all 48 loads ran the fixed beacon (a `drain` record, path `post`, each). The worker view is *faster* on
 busy cine, 24 of 24 pairs: 0 against a median of 7 of 100 dropped, difference −7 [−11, −5]. Busy frame-change shows
 *no difference* (10 of 24), and so does everything else. Guard (a) does not bind; it is an *assumption*. It was read
-with a fresh Chrome per load, at lab-only `f5252051`, restarted at K=16. A review (by another session) is owed.
+with a fresh Chrome per load, at lab-only `f5252051`, restarted at K=16. Reviewed 2026-11-23 (PHONE-READ-3D-REVIEW, §Cell 3 review): every number
+reproduces from the raw rows, no blocker; the relaunches fall after each load (loads 0 and 16 open their runs), and
+the first-picture guard's pairs 0–7 lean worker-later (+26 ms, post hoc, deciding nothing).
 
 **2026-11-23, the session tools made harness** (DEVICEKIT-TOOLS, `lab/devices/README.md` §The round): `round.py` takes
 the per-load resource snapshot itself (on by default) and `--fresh-chrome --beacon FILE` relaunches Chrome gated on
