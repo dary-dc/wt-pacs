@@ -107,7 +107,7 @@ survives a phone's screen lock, app switch or force-stop is not known. That is w
 **US and DBT stacks** (amendment 27 item 6). The carrier, timing and receiver results do not depend on the modality.
 They depend on record size and on how the load ends, and every arm stayed under 16 KiB here. A record's size grows with
 its frame count, because it carries one row per frame. A breast ultrasound clip of a few hundred frames may therefore
-pass 16 KiB or the 64 KiB budget. **Not yet known**: no US fixture exists. PR 370's answer is to send the record again
+pass 16 KiB or the 64 KiB budget. **Not yet known**: no US clip was run (`usb_cine` exists, lossy-sourced). PR 370's answer is to send the record again
 without its per-frame rows (`truncated`).
 
 ## 5 · The mechanism

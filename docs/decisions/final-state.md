@@ -105,7 +105,8 @@ research use." (S16). Both state what the software is not, in one sentence, and 
   `docs/merge-readiness.md`, `scripts/gate.sh` and `server/Cargo.toml` on `origin/claude/unified` at `4a2b4277`.
   Whether the branch meets §5 today is UNIFIED-PAGE's question, not this page's.
 * **The program's fixtures**, which "bench" stands for: 19 DBT volumes of one dataset, three of them timed; no breast
-  ultrasound cine; 4-core cloud hosts without a GPU, software WebCodecs, headless Chromium; a userspace relay or
+  ultrasound cine in any run (`docs/FIXTURES.md` lists two, `usb_cine` and `usb_cine_rgb`, both lossy-sourced, never
+  run end to end); 4-core cloud hosts without a GPU, software WebCodecs, headless Chromium; a userspace relay or
   netem, not a radio; one phone on one home link.
 * **Not a regulatory opinion.** Whether software like this is a medical device in a given country is decided by
   that country's rules and the use its maker states, and by no word on this page.
@@ -135,7 +136,7 @@ by the word "production".
 | # | condition | the check |
 | ---: | --- | --- |
 | 1 | **The scope is written**, in one place: what it serves (breast DBT and ultrasound stacks, a series of frames along one dimension), from what input (what the PCS delivers), to what client (a browser) | `README.md` opens with it (row VALUE-STATEMENT: README §Purpose on PR 432, until it merges into `claude/unified`) |
-| 2 | **Complete for that scope**: every step from a delivered series to a checked frame on screen is in the default build and run end to end by the gate, for a DBT stack and for an ultrasound clip | the gate's end-to-end steps, one per modality, on real coded frames |
+| 2 | **Complete for that scope**: every step from a delivered series to a frame on screen (the exact frame checked, bit for bit; the view checked only where its decoder hands back samples, the owner's word of 2026-11-23 ~02:00) is in the default build and run end to end by the gate, for a DBT stack and for an ultrasound clip | the gate's end-to-end steps, one per modality, on real coded frames |
 | 3 | **Every default chosen by measurement**: each default (a server flag, a client option, a codec setting) points to the document whose measurement chose it, or says "not measured" | one table of defaults, every row with a pointer or those two words; `docs/reviews/understand/defaults.md` its starting point |
 | 4 | **Lean**: nothing in the default build that no product path uses; no test lever outside `lab/`; the comment budget held | `scripts/check_lab_absent.sh`, `scripts/comment_budget.sh`; the unified track's removal PRs each merged or refused by name |
 | 5 | **Gate green**: the full gate at the tip, from a clean clone by `README.md` §Prerequisites, with no skip but those the CI workflow allows | `scripts/gate.sh` with neither `--quick` nor `--no-browser`, its log free of `SKIPPED` but the lines `.github/workflows/gate.yml` lists in `allowed` ("the viewer's cross-codec arm and Firefox": row INGEST's fetched studies and a GL display, which no runner has) |
@@ -157,9 +158,11 @@ by the word "production".
 Three things the definition would meet on the branch today (read, not run; UNIFIED-PAGE decides each):
 
 * condition 2, ultrasound: the tracked ultrasound fixture is "3 frames, 19-byte placeholders ... not HTJ2K"
-  (`docs/FIXTURES.md`, the `fixtures/us_cine_smoke/` row), and the program's fixtures hold no breast ultrasound cine.
-  Either an ultrasound clip is run end to end, or the status line says "DBT stacks measured; ultrasound stacks
-  carried by theory";
+  (`docs/FIXTURES.md`, the `fixtures/us_cine_smoke/` row); a breast ultrasound clip exists, `usb_cine` ("breast ultrasound cine, B-mode, 25 frames/s, the first 64 of 515 frames, luma", 64 × 512², 8-bit, `docs/FIXTURES.md`), but no run has
+  taken it end to end. Only that run meets condition 2: the status line "DBT stacks measured; ultrasound stacks
+  carried by theory" is §2's form for the condition **unmet**, not a way to meet it (corrected 2026-11-23,
+  `README.md` §Review B3). The clip is lossy-sourced, so by `docs/FIXTURES.md`'s rule ("A lossy-sourced or unknown
+  set enters no bytes, time or inter verdict") its run shows the path complete and its numbers stay provisional;
 * condition 3: no table of defaults with a pointer per default was found; `docs/levers.md` lists levers, not
   defaults, and `docs/reviews/understand/defaults.md` (DEFAULTS-FIND, 2026-11-11, read at the demo tip `618e13c8`)
   lists what the page, `series-server` and `dev-server.py` run with nothing set, with no measurement per default: the
@@ -195,7 +198,9 @@ Nothing among the program's §Decided approaches. Keeping *evaluation release* r
 what amendment 28 has built on it: phase 2's heading ("toward the evaluation release"), the branch
 `claude/eval-release`, its PR title "evaluation release candidate: the owner's review", and the rows of phase
 2's queue file that name them. Amendment 1's "every frame checked, in production too" uses
-"production" for the default build against the lab's, and stands. `docs/lines/coordination.md` §Goal's
+"production" for the default build against the lab's; the owner's word of 2026-11-23 ~02:00 reopened it for a view
+decoded in hardware ([`frame-integrity.md`](frame-integrity.md) §7), which changes condition 2's "checked" to the exact
+frame and touches neither name. `docs/lines/coordination.md` §Goal's
 "deployment-ready" is a line's wording, not a decision; a yes replaces it.
 
 ## 8. Rows and links

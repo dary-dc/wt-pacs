@@ -26,8 +26,8 @@ of the table below no longer need a yes; the owner's calls are the ones rule 1 d
 **Let the sync rows merge the eleven reviewed track PRs in the order of §3.1, PR 433 and PR 410 once their open rows
 close; take M6 as the pages already say (PRs 368 and 378 ported onto `claude/unified`, PRs 370, 309, 265 and 372 left
 open, PRs 376 and 390 already in); and open the evaluation release's PR into `main` only after four phase-2 rows
-close the conditions the tip misses (§4): a table of defaults, an ultrasound clip end to end or a status line that
-says ultrasound is carried by theory, the full gate in CI, and the 47 unread `lab/` directories removed.**
+close the conditions the tip misses (§4): a table of defaults, an ultrasound clip (`usb_cine`) end to end, the full
+gate in CI, and the 47 unread `lab/` directories removed.**
 
 How it serves the value statement (README §Purpose, PR 432): "one small MIT-licensed server" is condition 4; the
 rest makes `main`'s claim about speed and exactness one a reviewer can check on the branch.
@@ -123,10 +123,11 @@ The four rows the recommendation asks of phase 2, each with its limit:
 
 1. **DEFAULTS-TABLE**: one table of every default (server flag, client option, codec setting), each row a pointer to
    the measurement that chose it or "not measured", from `defaults.md` re-read at the tip.
-2. **US-END-TO-END**: an ultrasound clip coded as the product codes it, through the gate's end-to-end step; with no
-   breast ultrasound fixture to hand (the program's fixtures have none), the evaluation release's status line says
-   "DBT stacks measured; ultrasound stacks carried by theory", and US-DBT-CARRY (amendment 28 item 3.3) says by which
-   property. A DBT volume (one of `dbts_a1`/`b1`/`c1`) in the same step closes condition 2's DBT half.
+2. **US-END-TO-END**: `usb_cine` (breast ultrasound cine, 64 × 512², 8-bit, `docs/FIXTURES.md`) coded as the product
+   codes it, through the gate's end-to-end step; it is lossy-sourced, so the run shows the path complete and its
+   numbers stay provisional by `docs/FIXTURES.md`'s rule. Until it runs, condition 2 is **unmet**: the status line
+   "DBT stacks measured; ultrasound stacks carried by theory" states that, it does not close it (corrected 2026-11-23,
+   `README.md` §Review B3); US-DBT-CARRY (amendment 28 item 3.3) says by which property the rest carries. A DBT volume (one of `dbts_a1`/`b1`/`c1`) in the same step closes condition 2's DBT half.
 3. **GATE-ON-UNIFIED**: `claude/unified` (and `claude/eval-release`) in `gate.yml`'s branch lists, so CI runs the full
    gate with only the allowed skip; the evaluation release's PR into `main` triggers it in any case.
 4. **LAB-REMOVE**: item 4's PR.
@@ -156,7 +157,7 @@ docs-only line in DEFAULTS-TABLE's row).
 * The commits whose added lines merge `dd681539d`'s rule dropped: two are known losses (`5ce4f0876`, restored by PR
   433; `4019518a`, READMIN-RESTORE), and PR 433's body lists twelve more, not judged. If more are losses, they go in
   before the release; a findings row judges each (§8).
-* A breast ultrasound fixture: condition 2 closes measured instead of by a status line.
+* `usb_cine` run end to end (US-END-TO-END): condition 2's ultrasound half closes; nothing else closes it.
 
 ## 7 · What it would reopen
 

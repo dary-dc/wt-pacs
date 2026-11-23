@@ -88,7 +88,7 @@ Whether a given phone has the decoder at the frame's size is a device fact on ev
 
 **US and DBT stacks** (amendment 27 item 6). DBT: the view is at most 10 bits, so the 10-bit route is the one that
 matters, and its frames are the large ones level 4.1 does not take whole (**derived**, above). Breast ultrasound
-clips are 8-bit and often colour (**theory**: the property, not measured here; no US fixture): the 10-bit question
+clips are 8-bit and often colour (**theory**: the property, not measured here; no US clip run): the 10-bit question
 does not arise, a frame within 1080p falls inside what class V promises (**source**), but a hardware frame on Android
 Chrome still reaches the page as RGB with no samples to check (`hardware-10bit.md` §7, **source**), so native would be
 the only *checked* hardware route for US on a phone as well, at 8 bits. Whether a US clip's software decode is fast

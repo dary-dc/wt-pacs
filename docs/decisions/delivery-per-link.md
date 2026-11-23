@@ -91,7 +91,8 @@ against DELIVERY-FIT-ARM, the HTJ2K-only control of phase 2), named here beside 
 view at Q 8 G 8 only; one 4-core cloud container (Intel Xeon @ 2.10 GHz) without a GPU, software decode, Chromium 153
 headless; a userspace TUN relay at ≤ 90 Mbit/s, its forms scaled from the profiles and assumed, none a radio; one
 period of 10 rounds a cell, 750 counted loads, 61 `VOID`. The phone beside it: one premium phone, one home link, one
-evening (cell 2). No breast ultrasound fixture, no Firefox or WebKit, no radio, nothing above 90 Mbit/s.
+evening (cell 2). No breast ultrasound cine in the run (`usb_cine` is in `docs/FIXTURES.md`, lossy-sourced, not one of
+the arms' series), no Firefox or WebKit, no radio, nothing above 90 Mbit/s.
 
 **Where the host saturates**: the browser's two cores in every decode-bound load (CLEAN, PUB): that is the decode
 being measured, not a phone's. The TUN at 100 Mbit/s; nothing is claimed above 90.
@@ -119,7 +120,7 @@ Transport rows are lowered by none of this.
 **US and DBT stacks** (amendment 27 item 6). DBT stacks: measured on three volumes, carried to the 19 by bytes and to
 the classes by the model. Breast ultrasound clips: the model's form carries (*theory*: fill ≈ max(wire, decode) +
 rest does not depend on the modality), its numbers do not: a clip's 8-bit, often colour, lossy-sourced frames change
-the view's ratio to the exact series and its decode time, so no *G*★ is known for US (no US fixture; US-DBT-CARRY,
+the view's ratio to the exact series and its decode time, so no *G*★ is known for US (no US clip in the run; `usb_cine` exists, lossy-sourced; US-DBT-CARRY,
 phase 2).
 
 **Every limitation, with what found it:**

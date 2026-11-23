@@ -75,7 +75,8 @@ the fill is already written; the window flag alone, "nearly all of the ask gain"
 **Fixtures: none.** The rule is theory; §3's table is a simulation of it. The measured numbers quoted come from
 `ct_lidc` and `dbt10_ea1141` at 5 and 20 Mbit/s through a userspace relay, headless Chromium and Firefox on 4-core
 cloud hosts without a GPU (up to a third of visits voided), `dbts_b1` of one DBT dataset of 19 volumes, and one phone
-on one home link behind the decode ranges. No breast ultrasound cine, no reader, no radio.
+on one home link behind the decode ranges. No breast ultrasound cine in the runs (`usb_cine` is in `docs/FIXTURES.md`,
+lossy-sourced, and none of these rows took it), no reader, no radio.
 
 **To DBT stacks:** the order inside each direction (nearest-first) holds by a proof under no-skip (model §3.1), and
 no-skip by S1 itself, quoted. The hold's gain rests on readers who scroll back and forth: S6's abstract, "a type of

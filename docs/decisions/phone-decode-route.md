@@ -124,7 +124,7 @@ premium 21.1 %, **source**/**derived**) and `route-policy.md` §3. Its tested pr
 
 **US and DBT stacks** (amendment 27 item 6). DBT: measured on two volumes, carried to the 19 by bytes and to the
 classes by the model. Breast ultrasound clips: the rule (*G*\* = *b*_E ÷ *d*_V) carries **by its form only**: a clip's
-8-bit, smaller frames change both *b*_E ÷ *b*_V and *d*_V, so no threshold is known (no US fixture). For B1, a US
+8-bit, smaller frames change both *b*_E ÷ *b*_V and *d*_V, so no threshold is known (no US clip run; `usb_cine` exists, lossy-sourced). For B1, a US
 clip is 8-bit already: the 10-bit question does not arise, and under the word a hardware route needs no inversion
 (it would have served a check); its frames still come back as RGB (**source**), so a colour clip's hardware view is
 the closest of any series to what software paints (**theory**). Whether a clip's software decode is fast enough

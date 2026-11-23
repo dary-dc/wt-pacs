@@ -97,8 +97,8 @@ is calibrated for systems A–C only; another vendor's DBT needs its own x\* (`n
 
 **Breast ultrasound clips**: not yet known. If a clip is grey at 8 bits, it is coded at 8 (the D ≤ 8 row,
 **theory** from the code); if stored as colour, both ingests refuse the view by name (RGB is refused)
-and the exact series is served alone (**measured** by #390's RGB test, on synthetic frames). No US fixture tests
-either, and the σ rule has no US calibration.
+and the exact series is served alone (**measured** by #390's RGB test, on synthetic frames). No run of a US clip tests
+either (`usb_cine` exists, lossy-sourced), and the σ rule has no US calibration.
 
 ## 5 · The mechanism
 
