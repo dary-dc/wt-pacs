@@ -1,8 +1,9 @@
 state: started
 started: 2026-11-23T09:17Z
-heartbeat: 2026-11-23T09:17Z
-outputs: claude/failed-frame-withheld (not yet pushed)
+heartbeat: 2026-11-23T09:22Z
+outputs: claude/failed-frame-withheld (test 5e2833075, fix pushed)
 ## Resume
-Claimed. Next: read RESULTS-BRIEF §8.1 (claude/reviews-2026-11-28:docs/reviews/results-2026-11-22.md),
-docs/lines/client.md, the client's frame-check path on origin/claude/unified; failing test first.
+Done: failing tests (5e2833075), the fix (store.withhold, controller withheld paint as a cleared canvas,
+"withheld" event; painter and view worker paint null as the cleared canvas); 7 mutants killed.
+Next: gate (client/decode/wasm/build/build.sh, ingest/tools.sh, scripts/gate.sh), docs/lines/client.md, draft PR into claude/unified.
 ## Result
