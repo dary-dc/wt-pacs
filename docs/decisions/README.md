@@ -51,7 +51,7 @@ Inputs that are not pages: [`lab-list.md`](lab-list.md), what reads each `lab/` 
 | [`non-cine-series`](non-cine-series.md) | what a series that is not cine-like gets | NON-CINE-OPTIONS (Fable), -REVIEW; NON-CINE-PAGE | 11-27 | written 2026-11-22: large single frames the exact frame alone, no AV1 view; level 1 of a level picture first run, nothing adopted; stills a stack of exact frames, the three ingest refusals to the PCS team; the painter refuses an oversized frame by name now; over 12 bits waits |
 | [`delivery-per-link`](delivery-per-link.md) | the view, the exact series, or both, per link | DELIVERY-PROTOCOL, -BUILD, -BUILD-REVIEW, -RUN, -VERDICT-REVIEW; DELIVERY-PAGE | 11-27 | written 2026-11-23: A + C1 on every link and class; B not a default for now (the route page's switch test first); C2 no; the next run with C1's wire time, a lossy-link model, the relay off the decoding cores and DELIVERY-FIT-ARM |
 | [`final-state`](final-state.md) | what the state `claude/unified` reaches before `main` is called, and its definition | FINAL-STATE (Fable), FINAL-STATE-REVIEW, FINAL-STATE-FIX, FINAL-STATE-FIX-REVIEW | 11-23 | written 2026-11-22: *bench-verified*, with its scope and a line saying what it is not; seven conditions for UNIFIED-PAGE; reviewed 2026-11-23, two blockers; fixed 2026-11-23: *evaluation release* kept as the release's name, *bench-verified* its state, the README line only once the seven conditions hold; re-reviewed 2026-11-23, no blocker open, three nits; the yes or no on both names due; corrected 2026-11-23 (DECISION-PAGES-FIX B3): the status line leaves condition 2 unmet, `usb_cine` the clip |
-| `README` | the order to decide in, and what the two weeks left open | DECISIONS-OPEN, DECISION-PAGES-REVIEW, PROGRAM-CLOSE (Fable), BRIEF-1127 | 11-28 | this file, opened 2026-11-19; §Review 2026-11-23: three blockers (B1 two pages stale against the 02:00 word, B2 PR 417 unreviewed, B3 condition 2 by a status line), m1–m13; fixed 2026-11-23 (§Fix), the re-review owed; the order owed (PROGRAM-CLOSE) |
+| `README` | the order to decide in, and what the two weeks left open | DECISIONS-OPEN, DECISION-PAGES-REVIEW, PROGRAM-CLOSE (Fable), BRIEF-1127 | 11-28 | this file, opened 2026-11-19; §Review 2026-11-23: three blockers (B1 two pages stale against the 02:00 word, B2 PR 417 unreviewed, B3 condition 2 by a status line), m1–m13; fixed 2026-11-23 (§Fix); re-reviewed 2026-11-23 (§Re-review), no blocker open, r-m1 and two nits; the order owed (PROGRAM-CLOSE) |
 
 ## Review
 
@@ -185,3 +185,44 @@ its finding.
 * **m13** not fixed, as the review says (a rewrite with no claim changed; PROGRAM-CLOSE may). Nits not fixed.
 * **Not checked here**: m6's quote of #223's source ("Nothing is timed on an emulated link") was taken from the
   review, not re-fetched; m8's assignment of 811 s and 477 s to 411 and 412 is not in UNIFIED-REMOVALS' status file.
+
+## Re-review
+
+DECISION-PAGES-FIX-REVIEW, 2026-11-23, of `142e5cb39..35d310e56`, by a session that wrote no page, not the review
+and not the fix. Read only: nothing run, no fixture touched, the gate not run (docs). Each finding's diff read
+against §Review's ask; its numbers recomputed from the source the fix names.
+
+* **B1 closed.** `frame-integrity.md`: §1 states the reopen with the word quoted; items 1, 3, 5, 6 changed and 2, 4,
+  7, 8 kept, each with its reason; the 4:2:0 form named (§3.5, +0.20–0.23 % **source**, 4:0:0's flush failure
+  **measured** at 256 × 256, as `phone-decode-route.md` 4.7 has them); the unchecked view a disadvantage against
+  DELIVERY-FIT-ARM (§2); §7 names the reopen. Item 6's +1.9–3.7 % and +3.5–7.8 % match §3.5's I1 rows (3.7, 1.9;
+  7.8, 3.5). `phone-decode-route.md`: B1 restated, items 6 and 9 kept with changed reasons, policy 4.8 added, §7
+  names the reopen; "the round's phone decoded the view in software" matches its §4 fixtures line.
+* **B2 closed.** `pacs-sync.md` §2 and item 3, §8, and `unified-to-main.md` §3: PR 417 yes only after its review.
+* **B3 closed**, with r-m1 below. `final-state.md` §4–§5 and `unified-to-main.md` §2, §4, §6: the status line is the
+  unmet form; `usb_cine` quoted as `docs/FIXTURES.md` lists it at `origin/claude/unified` (line 385: "breast
+  ultrasound cine, B-mode, 25 frames/s, the first 64 of 515 frames, luma", 64 × 512², 8-bit, lossy-sourced), and the
+  rule quoted verbatim (line 434: "A lossy-sourced or unknown set enters no bytes, time or inter verdict").
+* **m1 closed**: re-counted from `claude/cache-arms:lab/cache-arms/rows/` (partials left out): 36 `none` rounds an
+  engine in L and B without the 4×-none cells (6 + 12 + 6 + 6 + 6), 48 with them, 0 errored. **m2 closed**:
+  `REPORT-VERDICT-2/output.txt` line 48 (Lbusy, `keepalive:H` p99 2.46, largest round 3.25) and line 63 (1.013 per
+  round, 0.989 ratio of medians). **m3 closed**: 1.29 ÷ 50 = 25.8, (3.68 − 0.25) ÷ 50 = 68.6; PHONE-READ-CODE-CHECK's
+  status file says done 07:34, no load set apart. **m5 closed**: 1 ÷ 0.0686 = 14.6, 1 ÷ 0.2161 = 4.6. **m10
+  closed**: I2-RUN's status file, "+48 to +60 %, bar 10 %. Checks alone 0.09-0.20 CPU s a megapixel".
+  **m4, m6, m7, m8, m9, m11, m12 closed** as asked, read in place (m4 and m6 with the nits below).
+* **m13 argued, accepted**: no claim changes; PROGRAM-CLOSE may move the tables.
+* `scripts/check_links.py`: 17 unresolved before and after the fix, the same paths (three moved by a line); the
+  comment budget ok.
+
+**New** (not blockers; none changes a recommendation).
+
+* r-m1. `repository.md` §4: "there is no US cine fixture today", and item 4 carries US sets "the day a US source is
+  pinned in `lab/av1/data.json`"; `usb_cine` and `usb_cine_rgb` are pinned there already (`origin/claude/unified`
+  `lab/av1/data.json`, the BUVFM Zenodo record). B3's false premise, missed by the fix's sweep.
+* r-n1. m6: #223's body says "Times come only from #156's arithmetic (`wire.transfer()`); nothing is timed on a link",
+  not §Review's "Nothing is timed on an emulated link"; and "bytes on loopback" names a link the PR does not (its
+  packages were built and counted). The page's derived label stands.
+* r-n2. m4: `visually-lossless.md` item 6's "0.07–0.24 over 19 volumes, from their rows" names no file for the rows.
+
+**Verdict:** no blocker open; round one closes. r-m1 and the nits go to PROGRAM-CLOSE's list or any later fix of
+`repository.md`. PROGRAM-CLOSE no longer waits on this row.
