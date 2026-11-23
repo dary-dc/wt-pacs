@@ -8,6 +8,21 @@ const sendBeacon = (body) => navigator.sendBeacon(BEACON_PATH, new Blob([body], 
 export const postBatch = (body, ms) => fetch(BEACON_PATH, { method: "POST", headers: { "content-type": "application/json" }, body, signal: AbortSignal.timeout(ms) })
   .then((r) => (r.ok ? null : `HTTP ${r.status}`), (e) => e?.name ?? String(e));
 const DRAIN_MS = 5000;
+// Bytes of one fallback beacon: Chrome refuses a keepalive body once 64 KiB are in flight. lab/devices/README.md §The round
+const BEACON_BYTES = 16 * 1024;
+
+/** `records` as JSON lists of at most `bytes` each; a record longer than that is a list of its own. */
+export function chunks(records, bytes) {
+  const out = [];
+  let size = Infinity;
+  for (const r of records) {
+    const n = JSON.stringify(r).length + 1;
+    if (size + n > bytes) out.push([]), (size = 1);
+    out.at(-1).push(r);
+    size += n;
+  }
+  return out;
+}
 
 /** One frame as the overlay shows it, from the controller's ledger. */
 export const frameRow = ({ i, route, refusal, wireBytes, decodeMs, decoded }) =>
@@ -25,11 +40,13 @@ export function recorder(load, { send = sendBeacon, post = postBatch, now = epoc
   return {
     record,
     flush,
-    /** The load's last batch, awaited before the page leaves: a sendBeacon over Chrome's keepalive quota is dropped. lab/devices/README.md §The round */
+    /** The load's last batch, awaited before the page leaves; on a failed post, beacons the quota takes. lab/devices/README.md §The round */
     async drain() {
       const records = queued.splice(0);
-      const why = await post(JSON.stringify([...records, { ...load, kind: "drain", at: now(), path: "post" }]), DRAIN_MS);
-      if (why !== null) send(JSON.stringify([...records, { ...load, kind: "drain", at: now(), path: "sendBeacon", why }]));
+      const why = await post(JSON.stringify([...records, { ...load, kind: "drain", at: now(), path: "post", records: records.length }]), DRAIN_MS);
+      if (why === null) return;
+      send(JSON.stringify([{ ...load, kind: "drain", at: now(), path: "sendBeacon", why, records: records.length }]));
+      for (const c of chunks(records, BEACON_BYTES)) if (!send(JSON.stringify(c))) break;
     },
     /** The fill's end, from viewer.js's `lab.finished`: the fill as §7's Second amendment defines it, lab/devices/README.md §The round. */
     filled({ error, fillMs = null, issuedAt, boot, frames = [], errors = [] }, meta) {
