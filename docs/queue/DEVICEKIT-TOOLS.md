@@ -1,12 +1,9 @@
 state: started
 started: 2026-11-23T07:47Z
-heartbeat: 2026-11-23T07:57Z
+heartbeat: 2026-11-23T07:58Z
 outputs: claude/phone-run (lab/devices, docs)
 ## Resume
-Done: claude/phone-run ace5af899: round.py resource snapshot (default on, --no-resources) and --fresh-chrome --beacon FILE,
-4 new tests in round_test.py (mutants M1-M5, M7-M9 killed; M6, a constructor default, removed as dead);
-lab/devices/devtools.mjs and devtools.test.mjs (3 tests, Playwright Chromium over --remote-debugging-port; mutants
-D1-D4 killed). Next: README §The round (the two options, devtools.mjs, the node-in-podman wrapper), the gate line for
-devtools.test.mjs, docs/lines/devices.md (kit kept and maintained), then scripts/gate.sh --quick or the lab/devices steps.
-Commands: cd <phone-run worktree>; python3 lab/devices/round_test.py; node lab/devices/devtools.test.mjs
+Done: claude/phone-run ace5af899 (round.py, round_test.py, devtools.mjs, devtools.test.mjs), 26383bf82 (README §The
+round, gate line, docs/lines/devices.md). Next: scripts/gate.sh --quick on claude/phone-run (running), then Result.
+Commands: cd <phone-run worktree>; scripts/gate.sh --quick 2>&1 | tee gate.log
 ## Result
