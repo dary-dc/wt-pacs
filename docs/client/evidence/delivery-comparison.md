@@ -274,6 +274,10 @@ the headless shell 157.0.8103.78 for K3 (`claude/transport-arms` `9fad9d9b`'s ru
   visit timeout stays at the build's 300 s (the longest pilot load, CR's B on `dbts_b1`, is under 40 s); the prefixes
   stand (LTE 16, LOSS 8). Pilot medians for §6's 3× rule: `rows/<CELL>-pilot.pilot-medians.json`. Nothing else is set
   from the pilot: the predictions file is unchanged.
+* **A5 · The container restarted** at ~00:29Z on 2026-11-23, inside CLEAN's first counted pass (89 of its 150 loads
+  done). Those rows are kept as `rows/CLEAN.partial-0029.jsonl`, in no bar (the driver cannot resume inside a Williams
+  period); CLEAN restarted whole, as `stacks.md` §6.1 did with ENT. A cell longer than the 2 h a tool job may run (CR,
+  ~126 min at the pilot's pace) runs as a detached process; the rule's reason, a job stopped at 2 h, is so avoided.
 
 ---
 
