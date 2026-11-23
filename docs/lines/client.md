@@ -60,7 +60,7 @@ exact frame bit for bit, and only checked claims on screen.
   call) or transferred buffers on the page view (a copy each paint, and an unrun experiment's to adopt).
   Reviewed 2026-11-23 (PR 434 §MEMORY-LEAK-TRACE-REVIEW, one blocker); fixed the same day (MEMORY-LEAK-TRACE-FIX); re-reviewed (§Re-review): B1 open only in the
   row's status Result, so round two (MEMORY-LEAK-TRACE-FIX-2): that Result corrected in place, and the cloud rig's URL
-  (no `overlay=1`, no `beacon=`) and unrecorded series stated in the evidence.
+  (no `overlay=1`, no `beacon=`) and unrecorded series stated in the evidence. Re-reviewed again the same day (§Re-review 2): no blocker open.
 * **D0's hardware-decode probe** on `claude/hw-probe` (`lab/devices/`, row HW-PROBE-PAGE): built, headless test
   green in Chromium 153 on software paths only (2026-11-14); draft PR #393, reviewed 2026-11-15 (its body §Review):
   every RGB copy and WebGL2 read there fits studio-range expansion even where the frame says `fullRange: true`, so
