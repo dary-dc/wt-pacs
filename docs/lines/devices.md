@@ -50,20 +50,15 @@ the load's verdict; `devtools.mjs` clears the cache, closes the round's tabs and
 against the tree; each tested with its mutants. Of STALE-CODE's harness part (a), this row did the cache clear and
 the check of the first page; still owed for PHONE-ROUND-2's preparation: the dev servers' `--revalidate` (on
 `claude/stale-code`, PR 437, not on this branch) passed by `round_plan.mjs`, and a record of the code each load ran.
-Not tried on a phone yet: the dry run before PHONE-ROUND-2's counted loads is the first. A review is owed.
+Not tried on a phone yet: the dry run before PHONE-ROUND-2's counted loads is the first. Reviewed 2026-11-23
+(DEVICEKIT-TOOLS-REVIEW, its status file on `claude/work-ledger`): no blocker; every new test fails with its change
+reverted (15 mutants killed); the relaunch's quiet gate and the gap's accounting have no test, and the relaunch runs
+after the next block's servers start, so a slow block start would skip it as "no verdict" (latent: the plan has one block).
 
 **2026-11-23, which code each load ran** (PHONE-READ-CODE-CHECK, the results file's §Which code each load ran): all 103
 loads of the round and PHONE-ROUND-3C carry fields that only post-11-11 code writes (`route`, `decoders`, `start`, C1's
 `lossless`). The four round scripts ran as at `3dbe295a3`; none is set apart, and no result changes. 18 changed client
 modules leave no field, so their version is not established. A review (by another session) is owed.
-
-**2026-11-23, the session tools made harness** (DEVICEKIT-TOOLS, `lab/devices/README.md` §The round): `round.py` takes
-the per-load resource snapshot itself (on by default) and `--fresh-chrome --beacon FILE` relaunches Chrome gated on
-the load's verdict; `devtools.mjs` clears the cache, closes the round's tabs and checks the first round page's scripts
-against the tree; each tested with its mutants. Of STALE-CODE's harness part (a), this row did the cache clear and
-the check of the first page; still owed for PHONE-ROUND-2's preparation: the dev servers' `--revalidate` (on
-`claude/stale-code`, PR 437, not on this branch) passed by `round_plan.mjs`, and a record of the code each load ran.
-Not tried on a phone yet: the dry run before PHONE-ROUND-2's counted loads is the first. A review is owed.
 
 The next round's path, in order:
 
