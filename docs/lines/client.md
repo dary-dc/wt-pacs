@@ -55,6 +55,8 @@ exact frame bit for bit, and only checked claims on screen.
   navigation they stay resident: one renderer 1.6 → 4.1 GiB over four `dbts_b1` loads in headless Chromium 153, the
   view worker flat; not the back/forward cache. The releases in reach are the view worker (VIEW-PAGE's call) or
   transferred buffers on the page view (a copy each paint, and an unrun experiment's to adopt).
+  Reviewed 2026-11-23 (PR 434 §MEMORY-LEAK-TRACE-REVIEW): one blocker open, the phone's worker-view loads grew
+  as much as its page-view loads, so the cause holds for the cloud page view only until MEMORY-LEAK-TRACE-FIX.
 * **D0's hardware-decode probe** on `claude/hw-probe` (`lab/devices/`, row HW-PROBE-PAGE): built, headless test
   green in Chromium 153 on software paths only (2026-11-14); draft PR #393, reviewed 2026-11-15 (its body §Review):
   every RGB copy and WebGL2 read there fits studio-range expansion even where the frame says `fullRange: true`, so
