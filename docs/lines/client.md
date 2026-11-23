@@ -17,6 +17,8 @@ exact frame bit for bit, and only checked claims on screen.
   `claude/unified`): the view holds 256 MiB of decoded frames a tab by default, in the series' frames, farthest first
   ([`../client/evidence/what-a-view-asks-for.md`](../client/evidence/what-a-view-asks-for.md) *M, the budget*); the
   size per device class is phase 2's; on V8 the bound is on what the store keeps, not on resident memory (not measured).
+  Reviewed 2026-11-23 (PR 435 §VIEW-MEMORY-BOUND-REVIEW): one blocker, the want not cut to the window, so a series
+  over the budget is fetched whole and, under the worker view, re-asked outside the window on each step; a fix row is queued.
 * **The unified branch** `claude/unified-client` (the client, optimal-quality and native lines): the demo tip with the
   cleaning and the renames merged; one `info.path` left in `lab/faultbench/index.html` (now `info.route`), a finding in
   #382. Reaches `main` through #367 then #250, on the owner's word ([`coordination.md`](coordination.md)).
