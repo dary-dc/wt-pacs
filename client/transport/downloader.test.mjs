@@ -69,6 +69,33 @@ async function aTimedOutAskIsResumed() {
 }
 await aTimedOutAskIsResumed();
 
+/** An ask whose session is lost and whose re-dials all fail is failed as lost, so the view may ask it once more. */
+async function aRedialThatFailsIsLost() {
+  let dials = 0;
+  globalThis.fakeTransport = {
+    connect: async () => {
+      if (++dials > 1) throw new Error("no route");
+      return {
+        requestFrame: (i) => Promise.reject(Object.assign(new Error(`timeout waiting for frame ${i}`), { name: "FrameTimeoutError" })),
+        stats: () => ({ closed: null, lastByteAt: performance.now() }),
+        fillFrames() {},
+        endStream: async () => {},
+        close() {},
+      };
+    },
+  };
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport;`;
+  posted.length = 0;
+  await import("./downloader.js?redial-fails");
+  await onmessage({ data: { kind: "start", config: { decode: false, decoders: 0, transport, survival: { stallMs: 60_000, redialMs: 1, tries: 2 } } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  await onmessage({ data: { kind: "ask", index: 0 } });
+  for (let n = 0; n < 50 && !posted.some((m) => m.kind === "failed"); n++) await new Promise((r) => setTimeout(r, 10));
+  const f = posted.find((m) => m.kind === "failed" && m.index === 0);
+  check(f?.lost === true, `a frame failed by re-dials run out is marked lost (${JSON.stringify(f)})`);
+}
+await aRedialThatFailsIsLost();
+
 /** A transport whose fill and asks the test feeds by hand. */
 function handFed() {
   const fed = { fill: null, asks: new Map() };

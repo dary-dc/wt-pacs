@@ -239,6 +239,36 @@ test("the page view never asks a withheld frame again", async () => {
   assert.deepEqual(calls, ["ask 3"]);
 });
 
+/** A lost ask whose re-dials ran out is asked once more, not withheld; lost a second time, it is withheld. docs/client/design.md §Decided */
+test("worker view: a lost fill frame is wanted once more, then withheld", async () => {
+  const wants = [];
+  const { c, events } = rig({ held: [0], wants });
+  c.show(0);
+  const reason = "the session was lost and could not be re-dialled";
+  c.refused(2, reason, true);
+  assert.equal(c.store.withheld.has(2), false, "not withheld after one loss");
+  assert.deepEqual(wants, ["1,2,3", "1,2,3"], "asked once more at once");
+  c.refused(2, reason, true);
+  assert.equal(c.store.withheld.get(2), reason, "withheld after the second loss");
+  c.show(1);
+  assert.deepEqual(wants.at(-1), "3", "no later want names it");
+  assert.equal(events.filter(([t]) => t === "failed").length, 2);
+});
+
+/** In the page view a lost ask on the current frame is asked once more; lost again, the step asks nothing more. */
+test("page view: a lost ask is asked once more, then withheld", async () => {
+  const { c, calls } = rig({ held: [0] });
+  const lost = (i) => Promise.reject(Object.assign(new Error(`frame ${i} unavailable: the session was lost and could not be re-dialled`), { lost: true }));
+  c.client.requestFrame = (i) => (calls.push(`ask ${i}`), lost(i));
+  await c.show(2);
+  for (let n = 0; n < 5; n++) await Promise.resolve();
+  assert.deepEqual(calls, ["ask 2", "ask 2"]);
+  assert.equal(c.store.withheld.has(2), true);
+  await c.show(3);
+  await c.show(2);
+  assert.deepEqual(calls, ["ask 2", "ask 2", "ask 3"]);
+});
+
 /** The current frame withheld clears the view: the previous slice's picture is never left under the new slice. */
 test("a withheld current frame paints nothing in its place", async () => {
   const { c, painted, events } = rig({ held: [0], fillMode: false });
