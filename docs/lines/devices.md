@@ -32,6 +32,12 @@ Fixed 2026-11-22 (PHONE-READ-FIX, the file's §Fix): B1, B2, m1–m5 and the nit
 ways (*no difference* summed, *C2 slower* end to end). Re-reviewed 2026-11-22 (PHONE-READ-FIX-REVIEW, the file's
 §Re-review): both blockers closed against the raw rows, no blocker open; MOBILE-DECODE-REJUDGE next.
 
+**2026-11-23, cell 3 read** (PHONE-READ-3D, the results file's §Cell 3, from `raw/2026-11-22-cell3d/` at
+`f96e38a9`): all 48 loads ran the fixed beacon (a `drain` record, path `post`, each). The worker view is *faster* on
+busy cine, 24 of 24 pairs: 0 against a median of 7 of 100 dropped, difference −7 [−11, −5]. Busy frame-change shows
+*no difference* (10 of 24), and so does everything else. Guard (a) does not bind; it is an *assumption*. It was read
+with a fresh Chrome per load, at lab-only `f5252051`, restarted at K=16. A review (by another session) is owed.
+
 The next round's path, in order:
 
 ```text

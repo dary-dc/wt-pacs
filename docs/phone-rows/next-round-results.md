@@ -29,7 +29,8 @@ first and last byte were not recorded, so no load has a measured wire time; *G* 
   stall is the memory pressure's, read from the rows, not traced.
 * **Cell 3**: loads 92–95 sent their fill record and labels, never their end batch (no verdict); load 96's renderer
   died; loads 97–139 were not run. Run again alone the same evening (PHONE-ROUND-3C): its two loads (0 and 1) in a
-  fresh Chrome lost the end batch too. **Not decided**: 0 pairs of the 16 the rule needs.
+  fresh Chrome lost the end batch too. **Not decided**: 0 pairs of the 16 the rule needs. Run again with the beacon fix
+  (PHONE-ROUND-3D, 48 loads): read in §Cell 3.
 * **Cell 4**: one row (`probe/rows/`, quick mode). **Cell 5**, the report cells and M1–M22 were not in the run
   commit (`SATURDAY.md`) and did not run.
 
@@ -146,10 +147,108 @@ slower than A + B. The *no difference* verdict holds for the summed reading only
 
 ## Cell 3 · the view comparison
 
-**Not decided**: no load sent its end batch (frame-change, cine, busy, exact frame, verdict), in the round (loads
-92–95) or in a fresh Chrome (PHONE-ROUND-3C's loads 0 and 1). Every measure and both guards are *not decided*; the
-predictions stand untested. The fills of loads 92–95 arrived (`load` records) and are not a cell-3 measure. Cell 3
-waits for BEACON-LOSS (amendment 28) and PHONE-ROUND-2.
+*As first read (PHONE-READ): not decided, since no load of the round (92–95) or of PHONE-ROUND-3C sent its end batch.
+That reading stands for those rows. Cell 3 was then run again alone, PHONE-ROUND-3D (below).*
+
+*PHONE-READ-3D (`claude/work-ledger:docs/queue-2026-11-14.md` amendment 28), 2026-11-23, by a session that wrote
+none of `next-round.md`, the tools or the run. Read from the raw rows only: `raw/2026-11-22-cell3d/round3d/` at
+`f96e38a9` (`beacon-cell3.jsonl` steps 0–15 = plan loads 0–15, `beacon-cell3-rest.jsonl` steps 0–31 = loads 16–47,
+`plan-cell3*.json`, `relaunch-cell3*.jsonl`, `resources-cell3*.jsonl`); incidents from
+`claude/work-ledger:docs/queue/PHONE-ROUND-3D.md`. Read with short scripts over those files, the way PHONE-READ and
+its review read the round. Labels as above. The aborted starts (`aborted-start*/`) and their 500 `TEST-curl`
+records are not data and are not read.*
+
+**Which code each load ran** (*measured*). Each of the 48 loads has exactly one `drain` record, and every one has
+`path: "post"`. Only the fixed beacon (`f5252051`) writes that record. No load is without it, so all 48 ran the fixed
+code and none is set apart. `plan-cell3-rest.json` equals the last 32 loads of `plan-cell3.json` (URLs aside). Both
+carry commit `f5252051`. Every load ended `ok`, its largest ticker gap was at most 1.47 s (under the 2 s VOID bar) and
+it received 50 of 50 frames, all `av1-webcodecs`, with no errors. One load id per step.
+
+**The loads** (*measured*). 48 loads in 24 ABBA pairs (page, worker, worker, page, …), all `dbts_b1-q8-g8` and
+`cubic-restart`. Each load had 20 steps idle and 20 busy, 100 frames due in each cine half, and one exact frame idle
+and one busy. 24 pairs, so the rule's threshold is **18 of 24**. Thermal status read 0 in all 50 resource snapshots.
+48 relaunches, one before each load.
+
+**Reductions** (*derived*). Per load: frame-change is the median of the 20 steps' `ms` (from due to the paint). Cine
+drops are `due − painted`, floored at 0, because the worker painted 101 of 100 in 7 halves, a window-edge frame. Exact
+frame is the record's `ms`. The fill is `fillMs`. The rows hold no first-picture field. The first picture is
+therefore read as the first quality label minus the page's first record (the wake lock at script start), which takes
+in the view worker's start. A second reading, from the dial, leaves that start out and is shown beside it.
+
+Each pair gives a ratio, worker ÷ page. For cine, a page with 0 drops and a worker with 0 drops counts as a tie at 1.
+The intervals are for the median paired difference (worker − page): order statistics 7 and 18 of 24, distribution
+free, 97.7 % coverage.
+
+| measure | below 1 / above / ties | median ratio | median page · worker | difference (w − p), 97.7 % | rule | protocol's prediction |
+| --- | --- | ---: | --- | --- | --- | --- |
+| frame-change, idle | 10 / 14 / 0 | 1.010 | 10.5 · 10.7 ms | +0.1 [−0.1, +0.3] ms | no difference shown | no difference: **held** |
+| **frame-change, busy** | 10 / 14 / 0 | 1.038 | 11.4 · 13.3 ms | +0.4 [−1.0, +3.7] ms | **no difference shown** | worker faster: **missed** |
+| cine drops, idle | 0 / 0 / 24 | 1 | 0 · 0 of 100 | 0 [0, 0] | no difference shown | no difference: **held** |
+| **cine drops, busy** | **24 / 0 / 0** (p = 2⁻²³ ≈ 1.2 × 10⁻⁷) | 0 | 7 · 0 of 100 | −7 [−11, −5] frames | **worker faster** | worker faster: **held** |
+| exact frame, idle | 14 / 10 / 0 | 0.990 | 201.3 · 196.4 ms | −2.0 [−12.3, +10.6] ms | no difference shown | equal: **held** |
+| exact frame, busy | 12 / 12 / 0 | 1.000 | 120.1 · 120.6 ms | +0.1 [−5.1, +10.1] ms | no difference shown | equal: **held** |
+| fill (guard) | 16 / 8 / 0 | 0.988 | 2206 · 2146 ms | −28 [−121, +45] ms | no difference shown | no difference: **held** |
+| first picture from page start (guard) | 7 / 17 / 0 | 1.021 | 413.1 · 425.5 ms | +8.6 [−4.2, +27.1] ms | no difference shown | page faster by < 52 ms: **missed** |
+| first picture from the dial | 15 / 9 / 0 | 0.970 | 363.1 · 352.2 ms | −11.7 [−17.9, +7.1] ms | no difference shown | (not the guard's reading) |
+
+**Verdict, by §4's rule** (*measured*, the rule applied):
+
+* **Cine with the page's thread busy: worker faster.** 24 of 24 pairs below 1, against the 18 needed (p ≈ 1.2 × 10⁻⁷).
+  The median ratio is 0, which is ≤ 0.95. The worker dropped no frame in any busy cine half. The page dropped a median
+  of 7 of 100 (1–16 across its 24 loads). The paired difference is −7 frames of 100 [−11, −5], with 97.7 % coverage.
+* **Frame-change with the page's thread busy: no difference shown.** 10 of 24 pairs below 1, and the median ratio is
+  1.038. Both views wait for the long task in progress before the input: 114 of the page's 480 busy steps and 129 of
+  the worker's took over 50 ms. The worker never saved the second task the theory gave it.
+* **Guards: the worker is not worse.** The page-faster rule passes on neither the fill nor the first picture (17 of 24
+  above 1 against 18, with a median ratio of 1.021). Under form (a), the owner's (`SATURDAY.md`), the 52 ms bound is
+  therefore not reached. The +8.6 ms median [−4.2, +27.1] is reported beside it. Form (b) would not reject the worker
+  either. **The guard is an *assumption*.** Its 52 ms is a cloud number carried to a phone, and the first-picture
+  reading is this read's choice, since the protocol names no record for it. The verdict does not turn on the guard:
+  no reading of it passes the page-faster rule.
+* **Everything else: no difference shown.** That covers idle frame-change, idle cine, the exact frame idle and busy,
+  and the fill. Memory and hops were not read; by §4 they decide nothing.
+
+**Against the predictions.** The protocol's held on six lines and missed on two. Frame-change busy was predicted
+*worker faster* and came out *no difference shown*. The first picture was predicted *page faster* and came out *no
+difference shown*. DEVICE-THEORY's §2 (`device-model.md` at `cf9f0b43`) "adds nothing to the protocol's predictions"
+for cell 3. It has no line to hold or miss.
+
+**What limits it** (deviations, from `PHONE-ROUND-3D.md` and the rows):
+
+1. **A fresh Chrome before every load** (48 relaunches: force-stop, relaunch on `/next?after=k`). The protocol's round
+   ran loads in one Chrome. Every load here starts from a new renderer (~1.5 GB, per PHONE-ROUND-3D), so this
+   reads the views with no state carried between loads. That is the same for both arms, but not the main round's
+   condition.
+2. **RUN_CODE moved for cell 3 only.** The run code is the lab-only `f5252051` (the drain POSTs the last batch).
+   PHONE-ROUND-3D found the plan regenerated there equal to the round's in every load, gap, fill, after, budget and
+   server. No product code changed, but the run is not at the round's run commit.
+3. **The restart at K=16, the cell budget from zero.** adb dropped after step 15. The rest (loads 16–47) ran as a
+   second run with its own plan. The pairs are not split: pair 7 ends at load 15 and pair 8 starts at load 16. The
+   budget stops only loads not started, and none was stopped.
+4. **The blank tab from step 16.** From load 16, each relaunch blanked the tab 1.5 s before the force-stop. The
+   relaunch records show `stopAt − quietAt` ≈ 1.6 s in the rest, against ≈ 2 ms before. That changes what precedes
+   a load, not the load itself, and it falls on both arms alike (pairs 8–23). It was not read pair by pair against
+   pairs 0–7.
+5. DevTools was attached to load 0 of the counted run, to check the code (PHONE-ROUND-3D item 5). That load is page
+   view, pair 0, and it is kept.
+6. The phone was held awake with `stay_on` 7 between runs. The cache was cleared once (`Network.clearBrowserCache`)
+   before the counted run.
+
+**Fixtures and limits.** One phone (Android 16, `hardwareConcurrency` 8; Chrome's version is not in these rows, and
+the main round's was 157 the same evening). One home Wi-Fi, 5 GHz 11ac, RSSI −31 dBm before and −28 after
+(`cell3d-wifi-*.txt`). One laptop serving, one evening. One series, `dbts_b1-q8-g8` (50 AV1 frames, software decode
+unless the rows say otherwise; no `logcat` was read here). A synthetic busy page (100 ms of work every 250 ms) and
+dispatched key presses, not a reader's input. Thermal status was 0 throughout. The host's saturation was not
+measured, and no laptop CPU was read. §7: this decides the views on this phone with a synthetic busy page, not with a
+real reader's input or a real page's work.
+
+**For the owner.** The worker view won on the measure where a reader sees a difference. With the page's thread busy,
+cine in the worker view painted every frame due, in all 24 pairs. The page view dropped a median of 7 frames in 100
+(between 5 and 11 more than the worker, at 97.7 %). Moving through frames with a busy page was a tie, around 11–13
+ms in both views. So was everything else: idle use, the exact frame, the fill and the first picture. The guard
+against a slower start did not bind, but its 52 ms bound is an assumption. This holds for one phone on a fast home
+Wi-Fi, one 50-frame AV1 series, one evening, with a fresh Chrome before every load and a synthetic busy page. Another
+phone, link or real page workload is untested.
 
 ## Cell 4 · the hardware-decode probe (exploratory, deciding nothing)
 
@@ -207,6 +306,9 @@ them, and cell 3's lost loads ran but returned no measure.
    round is ROUTE-POLICY's input: the owner's yes is to the page that uses it, not here.
 3. **Cell 3 is open.** The view comparison needs a round whose end batch arrives (BEACON-LOSS) and a fresh renderer
    per load (amendment 28 item 8); the guard form (a), 52 ms, stays as chosen.
+   *Corrected 2026-11-23 (PHONE-READ-3D):* PHONE-ROUND-3D ran it, and §Cell 3 reads it. The worker view is faster on
+   busy cine, 24 of 24 pairs. Busy frame-change shows no difference, and guard (a) does not bind. Choosing the view
+   is VIEW-PAGE's to put to the owner, not this file's.
 
 ## Review
 
