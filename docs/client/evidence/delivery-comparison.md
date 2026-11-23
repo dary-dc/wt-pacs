@@ -377,6 +377,87 @@ at Q 8 G 8 only, no breast ultrasound; one 4-core container (Intel Xeon @ 2.10 G
 full Chromium 153 headless; a userspace TUN relay at ≤ 90 Mbit/s, its forms scaled and assumed, none a radio; one
 period a cell. Nothing here ranks the arms or decides which one the product serves (§8).
 
+## Verdict review (2026-11-23, DELIVERY-VERDICT-REVIEW)
+
+*A session that wrote none of the protocol, the build or the run. Every count recomputed from
+`lab/delivery/rows/<CELL>.jsonl` by [`rows/judged/recount.py`](../../../lab/delivery/rows/judged/recount.py), written
+apart from `judge.mjs` (VOID from each row's raw fields; ratios, holds, regime from the frames). No blocker.*
+
+**The counts hold** (*measured*, recomputed). VOID 13, 15, 17, 9, 7 of 150 (CLEAN, PUB, LTE, LOSS, CR), 61 in all: the
+guard 52, the page's timers 4, 3× the pilot's median 4, three decoders on C2's exact fill 2; each row's own `void`
+field agrees with the raw fields on all 750. All 105 (cell, volume, arm, clock) verdicts, medians, in-band counts and
+regime misses match the §Results table: 56 hold, 40 miss, 9 cannot hold. §7's A/A input rebuilt from the rows is
+byte-identical to `rows/<CELL>.aa.json`; `aa_rule.py --bar 0.05` (`claude/transport-arms`) gives the same six ties;
+widened, the same three LOSS verdicts move. Every counted row carries `e7d61c6d15ea6bdb`; `predictions.json`,
+`predict.mjs` and `judge.mjs` are unchanged since `c9a44bd1` (2026-11-22 22:58), before the first counted row
+(00:18). Two predictions recomputed by hand from `inputs.json` (CLEAN `dbts_b1` A 5 746 ms, CR `dbts_b1` B 35 067 ms)
+match the file. No cell is `UNBALANCED`: every (volume, arm) follows each other arm twice in every cell.
+
+**Where the model held** (the §Results table, confirmed): every decode-bound view fill on CLEAN and PUB (21 hold, 3
+cannot hold, none miss); every wire-bound fill and span on CLEAN, PUB and CR (×0.964–1.012); C1's exact frame on CR.
+Nowhere on LTE or LOSS but LTE B `dbts_b1` (and LOSS C2's span `dbts_b1` under the file's band, m1).
+
+**Findings** (none changes what the page may carry):
+
+* **m1 · C2's span is judged with the latency band.** `predict.mjs` `band()` gives every clock that is not `fill`
+  the exact-frame band, so C2's span got ×0.75–1.33 (clean) and ×0.6–1.67 (lossy). §8 names bands for fills and for
+  the exact-frame latency, and §4.1 predicts the span "by the fill formula on the exact series": a fill's band.
+  Re-judged with it (`recount.py --span-fill-band`): LOSS `dbts_b1` C2 span **holds 10/10 → misses 7/10**; LTE
+  `dbts_c1`, LOSS `dbts_a1` and `dbts_c1` keep their miss with fewer rounds in band; the clean forms' spans
+  (×0.995–1.002) hold either way. §Results' "held only for LTE B `dbts_b1` and LOSS C2's span `dbts_b1`" reads "only
+  LTE B `dbts_b1`" under the fill band. The page names which band it uses.
+* **m2 · C1's excess is not a fixed cost** (*measured*, medians over the counted loads; *derived*, the difference):
+
+  | form | `dbts_a1` | `dbts_b1` | `dbts_c1` |
+  | --- | --- | --- | --- |
+  | CLEAN, predicted → measured | 150 → 193 ms (+43) | 256 → 339 ms (+83) | 135 → 186 ms (+51) |
+  | PUB | 233 → 292 ms (+59) | 339 → 457 ms (+117) | 218 → 281 ms (+63) |
+  | CR | 5 760 → 6 395 ms (+635) | 6 610 → 7 139 ms (+529) | 5 718 → 6 222 ms (+503) |
+
+  The excess doubles on `dbts_b1` (2.15 MB a frame, against 1.21 and 1.02 MB) and grows 12–34 ms from CLEAN's round
+  trip to PUB's, so §Results' "a fixed cost ... some tens of ms" does not fit (*derived*). Something that scales with
+  the frame's bytes and the round trip (the idle session's window growing slower than §4.1's doubling, *theory*) fits
+  better. §5's "its ask → last byte" is not in the rows, so the wire and decode parts cannot be split here. The page
+  carries C1's latency through CR only, and quotes the short-round-trip excess as measured, not as a constant.
+* **m3 · C1's short-round-trip line.** "In it but under 8 of 10 rounds elsewhere" (§Results) and "Misses: C1's exact
+  frame at short RTT" (the status file) leave out PUB `dbts_c1`, which holds (×1.289, 8/10), and PUB `dbts_a1`, which
+  cannot hold (6 counted). Of the six: 4 miss, 1 holds, 1 cannot hold.
+* **m4 · The predicted direction** (§8: decode-bound loads above prediction) held on `dbts_b1` (×1.000–1.058, every
+  view arm on CLEAN and PUB), not on `dbts_a1` (×0.911–0.936), and is mixed on `dbts_c1` (×0.978–1.049).
+* **m5 · The guard's VOIDs fall on decoding loads.** 51 of the 52 are view arms (A 16, A′ 19, C1 12, C2 4; B 1),
+  with the relay already pinned to core 0 (`run.mjs`, `taskset -c 0`): A1's finding holds in the counted cells too,
+  and a pinned core alone did not keep the guard (*measured*; the cause not established). They do not select the
+  fast loads: on CLEAN and PUB the voided view fills sit at ×0.90–1.08, median ×0.980, the counted ones at ×1.000. Read
+  with the guard ignored (`--no-guard`; a sensitivity reading, not §6's rule), the four CLEAN/PUB `CANNOT HOLD` hold
+  10/10 and CR A′ `dbts_b1` holds; LTE's four become misses; LOSS `dbts_a1` C2's span holds. For DELIVERY-PAGE and
+  RESULTS-BRIEF §1.12: the next run needs more than a pinned core for the relay.
+
+**The crossover goodput per device class** (*derived*; carried only through cells that held). On a phone the view
+is decode-bound and the exact series wire-bound on the links a phone has (DEVICE-THEORY §5), the two regimes that held
+here on the clean forms. B's fill is shorter than A's when (*B*ₑ − *b*₁) × 8 ÷ *G* is under A's decode floor, *B*ₑ
+the exact series' bytes and *b*₁ the view's first group. A's floor at three decoders is the view's effective time
+(`claude/device-theory:docs/decode/mobile/device-model.md` §4, `dbts_b1`) times the frames, times the in-order
+makespan of 8-frame groups (×1.08 on `dbts_b1`, ×1.29 on `dbts_a1`, ×1.04 on `dbts_c1`, which §4 leaves out); the
+other volumes scale `dbts_b1`'s floor by this host's K2 ratio (0.284 `dbts_a1`, 0.383 `dbts_c1`; the model's premise
+that the ratio carries is questioned there). Below *G*★ the view alone fills first; above it, the exact series alone.
+
+| class (2025 shipments) | the view, effective (§4) | *G*★ `dbts_b1` | `dbts_a1` | `dbts_c1` |
+| --- | --- | --- | --- | --- |
+| entry, under $200 (40.6 %) | 90–200 ms | 77–170 Mbit/s | 147–327 | 140–311 |
+| middle (38.3 %) | 41–132 ms | 117–375 | 222–716 | 213–683 |
+| premium (21.1 %) | 33–48 ms | 320–466 | 612–890 | 584–849 |
+
+Beside it, the phone round's cell 2 (`claude/phone-run:docs/phone-rows/next-round-results.md` §Cell 2, one premium
+phone, one home link, *measured*): A's decode (fill less rest) 3.43 s on `dbts_b1` and 0.92 s on `dbts_a1` put *G*★ at
+~242 and ~584 Mbit/s; the link gave at least 568 and 595 Mbit/s, and B was the faster fill on both (B ÷ A 0.513 and
+0.771). Consistent with the table's direction; the phone's own A was slower than §4's premium range, so its *G*★
+sits below the premium row on `dbts_b1`.
+
+**What this carry rests on.** The wire term held only to 90 Mbit/s (the TUN's ceiling); every *G*★ but the entry
+band's low end is above it, so the line is extrapolated there (*theory*). It holds on links without loss: on LTE and
+LOSS one goodput did not predict a fill, so no lossy link gets a *G*★ from this run. The view's effective times are
+DEVICE-THEORY's ranges, tested on one phone; the rest (0.25–0.45 s on the phone) is left out of both arms.
+
 ## Fixtures and limits
 
 Three DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`; 56, 50, 69 frames), the view at Q 8 G 8 only, no
