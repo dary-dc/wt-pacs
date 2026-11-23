@@ -7,9 +7,12 @@ of this question's rows, from pushed results only; nothing run. Inputs at: `clau
 §ROUTE-POLICY-REVIEW, no blocker, minors m1–m5 carried below); `claude/unified:docs/decode/mobile/device-model.md`
 (DEVICE-THEORY, PR 414) §4–§7; `claude/phone-run:docs/phone-rows/next-round-results.md` at `1e9f1714` (PHONE-READ,
 fixed and re-reviewed, no blocker open); `claude/reviews-2026-11-18:docs/reviews-2026-11-18.md` §2–§3 (B1).
-**Missing:** PHONE-READ-CODE-CHECK (whether each load of the 2026-11-22 round ran the run commit's client) is not
-done; every **measured** number below is a load it may set apart. The recommendation changes no default and rests on
-no single measured number, so it is not marked provisional; its numbers are, until that check.
+PHONE-READ-CODE-CHECK (whether each load of the 2026-11-22 round ran the run commit's client) was done 2026-11-23
+07:34 (`claude/phone-run` `2b242245`): every load carries fields only the newer code writes, no load set apart, no
+result corrected; 18 of 29 changed modules leave no field, so that much is not established. Read again 2026-11-23
+by row DECISION-PAGES-FIX under the owner's word of 2026-11-23 ~02:00 (the program, amendment 28: "for the next
+demo, we will accept hardware decoding and not checking"; `docs/decisions/README.md` §Review B1): items 6 and 9
+changed, §7 names the reopen.
 
 Labels: **source** (quoted in the file named), **theory**, **derived**, **measured**; **(A)** an assumption named so
 that a measurement can replace it. *The view* is the optimal-quality AV1 series, *the exact series* its HTJ2K pair
@@ -19,7 +22,8 @@ that a measurement can replace it. *The view* is the optimal-quality AV1 series,
 
 Across the phones and links a reader may have, how does the product choose what it sends and how it decodes: one
 route for all, one per device class, or one chosen per session from a measurement? And, as its own call (B1): is a
-checked 8-bit hardware view ever acceptable? Both are the owner's: each answer is a default, a structural change to
+checked 8-bit hardware view ever acceptable? Under the owner's word of 2026-11-23 ~02:00 a hardware view need not be
+checked, so B1 becomes: in which form would a hardware view run, unchecked? Both are the owner's: each answer is a default, a structural change to
 the asking, or a trade of the reader's seconds against bytes the server and the reader pay for, which no
 measurement can price.
 
@@ -27,7 +31,9 @@ measurement can price.
 
 **Keep the view first on every phone, with no class table and no probe; make the fill report the one inequality that
 would switch it, and test the switch and the split in the cloud before either is a default; answer B1 no for now,
-with lossy HTJ2K (M17) asked first; send cell 1 to one middle-band phone through a real-device cloud.**
+with lossy HTJ2K (M17) asked first, and build no 8-bit form now that a hardware view may run unchecked; measure the
+4:2:0 form a hardware view needs before any hardware route; send cell 1 to one middle-band phone through a
+real-device cloud.**
 
 | # | the owner's yes or no | recommended | a yes changes | a no leaves |
 | ---: | --- | --- | --- | --- |
@@ -36,17 +42,19 @@ with lossy HTJ2K (M17) asked first; send cell 1 to one middle-band phone through
 | 3 | A cloud protocol for the switch (4.5) and the split (4.6) against arms A and B on the delivery rig, predictions pre-registered from that host's own K1–K3 | **yes** | phase 2 rows (protocol, build, review, run); amendment 28 rule 2 lets it run without a further word, no product code | the split stays one formula on one untested assumption |
 | 4 | Arm B's bytes are bought for fill seconds by default on phones (B on, or a switch made a default) | **no, for now** | — | bytes stay the payer: 1.94 s for 84 MB on `dbts_b1`, 0.24 s for 63 MB on `dbts_a1` (**derived** on **measured**) not taken until item 3's run |
 | 5 | A decoder count per form (HTJ2K one more than the view) as a default | **no, for now** | — | `min(3, hardwareConcurrency)` for every form; decided after cell 1 on a second phone |
-| 6 | **B1**: a checked 8-bit hardware view (220 levels inverted, or the 8-bit cut) is built as a phone route | **no, for now** | — | 10 bits (the depth cut above) stays the view; amendment 16's 8-bit fallback stays on paper, weighed only if M17 fails |
+| 6 | **B1**, read again under the word: a hardware view, unchecked, is built as a phone route; of its forms, the 10-bit stream in 4:2:0 (not the two 8-bit forms, whose only purpose was a check) | **no, for now** (**changed** reason: the check no longer binds the view, so no 8-bit form is needed; what blocks a hardware view now is its form, measured only at 256 × 256) | — | the view in software at 10 bits (the depth cut above), checked where it can be ([`frame-integrity.md`](frame-integrity.md) item 6); M5 at a volume's size (item 7) decides whether the 4:2:0 form decodes, and at what depth it reaches the painter; amendment 16's 8-bit fallback stays on paper |
 | 7 | M17 (lossy against lossless HTJ2K, in memory) and M5 at a volume's size (a form other than 4:0:0) go into PHONE-ROUND-2 | **yes** | two asks in its preparation rows (PHASE2-PLAN) | the one result that questions whether AV1 stays the phone's view stays unmeasured |
 | 8 | Cell 1 on one middle-band phone with two fast cores, through a real-device cloud (AWS Device Farm's free trial; the account is the owner's to open) | **yes** | the owner opens the trial; one phase 2 row writes the run; static HTTPS, public fixtures, no patient data | the class table stays **derived**, ×3.6–5.2 wide in its view column |
-| 9 | Hardware paints first, unchecked, the software frame confirms (4.7) | **no** | — | amendment 1 stands; 4.7 stays an option for the first paint, needing a 4:2:0 form (item 7's M5 first) |
+| 9 | Hardware paints first, unchecked, the software frame confirms (4.7) | **no** (**changed** reason: the confirming software decode pays a second decode a frame for a check the word no longer asks of the view, so 4.7 is dominated by hardware alone, item 6) | — | 4.7 closed; the hardware view, unchecked, waits for item 7's M5 as item 6 says |
 | 10 | The held AV1 rows (§Trimmed; `README.md` §6.1): the decode audit's three checks **released**; GROUPS-SHARD2 held until M17; NOISE-RATIO-RUN held (the view claims nothing, `visually-lossless.md`); TILES-STEP held behind M13; the other codecs' and the strips' byte cells held until a second phone's M4 and item 7's M5 | **yes, as listed** | the audit's checks queued in phase 2 (no encoding; DELIVERY-RUN's model quotes the view's cloud decode) | all six stay held; PROGRAM-CLOSE lists them |
 
 **How it serves the value statement** (amendment 27 item 7): "a fast first picture, a fast full fill, and low latency
 on every jump" pull toward the exact series on fast links; "the lowest server and network cost per reading session"
 pulls toward the view. Item 1 keeps the cheaper payer; items 2–3 measure how many seconds the dearer one buys, per
-session, so the trade is priced before it is made; item 6 keeps "every frame the reader asks to see exactly is the
-original, bit for bit, and checked" free of an 8-bit route the cloud cannot test.
+session, so the trade is priced before it is made. "Every frame the reader asks to see exactly is the original, bit
+for bit, and checked" is about the exact frame, which every policy here keeps checked; a view decoded in hardware
+would be unchecked (the word), a recorded disadvantage against the exact series (4.2) and against DELIVERY-FIT-ARM,
+the HTJ2K-only control of phase 2 (amendment 28), every frame of which is exact and checked.
 
 ## 3 · The options
 
@@ -61,6 +69,7 @@ original, bit for bit, and checked" free of an 8-bit route the cloud cannot test
 | 4.5 the fill measures itself, one switch | nothing | the rule on the first group | the better of the two plus at most one group (8 frames, 3.7 MB) at the view's rate (**derived**) | a margin *m* (A) to choose; *G* under credits is a floor |
 | 4.6 a split fill | nothing | **structural**: a form chosen per group from two queues | **1.4–1.8 s** (**derived**, on assumption A: decode times add) | no worse than the better pure route if A fails |
 | 4.7 hardware paints, software confirms | a 4:2:0 form (+0.20–0.23 % bytes instead of 4:0:0, or the view's bytes again beside it, **source**) | a hardware route, an unchecked paint | the checked fill unchanged; the first paint unmeasured | the decoder refusing size or form; 4:0:0 failed at flush (**measured**, 256 × 256) |
+| 4.8 hardware decodes the view, unchecked (the word) | the same 4:2:0 form | a hardware route; the check skipped for it | unmeasured: *d*_V on hardware not measured at a volume's size | as 4.7; on the round's phone 10-bit forms came back as 8-bit `RGBA` (cell 4, below), so the painter windows 8 bits a sample, not the stored 10 |
 
 **The threshold under every policy** (`route-policy.md` §3): the exact series fills faster when *G* > *b*_E ÷ *d*_V.
 
@@ -69,7 +78,7 @@ original, bit for bit, and checked" free of an 8-bit route the cloud cannot test
 | entry (**derived** on A) | 33–83 | 90–326 | 53–191 | 207–521 |
 | middle (**derived** on A) | 15–54 | 41–215 | 80–419 | 316–1146 |
 | premium (**derived** on A) | 14–31 | 33–78 | 220–521 | 550–1228 |
-| the round's phone, `dbts_b1` | 18.9–25.8 (**measured**) | 42.1–68.6 (**measured**) | 251–408 (**derived**) | 666–910 |
+| the round's phone, `dbts_b1` | 18.9 (**measured**), 25.8 (**derived**: 1.29 s ÷ 50) | 42.1 (**measured**), 68.6 (**derived**: (3.68 − 0.25) s ÷ 50) | 251–408 (**derived**) | 666–910 |
 | the round's phone, `dbts_a1`'s cut | 11.1 (**measured**) | 16.4 (**measured**) | 590 (**derived**) | 875 |
 
 **B1, the 8-bit question, both forms** (`reviews-2026-11-18.md` §2–§3; `README.md` §2 on `claude/mobile-decode`):
@@ -77,12 +86,14 @@ original, bit for bit, and checked" free of an 8-bit route the cloud cannot test
 | form | levels on screen | bytes against today's view | checked | where it runs | on the round's phone |
 | --- | --- | --- | --- | --- | --- |
 | today's view, software | the stored depth ≤ 10, the depth cut above | 1× | yes | every engine | 42.1 ms effective (**measured**) |
-| a hardware frame inverted, studio swing | 220 (7.78 bits), ~200 with the headroom luma needs; 4.67 source units a step at 10 bits, 18.70 at 12 (**derived**) | **1.16–2.49×** (**measured**, 19 volumes) | yes, against an 8-bit luma digest | Android Chromium and Firefox, if the map is one-to-one (a device fact) | an 8-bit full-range unit came back exact at 256 × 256; no volume-size frame tried (**measured**) |
-| the 8-bit cut, read back as `NV12` | 256 | **1.14–1.86×** (**measured**, DEPTH8-MEASURE) | yes | desktop Chromium; Safari by `NV12` (its decoder unconfirmed, **theory**) | not on Android: frames come back as `RGBA` (**source**, **measured**) |
+| a hardware frame inverted, studio swing (needed only for a check, which the word drops) | 220 (7.78 bits), ~200 with the headroom luma needs; 4.67 source units a step at 10 bits, 18.70 at 12 (**derived**) | **1.16–2.49×** (**measured**, 19 volumes) | yes, against an 8-bit luma digest | Android Chromium and Firefox, if the map is one-to-one (a device fact) | an 8-bit full-range unit came back exact at 256 × 256; no volume-size frame tried (**measured**) |
+| the 8-bit cut, read back as `NV12` (likewise) | 256 | **1.14–1.86×** (**measured**, DEPTH8-MEASURE) | yes | desktop Chromium; Safari by `NV12` (its decoder unconfirmed, **theory**) | not on Android: frames come back as `RGBA` (**source**, **measured**) |
 | lossy HTJ2K (not 8-bit; the alternative for the same band) | the stored depth, no cut | median **1.05×** (0.85–1.47) at the noise rule's bar (**measured**) | yes, by the one WASM build's digest | every engine with WASM SIMD | 21.2–22.9 ms effective (**derived** on A: the cloud's 1.12–1.21 × lossless's 18.9) |
 
 Ten bits did not come back from hardware on that phone: the 10-bit forms returned as 8-bit `RGBA`, off by one on
-19 480–49 002 of 65 536 samples a channel (**measured**, cell 4, 256 × 256 only).
+19 480–49 002 of 65 536 samples a channel (**measured**, cell 4, 256 × 256 only). So an unchecked hardware view of the
+10-bit stream (the word) puts 8 bits a sample on screen on that phone, and window/level would act on those; whether
+that is acceptable is a question the word does not answer, and item 6 waits on it with M5.
 
 **Real-device routes for cell 1** (`device-model.md` §7, **source** for costs): AWS Device Farm, "one-time free trial
 of 1,000 device minutes", "$0.17 per device minute"; cell 1 on 20 phones at 15 min ≈ $51 (**derived**), within the
@@ -114,9 +125,10 @@ premium 21.1 %, **source**/**derived**) and `route-policy.md` §3. Its tested pr
 **US and DBT stacks** (amendment 27 item 6). DBT: measured on two volumes, carried to the 19 by bytes and to the
 classes by the model. Breast ultrasound clips: the rule (*G*\* = *b*_E ÷ *d*_V) carries **by its form only**: a clip's
 8-bit, smaller frames change both *b*_E ÷ *b*_V and *d*_V, so no threshold is known (no US fixture). For B1, a US
-clip is 8-bit already: the 10-bit question does not arise, but a checked hardware route on Android still needs the
-inversion (frames come back as RGB, **source**); whether a clip's software decode is fast enough without hardware is
-not yet known.
+clip is 8-bit already: the 10-bit question does not arise, and under the word a hardware route needs no inversion
+(it would have served a check); its frames still come back as RGB (**source**), so a colour clip's hardware view is
+the closest of any series to what software paints (**theory**). Whether a clip's software decode is fast enough
+without hardware is not yet known.
 
 **Links** (`../transport/link-profiles.md` §2, other people's measurements and one standard's targets): the profiles'
 *G* sit across every class's *G*\*, which is why no fixed route is right everywhere (§5).
@@ -132,8 +144,9 @@ threshold differs ×1.4–2.4 between two series on one phone and ×10 across cl
 session, not per phone. Between *G*_A and *G*_B each pure route leaves one resource idle; asking each group in the form
 that spends the idle one (the split) uses both and needs no threshold, if two forms' decodes add (A). The 8-bit
 question is a separate axis: hardware hands a browser an image, not samples, so a check needs an 8-bit form the
-picture maps back to one-to-one, at 1.14–2.49× the bytes; lossy HTJ2K reaches the same decode band at the stored
-depth at about the view's bytes, if the cloud's ratio carries to the phone.
+picture maps back to one-to-one, at 1.14–2.49× the bytes. Under the word the check is not asked of the view, so that
+cost goes; what stays is the image itself: 8 bits a sample on the one phone tried. Lossy HTJ2K reaches the same
+decode band at the stored depth at about the view's bytes, checked, if the cloud's ratio carries to the phone.
 
 ## 6 · What would change the recommendation
 
@@ -143,17 +156,20 @@ depth at about the view's bytes, if the cloud's ratio carries to the phone.
   decoders and HTJ2K at one and two, decoding together in memory, `route-policy.md` §6) decides the split's
   assumption: rates add, it holds; their sum below the view's alone, the split is dead and only the switch remains.
   It decides item 5 too.
-* **M17 fails** (lossy HTJ2K's decode not under the view's on the phone): B1 and hardware (M5, then M6–M7) are weighed
-  again, the 220-level form first on Android.
-* **PHONE-READ-CODE-CHECK** sets loads apart: the measured numbers here change; the policies' ranking does not unless
-  B's 15 of 15 falls.
+* **M17 fails** (lossy HTJ2K's decode not under the view's on the phone): the hardware view (M5, then M6–M7) is
+  weighed again, unchecked under the word, so the 220-level form is no longer first.
+* **M5 at a volume's size** (item 7): the 4:2:0 form decoding in hardware on the phone, with the depth it reaches the
+  painter, makes item 6 a build question (policy 4.8) with a measured *d*_V on hardware, which moves *G*\* up.
 * **A browser ships plane access** (WebCodecs `P010`, WebGPU's planes): 10 bits come back on hardware and B1 is moot.
 
 ## 7 · What it would reopen
 
-Nothing, by the recommendation. Item 6's yes would reopen "the view ≤ 10 bits" at its own depth and "no 8-bit
-preview" (2026-11-10), against amendment 16's "8 bits the fallback" read as a fallback never yet taken. Item 9's yes
-would reopen amendment 1 (every frame checked). Item 4's yes, or a switch reaching *x* = 1, leaves "AV1 only for
+**Amendment 1's "every frame checked", for the view.** The owner's word of 2026-11-23 ~02:00 reopened it for a view
+decoded in hardware; items 6 and 9 are read under it here, and nothing further is reopened by the recommendation. A
+yes to item 6's hardware view would show the view at 8 bits a sample on a phone like the round's (cell 4), which
+touches "the view ≤ 10 bits" and "10 bits on hardware the goal, 8 bits the fallback" (amendment 16) by the picture,
+not the stream; the 8-bit forms, no longer needed for a check, would reopen "no 8-bit preview" (2026-11-10) and are
+not proposed. Item 4's yes, or a switch reaching *x* = 1, leaves "AV1 only for
 cine-like series" and "optimal quality plus the exact HTJ2K frame on request" standing but describing fewer loads.
 The level-1 prefix as a third form (`route-policy.md` §4.6) touches "no low-resolution preview"; named, not proposed.
 
@@ -166,12 +182,14 @@ phone's 96–264 unaffected). m2, `dbts_a1`'s cut is 0.0685 of exact: *b*_V 0.66
 (used in §2 item 4); *G*\* unchanged. m3, the first picture and exact-frame latency per policy are not computed as
 ranges: 4.1 is §5's view column, 4.2 the exact column, 4.4 the better of them plus a start and an exact frame's wire,
 4.5 the view's, 4.6 and 4.7 have no number. m4, PHONE-READ-CODE-CHECK open (above). m5, the HTJ2K fill factor ×1.36
-may be the receive path, not decode; it moves only *G*_B's lower ends and the exact column's upper ends.
+may be the receive path, not decode; it moves only *G*_B's lower ends and the exact column's upper ends. (m4 is
+closed: PHONE-READ-CODE-CHECK done 2026-11-23, no load set apart.)
 
 Rows: DEVICE-THEORY, -REVIEW, -FIX, -FIX-REVIEW (PR 414); PHONE-ROUND (the owner's local session), PHONE-READ,
 -REVIEW, -FIX, -FIX-REVIEW, MOBILE-DECODE-REJUDGE (client queue); ROUTE-POLICY, ROUTE-POLICY-REVIEW (PR 397); earlier,
 MOBILE-DECODE-OPTIONS, the MOBILE-OPT rows, MOBILE-DECODE-COMPARE and its fix, AV1-HW-CHIPS, HTJ2K-PREVIEW-MOBILE
-(PR 397), DEPTH8-MEASURE (PR 389), HW-DECODE-DEEP (PR 387), HW10-ROUTES (PR 392). Owed: PHONE-READ-CODE-CHECK.
+(PR 397), DEPTH8-MEASURE (PR 389), HW-DECODE-DEEP (PR 387), HW10-ROUTES (PR 392); PHONE-READ-CODE-CHECK
+(`claude/phone-run` `2b242245`).
 Files: `claude/mobile-decode:docs/decode/mobile/route-policy.md`, `…/README.md` §6, §6.1, the option files;
 `claude/unified:docs/decode/mobile/device-model.md`; `claude/phone-run:docs/phone-rows/next-round-results.md`;
 [`../transport/link-profiles.md`](../transport/link-profiles.md), [`../av1/payload-format.md`](../av1/payload-format.md),
