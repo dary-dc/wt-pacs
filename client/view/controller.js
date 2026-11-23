@@ -31,7 +31,9 @@ export function wantFrom(c, n, fillMode, ascending, w = n) {
 /** The memory window a view holds by default, in frames: the series' whole decoded frames that fit in 256 MiB; a sample is one byte at 8 bits or in colour, else two. */
 export function memoryWindow({ width, height, channels = 1, bitsStored }) {
   const sample = channels === 3 || bitsStored <= 8 ? 1 : 2;
-  return Math.floor(VIEW_MEMORY / (width * height * channels * sample));
+  const w = Math.floor(VIEW_MEMORY / (width * height * channels * sample));
+  // Metadata without the frame's size bounds nothing.
+  return Number.isNaN(w) ? Infinity : w;
 }
 
 export class Controller {

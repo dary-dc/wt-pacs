@@ -137,6 +137,12 @@ test("the memory window counts a colour frame's three samples", () => {
   }
 });
 
+/** Metadata without the frame's size bounds nothing: the whole series is wanted and held. */
+test("the memory window without the frame's size is the whole series", () => {
+  const c = new Controller({ meta: { frameCount: 5 }, fillMode: true, size: { width: 2, height: 3, dpr: 1 }, emit: () => {}, paint: () => ({}) });
+  assert.deepEqual(c.want(), [0, 1, 2, 3, 4]);
+});
+
 /** Page view, a series over its window and no cache: the fill asks the window alone, nearest first, and in ascending order the frames ahead first. */
 test("page view: the fill of a series over the window asks the window alone", () => {
   const { c } = rig({ frames: 10, budget: 4 });
