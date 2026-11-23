@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22; the repository page 2026-11-22.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review 2026-11-23; the repository page 2026-11-22.
 
 ## Goal
 
@@ -120,6 +120,8 @@ small enough that every open item has an owner and a next step.
    nothing run. The state `claude/unified` reaches before `main` is proposed as *bench-verified*, with its scope and
    a line saying what it is not; seven conditions, each with its check, are UNIFIED-PAGE's checklist. A yes replaces
    §Goal's "deployment-ready"; the owner's, after FINAL-STATE-REVIEW.
+   FINAL-STATE-REVIEW (2026-11-23, the page's §Review): sources re-fetched, quotations verbatim; two blockers, the
+   owner's provisional *evaluation release* not tested and the README status line printed before §5 holds; FINAL-STATE-FIX next.
 
 ## Unification (the owner, 2026-11-09)
 

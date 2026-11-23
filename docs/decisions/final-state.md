@@ -248,4 +248,51 @@ The quotations of §3 in full, where the table shortened them:
 
 ## Review
 
-FINAL-STATE-REVIEW writes its findings here.
+**FINAL-STATE-REVIEW**, 2026-11-23, a session that wrote none of this page. Read at `9406e30d`; the branch read at
+`origin/claude/unified` `4a2b4277` (still its tip). Every source of §8 fetched again on 2026-11-23: the 38
+quoted passages of §3 and §8 are verbatim in their sources (W3C answered 403 to one client and 200 to another), and the
+revisions of S1–S9 and S11–S15 are the ones the fetched pages carry. The check, its script and output:
+`claude/work-ledger:docs/queue/FINAL-STATE-REVIEW/`. No arithmetic on the page. The repository claims hold:
+`series-server` 0.1.0, `docs/FIXTURES.md`'s `us_cine_smoke` row, `coordination.md` §Goal's "deployment-ready",
+`docs/merge-readiness.md`'s hole, `claude/core` and the glossary's two uses of *core*. **Two blockers.**
+
+* **B1. The owner's provisional term is not tested.** The owner, 2026-11-22 16:00 (amendment 27, item 7):
+  "'evaluation release' I think it is interesting that we have a provisional term, and this one might fit, at least
+  for now"; the brief: "the page tests it against the others and recommends keeping or replacing it". The page
+  was written at 15:42, before that word (16:00), and never names it, while amendment 28 has since built on it
+  (phase 2 "toward the evaluation release", the branch `claude/eval-release`, its PR title "evaluation release
+  candidate"). Fix: a row of §3 for *evaluation release*, with its source where one defines it (or "no official
+  definition found"), judged on T1–T5; §2 says keep it or replace it, and how it relates to *bench-verified*
+  (reviewer's reading, **theory**: *evaluation* speaks to §5's third axis, what a reader may do with it, and
+  *release* names an artifact, not a state, so the two may be one name for the release and one for its state
+  rather than rivals; the page decides); §7 names what a replacement renames (amendment 28's branch and PR title).
+* **B2. A yes would print a claim the page shows is not yet true.** The yes puts the §2 status line in `README.md`
+  ("complete for that scope, every default chosen by measurement ..., gate green"), done by one docs-only row, while
+  §5's last list finds conditions 2 and 3 unmet at the tip (the ultrasound fixture is placeholders; no table of
+  defaults). `CLAUDE.md` §Docs: "A claim that is not measured says so." Fix: the yes prints the line only once
+  UNIFIED-PAGE finds all seven conditions met; until then the README line names the conditions not met (e.g.
+  "DBT stacks measured; ultrasound stacks carried by theory", which §5 already offers).
+
+Minors, each a line where it stands:
+
+* **m1.** §5 condition 5 ("its log free of `SKIPPED`") is stricter than the repository's own CI, whose gate allows
+  one skip no runner can open (`.github/workflows/gate.yml`, `allowed`: "the viewer's cross-codec arm and Firefox";
+  row INGEST's fetched studies and a GL display). As written no host of the program meets it; say "no skip but those
+  the workflow allows", or name the host on which nothing is skipped.
+* **m2.** §5 condition 3 and its finding ("no single table of defaults was found") miss
+  `docs/reviews/understand/defaults.md` (DEFAULTS-FIND, 2026-11-11, at the demo tip `618e13c8`), which lists what
+  the page, `series-server` and `dev-server.py` run with nothing set. It has no pointer to a measurement per
+  default, so the condition is still unmet; name it as the table's starting point.
+* **m3.** T5 is not applied to *bench*. *Verified core* is refused because *core* is a project word; *bench* is one
+  too (`lab/decode-bench/`, `lab/container-bench/`, `lab/disk-access-bench/`; "row 145's fault bench",
+  `docs/ARCHITECTURE.md`). Its uses agree with the page's sense (a lab rig, not the field), so likely harmless;
+  §6 should say so beside *verified*'s homonym.
+* **m4.** S10's revision, "specification 2.1.0 (2020-11-28)", is not on the cited page (its only "2.1." string is a
+  script's version); cite where it comes from or cite S10 by its fetch date, as §8 does for pages with none.
+* **m5.** §3's TRL row, "my reading puts the branch at 5 to 6": the page's voice elsewhere is impersonal, and the
+  placement is **theory**; label it so.
+* **m6.** Condition 1's check names `README.md`'s opening, which VALUE-STATEMENT (2026-11-23, PR 432, README
+  §Purpose) has written since on its branch, not yet on `claude/unified`; point the check at PR 432 until it merges.
+
+**Verdict: two blockers.** FINAL-STATE-FIX and FINAL-STATE-FIX-REVIEW are appended to the program
+(`claude/work-ledger:docs/queue-2026-11-14.md`, amendment 17), and UNIFIED-PAGE now waits on the re-review.
