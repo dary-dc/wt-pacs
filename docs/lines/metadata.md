@@ -33,7 +33,7 @@ layout is our input contract. Depth over breadth; theory and a pre-registered me
   compresses to ≤ 0.6× (M-R2, not run), else P3 there (*derived*). Neither compared the kept mirror.
   *Corrected 2026-11-23* (PR 417 §SYNC-RECONCILE-REVIEW B1): P4 only if the metadata call uses zstd (`--zc=zstd`)
   and rsync's file list compresses to ≤ 34 KB for ct and ≤ 221 KB at 2 000 instances (*derived*; M-R2, M-R3 not run);
-  else P3.
+  else P3. *Re-reviewed 2026-11-23* (PR 417 §Re-review): no blocker open; two minor items left.
 * **Layout:** the PCS's code and its design document agree at exam and series, disagree below; following the code
   now (A) is recommended, the design document's target is B. Not chosen.
 * The 2026-10-28 night items in the logs are leanings, not decisions.
