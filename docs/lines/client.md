@@ -13,6 +13,12 @@ exact frame bit for bit, and only checked claims on screen.
 
 ## In flight
 
+* **A refused frame is withheld** (2026-11-23, `claude/failed-frame-withheld`, a draft into `claude/unified`; queue row
+  FAILED-FRAME-WITHHELD, from RESULTS-BRIEF §8.1): it stays out of every later want, a step onto it asks nothing, and
+  the canvas is cleared in its place, never the previous slice's picture; tests in `view/controller.test.mjs`, seven
+  mutants killed. Not changed: an exact-only series' frame that fails its check twice is still painted under
+  *NOT EXACT* (the decision of 2026-11-14 to block it is not built), and the words on screen for a withheld frame
+  are the `frame-integrity` page's.
 * **The unified branch** `claude/unified-client` (the client, optimal-quality and native lines): the demo tip with the
   cleaning and the renames merged; one `info.path` left in `lab/faultbench/index.html` (now `info.route`), a finding in
   #382. Reaches `main` through #367 then #250, on the owner's word ([`coordination.md`](coordination.md)).

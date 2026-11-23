@@ -15,7 +15,7 @@ export class FrameStore {
   asked = [];
   /** Of those, the ones not yet arrived or withheld: a want whose misses equal these is not sent again. */
   #owed = [];
-  /** Frames refused, by index, with why: never asked again (docs/client/design.md §Decided, the lost ask; the downloader re-asks that itself). */
+  /** Frames the downloader could not deliver or the controller refused, by index, with why: never asked again (docs/client/design.md §Decided, the lost ask; the downloader re-asks that itself). */
   withheld = new Map();
   /** The index the memory window is centred on; past the budget, the frame farthest from it goes first. */
   near = 0;
@@ -84,7 +84,6 @@ export class FrameStore {
     return this.#waiting.get(i).promise;
   }
 
-  /** A frame the downloader could not deliver, or the controller refused. */
   withhold(i, reason) {
     this.withheld.set(i, reason);
     this.asked = this.asked.filter((k) => k !== i);

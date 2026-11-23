@@ -366,6 +366,11 @@ A mismatch is decoded once more on another route (`info.route`: `htj2k` in a dec
 `av1-webcodecs` ⇄ `av1-dav1d`, `av1-mixed` → `av1-dav1d`; inside a group there is none) and is `true`
 only if that matches, with `info.mismatchOn` naming the route that missed; otherwise `false`, its
 `info.reason` naming both decodes. A frame is never asked again for it: the same bytes would come back.
+A frame the downloader could not deliver (a refusal, a decoder that threw, the lost ask's re-asks run out) or the
+controller refused (a depth cut's frame at another depth) is **withheld** for the session: the store keeps it out of
+every later want, a step onto it asks nothing, and in its place the canvas is cleared, never the previous slice's
+picture (`view/controller.test.mjs`; RESULTS-BRIEF §8.1). The words for it on screen are the `frame-integrity`
+decision page's; until then the status line names the failure and the mark and label are blank.
 `stats().exact` counts frames per route as `{ true, false, unchecked }`. The hasher is xxHash's XXH3 with SIMD128
 (`decode/xxh3.js`, built by `decode/wasm/build`), held to hash-wasm's digests by `decode/xxh3.test.mjs`; a
 worker given digests that cannot load it fails its start. What it costs
