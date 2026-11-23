@@ -63,7 +63,7 @@ export function pageHooks(q, lab) {
 
       const giveUp = checking ? performance.now() + 60000 : Infinity;
       // The check judges a fill that stops short rather than waiting on it.
-      await until(() => progress().have + errors.length >= n || (!fillMode && progress().have) || performance.now() > giveUp);
+      await until(() => progress().have + errors.length >= progress().total || (!fillMode && progress().have) || performance.now() > giveUp);
       await lab.filled?.();
       await view.repaint();
       if (checking) {

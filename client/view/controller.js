@@ -18,8 +18,7 @@ export function samplesOf(info) {
   return new View(info.pixels);
 }
 
-/** What a view on frame `c` of `n` wants, `c` first: on demand `c` alone; filling, nearest first or `ascending` and wrapping, */
-/** or past a window of `w` frames the `w` the store keeps, ahead first when `ascending`. */
+/** What frame `c` of `n` wants, `c` first, at most `w`: docs/client/evidence/what-a-view-asks-for.md, *M, the budget* */
 export function wantFrom(c, n, fillMode, ascending, w = n) {
   if (!fillMode) return [c];
   if (ascending && w >= n) return Array.from({ length: n }, (_, d) => (c + d) % n);
@@ -100,9 +99,10 @@ export class Controller {
     const e = info.exact;
     this.seen[e === true ? "exact" : e === false ? "inexact" : "unchecked"]++;
     if (info.route) this.seen.routes[info.route] = (this.seen.routes[info.route] ?? 0) + 1;
-    if (this.#fillMode && this.fillMs === null && this.received === this.#fillSize()) this.fillMs = at() - this.issuedAt;
+    const have = this.#have();
+    if (this.#fillMode && this.fillMs === null && have === this.#fillSize()) this.fillMs = at() - this.issuedAt;
     if (i === this.current) this.repaint();
-    this.#emit("progress", { have: this.received, total: this.#fillSize(), seen: this.seen, fillMs: this.fillMs, at: at() });
+    this.#emit("progress", { have, total: this.#fillSize(), seen: this.seen, fillMs: this.fillMs, at: at() });
   }
 
   /** The frame's display: its own rescale and window where the metadata varies them, the user's window over both. */
@@ -184,6 +184,19 @@ export class Controller {
   /** A frame let go with no cache would be asked again, so the want stops at the window; with one, the whole series fills. */
   want() {
     return wantFrom(this.current, this.#n, this.#fillMode, this.ascending, this.#fillSize());
+  }
+
+  /** The page view's downloader; past the window with no cache, each step's misses go through the store, as under the worker view. */
+  link(client, sent) {
+    this.client = client;
+    if (!this.#fillMode || this.#fillSize() === this.#n) return;
+    this.store.want(sent);
+    this.store.link(client, sent);
+  }
+
+  /** The fill's frames here: with no cache the window's held, else every arrival. */
+  #have() {
+    return this.#fillMode && !this.store.cache ? this.want().filter((i) => this.store.has(i)).length : this.received;
   }
 
   #fillSize() {

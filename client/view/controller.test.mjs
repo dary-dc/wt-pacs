@@ -169,6 +169,45 @@ test("worker view: a step past the window asks only what the window keeps", asyn
   assert.deepEqual(wants, ["0,1,2,3", "4", "5", "6", "7"]);
 });
 
+/** Page view, a series over its window and no cache: once linked, each step asks the frame entering the window before the step reaches it, and nothing outside it. */
+test("page view: a step past the window asks the frames entering it ahead", async () => {
+  const wants = [];
+  const { c, calls } = rig({ frames: 10, budget: 4 });
+  const sent = c.want();
+  c.link({ ...c.client, want: (misses) => wants.push(misses.join()) }, sent);
+  for (const i of sent) c.take(frame(i));
+  const askedAt = {};
+  for (const s of [1, 2, 3, 4, 5]) {
+    const before = wants.length;
+    await c.show(s);
+    for (const w of wants.slice(before)) for (const i of w.split(",").map(Number)) {
+      askedAt[i] = s;
+      assert.ok(c.want().includes(i), `frame ${i} is in the window at step ${s}`);
+      c.take(frame(i));
+    }
+  }
+  assert.deepEqual(wants, ["4", "5", "6", "7"]);
+  assert.ok(Object.entries(askedAt).every(([i, s]) => s < i), JSON.stringify(askedAt));
+  assert.deepEqual(calls, []);
+  const fits = rig({ frames: 4 }).c;
+  fits.link(fits.client, fits.want());
+  assert.equal(fits.store.downloader, null);
+  const demand = rig({ frames: 10, budget: 4, fillMode: false });
+  demand.c.link(demand.c.client, []);
+  assert.equal(demand.c.store.downloader, null);
+  await demand.c.show(6);
+  assert.deepEqual(demand.calls, ["ask 6"]);
+});
+
+/** A frame asked outside the window does not count toward the fill: its time waits for the window's frames, and progress counts those held. */
+test("the fill's progress counts the window's frames, not arrivals", async () => {
+  const { c, events } = rig({ frames: 10, budget: 4 });
+  for (const i of [0, 1, 2]) c.take(frame(i));
+  await c.show(8);
+  assert.equal(c.fillMs, null);
+  assert.equal(events.filter(([t]) => t === "progress").at(-1)[1].have, 1);
+});
+
 /** Over the window with no cache, the fill is the window's: its time is taken, and progress reports it whole, once the window's frames are here. */
 test("the fill of a series over the window ends with the window", () => {
   const { c, events } = rig({ frames: 10, budget: 4 });

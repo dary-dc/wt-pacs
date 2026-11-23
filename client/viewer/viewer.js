@@ -159,11 +159,12 @@ try {
   if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer, firstWant }, issuedAt);
   else {
     controller.issuedAt = issuedAt;
-    controller.client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {
+    const client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {
       ...connectOpts,
       onFrame: (f) => controller.take(f),
       onError: ({ frameIndex, reason }) => controller.refused(frameIndex, reason),
     });
+    controller.link(client, connectOpts.fill ?? []);
   }
 } catch (e) {
   fail(`connect: ${e.message}`);
