@@ -1,9 +1,201 @@
 # Decision pages
 
-One page per open question, each ending in the owner's yes or no. Opened 2026-11-19 by row DECISIONS-OPEN of the
+One page per open question, each ending in the owner's yes or no; **start at §The order to decide in.** Opened
+2026-11-19 by row DECISIONS-OPEN of the
 program `claude/work-ledger:docs/queue-2026-11-14.md` (§Decision pages, §Index). A page is written by a session that
 ran none of its question's rows, from pushed results only; it runs nothing. Every page row appends its file here and
 updates its line of the index.
+
+## The order to decide in
+
+PROGRAM-CLOSE, 2026-11-23, by a session that wrote no page, from the 20 pages and §Review, §Fix and §Re-review
+below at `385f4248a`; the status files on `claude/work-ledger` read at 2026-11-23 10:23 UTC. Nothing run; the gate
+not run (docs). **No new claim**: every number here is a page's, with the page named; the order, the contradictions
+and the premises are this section's reading (**theory**) of what the pages say. Item numbers are each page's §2.
+Fixtures behind every page, as each states: 19 DBT volumes of one dataset, three timed; no lossless-sourced
+ultrasound clip; 4-core cloud hosts with no GPU, software decode, headless Chromium (Firefox desktop for some
+cells); a relay, not a radio; one premium phone on one home link, one evening.
+
+An edge reads "answer the first before the second", with its reason.
+
+1. **How a yes lands, first.** [`unified-to-main`](unified-to-main.md) item 1 (rule 1 covers removals and
+   structural PRs) before every page that ends in "its own draft PR, named for what it removes"
+   ([`asking`](asking.md) item 3, [`view-target`](view-target.md) items 2 and 3, [`paused-lines`](paused-lines.md)
+   item 3, `unified-to-main` item 4): it decides whether each of those needs a second word. With it,
+   [`final-state`](final-state.md) (both names): `unified-to-main` items 4 and 5 use its seven conditions, and a
+   replaced name renames phase 2's branch and PR title.
+2. **What no later answer voids: the exact frame's side.** [`frame-integrity`](frame-integrity.md) items 2, 3, 4, 7,
+   8; [`pacs-sync`](pacs-sync.md) items 1, 2, 4, 5, 7; [`client-calls`](client-calls.md) items 2, 7, 8, 9;
+   [`non-cine-series`](non-cine-series.md) items 1, 3, 4, 5; [`transport-stack`](transport-stack.md) items 1, 3–7;
+   [`reports`](reports.md) items 1, 4, 5, 7–11; [`engines`](engines.md) items 1, 4, 5, 6; `paused-lines` and
+   [`repository`](repository.md) whole. None depends on whether a lossy view exists, on a phone, or on another page.
+3. **Whether there is a view at all, before anything built for the view.** [`delivery-per-link`](delivery-per-link.md)
+   item 4's run carries DELIVERY-FIT-ARM, the HTJ2K-only control; its §6 and `frame-integrity` §6 both say that
+   arm filling as fast as the view on wire-bound links leaves no view needed. That outcome voids
+   [`visually-lossless`](visually-lossless.md), [`ingest-optimal-quality`](ingest-optimal-quality.md),
+   [`phone-decode-route`](phone-decode-route.md) items 1–7 and 9, `frame-integrity` item 6 with `unified-to-main`
+   item 2's port of PR 368, `engines` items 2 and 3, and every held AV1 row. The run needs no word (amendment 28
+   rule 2). So: the **docs** answers on the view can be given now (they cost a line and hold while a view exists);
+   the **builds** for the view wait for that run: PR 368's port, `ingest-optimal-quality` items 5 and 8,
+   `visually-lossless` item 2's label row.
+4. **What the view claims, before what its mark says.** `visually-lossless` items 1, 2 and 8 before
+   `frame-integrity` item 1 (state 1 "describes the view" in the words item 2 fixes), before
+   `ingest-optimal-quality` item 3 (which Q is "the `visually-lossless` page's"), and before
+   [`exact-frame-layout`](exact-frame-layout.md) item 5 (contradiction 2 below).
+5. **Which view, before what is removed from a view.** `view-target` items 1 and 2 before `asking` item 3 (its
+   removal edits `view.js`, `view-worker.js` and `viewer.js`; P5 would delete one of them), before the cache (the
+   view worker is "the cache's home", `view-target` §3), and before `client-calls` item 9. `view-target` item 3
+   (P5) after `engines` item 5 (the Safari probe) and PHONE-ROUND-2.
+6. **One run, three pages.** `transport-stack` item 2 before `asking` item 4 and `unified-to-main`'s M3 (PR 96):
+   all three wait on that run, and its result is also what would bring `transport-stack` item 1 (a GET path) back.
+7. **One call asked twice.** `reports` item 6 is `frame-integrity` item 5 (the coded-bytes digest and the server's
+   re-check): answer once. Both wait on `reports` item 3's two reruns, which name the carrier.
+8. **One note, not four.** `pacs-sync` item 10, `ingest-optimal-quality` item 11 (two notes),
+   `exact-frame-layout` item 6 and `non-cine-series` item 3 (three questions) each ask the owner to send the PCS
+   team something. One yes, one note, sent once; its answers move `pacs-sync` item 6, `exact-frame-layout` item 2,
+   `ingest-optimal-quality` items 3, 4 and 9, and `non-cine-series` item 3. `pacs-sync` item 7 (D10) before
+   `ingest-optimal-quality` item 5, as that item says.
+9. **One phone evening carries every phone cell** (amendment 28, PHONE-ROUND-2): `view-target` item 4,
+   `phone-decode-route` item 7, `exact-frame-layout` item 3 and [`cache`](cache.md)'s P2 and P1 are one yes to
+   the round's content, not four. `exact-frame-layout` item 4 (P3) after the cache is on.
+10. **The cache last**, and after CACHE-DESIGN (contradiction 5): `cache` items 1–3 only if its question survives it.
+
+## Contradictions between pages
+
+1. **The exact frame without a request has no page behind it.** `visually-lossless` item 3 says yes "to the
+   direction" and that the trigger "is the `asking` and `delivery-per-link` pages'"; its §6 rests option A's safety
+   on "a phone's time from a dwell to *✓ Lossless*". `asking` has no such item; `delivery-per-link` item 3 says no
+   to C2 and item 1 keeps the exact frame "on request"; `frame-integrity` §7 calls the unasked exact frame "not
+   recommended now". Until a row sizes it, item 3's yes changes nothing and A's argument stands on a measurement
+   nobody owns (the pages' own numbers for the asked frame: 0.19–0.46 s on short round trips and 6.2–7.1 s at
+   800 ms, **measured**, cloud, `delivery-per-link` §2; 216.5 ms on the phone against 80–130 predicted,
+   `phone-decode-route` §4).
+2. **Is an exact resolution level, shown first, a "low-resolution preview"?** `exact-frame-layout` item 5 and §7:
+   yes, it reopens the decided approach, and it "failed the visually lossless proxy the view is held to".
+   `non-cine-series` §7: not under the reading of 2026-11-10 ("one lossless codestream served at the screen's
+   resolution"), and amendment 28 builds exactly that as DELIVERY-FIT-ARM. And the proxy that failed it is one
+   `visually-lossless` item 4 stops holding the view to ("no bar under A"). One reading is owed, by the owner.
+3. **"Every default chosen by measurement" over defaults chosen by none.** `final-state` §2's status line prints it;
+   its condition 3 is met by a table whose rows may say "not measured". The pages recommend keeping such defaults:
+   G 8 "chosen by no measurement" (`ingest-optimal-quality` §7), Q 8 "interim" (`visually-lossless` item 5), the
+   decoder count "decided after cell 1 on a second phone" (`phone-decode-route` item 5), the view worker on a guard
+   labelled an assumption (`view-target` §6). The line or the condition changes; `unified-to-main` item 5 inherits it.
+4. **The removal takes a rig an owed run names.** `unified-to-main` item 4 removes the 47 directories of
+   [`lab-list.md`](lab-list.md) but `htj2k-tiles`, `faultbench` and the device kit; `lab/paint-floor` is among
+   the 47, and `client-calls` §6 judges the GPU run of its item 5 against "`lab/paint-floor`'s 0.34 ms". The two
+   pages also differ with `lab-list.md` on an archive tag (no tag, said on purpose in `unified-to-main` §7) while
+   `repository` item 2 makes the tags the archive index: a removed directory is then in no index.
+5. **Two rows own the cache's store.** `cache` item 1 queues one more run of the two OPFS stores, holding decoded
+   frames; `view-target` §5 says "which store is CACHE-DESIGN's (phase 2)", and that row (amendment 28, after the
+   owner's "we will need a persistent or disk cache either way") also asks what is kept, coded or decoded. `cache`
+   was written before that word and does not read it. Its item 4 asks a yes on 256 MiB a tab; `asking` says the
+   budget is "not asked" (amendment 28: not the owner's).
+6. **The scope and the statement.** `final-state`: "complete for that scope", DBT and ultrasound *stacks*. The value
+   statement: "open a breast DBT or ultrasound *study*". `non-cine-series`: half a DBT exam's pictures by count are
+   single frames a DBT display must also show, and "a real ultrasound exam is refused at the ingest" (read, not
+   run). Both are true as written; the status line should not be read as the statement met.
+
+## Premises several pages share and none tested
+
+1. **That the wire, not the decode, binds on the links we target**: the view's reason for existing
+   (`delivery-per-link`, `phone-decode-route`, `visually-lossless`, `ingest-optimal-quality`). On the one phone
+   measured, the exact series filled faster than the view in 15 of 15 rounds, median 0.705 (`phone-decode-route`
+   §4). Contradiction of nothing, since both pages answer "no, for now"; but no page tests the premise itself.
+2. **That ultrasound behaves as DBT does.** Every page's *Where it holds* carries its result to ultrasound by theory
+   or says "not yet known"; the one breast clip in hand, `usb_cine`, is lossy-sourced and by `docs/FIXTURES.md`'s
+   rule "enters no bytes, time or inter verdict" (`final-state` §5). No fixture in hand can produce an ultrasound number.
+3. **That the device model carries one phone to the others.** Its HTJ2K bands held; the view's missed at one and
+   at four decoders, and the exact-frame latency missed (`phone-decode-route` §4). Every per-class range on every
+   page is that model's.
+4. **That Chromium stands for "a web browser … on a phone".** Safari is unmeasured on every page (`engines` item 1).
+5. **That the reader is as modelled.** No page has a reader: the claim (`visually-lossless`), the scroll
+   (`asking` §6: "Telemetry is off, so no run here can give it"), the level picture (`exact-frame-layout`,
+   `non-cine-series`), the busy page (`view-target` §6).
+6. **That the PCS delivers what four pages assume**, each "until the PCS team answers"; no note is sent.
+7. **That the paint is exact on a GPU.** The check ends at "the samples handed to the painter, not the glass"
+   (`frame-integrity` §2); the cloud has no GPU, and `client-calls` item 5 stops there.
+8. **That a sync row merges.** `claude/unified` has not moved since 2026-11-20 06:35 (`unified-to-main`'s header);
+   five pages end a yes in "a sync row merges it", and no merged tree's gate has run (`unified-to-main` §6).
+9. **That the server's cost per session is the lowest.** The value statement says so; pages cite it
+   (`delivery-per-link`, `reports`); no row has measured it (amendment 28, SESSION-COST).
+
+## Not answered, and the one measurement each needs
+
+| what | the measurement | whose |
+| --- | --- | --- |
+| is a view needed | DELIVERY-FIT-ARM beside A and B, with the switch (`delivery-per-link` item 4, `phone-decode-route` item 3) | cloud, phase 2 |
+| the phone's cells | PHONE-ROUND-2, one evening: cell 3 under one condition; M17 and M5 at a volume's size; P1 and P2; the cache's P2 and P1; memory after worker loads; `MAX_TEXTURE_SIZE` | the owner's phone |
+| other phones | cell 1 on one middle-band phone (`phone-decode-route` item 8) | a real-device cloud, the owner's account |
+| Safari | the probe page, then one session and one frame (`engines` item 5) | a Mac or an iPhone |
+| the paint on a GPU; native's M1 and M2 | the WebGL painter's exactness and time (`client-calls` item 5) | a machine with a GPU |
+| ultrasound | one lossless-sourced clip through `from-parser --optimal-quality` (`ingest-optimal-quality` §6) | a source, from the PCS team |
+| the claim; the level picture; the scroll | a reader study (`visually-lossless` §6); a reader's scroll log (`asking` §6) | readers; no agent's |
+| the status line | read by a PACS engineer and a radiologist (`final-state` §6) | the owner |
+| the server's network mode; a radio | `network-mode.md` §6's check; a wireless trace (`transport-stack` §6) | a client off the host |
+| the PCS's output | the one note's answers | the PCS team |
+
+Answerable in the cloud and queued by their pages, none run: `transport-stack` item 2; `reports` item 3's two
+reruns; `engines` items 3 and 4; `asking`'s P1 and P1b; `non-cine-series` §6's run; `pacs-sync`'s M-R2;
+`client-calls` items 1 and 3; `repository` item 4's two-host check; the fault bench's twelve cells.
+
+## Held and late rows
+
+**Held** (the program's §Trimmed; released by the owner's word, never by a worker), with what releases each, as
+`phone-decode-route` item 10 and `paused-lines` §6 put it:
+
+| row | released by |
+| --- | --- |
+| the decode audit's three checks | a yes to `phone-decode-route` item 10 (recommended: release now, no encoding) |
+| GROUPS-SHARD2 | M17 on the phone (PHONE-ROUND-2) |
+| NOISE-RATIO-RUN | nothing while `visually-lossless` item 1 stands ("the view claims nothing"); a no to it |
+| TILES-STEP | M13 |
+| the other codecs' and the strips' byte cells | a second phone's M4 and M5 at a volume's size |
+| the seven native rows | a phone listing an AV1 Main 10 decoder with P010 (`paused-lines` §6) |
+| VIEWER-DOC, VIEWER-PHONE-AMEND | the owner's resume of the viewer line |
+
+Order 3 above bears on the first five: if no view is needed, they close unrun.
+
+**Late or open at 2026-11-23 10:23 UTC** (status files on `claude/work-ledger`):
+
+| row | state | released by |
+| --- | --- | --- |
+| DOCS-SYNC-1122 | blocked (its session may not merge) | superseded by UNIFIED-SYNC-1122 (amendment 28) |
+| UNIFIED-SYNC-1122 | blocked on PR 410's path check | met: ENGINES-PATH-FIX-REVIEW is done; DOCS-SYNC-1123 merges PR 410 |
+| DOCS-SYNC-1123, DOCS-SYNC-1123-LATE | not started (not before 12:00) | the clock; a session allowed to merge |
+| PHASE2-PLAN, PHASE2-PLAN-REVIEW | not started (not before 12:00) | the clock; this section is an input |
+| READMIN-RESTORE and its review | not started, latest 14:00 | a worker; `client-calls` item 2 rests on it |
+| FAILED-FRAME-WITHHELD-REVIEW | not started (PR 438 done 09:43) | a worker |
+| SYNC-RECONCILE-REVIEW-FIX-REVIEW | not started (the fix done 10:19) | a worker; `pacs-sync` item 3 waits on it |
+| BRIEF-1127 | not started, latest 23:00 | the clock |
+| REPORT-RUN-2 | done, Firefox's counted cells not run (a rig defect) | a rig fix, before `reports` item 3's reruns |
+| LATER-PASS, PR-TIDY | `started` since 2026-11-18 | a yes to `repository` item 6 |
+| PHONE-DRY-RUN, PHONE-PROBE-RUN (client queue) | no status file | "the owner's local device session; no cloud worker takes it" |
+| DOCS-SYNC-1124 to -1128 | dropped by amendment 27 | — |
+
+## The next queue's first rows
+
+For PHASE2-PLAN, in this order; each is a page's recommendation or closes a contradiction above, none new work.
+
+1. **SYNC-FIRST**: a session allowed to merge takes the reviewed PRs in `unified-to-main` §3.1's order and runs the
+   gate on the merged tree (premise 8). Nothing else in phase 2 lands until one sync row has.
+2. **DELIVERY-FIT-ARM** with `delivery-per-link` item 4's amendments and `phone-decode-route` item 3's switch, as
+   one protocol (order 3): it decides how much of the rest is worth building.
+3. **EXACT-UNASKED**: one theory row sizes the exact frame without a request (the trigger, its bytes, its wait per
+   link) from `asking`'s model and the delivery rows, or `visually-lossless` item 3 is answered no (contradiction 1).
+4. **PCS-NOTE**: the four pages' notes folded into one draft for the owner to send (order 8), with a request for
+   one lossless-sourced ultrasound clip (premise 2).
+5. **CACHE-DESIGN** (already its own routine) reads `cache` §10 first and says whether item 1's run still stands
+   (contradiction 5).
+6. **DEFAULTS-TABLE** (`unified-to-main` §4 row 1), with `final-state`'s line or condition 3 reworded
+   (contradiction 3); **US-END-TO-END** on `usb_cine`; the gate in CI.
+7. **LAB-REMOVAL** after a re-read of each of the 47 directories against every owed run on these pages
+   (contradiction 4), not against the gate alone.
+8. PHONE-ROUND-2's preparation as one list (order 9), and the row for one middle-band phone.
+9. The cloud runs the pages queue (the last line of the table section above), each pre-registered by a session
+   that will not run it.
+
+Left for a later fix, from §Re-review: r-m1 (`repository.md` §4's "no US cine fixture"), r-n1, r-n2; §Review's
+nits; m13 (six pages over one screen in §1–3), which this row did not rewrite: no claim would change.
 
 ## The form (every page, in this order; the first four on one screen)
 
@@ -51,7 +243,7 @@ Inputs that are not pages: [`lab-list.md`](lab-list.md), what reads each `lab/` 
 | [`non-cine-series`](non-cine-series.md) | what a series that is not cine-like gets | NON-CINE-OPTIONS (Fable), -REVIEW; NON-CINE-PAGE | 11-27 | written 2026-11-22: large single frames the exact frame alone, no AV1 view; level 1 of a level picture first run, nothing adopted; stills a stack of exact frames, the three ingest refusals to the PCS team; the painter refuses an oversized frame by name now; over 12 bits waits |
 | [`delivery-per-link`](delivery-per-link.md) | the view, the exact series, or both, per link | DELIVERY-PROTOCOL, -BUILD, -BUILD-REVIEW, -RUN, -VERDICT-REVIEW; DELIVERY-PAGE | 11-27 | written 2026-11-23: A + C1 on every link and class; B not a default for now (the route page's switch test first); C2 no; the next run with C1's wire time, a lossy-link model, the relay off the decoding cores and DELIVERY-FIT-ARM |
 | [`final-state`](final-state.md) | what the state `claude/unified` reaches before `main` is called, and its definition | FINAL-STATE (Fable), FINAL-STATE-REVIEW, FINAL-STATE-FIX, FINAL-STATE-FIX-REVIEW | 11-23 | written 2026-11-22: *bench-verified*, with its scope and a line saying what it is not; seven conditions for UNIFIED-PAGE; reviewed 2026-11-23, two blockers; fixed 2026-11-23: *evaluation release* kept as the release's name, *bench-verified* its state, the README line only once the seven conditions hold; re-reviewed 2026-11-23, no blocker open, three nits; the yes or no on both names due; corrected 2026-11-23 (DECISION-PAGES-FIX B3): the status line leaves condition 2 unmet, `usb_cine` the clip |
-| `README` | the order to decide in, and what the two weeks left open | DECISIONS-OPEN, DECISION-PAGES-REVIEW, PROGRAM-CLOSE (Fable), BRIEF-1127 | 11-28 | this file, opened 2026-11-19; §Review 2026-11-23: three blockers (B1 two pages stale against the 02:00 word, B2 PR 417 unreviewed, B3 condition 2 by a status line), m1–m13; fixed 2026-11-23 (§Fix); re-reviewed 2026-11-23 (§Re-review), no blocker open, r-m1 and two nits; the order owed (PROGRAM-CLOSE) |
+| `README` | the order to decide in, and what the two weeks left open | DECISIONS-OPEN, DECISION-PAGES-REVIEW, PROGRAM-CLOSE (Fable), BRIEF-1127 | 11-28 | this file, opened 2026-11-19; §Review 2026-11-23: three blockers (B1 two pages stale against the 02:00 word, B2 PR 417 unreviewed, B3 condition 2 by a status line), m1–m13; fixed 2026-11-23 (§Fix); re-reviewed 2026-11-23 (§Re-review), no blocker open, r-m1 and two nits; the order, six contradictions, nine shared premises, the unanswered, the held and late rows and the next queue's first rows written 2026-11-23 (PROGRAM-CLOSE, above the form) |
 
 ## Review
 

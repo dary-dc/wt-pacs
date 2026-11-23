@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review, its fix and re-review 2026-11-23.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review, its fix and re-review 2026-11-23; the order to decide in 2026-11-23.
 
 ## Goal
 
@@ -59,7 +59,9 @@ small enough that every open item has an owner and a next step.
   (DECISION-PAGES-REVIEW, its §Review): three blockers, two pages stale against the owner's 02:00 word on the
   unchecked view, PR 417 offered as reviewed, the final state's condition 2 met by a status line. Fixed 2026-11-23
   (DECISION-PAGES-FIX, the README's §Fix): B1–B3 and m1–m12 in place, m13 left as the review said. Re-reviewed
-  2026-11-23 (DECISION-PAGES-FIX-REVIEW, §Re-review): no blocker open; r-m1 (`repository.md`'s US fixture) and two nits.
+  2026-11-23 (DECISION-PAGES-FIX-REVIEW, §Re-review): no blocker open; r-m1 (`repository.md`'s US fixture) and two nits. Closed
+  2026-11-23 (PROGRAM-CLOSE, the README's first six sections): the order to decide in, six contradictions between
+  pages, nine premises no page tested, what each open answer needs, the held and late rows, phase 2's first rows.
 
 ## Open (ordered)
 
