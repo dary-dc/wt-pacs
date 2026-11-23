@@ -213,9 +213,42 @@ test("each failure is said with its scope", async () => {
     { scope: "series", reason: "no decoder" },
     { scope: "worker", reason: "paint: context lost" },
   ]);
-  // A refused frame is no longer owed: the same want sends it again.
+});
+
+/** A refused frame is withheld: no later want of the worker view's store names it again, whatever the steps. */
+test("a refused frame stays out of every later want", async () => {
+  const wants = [];
+  const { c } = rig({ held: [0], wants });
+  c.show(0);
+  c.refused(2, "refused by the server");
+  c.show(1);
   c.show(3);
-  assert.deepEqual(wants, ["3", "3"]);
+  assert.deepEqual(wants, ["1,2,3", "1,3", "3,1"]);
+});
+
+/** A step of the page view onto a refused frame asks nothing, and so does a step onto a frame whose ask failed. */
+test("the page view never asks a withheld frame again", async () => {
+  const { c, calls } = rig({ held: [0] });
+  c.refused(2, "refused by the server");
+  c.client.requestFrame = (i) => (calls.push(`ask ${i}`), Promise.reject(new Error(`frame ${i} unavailable: refused`)));
+  await c.show(3);
+  await c.show(2);
+  await c.show(3);
+  assert.deepEqual(calls, ["ask 3"]);
+});
+
+/** The current frame withheld clears the view: the previous slice's picture is never left under the new slice. */
+test("a withheld current frame paints nothing in its place", async () => {
+  const { c, painted, events } = rig({ held: [0], fillMode: false });
+  await c.repaint();
+  c.client.requestFrame = () => new Promise(() => {});
+  c.show(1);
+  c.refused(1, "a depth cut's frame decoded at 16 bits");
+  await c.repaint();
+  assert.equal(painted.at(-1).f, null);
+  assert.deepEqual(events.filter(([t]) => t === "shown").at(-1)[1], { i: 1, withheld: "a depth cut's frame decoded at 16 bits" });
+  await c.show(1);
+  assert.equal(painted.at(-1).f, null, "a step back onto it clears again");
 });
 
 /** The ledger hands a lab harness the fill's time once every frame is here and none before, and each frame's reads and decode end. */
