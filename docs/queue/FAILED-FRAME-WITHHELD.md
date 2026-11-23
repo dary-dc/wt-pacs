@@ -1,9 +1,9 @@
 state: started
 started: 2026-11-23T09:17Z
-heartbeat: 2026-11-23T09:22Z
-outputs: claude/failed-frame-withheld (test 5e2833075, fix pushed)
+heartbeat: 2026-11-23T09:23Z
+outputs: claude/failed-frame-withheld 2d606f7e5, PR 438 (draft into claude/unified)
 ## Resume
 Done: failing tests (5e2833075), the fix (store.withhold, controller withheld paint as a cleared canvas,
 "withheld" event; painter and view worker paint null as the cleared canvas); 7 mutants killed.
-Next: gate (client/decode/wasm/build/build.sh, ingest/tools.sh, scripts/gate.sh), docs/lines/client.md, draft PR into claude/unified.
+Next: gate running (dockerd, meson, venv, ingest/tools.sh, client builds, scripts/gate.sh); then its result in PR 438's body, state done.
 ## Result
