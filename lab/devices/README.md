@@ -28,6 +28,7 @@ phone ── https://PUBLIC_NAME:8443/?t=TOKEN ── the runner page, D0 → D1
 | `dry_run.mjs` | the page through a deployed kit in headless Chromium, quick mode: exits 0 when every visit is exact |
 | `round_plan.mjs` | the round's plan for `round.py`: `roundOrder()`'s loads on their pages, the four series' servers; `--dial` required; `--quick` for the dry run |
 | `raw_rows.py` | the round's raw files for the public repository: only what a cell reads, the laptop and the phone stripped, refused if a MAC or an SSID is left (`docs/devices.md` §4) |
+| `resources.sh` | one phone snapshot over `adb` at the start and after each load (memory, PSI, swap and fault counters, thermal, each Chrome process's RSS and swap, the top 8 by RSS), beside `round.py`: `resources.sh OUT/round.jsonl OUT/resources.jsonl` |
 | `round.py`, `round.mjs`, `round-page.js`, `beacon.js` | the phone round of `claude/phone-protocol:docs/phone-rows/next-round.md` (below): one press, the laptop's plan behind `GET /next`, each load recorded by the viewer's lab gate |
 
 **Quick and full.** Quick is 3 rounds of D1 on `dbt10_ea1141` alone (the largest frames, all three decoders) and
@@ -182,8 +183,12 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
   on each return to visible and after each release, every acquire, release and refusal recorded; a ticker every
   250 ms, whose largest gap over 2 s makes the load **VOID: stopped** (the load's own work included: stricter than
   §3's bar, which counts gaps outside it); the fill's record (`beacon.js`), and the load's last batch POSTed and
-  awaited before it leaves (5 s, else `sendBeacon`, which drops a batch over Chrome's keepalive quota; a `drain`
-  record names the path); with
+  awaited before it leaves (5 s); its `drain` record names the path and counts the batch (`records`). A failed post
+  falls back to `sendBeacon`: the `drain` record first, then the batch in beacons of at most 16 KiB until one is
+  refused, since Chrome refuses a keepalive body once 64 KiB would be in flight (the Fetch standard's "greater than
+  64 kibibytes"; Chromium's `kKeepaliveInflightBytesQuota = 64 * 1024`, `resource_fetcher.h`); a read counts what
+  arrived against `records`. A post that timed out after the server took it arrives twice: the beacon's copies are
+  the post's records field for field, so a read keeps one record of each (load, kind, at); with
   `press=lossless` one exact frame and back; with `seq=view` cell 3's sequence: `steps` frame changes (20) as
   dispatched key presses due at a random 0–250 ms phase, timed from when each was due to its frame's paint, then
   `cineS` (10) of cine painted against due, then one exact frame, each first idle and then with the busy lever (100
@@ -216,7 +221,7 @@ repetitions (over `--quick`'s too; `round.test.mjs` checks they reach `roundOrde
 
 **Tested** in the container: `round.test.mjs`, `beacon.test.mjs` and `round_test.py` (a fake `adb` on PATH; `raw_rows.py`) in the
 gate, and `round_headless.sh`: headless Chromium against the real viewer, `series-server` and dev servers, on a
-synthetic 10-bit pair (64 × 48, 20 frames), eighteen loads — a run-commit mismatch stops before load 1, one press runs
+synthetic 10-bit pair (64 × 48, 20 frames), nineteen loads — a run-commit mismatch stops before load 1, one press runs
 the plan, a load made to fail is recorded and the next taken, a throw and a hang after the fill each fail their load
 and the next is taken, a stall marks its load VOID, each wake lock outcome
 recorded (headless Chromium refuses it: `NotAllowedError`), cell 3's steps, cine and exact frames in both views, the
@@ -224,5 +229,6 @@ busy lever on the viewer's thread, `adb` only between loads; and four loads of t
 codec on 2 decoders, the viewer never filling; C2's exact fill after the view's, every frame exact; a fill on
 `decoders=1`, no two of its frames decoding at once; the bench's frame times its decoder's own start to end, one
 frame at a time on each decoder, its span from `t0`; and against the exact series' metadata with one digest changed,
-a bench load and a C2 load each failing by name. Each check also failed once with its code broken. Not
+a bench load and a C2 load each failing by name; every load's last batch posted, none left to the beacon; cell 3
+at the round's size (20 steps, 10 s cine), its end batch arriving whole. Each check also failed once with its code broken. Not
 tested: a phone, `adb` itself, `podman` images, Wi-Fi, a page hidden or a screen turned off.
