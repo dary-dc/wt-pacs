@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-23T01:17Z
-heartbeat: 2026-11-23T01:31Z
-outputs: claude/memory-on-navigation (from origin/claude/unified)
+heartbeat: 2026-11-23T01:39Z
+outputs: claude/memory-on-navigation a462542a8 (from origin/claude/unified)
 ## Resume
 Reproduced in the cloud (headless Chromium 153, dbts_b1-q8-g16 + dbts_b1 via scripts/demo-pair.sh, probe
 lab/viewer/navigation-memory.mjs, uncommitted until the counted run lands): ?view=page grows one renderer
@@ -12,6 +12,8 @@ SABs held by the main thread after navigation 863 -> 4115 MiB over 5 loads; tran
 SABs held only in a worker freed. Cause: V8 counts a SharedArrayBuffer as 0 bytes toward collection
 (transferred-buffer-per-frame.md), so the page thread's references keep them past the document. No fix inside
 the row's bounds (transfer on the page view copies each paint; view=worker is VIEW-PAGE's call): findings.
-Next: counted interleaved run -> lab/viewer/rows/navigation-memory.jsonl; docs/client/evidence/navigation-memory.md;
+Done: counted run (lab/viewer/rows/), evidence docs/client/evidence/navigation-memory.md, line doc, pushed a462542a8.
+Next (was): counted interleaved run -> lab/viewer/rows/navigation-memory.jsonl; docs/client/evidence/navigation-memory.md;
 line doc; push branch; draft PR into claude/unified.
+Now: scripts/gate.sh --quick on the branch, then the draft PR into claude/unified.
 ## Result
