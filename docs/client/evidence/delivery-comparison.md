@@ -267,6 +267,13 @@ the headless shell 157.0.8103.78 for K3 (`claude/transport-arms` `9fad9d9b`'s ru
   41.8 and 14.5 ms, 26–28 % under §4.3's 19.8, 57.1, 20.1 (another host and browser build). HTJ2K's *d*₁ (16.1, 46.2,
   15.4) and every *G* but LTE's and LOSS's (A2) are within 25 %; CR's *S* is 3.1× §4.3's 2 420 ms (A2).
 * The predictions file, `lab/delivery/predictions.json`, XXH3 `e7d61c6d15ea6bdb`, is pushed with this amendment.
+* **A4 · The pilot** (2026-11-22 22:44Z to 11-23 00:03Z; two rounds a cell, 150 loads, none counted;
+  `rows/<CELL>-pilot.jsonl`). `VOID`: CLEAN 4/30, PUB 2/30, LTE 3/30, LOSS 0/30, CR 0/30, every one the relay's guard,
+  so the guard stands as written for the cells (A1 is K2's alone). No load failed: every C1 painted *✓ Lossless*, every
+  C2 filled its exact series, no load read back more than two decoders. LOSS's relay tally passed §6's 3× check. The
+  visit timeout stays at the build's 300 s (the longest pilot load, CR's B on `dbts_b1`, is under 40 s); the prefixes
+  stand (LTE 16, LOSS 8). Pilot medians for §6's 3× rule: `rows/<CELL>-pilot.pilot-medians.json`. Nothing else is set
+  from the pilot: the predictions file is unchanged.
 
 ---
 
