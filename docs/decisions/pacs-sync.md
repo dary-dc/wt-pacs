@@ -19,7 +19,7 @@ study's metadata), and several parts turn on the PCS team's answers, which only 
 
 ## 2 · The recommendation, and the owner's yes or no
 
-**Take the three reviewed PRs, declare one writer (the PCS) for now, which makes the shape E + F, and send the PCS team
+**Take the two reviewed PRs (407, 422) and PR 417 once its review finds no blocker, declare one writer (the PCS) for now, which makes the shape E + F, and send the PCS team
 one note; every other default stands as the design state prints it.** That serves the value statement's last line
 ("Its input is what the PCS delivers; the PCS itself is out of scope"): with one writer, the PACS never needs the PCS
 to know about edits made on our side.
@@ -28,7 +28,7 @@ to know about edits made on our side.
 | ---: | --- | --- | --- | --- |
 | 1 | Merge PR 407: one study-DB schema, `xxh3 TEXT` (16 lowercase hex) (D1) | **yes** | `pacs-verify` reads what the receiver writes; the defect it fixes is measured ("Invalid column type Text"); review: no blocker | the verify tool fails on every stored study; `INTEGER` instead is PR 407's §The other choice (one hash in two forms in one DB, 8 bytes a group saved, **derived**) |
 | 2 | Merge PR 422: the receiver's signed-source tests, no range check of its own (metadata §Open 5) | **yes** | 51 tests, 5 mutants killed, two of which the old suite let live (**measured**); review: no blocker | §Open 5 stays open on paper although answered |
-| 3 | Merge PR 417: the hash bridge and P3 against E reconciled (metadata §Open 2) | **yes** | the records agree: bridge (a) in every pattern; P4 (E) over rsync, provisional on M-R2 | two records that contradict each other |
+| 3 | Merge PR 417: the hash bridge and P3 against E reconciled (metadata §Open 2) | **yes, after its review** (corrected 2026-11-23, `README.md` §Review B2: PR 417 had no review; SYNC-RECONCILE-REVIEW is queued, and amendment 28 rule 1 merges it only with no blocker open) | the records agree: bridge (a) in every pattern; P4 (E) over rsync, provisional on M-R2 | two records that contradict each other |
 | 4 | **One writer for now**: no client-application edits of metadata at the PACS; every correction comes through the PCS (#220's policy P5) | **yes** | the shape is **E + F** (#222 §6.4: "without one, E by simplicity"); a row to build E + F in sender and receiver, by a session that wrote none of #220–#223 | the fork stays open and A + F (+ G) is the ranking's first: a `manifest` member, the update mode, `stale` as final, a tombstone table (#222 §6.4) |
 | 5 | The hash bridge (a): the receiver checks the PCS's BLAKE3 names; our DB keeps XXH3 (D15) | **yes** | the default `pcs-pacs-options.md` §1 already prints | (b) or (c), which miss rot at rest at the PCS (`rsync-delivery.md` §1) |
 | 6 | Layout A: follow the PCS's code at `e105214`, the PDF's B recorded as its target (D14) | **yes, until the PCS team answers note item 6** | the default as built | a choice without the PCS's word on which layout it will ship |
@@ -77,7 +77,7 @@ team's proposal of 10-28, and under it `incoming/` cleared or a kept mirror turn
 
 **Fixtures and limits.** No real PCS package and no deployed store anywhere: PR 407 and PR 422 ran the receiver's
 synthetic test packages (one study, one or two series, 100-byte frames; stand-in AV1 units, nothing decoded); #223
-timed one CT fix on loopback with emulated links; #234's and PR 417's times are estimates from #154's five TCIA series
+measured one CT fix's bytes on loopback, its times on emulated links derived, not timed (corrected 2026-11-23, `README.md` §Review m6); #234's and PR 417's times are estimates from #154's five TCIA series
 and a synthetic 2 000-instance series; #166 and #173 are warm, one host, saturating at 100 viewers. One 4-core cloud
 host for every gate. No DBT volume and no breast ultrasound cine went through the receive path.
 
@@ -120,7 +120,7 @@ yes replaces it with E + F. The owner's 10-24 decisions ("display metadata is up
 
 ## 8 · Rows and links
 
-* Rows: SYNC-RECONCILE (PR 417), STUDY-DB-TEST and STUDY-DB-TEST-REVIEW (PR 407), RECEIVER-RANGE and
+* Rows: SYNC-RECONCILE (PR 417; its review SYNC-RECONCILE-REVIEW owed), STUDY-DB-TEST and STUDY-DB-TEST-REVIEW (PR 407), RECEIVER-RANGE and
   RECEIVER-RANGE-REVIEW (PR 422); status files under `claude/work-ledger:docs/queue/`.
 * `docs/lines/metadata.md` §Open 1–7; `docs/ingest/pacs-receive-design.md` §6, §14, §15, §16;
   `docs/ingest/sync-protocol/shapes.md` §6.4; `docs/ingest/sync-protocol/second-writer.md` §1, §6;

@@ -74,7 +74,7 @@ PR 418 in `client/viewer/demo-check.mjs` (both from [`client-calls`](client-call
 merge in sequence with no conflict at all.
 
 The other PRs into `claude/unified` are decided by their own pages, not here: 407, 417, 422 ([`pacs-sync`](pacs-sync.md):
-yes; each conflicts in `docs/lines/metadata.md` after 415), 413 and 421 ([`ingest-optimal-quality`](ingest-optimal-quality.md):
+yes, 417 after its review; each conflicts in `docs/lines/metadata.md` after 415), 413 and 421 ([`ingest-optimal-quality`](ingest-optimal-quality.md):
 yes; 413 conflicts in `docs/lines/codecs.md` after 415, 421 clean), 418 and 419; the theory PRs 420, 429, 430, 431
 (each re-reviewed with no blocker open, so rule 1 merges them); 434 (MEMORY-LEAK-TRACE, review owed). Never merged:
 402, 405, 409 ("do not merge"); 406 and 408 are the delivery and A1 rigs, read on their branches.
