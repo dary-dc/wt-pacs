@@ -13,7 +13,7 @@ const frame = (i, bits = 16) => ({
 });
 
 /** A controller on a series of `frames`, its paints and the client's calls recorded; `held` frames already here; `wants`, the worker view's store. */
-function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy, bitsStored, bits, window = { center: [3], width: [6] } } = {}) {
+function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy, bitsStored, bits, window = { center: [3], width: [6] }, exactRetryMs } = {}) {
   const painted = [];
   const calls = [];
   const events = [];
@@ -24,6 +24,7 @@ function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, los
     emit: (type, e) => events.push([type, e]),
     paint: paint ?? ((f, display) => (painted.push({ f, display }), { uploaded: painted.at(-2)?.f !== f })),
     budget,
+    exactRetryMs,
   });
   c.client = {
     requestFrame: (i) => (calls.push(`ask ${i}`), Promise.resolve(frame(i))),
@@ -231,6 +232,20 @@ test("the ledger carries the fill's time and each frame's media reads", async ()
   assert.ok(fillMs >= 40 && fillMs < 1000, `fill ${fillMs} ms`);
   assert.deepEqual(frames.map((f) => f.mediaReads), [7, 8]);
   assert.deepEqual(frames.map((f) => f.decoded), [50, 51]);
+});
+
+/** The ledger gives each frame what the overlay shows of it: its route, a refusal, its wire bytes and its decode time. */
+test("the ledger carries each frame's route, wire bytes and decode time", async () => {
+  const { c } = rig({ frames: 2 });
+  c.client.stats = () => ({ resumedAt: [] });
+  const take = (i, more) => c.take({ ...frame(i), info: { ...frame(i).info, wireBytes: 1000 + i, stamps: { decodeStart: 10, decodeEnd: 13 + i }, ...more } });
+  take(0, { route: "av1-webcodecs" });
+  take(1, { route: "av1-dav1d", refusal: "codec" });
+  const { frames } = await c.ledger();
+  assert.deepEqual(frames.map(({ route, refusal, wireBytes, decodeMs }) => ({ route, refusal, wireBytes, decodeMs })), [
+    { route: "av1-webcodecs", refusal: undefined, wireBytes: 1000, decodeMs: 3 },
+    { route: "av1-dav1d", refusal: "codec", wireBytes: 1001, decodeMs: 4 },
+  ]);
 });
 
 /** A cache holding `present`, whose reads answer `read(i)` (null: the check failed) and whose writes are logged in `log`. */
@@ -451,6 +466,68 @@ test("a failed exact request can be asked again on the same frame", async () => 
   await r.c.showExact();
   assert.deepEqual(r.exactAsks, [0, 0]);
   assert.equal(r.labels().at(-1), "lossless");
+});
+
+/** A rejected ask: lost (no frame came, `AskLostError`), or refused by the server. */
+const rejected = (name, message) => {
+  const p = Promise.reject(Object.assign(new Error(message), { name }));
+  p.catch(() => {});
+  return p;
+};
+const lost = () => rejected("AskLostError", "frame 0 unavailable: the session was lost and could not be re-dialled");
+
+/**
+ * A lost exact ask is asked again once, and the label says asking, never failed, until the frame comes: phone run
+ * load 6, docs/reviews/lossless-under-loss.md.
+ */
+test("a lost exact ask is asked again once, the label asking until the frame comes", async () => {
+  const answers = [lost(), Promise.resolve(exactFrame(1))];
+  const r = optimalRig(() => answers.shift(), { exactRetryMs: 20 });
+  await r.c.show(1);
+  const asked = r.c.showExact();
+  await new Promise((done) => setTimeout(done, 5));
+  await r.c.repaint();
+  await asked;
+  assert.deepEqual(r.exactAsks, [1, 1]);
+  const runs = r.labels().filter((q, k, a) => q !== a[k - 1]);
+  assert.deepEqual(runs, ["optimal", "asking", "lossless"]);
+  assert.ok(!r.events.some(([t]) => t === "failed"));
+});
+
+/** One re-ask only: lost again, the label is failed with the transport's reason. */
+test("an exact ask lost twice is failed after its one re-ask", async () => {
+  const r = optimalRig(lost, { exactRetryMs: 0 });
+  await r.c.showExact();
+  assert.deepEqual(r.exactAsks, [0, 0]);
+  assert.equal(r.labels().at(-1), "failed");
+  assert.match(r.events.findLast(([t]) => t === "failed")[1].reason, /could not be re-dialled/);
+});
+
+/** A refusal by the server is its answer, which asking again repeats: it is not asked again. */
+test("an exact ask the server refused is not asked again", async () => {
+  const r = optimalRig(() => rejected("Error", "frame 0 refused: no such frame"), { exactRetryMs: 0 });
+  await r.c.showExact();
+  assert.deepEqual(r.exactAsks, [0]);
+  assert.equal(r.labels().at(-1), "failed");
+});
+
+/** A frame that came and failed its check is a verdict, not a lost ask: it is not asked again. */
+test("an exact frame that failed its check is not asked again", async () => {
+  const r = optimalRig((i) => Promise.resolve(exactFrame(i, false)), { exactRetryMs: 0 });
+  await r.c.showExact();
+  assert.deepEqual(r.exactAsks, [0]);
+  assert.equal(r.labels().at(-1), "failed");
+});
+
+/** A reader who leaves the frame, or goes back to optimal quality, ends the re-ask. */
+test("leaving the frame ends the re-ask of a lost exact ask", async () => {
+  const r = optimalRig(lost, { exactRetryMs: 20 });
+  const asked = r.c.showExact();
+  await new Promise((done) => setTimeout(done, 5));
+  r.c.showOptimal();
+  await asked;
+  assert.deepEqual(r.exactAsks, [0]);
+  assert.equal(r.labels().at(-1), "optimal");
 });
 
 /**

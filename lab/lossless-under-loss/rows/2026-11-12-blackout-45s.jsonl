@@ -1,0 +1,81 @@
+{"round":1,"arm":"retry","t":1,"k":"progress"}
+{"round":1,"arm":"retry","t":2,"k":"shown","quality":"optimal"}
+{"round":1,"arm":"retry","t":2341,"k":"filled"}
+{"round":1,"arm":"retry","k":"blackout","ms":45000}
+{"round":1,"arm":"retry","t":3353,"k":"press"}
+{"round":1,"arm":"retry","t":3354,"k":"ask"}
+{"round":1,"arm":"retry","t":3354,"k":"shown","quality":"asking"}
+{"round":1,"arm":"retry","t":31540,"k":"rejected","reason":"frame 0 unavailable: the session was lost and could not be re-dialled"}
+{"round":1,"arm":"retry","t":32541,"k":"ask"}
+{"round":1,"arm":"retry","t":36725,"k":"rejected","reason":"frame 0 unavailable: Opening handshake failed."}
+{"round":1,"arm":"retry","t":40725,"k":"ask"}
+{"round":1,"arm":"retry","t":44922,"k":"rejected","reason":"frame 0 unavailable: Opening handshake failed."}
+{"round":1,"arm":"retry","t":60922,"k":"ask"}
+{"round":1,"arm":"retry","t":61471,"k":"arrived","bytes":471040}
+{"round":1,"arm":"retry","t":61471,"k":"shown","quality":"lossless"}
+{"round":1,"arm":"retry","t":61471,"k":"settled"}
+{"round":1,"arm":"off","t":1,"k":"progress"}
+{"round":1,"arm":"off","t":2,"k":"shown","quality":"optimal"}
+{"round":1,"arm":"off","t":2048,"k":"filled"}
+{"round":1,"arm":"off","k":"blackout","ms":45000}
+{"round":1,"arm":"off","t":3059,"k":"press"}
+{"round":1,"arm":"off","t":3060,"k":"ask"}
+{"round":1,"arm":"off","t":3060,"k":"shown","quality":"asking"}
+{"round":1,"arm":"off","t":31247,"k":"rejected","reason":"frame 0 unavailable: the session was lost and could not be re-dialled"}
+{"round":1,"arm":"off","t":31247,"k":"failed","reason":"lossless: frame 0 unavailable: the session was lost and could not be re-dialled"}
+{"round":1,"arm":"off","t":31247,"k":"shown","quality":"failed"}
+{"round":1,"arm":"off","t":31247,"k":"settled"}
+{"round":2,"arm":"off","t":1,"k":"progress"}
+{"round":2,"arm":"off","t":2,"k":"shown","quality":"optimal"}
+{"round":2,"arm":"off","t":1996,"k":"filled"}
+{"round":2,"arm":"off","k":"blackout","ms":45000}
+{"round":2,"arm":"off","t":3008,"k":"press"}
+{"round":2,"arm":"off","t":3008,"k":"ask"}
+{"round":2,"arm":"off","t":3009,"k":"shown","quality":"asking"}
+{"round":2,"arm":"off","t":31180,"k":"rejected","reason":"frame 0 unavailable: the session was lost and could not be re-dialled"}
+{"round":2,"arm":"off","t":31180,"k":"failed","reason":"lossless: frame 0 unavailable: the session was lost and could not be re-dialled"}
+{"round":2,"arm":"off","t":31180,"k":"shown","quality":"failed"}
+{"round":2,"arm":"off","t":31180,"k":"settled"}
+{"round":2,"arm":"retry","t":1,"k":"progress"}
+{"round":2,"arm":"retry","t":2,"k":"shown","quality":"optimal"}
+{"round":2,"arm":"retry","t":2322,"k":"filled"}
+{"round":2,"arm":"retry","k":"blackout","ms":45000}
+{"round":2,"arm":"retry","t":3332,"k":"press"}
+{"round":2,"arm":"retry","t":3333,"k":"ask"}
+{"round":2,"arm":"retry","t":3333,"k":"shown","quality":"asking"}
+{"round":2,"arm":"retry","t":31512,"k":"rejected","reason":"frame 0 unavailable: the session was lost and could not be re-dialled"}
+{"round":2,"arm":"retry","t":32513,"k":"ask"}
+{"round":2,"arm":"retry","t":36754,"k":"rejected","reason":"frame 0 unavailable: Opening handshake failed."}
+{"round":2,"arm":"retry","t":40755,"k":"ask"}
+{"round":2,"arm":"retry","t":44967,"k":"rejected","reason":"frame 0 unavailable: Opening handshake failed."}
+{"round":2,"arm":"retry","t":60968,"k":"ask"}
+{"round":2,"arm":"retry","t":61600,"k":"arrived","bytes":471040}
+{"round":2,"arm":"retry","t":61600,"k":"shown","quality":"lossless"}
+{"round":2,"arm":"retry","t":61600,"k":"settled"}
+{"round":3,"arm":"retry","t":1,"k":"progress"}
+{"round":3,"arm":"retry","t":2,"k":"shown","quality":"optimal"}
+{"round":3,"arm":"retry","t":1987,"k":"filled"}
+{"round":3,"arm":"retry","k":"blackout","ms":45000}
+{"round":3,"arm":"retry","t":2999,"k":"press"}
+{"round":3,"arm":"retry","t":2999,"k":"ask"}
+{"round":3,"arm":"retry","t":2999,"k":"shown","quality":"asking"}
+{"round":3,"arm":"retry","t":31186,"k":"rejected","reason":"frame 0 unavailable: the session was lost and could not be re-dialled"}
+{"round":3,"arm":"retry","t":32187,"k":"ask"}
+{"round":3,"arm":"retry","t":36361,"k":"rejected","reason":"frame 0 unavailable: Opening handshake failed."}
+{"round":3,"arm":"retry","t":40362,"k":"ask"}
+{"round":3,"arm":"retry","t":44806,"k":"rejected","reason":"frame 0 unavailable: Opening handshake failed."}
+{"round":3,"arm":"retry","t":60807,"k":"ask"}
+{"round":3,"arm":"retry","t":61701,"k":"arrived","bytes":471040}
+{"round":3,"arm":"retry","t":61702,"k":"shown","quality":"lossless"}
+{"round":3,"arm":"retry","t":61702,"k":"settled"}
+{"round":3,"arm":"off","t":0,"k":"progress"}
+{"round":3,"arm":"off","t":1,"k":"shown","quality":"optimal"}
+{"round":3,"arm":"off","t":2076,"k":"filled"}
+{"round":3,"arm":"off","k":"blackout","ms":45000}
+{"round":3,"arm":"off","t":3086,"k":"press"}
+{"round":3,"arm":"off","t":3086,"k":"ask"}
+{"round":3,"arm":"off","t":3086,"k":"shown","quality":"asking"}
+{"round":3,"arm":"off","t":31255,"k":"rejected","reason":"frame 0 unavailable: the session was lost and could not be re-dialled"}
+{"round":3,"arm":"off","t":31256,"k":"failed","reason":"lossless: frame 0 unavailable: the session was lost and could not be re-dialled"}
+{"round":3,"arm":"off","t":31256,"k":"shown","quality":"failed"}
+{"round":3,"arm":"off","t":31256,"k":"settled"}

@@ -1,0 +1,25 @@
+CR dbts_a1 A  fill    predicted 9333 ms, median ×0.966 (9/9 in 0.85–1.15): HOLDS; 1 VOID
+CR dbts_a1 A' fill    predicted 9333 ms, median ×0.964 (10/10 in 0.85–1.15): HOLDS
+CR dbts_a1 B  fill    predicted 24883 ms, median ×0.994 (10/10 in 0.85–1.15): HOLDS
+CR dbts_a1 C1 fill    predicted 9333 ms, median ×0.967 (10/10 in 0.85–1.15): HOLDS
+CR dbts_a1 C1 latency predicted 5760 ms, median ×1.110 (10/10 in 0.75–1.33): HOLDS
+CR dbts_a1 C2 fill    predicted 9333 ms, median ×0.964 (10/10 in 0.85–1.15): HOLDS
+CR dbts_a1 C2 span    predicted 24883 ms, median ×0.995 (10/10 in 0.75–1.33): HOLDS
+CR dbts_b1 A  fill    predicted 13801 ms, median ×1.012 (10/10 in 0.85–1.15): HOLDS
+CR dbts_b1 A' fill    predicted 13801 ms, median ×1.005 (7/7 in 0.85–1.15): CANNOT HOLD: 7 counted, median in; 3 VOID; round-paired ×1.006 misses
+CR dbts_b1 B  fill    predicted 35067 ms, median ×1.000 (10/10 in 0.85–1.15): HOLDS
+CR dbts_b1 C1 fill    predicted 13801 ms, median ×1.007 (8/8 in 0.85–1.15): HOLDS; 2 VOID
+CR dbts_b1 C1 latency predicted 6610 ms, median ×1.080 (8/8 in 0.75–1.33): HOLDS; 2 VOID
+CR dbts_b1 C2 fill    predicted 13801 ms, median ×1.011 (10/10 in 0.85–1.15): HOLDS
+CR dbts_b1 C2 span    predicted 35067 ms, median ×1.000 (10/10 in 0.75–1.33): HOLDS
+CR dbts_c1 A  fill    predicted 9793 ms, median ×0.979 (9/9 in 0.85–1.15): HOLDS; 1 VOID
+CR dbts_c1 A' fill    predicted 9793 ms, median ×0.981 (10/10 in 0.85–1.15): HOLDS
+CR dbts_c1 B  fill    predicted 25614 ms, median ×0.995 (10/10 in 0.85–1.15): HOLDS
+CR dbts_c1 C1 fill    predicted 9793 ms, median ×0.981 (10/10 in 0.85–1.15): HOLDS
+CR dbts_c1 C1 latency predicted 5718 ms, median ×1.088 (10/10 in 0.75–1.33): HOLDS
+CR dbts_c1 C2 fill    predicted 9793 ms, median ×0.983 (10/10 in 0.85–1.15): HOLDS
+CR dbts_c1 C2 span    predicted 25614 ms, median ×0.996 (10/10 in 0.75–1.33): HOLDS
+A/A CR/dbts_a1: A′ ÷ A median ×0.998
+A/A CR/dbts_b1: A′ ÷ A median ×0.997
+A/A CR/dbts_c1: A′ ÷ A median ×0.999
+predictions xxh3 e7d61c6d15ea6bdb; A/A input lab/delivery/rows/CR.aa.json: lab/scripts/aa_rule.py lab/delivery/rows/CR.aa.json --bar 0.05

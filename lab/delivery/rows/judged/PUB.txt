@@ -1,0 +1,25 @@
+PUB dbts_a1 A  fill    predicted 1878 ms, median ×0.915 (8/8 in 0.85–1.15): HOLDS; 2 VOID
+PUB dbts_a1 A' fill    predicted 1878 ms, median ×0.915 (10/10 in 0.85–1.15): HOLDS
+PUB dbts_a1 B  fill    predicted 6399 ms, median ×0.999 (10/10 in 0.85–1.15): HOLDS
+PUB dbts_a1 C1 fill    predicted 1878 ms, median ×0.918 (6/6 in 0.85–1.15): CANNOT HOLD: 6 counted, median in; 4 VOID; round-paired ×0.924 misses
+PUB dbts_a1 C1 latency predicted 233 ms, median ×1.251 (6/6 in 0.75–1.33): CANNOT HOLD: 6 counted, median in; 4 VOID; round-paired ×1.251 misses
+PUB dbts_a1 C2 fill    predicted 1878 ms, median ×0.926 (9/9 in 0.85–1.15): HOLDS; 1 VOID
+PUB dbts_a1 C2 span    predicted 6399 ms, median ×1.002 (9/9 in 0.75–1.33): HOLDS; 1 VOID
+PUB dbts_b1 A  fill    predicted 5854 ms, median ×1.000 (9/9 in 0.85–1.15): HOLDS; 1 VOID
+PUB dbts_b1 A' fill    predicted 5854 ms, median ×1.031 (8/8 in 0.85–1.15): HOLDS; 2 VOID
+PUB dbts_b1 B  fill    predicted 10079 ms, median ×1.000 (10/10 in 0.85–1.15): HOLDS
+PUB dbts_b1 C1 fill    predicted 5854 ms, median ×1.020 (10/10 in 0.85–1.15): HOLDS
+PUB dbts_b1 C1 latency predicted 339 ms, median ×1.346 (3/10 in 0.75–1.33): MISSES above
+PUB dbts_b1 C2 fill    predicted 5854 ms, median ×1.058 (10/10 in 0.85–1.15): HOLDS
+PUB dbts_b1 C2 span    predicted 10079 ms, median ×1.002 (10/10 in 0.75–1.33): HOLDS
+PUB dbts_c1 A  fill    predicted 2326 ms, median ×1.033 (7/7 in 0.85–1.15): CANNOT HOLD: 7 counted, median in; 3 VOID; round-paired ×1.046 misses
+PUB dbts_c1 A' fill    predicted 2326 ms, median ×0.978 (8/8 in 0.85–1.15): HOLDS; 2 VOID
+PUB dbts_c1 B  fill    predicted 6662 ms, median ×1.000 (10/10 in 0.85–1.15): HOLDS
+PUB dbts_c1 C1 fill    predicted 2326 ms, median ×1.008 (10/10 in 0.85–1.15): HOLDS
+PUB dbts_c1 C1 latency predicted 218 ms, median ×1.289 (8/10 in 0.75–1.33): HOLDS
+PUB dbts_c1 C2 fill    predicted 2326 ms, median ×1.011 (10/10 in 0.85–1.15): HOLDS
+PUB dbts_c1 C2 span    predicted 6662 ms, median ×1.002 (10/10 in 0.75–1.33): HOLDS
+A/A PUB/dbts_a1: A′ ÷ A median ×1.008
+A/A PUB/dbts_b1: A′ ÷ A median ×0.993
+A/A PUB/dbts_c1: A′ ÷ A median ×0.923
+predictions xxh3 e7d61c6d15ea6bdb; A/A input lab/delivery/rows/PUB.aa.json: lab/scripts/aa_rule.py lab/delivery/rows/PUB.aa.json --bar 0.05

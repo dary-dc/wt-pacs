@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-23 (the delivery run and its verdict review), 2026-11-21 (the delivery build's fix and its review), 2026-11-20 (the delivery build), 2026-11-19 (the delivery protocol), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -117,8 +117,32 @@ exact frame bit for bit, and only checked claims on screen.
 * **The next phone round**: its amendment written by a session that will not run it ([`../devices.md`](../devices.md)
   §7), recording the decoder route and per-frame arrivals and varying the decoder count; it decides which view is the
   target and what bounds a fill.
-* **The delivery comparison**: recorded in [`../client/design.md`](../client/design.md) §Open with its theory; its
-  protocol is not written. The link profiles and each arm's regime, theory only, 2026-11-14:
+  2026-11-15: its protocol is `claude/phone-protocol:docs/phone-rows/next-round.md`; its one-press runner is built
+  and tested headless on `claude/phone-round` (`lab/devices/README.md` §The round, RUNNER-AUTO), no phone yet; it
+  waits for PHONE-LEVERS (cell 1's bench, C2, the decoder count) and a dry run.
+  Reviewed 2026-11-15 (`docs/reviews/phone-round.md`): three blockers (a throw after the fill and a server that never
+  answers each stop the round; §3's stopping rule not built). Fixed 2026-11-16 (RUNNER-AUTO-FIX, PR 400 §Fix): a
+  post-fill throw or hang fails its load, a block that cannot start fails its loads and the round goes on, per-cell
+  budgets stop only loads not started. Re-reviewed 2026-11-16 (`docs/reviews/phone-round.md` §Re-review): blockers 1
+  and 3 closed; 2 open for servers ready by a printed line (`readyS` does not bound `wait_line`, so a silent QUIC
+  server still stops the round unrecorded). Third fix round, the owner's yes (2026-11-16): fixed 2026-11-17
+  (RUNNER-FIX-2, PR 400 §Fix 2): `readyS` bounds a printed line too; re-reviewed 2026-11-17 (`docs/reviews/phone-round.md`
+  §Re-review 2): closed, no blocker open; PHONE-LEVERS next. Built 2026-11-18 (PHONE-LEVERS, PR 400 §Levers;
+  `lab/devices/README.md` §The round): `?decoders`, arm C2's `?exactFill`, cell 1's `?bench`, `roundOrder` with cell
+  1 and its drift check; tested headless on the synthetic pair, no phone. Reviewed 2026-11-18
+  (`docs/reviews/phone-round.md` §Levers): two blockers, both untested claims (a frame not exact fails no tested load;
+  the bench's time pinned only by `> 0`). Fixed 2026-11-18 (PHONE-LEVERS-FIX, PR 400 §Levers fix): a wrong-digest
+  exact series fails a bench load and a C2 load by name; the bench's frame time and span pinned to its decoders'
+  stamps; minors 3 and 7 (C1 presses Lossless in `roundOrder`). Re-reviewed 2026-11-18 (§Levers re-review): both
+  blockers closed, each revert or mutant failing its claim; no blocker open, so PHONE-RUN-OWNER's need is met; the dry
+  run next.
+* **The delivery comparison**: recorded in [`../client/design.md`](../client/design.md) §Open with its theory; the
+  cloud protocol pre-registered 2026-11-19 ([`../client/evidence/delivery-comparison.md`](../client/evidence/delivery-comparison.md),
+  row DELIVERY-PROTOCOL): it tests the fill model, not the arms' order (arms A, A′, B, C1, C2; five relay forms; the
+  three volumes; predictions from the host's own bytes, decode and wire before any row). Built 2026-11-20
+  (DELIVERY-BUILD, PR 406; [`../../lab/delivery/README.md`](../../lab/delivery/README.md)): the driver through the TUN
+  relay, K1–K3 and the predictor, the judge; tested and mutated, one smoke round a cell, nothing counted; seven
+  findings for the run's §11 amendment in the README. Reviewed 2026-11-21 ([`../reviews/delivery.md`](../reviews/delivery.md)): two blockers, LTE's blackout reaching no fill and a cell with under 8 counted rounds printed as a miss; seven minors. Fixed 2026-11-21 (DELIVERY-BUILD-FIX): LTE's first blackout drawn per load over its 30 s, K3's visits by the same rule, each row's blackouts from the dial; under 8 counted rounds printed `CANNOT HOLD`; the pilot's `VOID` share by reason; minors m2, m4–m7 fixed, m1 and m3 listed in PR 406's body. Re-reviewed 2026-11-21 (DELIVERY-BUILD-FIX-REVIEW, `../reviews/delivery.md` §Re-review): both blockers closed; minors r1 (C1 and C2, and A and B, draw nearly the same blackout phase), r2 (three surviving mutants), r3 (the driver's wiring untested). Run 2026-11-23 (DELIVERY-RUN; [`../client/evidence/delivery-comparison.md`](../client/evidence/delivery-comparison.md) §11 A1–A5 and §Results; rows on `claude/delivery`): 750 counted loads; the model holds on the clean forms, misses the exact frame at short round trips and every lossy form. Verdict reviewed 2026-11-23 (DELIVERY-VERDICT-REVIEW, §Verdict review): every count recomputed and confirmed, no blocker; m1 C2's span judged with the latency band (LOSS `dbts_b1`'s span misses under the fill band), m2 C1's excess grows with the frame and the round trip, not fixed; the crossover goodput per device class derived through the held cells only, clean links. Owed: DELIVERY-PAGE. The link profiles and each arm's regime, theory only, 2026-11-14:
   [`../transport/link-profiles.md`](../transport/link-profiles.md) — the view decode-bound above ~83 Mbit/s, HTJ2K
   wire-bound below ~470–660 if its unmeasured phone decode keeps the cloud's ratio; that decode is the first phone cell.
 * dav1d fetched only where WebCodecs refuses (a protocol with an A/A arm, not started); a wake before `l` asks (its

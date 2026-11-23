@@ -1,0 +1,25 @@
+LOSS dbts_a1 A  fill    predicted 1696 ms, median ×0.457 (4/9 in 0.75–1.33): MISSES below; 1 VOID
+LOSS dbts_a1 A' fill    predicted 1696 ms, median ×0.606 (4/8 in 0.75–1.33): MISSES below; 2 VOID
+LOSS dbts_a1 B  fill    predicted 17196 ms, median ×0.830 (5/10 in 0.75–1.33): MISSES in
+LOSS dbts_a1 C1 fill    predicted 1696 ms, median ×0.479 (3/9 in 0.75–1.33): MISSES below; 1 VOID
+LOSS dbts_a1 C1 latency predicted 2218 ms, median ×0.346 (2/9 in 0.6–1.67): MISSES below; 1 VOID
+LOSS dbts_a1 C2 fill    predicted 1696 ms, median ×0.563 (4/9 in 0.75–1.33): MISSES below; 1 VOID
+LOSS dbts_a1 C2 span    predicted 17196 ms, median ×0.748 (7/9 in 0.6–1.67): MISSES in; 1 VOID
+LOSS dbts_b1 A  fill    predicted 7993 ms, median ×0.546 (2/10 in 0.75–1.33): MISSES below
+LOSS dbts_b1 A' fill    predicted 7993 ms, median ×0.573 (1/9 in 0.75–1.33): MISSES below; 1 VOID
+LOSS dbts_b1 B  fill    predicted 28971 ms, median ×0.841 (7/10 in 0.75–1.33): MISSES in
+LOSS dbts_b1 C1 fill    predicted 7993 ms, median ×0.476 (1/9 in 0.75–1.33): MISSES below; 1 VOID
+LOSS dbts_b1 C1 latency predicted 3695 ms, median ×0.316 (1/9 in 0.6–1.67): MISSES below; 1 VOID
+LOSS dbts_b1 C2 fill    predicted 7993 ms, median ×0.445 (2/10 in 0.75–1.33): MISSES below
+LOSS dbts_b1 C2 span    predicted 28971 ms, median ×0.839 (10/10 in 0.6–1.67): HOLDS
+LOSS dbts_c1 A  fill    predicted 1863 ms, median ×0.614 (2/10 in 0.75–1.33): MISSES below
+LOSS dbts_c1 A' fill    predicted 1863 ms, median ×0.442 (4/10 in 0.75–1.33): MISSES below
+LOSS dbts_c1 B  fill    predicted 14997 ms, median ×0.754 (6/10 in 0.75–1.33): MISSES in
+LOSS dbts_c1 C1 fill    predicted 1863 ms, median ×0.465 (1/9 in 0.75–1.33): MISSES below; 1 VOID
+LOSS dbts_c1 C1 latency predicted 1943 ms, median ×0.350 (1/9 in 0.6–1.67): MISSES below; 1 VOID
+LOSS dbts_c1 C2 fill    predicted 1863 ms, median ×0.650 (3/9 in 0.75–1.33): MISSES below; 1 VOID
+LOSS dbts_c1 C2 span    predicted 14997 ms, median ×0.685 (7/9 in 0.6–1.67): MISSES in; 1 VOID
+A/A LOSS/dbts_a1: A′ ÷ A median ×0.969
+A/A LOSS/dbts_b1: A′ ÷ A median ×0.910
+A/A LOSS/dbts_c1: A′ ÷ A median ×1.028
+predictions xxh3 e7d61c6d15ea6bdb; A/A input lab/delivery/rows/LOSS.aa.json: lab/scripts/aa_rule.py lab/delivery/rows/LOSS.aa.json --bar 0.05
