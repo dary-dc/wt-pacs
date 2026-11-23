@@ -52,3 +52,97 @@ Inputs that are not pages: [`lab-list.md`](lab-list.md), what reads each `lab/` 
 | [`delivery-per-link`](delivery-per-link.md) | the view, the exact series, or both, per link | DELIVERY-PROTOCOL, -BUILD, -BUILD-REVIEW, -RUN, -VERDICT-REVIEW; DELIVERY-PAGE | 11-27 | written 2026-11-23: A + C1 on every link and class; B not a default for now (the route page's switch test first); C2 no; the next run with C1's wire time, a lossy-link model, the relay off the decoding cores and DELIVERY-FIT-ARM |
 | [`final-state`](final-state.md) | what the state `claude/unified` reaches before `main` is called, and its definition | FINAL-STATE (Fable), FINAL-STATE-REVIEW, FINAL-STATE-FIX, FINAL-STATE-FIX-REVIEW | 11-23 | written 2026-11-22: *bench-verified*, with its scope and a line saying what it is not; seven conditions for UNIFIED-PAGE; reviewed 2026-11-23, two blockers; fixed 2026-11-23: *evaluation release* kept as the release's name, *bench-verified* its state, the README line only once the seven conditions hold; re-reviewed 2026-11-23, no blocker open, three nits; the yes or no on both names due |
 | `README` | the order to decide in, and what the two weeks left open | DECISIONS-OPEN, DECISION-PAGES-REVIEW, PROGRAM-CLOSE (Fable), BRIEF-1127 | 11-28 | this file, opened 2026-11-19; the order and §Review owed |
+
+## Review
+
+DECISION-PAGES-REVIEW, 2026-11-23, of the 19 pages and `final-state.md` at `c8ff9a96c`, by a session that wrote no
+page. Read only: nothing run, no fixture touched, the gate not run (docs). Inputs read at `origin/claude/unified`
+`4a2b4277f`, the branches and commits each page names, the status files on `claude/work-ledger`, and PR bodies.
+
+**Method.** Each page against §The form and its row's brief (the program's §Briefs); ten numbers a page that bear on
+its recommendation traced to where the page says they were produced, the value and its label checked and the
+arithmetic recomputed (200 in all); each inventory row (the program's §The inventory, 1–23) found in its page or in
+§Trimmed; each recommendation against the program's §Decided approaches and the owner's later words (amendments 27
+and 28, among them 2026-11-23 ~02:00: "we will accept hardware decoding and not checking").
+
+**Passes.**
+
+* Every page has the eight sections in order, but `client-calls` (m9). §8 is followed by a PCS note in
+  `exact-frame-layout`, `ingest-optimal-quality` and `pacs-sync`, an appendix the form allows.
+* Every inventory row is in its page: rows 1–22 in the page the inventory names, row 23 in `phone-decode-route` §2
+  item 10 and §Trimmed. The three pages written after VALUE-STATEMENT (`unified-to-main`, `delivery-per-link`,
+  `view-target`) each say how they serve the statement.
+* Of the 200 numbers, 188 match their source in value and label; the twelve that do not are m1–m8 and B3. None but
+  B3's changes a recommendation.
+* No page recommends against a decided approach of 2026-11-19 without saying so in §7; `delivery-per-link`,
+  `view-target` and `unified-to-main` already read the 02:00 word.
+
+**Blockers** (amendment 17: DECISION-PAGES-FIX and DECISION-PAGES-FIX-REVIEW appended to the program).
+
+* **B1. Two pages rest a yes or no on "every frame checked" after the owner reopened it for the view.** The word of
+  2026-11-23 ~02:00 (the program, amendment 28) shows view frames decoded in hardware unchecked and asks that
+  INTEGRITY-PAGE and VL-PAGE be read again against it; both pages were written before it.
+  `frame-integrity.md`: §1 opens on "Every frame is checked, in production too"; item 3's "the *unchecked* state
+  disappears", item 6's "a no leaves … the view's frames unchecked, against amendment 1" and state 1 assume it; §7
+  says "Nothing". `phone-decode-route.md`: item 6 (B1) is "no" so as to keep "every frame … checked", item 9 (4.7,
+  hardware paints unchecked) is "no" because "amendment 1 stands", and §7 says nothing reopens. The fix: each item
+  read again under the word (a view decoded in hardware shown unchecked, the exact HTJ2K frame checked bit for bit),
+  kept or changed with its reason, the 4:2:0 form a hardware view needs named, the unchecked view recorded as a
+  disadvantage against DELIVERY-FIT-ARM's HTJ2K-only arm, and §7 naming the reopen.
+* **B2. `pacs-sync.md` asks a yes to "the three reviewed PRs"; PR 417 has no review.** Items 1 and 2 (PRs 407, 422)
+  cite theirs; item 3 (PR 417, SYNC-RECONCILE, docs) cites none, and no review row or status file for it exists on
+  `claude/work-ledger` (the program's table has none either). Amendment 28 rule 1 merges only after a review with no
+  blocker. The fix: the recommendation says 417 is unreviewed, and a SYNC-RECONCILE-REVIEW row is appended before
+  any sync row takes it.
+* **B3. Condition 2 of the final state can be "met" by a status line, on a false premise.** `final-state.md` §5 (the
+  three things met today) says the program's fixtures hold no breast ultrasound cine and offers "either an
+  ultrasound clip is run end to end, or the status line says … ultrasound stacks carried by theory"; its own §2
+  prints that line as the *unmet* form. `unified-to-main.md` §2 and §6 read the status line as closing the condition,
+  so the README could say *bench-verified* with no ultrasound run. And `docs/FIXTURES.md` at `4a2b4277f` lists
+  `usb_cine` ("breast ultrasound cine, B-mode, … 64 × 512², 8-bit") and `usb_cine_rgb`, both lossy-sourced. The fix:
+  §5 says the status line leaves condition 2 unmet; both pages name `usb_cine` as the clip (its numbers provisional
+  by FIXTURES.md's lossy-sourced rule); the same "no breast ultrasound cine" corrected where it is said of the
+  fixtures rather than of a run (`final-state` §4, `asking` §4, `delivery-per-link` §4: "none in the run").
+
+**Minors** (each one line, corrected in place by the fix row, or said why not).
+
+* m1. `cache.md` §5: "0 of 66 `none` rounds errored"; the rows hold 36 an engine, 72, 0 errored; and only L's
+  summaries carry `unjudged`.
+* m2. `reports.md` item C: `off′` 0.989 is the ratio of medians where the column is the per-round median (1.013);
+  KEEPALIVE-H's busy p99 "2–9 ms" is not in `REPORT-VERDICT-2/output.txt` (2.46, 3.25).
+* m3. `phone-decode-route.md` §3: d_E 25.8 and d_V 68.6 "in a fill" are derived (1.29 ÷ 50, (3.68 − 0.25) ÷ 50),
+  labelled measured; and its "Missing: PHONE-READ-CODE-CHECK" (also `delivery-per-link`'s preamble) is stale: done
+  07:34, no load set apart.
+* m4. `visually-lossless.md`: 0.07–0.24 is right from the 19 volumes' rows but linked to `codecs.md`, which holds
+  0.07–0.22 for three.
+* m5. `delivery-per-link.md` §3 and §5: "4.6–14.6× fewer than B over 19 volumes (**source**, `payload-format.md`)"
+  is derived from three volumes' Q 8 ratios; relabel, and drop "over 19".
+* m6. `pacs-sync.md` §4: "#223 timed one CT fix … on emulated links"; its source says "Nothing is timed on an emulated
+  link": bytes measured, times derived.
+* m7. `client-calls.md` §3.2: `readMin`'s numbers are the workstation's (RMD4, Chrome 148, `CLIENTS.md`), not "a
+  cloud host"; §1's −0.24 to −0.64 MB is the source's assumption, unlabelled here.
+* m8. `unified-to-main.md` §3: PRs 411 and 412's gate figures are the review's merge gates in a column for the
+  branch's own (811 s, 477 s); its condition 4 counts the 47 `lab/` directories, which `final-state` §5's condition 4
+  does not name; one of the two pages states it the other's way.
+* m9. `client-calls.md` has no §5 or §6: the mechanism and what would change are given per item for 3.1–3.3 and 3.9
+  only; one line each for 3.4–3.8, or the page says it is shortened.
+* m10. `ingest-optimal-quality.md` item 8: the guard is called "cheap insurance" with no cost; I2-RUN measured the
+  checks alone at 0.09–0.20 CPU s a megapixel and the full set at +48 to +60 % ingest time against a 10 % bar.
+  Quote both; the budget at which it passes is phase 2's (amendment 28, "budgets are ranges").
+* m11. Stale against the 02:00 word, beside B1, one clause each: `visually-lossless` §7 (the label states no check
+  of the view now), `paused-lines` §2 item 2, §4, §5 ("checked" hardware route), `engines` item 2's "a no leaves",
+  `reports` §2 ("every frame … checked" reaches the operator: exact frames only), `final-state` §7 and condition 2
+  ("a checked frame on screen": the exact frame checked).
+* m12. `non-cine-series.md` §7: written after amendment 28, it never names DELIVERY-FIT-ARM, whose "resolution level
+  that fits the screen" is option L read as one codestream; say so.
+* m13. Over one screen in §1–3: `frame-integrity` (~134 lines, no links at all), `unified-to-main` (~96),
+  `final-state` (~86), `phone-decode-route` (~75), `ingest-optimal-quality` (~73), `transport-stack` (~72). Not
+  fixed: moving tables is a rewrite with no claim changed; PROGRAM-CLOSE may.
+
+**Nits** (not fixed): `cache` names P1 and P2, not P3; `transport-stack` §4 leaves out the WT-TS absolute misses its
+§5 uses, and ~63 Mbit/s is unlabelled derived; `exact-frame-layout` §7 does not say why strips re-encoded from the
+frame keep "the exact HTJ2K frame, bit for bit"; `ingest` does not carry `payload-format.md`'s 2026-11-14 correction
+that G at Q 8 is not a property of G; `view-target` does not say the cloud memory arms ran in blocks; `repository`'s
+"≈ 27 fetches" is 10 GB, not GiB; `final-state` §Re-review's n1–n3 still open.
+
+**Verdict:** three blockers; DECISION-PAGES-FIX next, DECISION-PAGES-FIX-REVIEW after it (amendment 17).
