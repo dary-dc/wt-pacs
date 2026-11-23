@@ -46,7 +46,7 @@ does.
 
 **Ranking (inference): P3, P4, P1, P2** (*corrected 2026-11-20:* P3 over P4 rested on bytes and round trips, which
 the paragraph above says do not rank the patterns; by #223's pre-registered rule P4 (E) holds on satellite and rural
-ADSL turns on M-R2: §6.1); the frame container built **at the PACS from HTJ2K codestreams** if the PCS
+ADSL turns on M-R2: §6.1; *corrected 2026-11-23,* PR 417 §SYNC-RECONCILE-REVIEW B1: P4 holds only if the metadata call uses zstd (`--zc=zstd`, one context across files) and rsync's file list compresses to ≤ 34 KB for ct and ≤ 221 KB at 2 000 instances (*derived*), §6.1); the frame container built **at the PACS from HTJ2K codestreams** if the PCS
 ships its document's `c/` layout, **at the PCS by our script** (rsync's delta against a hard-linked basis) if it ships
 raw frames, since that keeps "the PCS encodes". Every pattern needs the PACS's tombstones for withdrawn instances (#222)
 and the PCS's fix for its leftover group files (#176 Q-U1) before a reverted correction is right.
@@ -265,7 +265,9 @@ on the downlink, and the merge's logic at the PCS.
 
 ## 6 · Ranking (inference)
 
-**1. P3 · 2. P4 · 3. P1 · 4. P2**, with K (§2) the same for all.
+**1. P3 · 2. P4 · 3. P1 · 4. P2**, with K (§2) the same for all. *Corrected 2026-11-23* (PR 417
+§SYNC-RECONCILE-REVIEW B2): **1. P4 · 2. P3 · 3. P1 · 4. P2**, P4 over P3 by #223's rule under §6.1's two
+conditions, P3 first where either fails; P1 and P2 as before.
 
 *Not ranked, added 2026-10-29:* a kept mirror synced with `--delete` (`pcs-pacs-options.md` §4.4). Every pattern here
 sends into a cleared `incoming/`, so none carries deletions or changes by itself; the mirror does, if the PCS keeps its
@@ -273,7 +275,7 @@ tree as the record, shows its current state (Q-U1) and syncs a consistent tree.
 
 | pair | the winner | the deciding factor |
 | --- | --- | --- |
-| P3 vs P4 | P3 (*corrected 2026-11-20:* P4, provisional on M-R2, §6.1) | over rsync P4 pays rsync's own listing on top of #223's snapshot, and its frames' `need` arrives a round later; P3's list is the compressed item list. A tie if M-R2 and M-R3 show the listing compressed and `-z` keeping context; then P4 by simplicity, as #223 chose E |
+| P3 vs P4 | P3 (*corrected 2026-11-20:* P4, provisional on M-R2, §6.1; *corrected 2026-11-23:* P4 only with zstd on the metadata call and rsync's listing ≤ 34 KB for ct, ≤ 221 KB at 2 000, *derived*, §6.1) | over rsync P4 pays rsync's own listing on top of #223's snapshot, and its frames' `need` arrives a round later; P3's list is the compressed item list. A tie if M-R2 and M-R3 show the listing compressed and `-z` keeping context; then P4 by simplicity, as #223 chose E |
 | P3 vs P1 | P3 | recovery from a side that forgets: P1 resends every pixel after a lost sent list and misses what a restored PACS lacks; P3's extra 1.4 s is under a tenth of K |
 | P4 vs P1 | P4 | the same, at a few KB more per event |
 | P1 vs P2 | P1 | P2 adds a second copy of the metadata at the PACS that must move in step with the study DB, the silent drift F exists to catch, to replace state #177 already keeps; P2 would win if a second writer exists, its mirror being the PCS's last hash for free |
@@ -300,18 +302,36 @@ instance (*derived*; every input an *estimate*, K excluded since both pay it):
 | satellite, 700 ms, 1 Mbit/s (#223) | 0.6 s | 3.6 s | E |
 | rural ADSL, 60 ms, 0.5 Mbit/s (#223), rsync's listing raw | 1.2 s | 7.2 s | P3 |
 | the same, the listing at M-R2's predicted `-z` ≤ 0.6× | 0.9 s | 4.9 s (2 % under the bar) | E |
+| the same, at M-R2's top raw listing (420 KB at 2 000) × 0.6 (*added 2026-11-23*) | — | 5.5 s | P3 |
+| satellite, 2 Mbit/s, ct's metadata compressed per file, 190–390 KB (§3.4, zlib; *added 2026-11-23*) | 0.9–1.7 s | — | P3 above 210 KB |
+| satellite, 1 Mbit/s, the same (*added 2026-11-23*) | 1.8–3.4 s | — | P3 |
+
+*Added 2026-11-23 (PR 417 §SYNC-RECONCILE-REVIEW m3):* the item list is #223's groups-only list (7 KB, 25 KB), but
+§3.3's carries every instance's frames as well, so P3's list is understated here; a longer list narrows P4 − P3, in
+P4's favour, and raises the bounds below slightly (not computed: the frames' share of the list is not estimated).
 
 The gap is P4's metadata call (snapshot plus listing) less P3's item list, at the link's rate; both pay ≈ 2 round trips
 for ct and ≈ 3 at 2 000 beyond K (back-solved from §3's satellite times), so round trips cancel. **So P4 (E), provisional
-on M-R2**: if rsync's file list does not compress to ≤ 0.6×, P3 wins on rural ADSL. This file's M-R3 premise is answered
+on M-R2**: if rsync's file list does not compress to ≤ 0.6×, P3 wins on rural ADSL. *Corrected 2026-11-23*
+(PR 417 §SYNC-RECONCILE-REVIEW B1): ≤ 0.6× is not enough, since at M-R2's top raw 420 KB it gives 5.5 s on ADSL at
+0.5 Mbit/s; and the snapshot is #223's only in one zstd stream. So **P4 (E) on two conditions, each *derived*:**
+(1) the metadata call uses zstd (`--zc=zstd`), else ct's metadata is ≈ 190–390 KB and P3 wins on satellite too;
+(2) rsync's file list compresses to **≤ 34 KB for ct and ≤ 221 KB at 2 000 instances** (0.5 Mbit/s × the bar −
+the snapshot + the item list: 62.5 − 35.3 + 7 and 312.5 − 116 + 25), which M-R2 measures; on satellite the raw
+listing passes. Both bounds take #223's 35 KB and 116 KB as the zstd call's metadata, which M-R3 measures.
+This file's M-R3 premise is answered
 by source, not measured: rsync's `token.c` keeps one zstd context across a call's files and zlib resets per file
 (`rsync-delivery.md` §2.10), so P4's metadata call is #223's one stream only with `--zc=zstd`, which #233 already
-recommends for it. A second writer (#220) does not split the two: both need `pcs_xxh3` per row (§5); whether there is
+recommends for it. (*Corrected 2026-11-23,* PR 417 §SYNC-RECONCILE-REVIEW m1: the source answers only that
+zstd's context carries across files; M-R3's bytes, ≤ 1.3× of 35 KB, remain unmeasured, "the ratio is M2" in #233
+§2.10.) A second writer (#220) does not split the two: both need `pcs_xxh3` per row (§5); whether there is
 one, and hence A + F or E + F (#222), stays the owner's fork.
 
 **The hash bridge.** §5 and §8 favoured (b) for P3 on cost alone. (b) hashes at send time, so a file corrupted at rest
 at the PCS travels with a matching XXH3; only the BLAKE3 the PCS's parser wrote catches that (`rsync-delivery.md` §1,
-from rsync(1): the checksum "is generated as the file is transferred"). Corrected: **(a) for the check in every
+from rsync(1): the checksum "is generated as the file is transferred"). (*Corrected 2026-11-23,* PR 417
+§SYNC-RECONCILE-REVIEW m2: that quote is about rsync's own checksum and shows only that it is computed in transit;
+that (b) misses rot at rest is *inference*, from our script hashing at send time.) Corrected: **(a) for the check in every
 pattern** (`pcs-pacs-options.md` §1's recommendation, unchanged); under P4 it costs nothing more, the receiver hashing
 every group anyway; under P3 the answer compares BLAKE3 names, so the rows keep the PCS's name beside our XXH3 (§5's
 "(a) needs a BLAKE3 column"). (b) adds nothing (a) lacks.
@@ -324,7 +344,7 @@ Interleave the variants; mutate every new test. Emulated links: the lab's fiber 
 | --- | --- | --- | --- | --- |
 | **M-R1** | round trips and time of K: four rsync calls and a poll over ssh, shared connection and fresh, ct's series | 22–30 round trips shared, 40–48 fresh | outside either range | whether K dwarfs the patterns' extras (§2) |
 | **M-R2** | bytes of rsync's file list for ct's series directory and the 2 000-instance one, with and without `-z` | 40–60 KB and 300–420 KB raw; `-z` ≤ 0.6× | outside | P2's and P4's per-event cost |
-| **M-R3** | bytes of P4's metadata call with `-z` against #223's zstd-1 snapshot | ≤ 1.3× #223's 35 KB (one stream) | > 2× (per-file) | P3 vs P4 |
+| **M-R3** | bytes of P4's metadata call with `-z` against #223's zstd-1 snapshot | ≤ 1.3× #223's 35 KB (one stream) | > 2× (per-file) | P3 vs P4 (*corrected 2026-11-23:* with M-R2; the one stream is answered by source, §6.1, the bytes are not) |
 | **M-R4** | a late instance in the middle of a 2 000-frame `.sbnd`: bytes each way and bytes read at each end, with a hard-linked basis | ≤ 0.5 MB down, ≤ 0.3 MB up beyond the frame | either exceeded | (ii)'s cost |
 
 ## 8 · Questions (inference: this file's reasoning, for decision)
@@ -332,7 +352,8 @@ Interleave the variants; mutate every new test. Emulated links: the lab's fiber 
 **For the owner.**
 
 1. **P3, P4 or P1** for the rsync profile, and whether F (#222) runs under it (*corrected 2026-11-20:* P4 recommended,
-   provisional on M-R2, §6.1).
+   provisional on M-R2, §6.1; *corrected 2026-11-23:* P4 only with zstd on the metadata call and rsync's listing
+   ≤ 34 KB for ct, ≤ 221 KB at 2 000, *derived*, §6.1).
 2. **Where the container is built** (§4), tied to D14; (ii) moves the decided merge to our script at the PCS.
 3. **The hash bridge**: P3 favours (b), the item list carrying XXH3, compared with the rows directly (*corrected
    2026-11-20:* (b) misses rot at rest at the PCS; (a) in every pattern, §6.1).
@@ -359,4 +380,6 @@ Interleave the variants; mutate every new test. Emulated links: the lab's fiber 
 * This repository's drafts at the commits named in the header; #113, #163, #176, #177 and #179 as the design state
   cites them.
 * **Not read**: ssh_config(5) on connection sharing; rsync's code for its block size, strong-sum length, file-list
-  encoding and `-z`'s context across files (M-R2–M-R4 measure what depends on them).
+  encoding and `-z`'s context across files (M-R2–M-R4 measure what depends on them). *Corrected 2026-11-23:* the
+  context across files was read since, in `token.c` (`rsync-delivery.md` §2.10, re-verified in PR 417
+  §SYNC-RECONCILE-REVIEW): zstd keeps it, zlib resets per file; the rest stays unread.

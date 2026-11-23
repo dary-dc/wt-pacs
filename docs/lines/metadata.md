@@ -1,6 +1,6 @@
 # PACS receive and metadata
 
-Last verified 2026-10-29 (the design state); branches and PRs 2026-11-09; §Open 2's two conflicts reconciled 2026-11-20.
+Last verified 2026-10-29 (the design state); branches and PRs 2026-11-09; §Open 2's two conflicts reconciled 2026-11-20, P4's conditions corrected 2026-11-23.
 
 ## Goal
 
@@ -31,7 +31,9 @@ layout is our input contract. Depth over breadth; theory and a pre-registered me
   *Reconciled 2026-11-20* ([`rsync-updates.md`](../ingest/rsync-updates.md) §6.1): the bridge as above; #223's
   pre-registered rule on #234's own estimates gives E (P4) on satellite and on rural ADSL if rsync's file list
   compresses to ≤ 0.6× (M-R2, not run), else P3 there (*derived*). Neither compared the kept mirror.
-  *Reviewed 2026-11-23* (PR 417 §SYNC-RECONCILE-REVIEW): two blockers open; P4's conditions are restated by its fix.
+  *Corrected 2026-11-23* (PR 417 §SYNC-RECONCILE-REVIEW B1): P4 only if the metadata call uses zstd (`--zc=zstd`)
+  and rsync's file list compresses to ≤ 34 KB for ct and ≤ 221 KB at 2 000 instances (*derived*; M-R2, M-R3 not run);
+  else P3.
 * **Layout:** the PCS's code and its design document agree at exam and series, disagree below; following the code
   now (A) is recommended, the design document's target is B. Not chosen.
 * The 2026-10-28 night items in the logs are leanings, not decisions.
@@ -41,7 +43,8 @@ layout is our input contract. Depth over breadth; theory and a pre-registered me
 1. Evaluate under rsync, in order: cleared `incoming/` or kept mirror (turns on the PCS team's answers); the hash
    bridge; for a cleared `incoming/`, P3 vs E; layout A or B and who builds the `.sbnd`.
 2. The synchronization protocol: A + F or E + F; the second writer is the fork (#220's questions for the product
-   owner); then implement in sender and receiver. Under rsync, E (P4) provisional on M-R2; the bridge (a) (2026-11-20).
+   owner); then implement in sender and receiver. Under rsync, E (P4) provisional on M-R2; the bridge (a) (2026-11-20). *Corrected
+   2026-11-23:* E (P4) only with zstd on the metadata call and rsync's listing ≤ 34 KB (ct), ≤ 221 KB (2 000).
 3. Owner decisions waiting: hash column type, reply file and words, carrier, study-DB layout, viewer metadata, DB
    engine, study index (engine and placement: open), serving defaults, verdict travel.
 4. Questions for the PCS team: is each exam's tree kept as the record while updates can come; does it show the current
