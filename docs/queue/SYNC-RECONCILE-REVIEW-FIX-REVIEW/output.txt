@@ -1,0 +1,14 @@
+bound, ADSL 0.5, ct: listing <= 34.2 KB
+bound, satellite 1 Mbit/s, ct: listing <= 96.7 KB (raw top 60)
+bound, satellite 2 Mbit/s, ct: listing <= 221.7 KB (raw top 60)
+bound, ADSL 0.5, 2000: listing <= 221.5 KB
+bound, satellite 1 Mbit/s, 2000: listing <= 534.0 KB (raw top 420)
+bound, satellite 2 Mbit/s, 2000: listing <= 1159.0 KB (raw top 420)
+ADSL 0.5, ct, raw 40 KB x0.6: 0.84 s (E)
+ADSL 0.5, ct, raw 60 KB x0.6: 1.03 s (P3)
+ADSL 0.5, 2000, raw 300 KB x0.6: 4.34 s (E)
+ADSL 0.5, 2000, raw 420 KB x0.6: 5.49 s (P3)
+ct raw listing implied by the 1.2 s cell: 46.7 KB
+satellite 2 Mbit/s, ct, zlib metadata 190-390 KB: 0.92-1.72 s
+satellite 1 Mbit/s, ct, zlib metadata 190-390 KB: 1.84-3.44 s
+satellite 2 Mbit/s, ct: P3 above metadata 210.3 KB
