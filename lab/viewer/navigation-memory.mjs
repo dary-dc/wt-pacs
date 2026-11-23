@@ -1,8 +1,9 @@
 // Renderer memory over repeated same-origin loads of the viewer, each left by a navigation as the phone round's
 // runner leaves it (viewer → GET /next on a same-site origin → 302 → viewer). docs/client/evidence/navigation-memory.md
 //
-//   NODE_PATH=$(npm root -g) node lab/viewer/navigation-memory.mjs LOADS [--bfcache on|off] [--view page|worker] [--opts JSON] [--gc] [--json]
-//     the pair already served on 8765 (scripts/demo-pair.sh); --bfcache on drops Playwright's --disable-back-forward-cache
+//   NODE_PATH=$(npm root -g) node lab/viewer/navigation-memory.mjs LOADS [--bfcache on|off] [--view page|worker[,...]] [--opts JSON] [--gc] [--json]
+//     the pair already served on 8765 (scripts/demo-pair.sh); --bfcache on drops Playwright's --disable-back-forward-cache;
+//     a list of views is taken load by load, its last repeated
 import { readdirSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -10,17 +11,18 @@ import { createRequire } from "node:module";
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const LOADS = Number(process.argv[2] ?? 6);
 const BFCACHE = arg("--bfcache", "on") === "on";
-const VIEW = arg("--view", "page");
+const VIEWS = arg("--view", "page").split(",");
+const viewOf = (k) => VIEWS[Math.min(k, VIEWS.length - 1)];
 const GC = process.argv.includes("--gc");
 const OPTS = arg("--opts");
-const VIEWER = `http://127.0.0.1:8765/?view=${VIEW}${OPTS ? `&opts=${encodeURIComponent(OPTS)}` : ""}`;
+const viewer = (k) => `http://127.0.0.1:8765/?view=${viewOf(k)}${OPTS ? `&opts=${encodeURIComponent(OPTS)}` : ""}&load=${k}`;
 const RUNNER = "http://127.0.0.1:8780";
 
 const hides = [];
 const runner = createServer((req, res) => {
   const url = new URL(req.url, RUNNER);
   if (url.pathname === "/hide") hides.push({ load: Number(url.searchParams.get("load")), persisted: url.searchParams.get("persisted") === "true" });
-  res.writeHead(url.pathname === "/next" ? 302 : 204, { location: `${VIEWER}&load=${url.searchParams.get("after")}`, "access-control-allow-origin": "*" });
+  res.writeHead(url.pathname === "/next" ? 302 : 204, { location: viewer(Number(url.searchParams.get("after"))), "access-control-allow-origin": "*" });
   res.end();
 }).listen(8780, "127.0.0.1");
 
@@ -52,11 +54,11 @@ const cdp = await page.context().newCDPSession(page);
 await page.addInitScript(tellHide);
 const filled = () => page.waitForFunction(() => /fill \d+ ms/.test(document.getElementById("status")?.textContent ?? ""), null, { timeout: 120000 });
 const rows = [];
-await page.goto(`${VIEWER}&load=0`);
+await page.goto(viewer(0));
 for (let k = 0; k < LOADS; k++) {
   await filled();
   await page.waitForTimeout(1000);
-  const row = { load: k, bfcache: BFCACHE, view: VIEW, opts: OPTS ?? null, renderers: renderers() };
+  const row = { load: k, bfcache: BFCACHE, view: viewOf(k), opts: OPTS ?? null, renderers: renderers() };
   if (GC) {
     await cdp.send("HeapProfiler.collectGarbage");
     await page.waitForTimeout(1000);
