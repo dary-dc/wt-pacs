@@ -28,6 +28,7 @@ phone ── https://PUBLIC_NAME:8443/?t=TOKEN ── the runner page, D0 → D1
 | `dry_run.mjs` | the page through a deployed kit in headless Chromium, quick mode: exits 0 when every visit is exact |
 | `round_plan.mjs` | the round's plan for `round.py`: `roundOrder()`'s loads on their pages, the four series' servers; `--dial` required; `--quick` for the dry run |
 | `raw_rows.py` | the round's raw files for the public repository: only what a cell reads, the laptop and the phone stripped, refused if a MAC or an SSID is left (`docs/devices.md` §4) |
+| `devtools.mjs` | before load 1, over Chrome's DevTools port: the browser cache cleared, the round's tabs closed, the first round page's scripts checked against the tree (below) |
 | `round.py`, `round.mjs`, `round-page.js`, `beacon.js` | the phone round of `claude/phone-protocol:docs/phone-rows/next-round.md` (below): one press, the laptop's plan behind `GET /next`, each load recorded by the viewer's lab gate |
 
 **Quick and full.** Quick is 3 rounds of D1 on `dbt10_ea1141` alone (the largest frames, all three decoders) and
@@ -166,6 +167,36 @@ round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer
   start (not answering, or not printing its line, within `readyS`, 60 s by default; or exited) is recorded `host failed`, each of its loads `load failed` with
   why, and the round goes on to the next block. A page that asks `/next` again for the same load gets the same
   answer, nothing read, waited or rebooted twice. Every step is a line of `OUT/round.jsonl`.
+* **Resources** (on by default; `--no-resources` off): one `adb shell` read before the press and after each load's
+  reads, a line of `OUT/resources.jsonl` labelled `start` or `after-k`: `MemTotal`, `MemFree`, `MemAvailable`,
+  `Cached` and swap used in MiB, `/proc/pressure/memory`, `pswpin`, `pswpout`, `pgmajfault`, the thermal status and
+  the SKIN, AP and BAT temperatures, each Chrome process's `VmRSS` and `VmSwap`, and the top 8 processes by RSS
+  (about 0.46 s of the gap on the 2026-11-22 phone).
+* **`--fresh-chrome --beacon FILE`** (the dev servers' `--beacon` file, one per round): a fresh Chrome before every
+  load after the first. After load k's reads, once a `verdict` record of `step` k is in FILE and FILE has not grown
+  for 2 s, all within 8 s of the load's end, Chrome is sent to `about:blank`, force-stopped and opened on
+  `HOST/next?after=k`, which gets the answer already made; each VIEW intent carries
+  `com.android.browser.application_id`, so Chrome keeps one tab. A `relaunch` line records the verdict's and the
+  quiet's delays and the new pid; with no verdict, or a FILE still growing, no relaunch, a `relaunch skipped` line
+  with why. The relaunch counts in the gap: the gap's sleep is what is left of `gapS` after it.
+* **`devtools.mjs TREE [--port 9222] [--wait-s 600]`**, started before the press with the phone's DevTools forwarded
+  (`adb forward tcp:9222 localabstract:chrome_devtools_remote`): clears Chrome's HTTP cache (every site's, as
+  `Network.clearBrowserCache` does), closes the round's own tabs (any on `http://127.0.0.1:`; a restored tab at
+  `/next?after=k` would end a load of the new round), then waits for the first round page (a URL with `round=` and
+  `at=`) and checks each same-origin script and WASM it fetched, as the HTTP cache holds it, against `TREE` by
+  SHA-256. One JSON line per step; exit 0 when every script matches, 1 naming those that differ, 2 with no round
+  page. It reads only tabs on `http://127.0.0.1`; no other tab is printed or recorded. Its limits: a module worker's
+  scripts are not in the page's resource list, and a script the cache did not keep is fetched again, so it reads as
+  served.
+* **Node in a container**, where the laptop has none on its PATH: the worktree mounted at its own path (the plan
+  holds absolute paths, `round_plan.mjs` runs `git`) and the data folder too, since `demo-series` is a symlink out
+  of the worktree; the host's network for `devtools.mjs`. A form of it, not the exact line of 2026-11-22, which was
+  not recorded:
+
+  ```bash
+  NODE() { podman run --rm -i --network host --security-opt label=disable -v "$PWD:$PWD" -v "$DATA:$DATA" -w "$PWD" \
+             docker.io/library/node:22 node "$@"; }
+  ```
 * **The stopping rule** (next-round.md §3): `budgetsS` maps a cell to its budget in seconds of its counted loads'
   own time, each load timed from `load opened` to its page's `/next?after=k`; once a cell's sum passes its budget,
   each of its loads not yet started is recorded `not started` (`why: budget`). A started load always runs to its
@@ -225,4 +256,10 @@ codec on 2 decoders, the viewer never filling; C2's exact fill after the view's,
 `decoders=1`, no two of its frames decoding at once; the bench's frame times its decoder's own start to end, one
 frame at a time on each decoder, its span from `t0`; and against the exact series' metadata with one digest changed,
 a bench load and a C2 load each failing by name. Each check also failed once with its code broken. Not
-tested: a phone, `adb` itself, `podman` images, Wi-Fi, a page hidden or a screen turned off.
+tested: a phone, `adb` itself, `podman` images, Wi-Fi, a page hidden or a screen turned off. `round_test.py` also
+holds the resource snapshot (parsed from a canned read, at the start and after each load, none with
+`--no-resources`) and `--fresh-chrome` (relaunched after a load with its verdict, skipped after one without, none
+after the last, refused without `--beacon`); `devtools.test.mjs` runs `devtools.mjs` against headless Chromium's
+DevTools port (the round's tab closed and another kept unprinted, a differing script named, the cache cleared so a
+script changed since it was cached runs as served). Each check failed once with its code broken. Not tested on a
+phone: the real `dumpsys` and `/proc` formats, Chrome's VIEW intent, DevTools over `adb forward`.

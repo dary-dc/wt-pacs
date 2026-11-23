@@ -203,6 +203,7 @@ if [[ $browser -eq 1 && -f "$INGEST_BUILD/payload/libdecode.so" && -x "$INGEST_B
 else
   skip "the device round's browser test needs the browser, ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi
+if [[ $browser -eq 1 ]]; then run 1 node lab/devices/devtools.test.mjs; else skip "devtools.mjs's test needs the browser"; fi
 
 step "client: the native core's decode — every committed frame digest, through ingest/tools.sh's dav1d and OpenJPH — and its view module's want, store, credits and hand-over"
 if [[ -f "$INGEST_BUILD/payload/libdecode.so" ]]; then

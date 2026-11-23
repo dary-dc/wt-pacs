@@ -10,6 +10,10 @@ reading of a device run: [`../devices.md`](../devices.md). The device kit: `lab/
 Measure on real devices what containers cannot (a phone's decode, its hardware paths, a radio link), with one press
 from the owner and no hands after, so every run is comparable and no valid load is lost.
 
+**The device kit is kept** (the owner, 2026-11-22): `lab/devices/` and what it runs, the code that tests the app, the
+server and the transport on real devices, is preserved, reusable and maintained wherever `lab/` ends up, never
+removable experiment code. A cleanup, a lab list or a move of `lab/` carries it.
+
 ## Who does what
 
 * **Coordination** (what to test, rows commissioned, results read into the subject docs): the device coordination
@@ -38,10 +42,26 @@ busy cine, 24 of 24 pairs: 0 against a median of 7 of 100 dropped, difference �
 *no difference* (10 of 24), and so does everything else. Guard (a) does not bind; it is an *assumption*. It was read
 with a fresh Chrome per load, at lab-only `f5252051`, restarted at K=16. A review (by another session) is owed.
 
+**2026-11-23, the session tools made harness** (DEVICEKIT-TOOLS, `lab/devices/README.md` §The round): `round.py` takes
+the per-load resource snapshot itself (on by default) and `--fresh-chrome --beacon FILE` relaunches Chrome gated on
+the load's verdict; `devtools.mjs` clears the cache, closes the round's tabs and checks the first round page's scripts
+against the tree; each tested with its mutants. Of STALE-CODE's harness part (a), this row did the cache clear and
+the check of the first page; still owed for PHONE-ROUND-2's preparation: the dev servers' `--revalidate` (on
+`claude/stale-code`, PR 437, not on this branch) passed by `round_plan.mjs`, and a record of the code each load ran.
+Not tried on a phone yet: the dry run before PHONE-ROUND-2's counted loads is the first. A review is owed.
+
 **2026-11-23, which code each load ran** (PHONE-READ-CODE-CHECK, the results file's §Which code each load ran): all 103
 loads of the round and PHONE-ROUND-3C carry fields that only post-11-11 code writes (`route`, `decoders`, `start`, C1's
 `lossless`). The four round scripts ran as at `3dbe295a3`; none is set apart, and no result changes. 18 changed client
 modules leave no field, so their version is not established. A review (by another session) is owed.
+
+**2026-11-23, the session tools made harness** (DEVICEKIT-TOOLS, `lab/devices/README.md` §The round): `round.py` takes
+the per-load resource snapshot itself (on by default) and `--fresh-chrome --beacon FILE` relaunches Chrome gated on
+the load's verdict; `devtools.mjs` clears the cache, closes the round's tabs and checks the first round page's scripts
+against the tree; each tested with its mutants. Of STALE-CODE's harness part (a), this row did the cache clear and
+the check of the first page; still owed for PHONE-ROUND-2's preparation: the dev servers' `--revalidate` (on
+`claude/stale-code`, PR 437, not on this branch) passed by `round_plan.mjs`, and a record of the code each load ran.
+Not tried on a phone yet: the dry run before PHONE-ROUND-2's counted loads is the first. A review is owed.
 
 The next round's path, in order:
 
