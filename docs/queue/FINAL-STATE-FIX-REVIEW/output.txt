@@ -1,0 +1,8 @@
+verbatim s15 The graceful release of an association between two AEs shall
+verbatim s15 DICOM PS3.8 2026e
+verbatim s17 Fully functional time-limited evaluation versions of Windows
+verbatim s17 you have 10 days to complete online activation, at which poi
+verbatim s18a (44) 'clinical evaluation' means a systematic and planned pr
+verbatim s18a-eurlex 'clinical evaluation' means a systematic and planned process
+verbatim s18b (44) 'performance evaluation' means an assessment and analys
+verbatim s18b-eurlex 'performance evaluation' means an assessment and analysis of
