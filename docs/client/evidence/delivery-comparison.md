@@ -696,6 +696,79 @@ is lossy-sourced, [`../../FIXTURES.md`](../../FIXTURES.md); its 512 × 512 frame
 would be B there, *derived*); one 4-core cloud container without a GPU, software decode, headless Chromium; a userspace TUN relay at ≤ 90
 Mbit/s, its forms scaled and assumed, none a radio; the viewport an assumption, not a phone's measured one.
 
+### Amendment 2 review (2026-11-24, FIT-ARM-PROTOCOL-REVIEW)
+
+*A session that wrote none of the protocol, its amendment, the build or the run. Read: §Amendment 2 at `d0c91ff67`
+against its brief (`claude/work-ledger:docs/queue-2026-11-24.md` §Measurements, FIT-ARM-PROTOCOL); every number
+recomputed from `lab/delivery/inputs.json`, `predictions.json` and the 2026-11-23 rows, `VOID` by
+`rows/judged/recount.py`'s rule; the viewer's paint path (`client/paint/paint-worker.js`). Sources read at the
+branches named: the ADR §7 and §8.2 and `docs/htj2k-tiles.md` (this branch), `docs/av1/queue.md` row 59,
+`claude/mobile-decode:docs/decode/mobile/route-policy.md` §4.5–§4.6, `claude/reviews-2026-11-28:docs/decisions/phone-decode-route.md`
+§3. Nothing run; the gate not run (docs only). **Two blockers.***
+
+**What holds** (recomputed, *derived*). A2.7's table, every cell: A, B, FIT, FIT ÷ A, FIT ÷ B on `dbts_b1` and B ÷ A on
+the other two, to the printed digit. A2.3's *G*_A 25.2, 35.9, 25.2 Mbit/s, *G*_B 1 206, 743, 1 061, the switch's
+*b*_E ÷ *d*_V 368, 166, 285, and *x* 0.153, 0.258, 0.190 at CLEAN's *G*; the split's *t* and *x* re-derived from the two
+balance equations of `route-policy.md` §4.6. A2.4's retrodiction, the curve rebuilt from the counted B loads (9–10 a
+volume): LTE A ×1.04, ×1.01, ×1.06; LOSS A ×0.56, ×0.87, ×0.93; wire alone ×0.94–1.32 and ×0.69–1.32. LOSS's first
+`dbts_b1` frame at 3.37–3.55 s in K3 against a median 1.2 s in arm B. Williams over 6 arms is a 6-round period; 216 loads
+a cell. The fit levels follow ADR §8.2's rule (`dbts_b1`'s level 1, 1 280 × 1 664, still covers its 1 080 × 1 404 on
+screen; level 1 of the other two does not). Every quoted source says what A2.2–A2.4 attribute to it (15 of 35 frames
+unclamped, 25.8–29.0 % and 26.9–27.3 %, ×0.27–0.31 on Chromium 141, 1 of 19 volumes, S★'s ×14, ×11, ×1.23, the phone's
+10-bit forms as 8-bit `RGBA`). The brief's items are each covered: FIT and S★ before any build, window and level on
+both, C1's ask → last byte, a bytes-dependent wire on LTE and LOSS before any row, the relay and guard, the switch and
+the split, the unchecked hardware view in A2.2's table, where the host saturates.
+
+**Blockers.**
+
+* **B1 · FIT's window read-back stops a correct build.** A2.2 and A2.8 make "a window read-back unequal to the window of
+  the truth" a stop. The viewer windows into a picture texture at the frame's size, then draws it into the
+  viewport-sized canvas with `gl.LINEAR` filtering (`paint-worker.js`: `picture = texture(..., gl.LINEAR)`,
+  `placePass`), and its `readback(width, height)` reads that canvas. FIT's `dbts_b1` picture (1 280 × 1 664) is
+  painted at ×0.84 and `dbts_a1`'s at ×0.95, so the canvas is the window *resampled*, never sample for sample the
+  window of the truth: the run stops on its first FIT load, or the build invents the comparison. Fix: name what is
+  read back (the windowed picture at its own size before placement, or a 1:1 placement at the origin), the window
+  function it is compared with (the viewer's own, to 8 bits), and the tolerance (none, if both are the same
+  function).
+* **B2 · LOSS `dbts_c1` is predicted wrongly, and the retrodiction quotes one arm of three.** A2.4 predicts the curve
+  "to stay below its band on LOSS `dbts_a1`" because its fill (0.66 MB) lies under the curve's first point. LOSS
+  `dbts_c1`'s view fill, 8 frames, is 0.73 MB, also under its first point (1.09 MB), so by A2.4's own reasoning it is
+  extrapolated through the start too, yet it is predicted to hold. The retrodiction (recomputed) says the same once
+  A′ and C1 are read: LOSS `dbts_c1` A ×0.93 but A′ ×0.67 and C1's fill ×0.70, under the band's 0.75; LOSS `dbts_b1`
+  C1 ×0.76; LTE A′ `dbts_c1` ×1.11. Fix: per (form, volume), the view fill's bytes against the curve's first point
+  (LTE `dbts_a1` 1.36 against 1.26 MB is just over it); the direction predicted for each; the retrodiction for A, A′
+  and C1, not A alone.
+
+**Minors.**
+
+* **m1 · SPLIT ÷ A is *t* ÷ *d*_V, not the fills' ratio.** A2.3's ×0.89, ×0.80, ×0.86 are *t* ÷ *d*_V. A2.3's own fill,
+  *W*(*b*₁) + *n t*, against A's §4.1 prediction gives ×0.79, ×0.78, ×0.81 on CLEAN and ×0.81, ×0.79, ×0.82 on PUB
+  (*derived*). The SPLIT formula is fluid while A's takes the in-order makespan of 8-frame groups (×1.14 `dbts_a1`,
+  ×1.04 `dbts_b1`, ×1.07 `dbts_c1` over *n d*_V), so SPLIT is judged by a formula A's arm does not use. Give SPLIT the
+  same makespan, or say why not, and print the ratio the run will compare with.
+* **m2 · A2.7's bytes.** LTE's and LOSS's view prefixes are 7.4 and 3.7 MB, FIT's 9.3 and 4.6, so FIT is ×1.26 A's
+  bytes there, not ×1.28–1.29.
+* **m3 · A2.4's "frames 1–4 (8.6 MB)"** are 8.47 MB (§11 A2's own figure); the ~34 Mbit/s stands.
+* **m4 · FIT's zoom on a level-0 volume is one paint**, predicted 17 ms and judged in the latency band ×0.75–1.33:
+  the frame's alignment to the display alone moves it by up to 16.7 ms, so it misses for no reason of the model.
+  Report it on `dbts_a1` and `dbts_c1`, judge it on `dbts_b1`.
+* **m5 · K3′ is 4 loads a (form, volume)** on the forms where one load is most its own draw (LOSS B `dbts_b1`'s first
+  frame 1.08–4.54 s over 10 loads; §Results' A/A ranges ×0.47–3.14). The 23rd's curve, which retrodicts, used 9–10.
+  Ask 8, or carry the curve's spread into the band as §7 does.
+* **m6 · The cells' length.** A2.8's ~52–98 min scale §6's *predicted* minutes; the pilot paced CR at ~126 min for 150
+  loads (§11 A5), so ~180 for 216, and FIT and SPLIT replace C2, the longest load. Quote the measured pace.
+* **m7 · Two departures from the brief, unnamed.** The brief asks the lossy forms' goodput "from K3" and the relay "on
+  cores or a container of its own (pinned)". A2.4 argues K3′ well and A2.6 keeps core 0 alone, cores 0–1 only as an
+  escalation; say each in one line as a departure, or move (ii) to the default.
+* **m8 · "Checked" for a level picture.** A2.2's table and the value line ("every picture is exact and checked") hold in
+  the lab, against `ll.py`'s truth; the product has no per-level digest (`htj2k-tiles.md` §What *Lossless* means: "a
+  per-level digest written by the ingest makes it checkable"). Say "checked in the lab; in the product only with a
+  per-level digest, not built".
+* **n1** · "§Results' build note" (A2.5) does not exist; C1's frame 0 is `inputs.json`'s `shown: 0`.
+
+**The fix loop** (amendment 17): FIT-ARM-PROTOCOL-FIX and FIT-ARM-PROTOCOL-FIX-REVIEW are appended to
+`claude/work-ledger:docs/queue-2026-11-24.md`; FIT-ARM-BUILD waits on the re-review.
+
 ## Fixtures and limits
 
 Three DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`; 56, 50, 69 frames), the view at Q 8 G 8 only, no
