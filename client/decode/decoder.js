@@ -17,7 +17,7 @@ let cache = null;
 
 const abs = () => performance.timeOrigin + performance.now();
 
-/** Both codec modules: `init(config)`, then `decodeFrame(bytes, unit, preview, avoid)` → `{ info, sab, byteCount, range, route, refusal }`, `avoid` a route not to take. */
+/** Both codec modules: `init(config)`, then `decodeFrame(bytes, unit, preview, avoid, out)` → `{ info, sab, byteCount, range, route, refusal }`, `avoid` a route not to take, `out()` the next frame may start. */
 async function init(m) {
   transferFrames(m.pixels === "transfer");
   // Only an AV1 series loads AV1 code; which decoder takes a payload is chosen per payload. docs/av1/payload-format.md
@@ -69,15 +69,15 @@ onmessage = async (e) => {
     }
     return;
   }
-  // A decoder that answers later still takes its frames one at a time, in order.
-  if (m.kind === "decode") queue = queue.then(() => decode(m));
+  // A decoder that answers later still takes its frames in order: the next once this one ends, or once its codec says.
+  if (m.kind === "decode") queue = queue.then(() => new Promise((next) => decode(m, next).finally(next)));
 };
 
-async function decode(m) {
+async function decode(m, next) {
   const stamps = { ...m.stamps, decodeStart: abs() };
   const preview = (r) => toConsumer.postMessage({ ...picture(m, r, { ...stamps, decodeEnd: abs() }), preview: true }, transferOf(r.sab));
   try {
-    const r = await checked(m, await codec.decodeFrame(m.bytes, m, preview));
+    const r = await checked(m, await codec.decodeFrame(m.bytes, m, preview, undefined, next));
     stamps.decodeEnd = abs();
     const p = picture(m, r, stamps);
     if (cache && p.exact === true) cache.kept.set(m.index, Object.assign(p, { writable: true }));

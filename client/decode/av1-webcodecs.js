@@ -29,8 +29,8 @@ export function probe(layout) {
   })());
 }
 
-/** The decoder of a stream (`top`, `low`): a split frame's two units decode side by side. */
-export const picture = (bytes, unit, which = "top") => stream(which).picture(bytes, unit);
+/** The decoder of a stream (`top`, `low`): a split frame's two units decode side by side. `out()`: the next unit of its group may be sent. */
+export const picture = (bytes, unit, which = "top", out) => stream(which).picture(bytes, unit, out);
 
 /** FNV-1a over every sample of every plane, row by row: av1-probe.js's `fnv`. */
 function checksum({ width, height, planes }) {
@@ -48,25 +48,30 @@ const STALL_MS = 2000;
 
 const stream = (which) => (streams[which] ??= decoder(which === "top" ? groupLength : 1));
 
-/** Flushed at a group's end and before a keyframe while it holds one, never inside it. docs/decode/README.md §WebCodecs without a flush */
+/**
+ * Flushed at a group's end and before a keyframe while it holds one, never inside it. Inside a group the next unit is
+ * sent once the last one's frame is out, while that frame is read back: one frame in flight, read in order.
+ * docs/decode/README.md §WebCodecs without a flush, §The read-back's share
+ */
 function decoder(length) {
   let vd = null;
-  let got = null;
-  let wake = null;
-  let last = null;
   let failed = null;
   let held = false;
   let stamp = 0;
   let codec = null;
   let seq = null;
+  let last = null;
+  let waiting = null;
+  let sendable = Promise.resolve();
+  let read = Promise.resolve(true);
   const open = () => {
     // A frame of an earlier unit, flushed late, is not this unit's: only the stamp it was sent with is taken.
     const output = (f) => {
-      if (f.timestamp !== stamp || got) return f.close();
-      got = f;
-      wake?.();
+      if (f.timestamp !== waiting?.stamp || waiting.frame) return f.close();
+      waiting.frame = f;
+      waiting.wake();
     };
-    vd = new VideoDecoder({ output, error: (e) => ((failed = e), wake?.()) });
+    vd = new VideoDecoder({ output, error: (e) => ((failed = e), waiting?.wake()) });
     codec = null;
     last = null;
     held = false;
@@ -80,42 +85,71 @@ function decoder(length) {
     vd.configure({ codec: c, hardwareAcceleration: "prefer-software", optimizeForLatency: true });
     codec = c;
   };
+  /** The unit to the decoder, and its frame once out. */
+  const send = async (bytes, unit) => {
+    continues(last, unit);
+    last = null;
+    if (unit.key && held) await vd.flush();
+    if (unit.key) configure(bytes);
+    held = true;
+    const w = (waiting = { stamp: ++stamp, frame: null, wake: null });
+    const out = new Promise((r) => (w.wake = r));
+    let stall = 0;
+    try {
+      // Throws for a keyframe that is not one, and for any other unit after a flush.
+      vd.decode(new EncodedVideoChunk({ type: unit.key ? "key" : "delta", timestamp: w.stamp, data: bytes }));
+      await Promise.race([out, new Promise((r) => (stall = setTimeout(r, STALL_MS)))]);
+      if (!w.frame && vd.state === "configured") await vd.flush();
+      if (vd.state === "closed") throw failed ?? new Error("decoder closed");
+      if (!w.frame) throw new Error("no frame");
+      return w.frame;
+    } catch (err) {
+      w.frame?.close();
+      throw err;
+    } finally {
+      clearTimeout(stall);
+      waiting = null;
+      failed = null;
+    }
+  };
   open();
   return {
-    async picture(bytes, unit) {
-      continues(last, unit);
-      last = null;
-      let stall = 0;
-      try {
-        if (unit.key && held) await vd.flush();
-        if (unit.key) configure(bytes);
-        held = true;
-        stamp += 1;
-        const out = new Promise((r) => (wake = r));
-        // Throws for a keyframe that is not one, and for any other unit after a flush.
-        vd.decode(new EncodedVideoChunk({ type: unit.key ? "key" : "delta", timestamp: stamp, data: bytes }));
-        await Promise.race([out, new Promise((r) => (stall = setTimeout(r, STALL_MS)))]);
-        if (!got && vd.state === "configured") await vd.flush();
-        if (vd.state === "closed") throw failed ?? new Error("decoder closed");
-        if (!got) throw new Error("no frame");
-        const p = await read(got, seq);
-        if (length > 1 && (unit.index + 1) % length) {
-          last = { gen: unit.gen, index: unit.index };
-        } else {
-          await vd.flush();
-          held = false;
+    picture(bytes, unit, out) {
+      const [mayStart, before] = [sendable, read];
+      let free;
+      sendable = new Promise((r) => (free = r));
+      const mid = length > 1 && (unit.index + 1) % length;
+      const p = (async () => {
+        let frame = null;
+        try {
+          await mayStart;
+          // Only a unit inside the group of the one before is sent while that one is still read back.
+          if (unit.key) await before;
+          frame = await send(bytes, unit);
+          if (!(await before) && !unit.key) continues(null, unit);
+          if (mid) {
+            last = { gen: unit.gen, index: unit.index };
+            free();
+            out?.();
+          }
+          const pic = await readFrame(frame, seq);
+          if (!mid) {
+            await vd.flush();
+            held = false;
+          }
+          return pic;
+        } catch (err) {
+          if (last?.gen === unit.gen && last.index === unit.index) last = null;
+          if (vd.state === "closed") open();
+          const why = err?.message ?? String(err);
+          throw new Error(why.startsWith("undecodable:") ? why : `undecodable: ${why}`);
+        } finally {
+          frame?.close();
+          free();
         }
-        return p;
-      } catch (err) {
-        if (vd.state === "closed") open();
-        throw new Error(`undecodable: ${err?.message ?? err}`);
-      } finally {
-        clearTimeout(stall);
-        wake = null;
-        failed = null;
-        got?.close();
-        got = null;
-      }
+      })();
+      read = p.then(() => true, () => false);
+      return p;
     },
   };
 }
@@ -125,7 +159,7 @@ const FORMATS = { I420: [8, 1], I420P10: [10, 1], I444: [8, 3], I444P10: [10, 3]
 const RGB = { RGBX: [1, 2, 0], BGRX: [1, 0, 2] };
 
 /** The frame's planes as a picture, if it is grey (4:0:0, or 4:2:0 with mid-grey chroma) or 4:4:4 identity; `seq` its sequence header's fields. */
-async function read(frame, seq) {
+async function readFrame(frame, seq) {
   const [bits, components] = FORMATS[frame.format] ?? [];
   if (!bits) throw new Error(`format ${frame.format}`);
   if (RGB[frame.format] && seq.ss[0]) return grey(frame, seq);
