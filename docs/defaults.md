@@ -2,7 +2,9 @@
 
 Every default the product ships, on `claude/unified` at `b059388b6` (2026-11-24): what runs when nobody sets anything.
 Each row names its value, where it is set, and the measurement that chose it, or says **chosen by no measurement**
-with the reason a document gives (or "no reason found"). This is the table `final-state.md` condition 3 asks for
+with why the value stands. A *why it stands* clause is labelled: **code** (the code's own reason, read at the line),
+**derived** (follows from other values or a rule), **harmless** (any nearby value serves, and why), or **untested**
+(stands only because nothing measured it, and what would). This is the table `final-state.md` condition 3 asks for
 (`claude/reviews-2026-11-28:docs/decisions/final-state.md` §5); its starting point was DEFAULTS-FIND's list
 (`claude/demo-understand:docs/reviews/understand/defaults.md`, 2026-11-11, the demo tip), re-read against this tip.
 
@@ -22,8 +24,8 @@ The ultrasound fixtures are lossy-sourced (`docs/FIXTURES.md`), so no row below 
 
 | default | value | set at | chosen by | kind |
 | --- | --- | --- | --- | --- |
-| `--port` | 4433 (UDP; TCP too with `--websocket`) | `server/src/transport/server.rs:36` | chosen by no measurement; no reason found | none |
-| `--bind` | `[::]` dual-stack, else `0.0.0.0` | `server.rs:54`, fallback `:253–256` | chosen by no measurement; no reason found | none |
+| `--port` | 4433 (UDP; TCP too with `--websocket`) | `server/src/transport/server.rs:36` | chosen by no measurement; **harmless**: the client reads the server's URL from the transport file and the deploy publishes the port it maps, so the number is a convention, not a tuning | none |
+| `--bind` | `[::]` dual-stack, else `0.0.0.0` | `server.rs:54`, fallback `:253–256` | chosen by no measurement; **code**: every address of the host, IPv6 and IPv4, so the default serves whatever the host has; exposure is narrowed by the deploy's `PUBLISH_ADDR`, not here | none |
 | `--cert-pem`, `--key-pem` | `server/dev-cert/{cert,key}.pem`, relative to the working directory | `server.rs:44`, `:46` | the dev certificate; the container always passes its own (`deploy/server-start.sh:22–23`) | none |
 | `--stream-mode` | `shared` | `server.rs:49` | `docs/adr/stream-shape.md` §Decision: "**One shared uni stream per session is the default** (`--stream-mode shared`)." | measured |
 | `--opening-ask` | on | `server.rs:58` | `docs/ARCHITECTURE.md` §The opening ask: "**On by default** since 2026-10-02 (a measured win with no cell against it)" | measured |
@@ -48,26 +50,26 @@ The ultrasound fixtures are lossy-sourced (`docs/FIXTURES.md`), so no row below 
 | `WTPACS_READ_PATH` | `auto` (`pool` the kill switch) | `server/src/media/read_path.rs:34–35`, `:42` | `docs/adr/disk-access.md` §5: the ring-on-miss reader "beats every pool variant **RESOLVED on wall *and* CPU** at 16 KiB cold" | measured |
 | `uring` feature | on | `server/Cargo.toml:16` | `deploy/README.md`: "**The owner took it on 2026-10-14**" (row 208) | measured |
 | `cert-compression` feature | off | `server/Cargo.toml:30` | `ARCHITECTURE.md`: "**It stays off by default**: five crates and +1.29 MiB on the binary, for what ECDSA gets with none." | measured |
-| log filter | `series_server=info` added to `RUST_LOG` | `server/src/main.rs:15` | no reason found | none |
+| log filter | `series_server=info` added to `RUST_LOG` | `server/src/main.rs:15` | chosen by no measurement; **harmless**: the server's own start and session lines at `info`, its dependencies at whatever `RUST_LOG` says; its cost is not measured | none |
 | `TILE_SLOTS` (reads at once, ring depth) | 4 | `read_path.rs:26` | `disk-access.md`: "Depth 2 → 4 was +37 % on the sandbox host"; 4 → 8 not swept, and "unmeasured on a throttled link" | measured (2 against 4 only) |
 | `FILL_WINDOW` | 4 MiB of `WILLNEED` past the named frame | `read_path.rs:28` | `disk-access.md` §9 *the fill window stays 4 MiB*: "**Verdict: not adopted.**" (the 2 × frame arm) | measured |
 | io_uring setup | `COOP_TASKRUN`, no SQPOLL, no registered buffers | `server/src/media/uring_reader.rs:34` | `disk-access.md` §9 *Finding 9*: "**Verdict: closed; `COOP_TASKRUN` stays.**" | measured |
 | `POOL_CAP` | 64 frame buffers a process | `server/src/media/frame_pool.rs:10` | stated in `transport-conclusions.md`; nothing chose 64 | none |
-| `ASKS_AHEAD` | 8 asks planned | `server/src/transport/planner.rs:7` | described in `docs/adr/frame-framing-and-loop-shape.md`; no reason found for 8 | none |
+| `ASKS_AHEAD` | 8 asks planned | `server/src/transport/planner.rs:7` | described in `docs/adr/frame-framing-and-loop-shape.md`; **code**: "A tile reader takes what fits (`slots − 1`)", so with `TILE_SLOTS` 4 reads take 3 and 8 only bounds the queue above them; **untested**: 8 was never swept (a `disk-access.md` cell against 4 and 16 would) | none |
 | `SILENCE_RTTS` (the restart) | 4 round trips | `server/src/transport/restart.rs:15` | the code's reason, two probe timeouts at quinn's RTT variance; the controller is measured, this threshold was not swept | theory |
 | `bbr-bound`'s constants (opt-in) | loss 0.02, β 0.7, headroom 0.85, 10 rounds, 4 packets | `server/src/transport/loss_bound.rs:12–19` | BBRv3's values (`transport-conclusions.md` §1) | theory |
 | shutdown drain | 250 ms | `server.rs:132` | `deploy/README.md`: "the bound stays at 250 ms" (row 270, 500 → 250) | measured |
-| per-frame finish grace | 2 s | `server/src/transport/link.rs:137` | stated in `docs/WIRE.md`; no reason found | none |
+| per-frame finish grace | 2 s | `server/src/transport/link.rs:137` | stated in `docs/WIRE.md`; **code**: only `--stream-mode per-frame` (not the default) waits for its streams' acks at a session's end, and the bound keeps a dead peer from holding the task; **untested** | none |
 | connection migration | on | `server.rs:262` | `ARCHITECTURE.md`: "at 40 ms the session survived **16 of 16**" | measured |
 | WebSocket chunk | 64 KiB a message | `server/src/transport/websocket.rs:34` | `WIRE.md`: "the grain at which a browser, which hands a message over only whole, sees a frame's bytes move" | theory |
-| WebSocket handshake bound | 10 s | `websocket.rs:37` | no document; the code's reason only | none |
+| WebSocket handshake bound | 10 s | `websocket.rs:37` | no document; **code**: "a peer silent past this holds a task and a descriptor for nothing"; off with `--websocket` (the default); **untested**: 10 s against a slow link's TLS handshake | none |
 | WebSocket TCP keepalive | 20 s idle, 5 s interval, 4 probes | `websocket.rs:40–43` | `WIRE.md` §The WebSocket mapping; "the kernel's expiry is not observed" | theory |
 | WebSocket accept retry | 100 ms | `websocket.rs:46` | `WIRE.md` (row 272): a pause against none; only 100 ms tried | measured (pause against none) |
 | WebSocket `TCP_NODELAY` | on | `websocket.rs:123` | stated in `WIRE.md`; no measurement | none |
 | quinn GSO cap (crate patch) | 24 segments | `patches/quinn-0.11.11-mtu-gso.patch:25` | `docs/levers.md`: "**adopted, 24** (the default build since 2026-10-14, row 192)" | measured |
 
 Wire limits, not tunables: `MAX_FOD_LEN` 64 KiB (`common/fod/src/lib.rs:33`; `WIRE.md`: "A client's longest message
-is 56 B"), `MAX_FRAME_LEN` 64 MiB (`common/frame-envelope/src/lib.rs:8–9`, no reason found), `MAX_CODED_UID` 44
+is 56 B"), `MAX_FRAME_LEN` 64 MiB (`common/frame-envelope/src/lib.rs:8–9`, "The largest `envelope_len` a client reads"; **code**: it bounds what a corrupt length prefix can make a reader allocate; **untested** against the largest frame a PCS sends), `MAX_CODED_UID` 44
 (`server/src/media/series_tree.rs:15`, a 64-character UID coded two per three).
 
 ## Deploy
@@ -78,18 +80,18 @@ is 56 B"), `MAX_FRAME_LEN` 64 MiB (`common/frame-envelope/src/lib.rs:8–9`, no 
 | certificate | ECDSA P-256, 10 days, localhost and 127.0.0.1, unless `/supplied` holds one | `server-start.sh:10–16` | `deploy/README.md`: "A certificate pinned by hash (`serverCertificateHashes`) must be valid for at most 14 days." | theory (the standard's rule) |
 | `RESTART_AFTER` | `9d` | `deploy/compose.yml:17`, `:43` | restarted "before the browser refuses the old one" (`deploy/README.md`) | theory |
 | `CLIENT` | `ts` | `compose.yml:18`, `:44` | `docs/levers.md`: "both clients: fill 120 against 125 ms … held (TS the default)" | measured (a tie) |
-| `SERIES`, `STUDIES` | `us_cine_smoke`, `../fixtures/us_cine_smoke` read-only | `compose.yml:15`, `:20` | the smoke fixture; no reason found | none |
-| `WT_URL`, `EXACT_WT_URL`, `EXACT_SERIES` | `https://127.0.0.1:4433/`, `…:4434/`, empty | `compose.yml:16`, `:41–42` | no reason found | none |
-| `PUBLISH_ADDR` | `127.0.0.1` | `compose.yml:23–24`, `:49–50`, `:66–67` | no reason found | none |
-| `TLS_PORT`, `TLS_DIR` | 443, `./no-tls` (HTTP on 8765 only) | `compose.yml:64`, `:67` | no reason found | none |
+| `SERIES`, `STUDIES` | `us_cine_smoke`, `../fixtures/us_cine_smoke` read-only | `compose.yml:15`, `:20` | the smoke fixture; **harmless**: the repository's own fixture, so `compose up` serves something with nothing set; a deployment names its own | none |
+| `WT_URL`, `EXACT_WT_URL`, `EXACT_SERIES` | `https://127.0.0.1:4433/`, `…:4434/`, empty | `compose.yml:16`, `:41–42` | **derived**: the loopback address of the two published ports (the server's 4433, the exact service's 4434), matching `PUBLISH_ADDR`; an empty `EXACT_SERIES` means no pair | none |
+| `PUBLISH_ADDR` | `127.0.0.1` | `compose.yml:23–24`, `:49–50`, `:66–67` | **derived**: nothing is published off the host unless the operator asks for it | none |
+| `TLS_PORT`, `TLS_DIR` | 443, `./no-tls` (HTTP on 8765 only) | `compose.yml:67`, `:64` | **harmless**: the page is served over TLS only when the operator supplies a certificate, then on HTTPS's usual port | none |
 | `MEMLOCK` | 64 MiB | `compose.yml:12`, `:38` | `deploy/README.md`: "64 MiB: ~7 500 rings at 8.7 KiB, for this uid"; raising it "Not measured here" | theory |
 | `NOFILE` | 65535 | `compose.yml:13`, `:39` | `deploy/README.md`: "≥ sessions that miss + sockets" | theory |
 | seccomp profile | `seccomp-uring.json` | `compose.yml:10`, `:36` | `deploy/README.md`: "**The owner took it on 2026-10-14**" | measured |
-| healthchecks | 2 s interval, 2 s timeout, 15 retries | `compose.yml:26–29`, `:71–74` | no reason found | none |
-| image user | uid 10001, non-root | `deploy/Containerfile:57` | `deploy/README.md`: "The server needs no capability (non-root, port 4433)." | none |
-| nginx listen | 8765; 443 with HTTP/2 when `/tls` holds a certificate | `deploy/nginx/wt-pacs.conf.template:13–14` | no reason found | none |
+| healthchecks | 2 s interval, 2 s timeout, 15 retries | `compose.yml:26–29`, `:71–74` | **derived**: the web service waits for the server's (`depends_on: service_healthy`), so 2 s × 15 lets the server about 30 s to write its transport file; **untested** against a slow start | none |
+| image user | uid 10001, non-root | `deploy/Containerfile:57` | `deploy/README.md`: "The server needs no capability (non-root, port 4433)." | theory (a rule) |
+| nginx listen | 8765; 443 with HTTP/2 when `/tls` holds a certificate | `deploy/nginx/wt-pacs.conf.template:13–14` | **harmless**: 8765 is `dev-server.py`'s port, so the page's address is the same in development and deploy; 443 is HTTPS's usual port | none |
 | COOP, COEP, CORP | same-origin, require-corp, same-origin | `wt-pacs.conf.template:23–25` | `deploy/README.md`: "Cross-origin isolation is what gives the page `SharedArrayBuffer`." | theory |
-| CSP | `default-src 'self'`, `script-src 'self' 'unsafe-eval'`, `connect-src 'self' ${WT_ORIGINS}` | `wt-pacs.conf.template:28` | `deploy/README.md`: "`'unsafe-eval'` is the decoders' glue" | none (a security rule) |
+| CSP | `default-src 'self'`, `script-src 'self' 'unsafe-eval'`, `connect-src 'self' ${WT_ORIGINS}` | `wt-pacs.conf.template:28` | `deploy/README.md`: "`'unsafe-eval'` is the decoders' glue" | theory (a rule) |
 | `Cache-Control` | `no-cache` on HTML and JSON | `wt-pacs.conf.template:6–10`, `:26` | the template's reason, not read stale from a heuristic cache | none |
 | gzip | on, level 6, at least 1024 B | `wt-pacs.conf.template:38–43` | `lab/page-open/README.md`: "**Verdict: 2.9× fewer bytes and no round trip**"; level 6 chosen by no measurement | measured (on against off) |
 
@@ -106,9 +108,9 @@ is 56 B"), `MAX_FRAME_LEN` 64 MiB (`common/frame-envelope/src/lib.rs:8–9`, no 
 | progression | RPCL | `encode.cpp:31`; `ingest.py:26` | bytes: "LRCP's bytes equal RPCL's on every cell"; order: `docs/av1/encoder-settings.md` §7, "a prefix of a frame is an exact smaller picture" | measured (a tie) and theory |
 | precincts, layers | none, one layer | OpenJPH's defaults in `encode.cpp` | HTJ2KENC: "precincts of 128² cost 0.05–0.07 %, of 256² 0–0.02 %" | measured |
 | tiles | one | `encode.cpp:26–27` | chosen by no measurement; `docs/av1/README.md`: "tiles delayed, not closed" | none |
-| colour transform | RCT on three components | `encode.cpp:32` | no reason found beyond matching `ojph_compress` | none |
+| colour transform | RCT on three components | `encode.cpp:32` | matches `ojph_compress`; **untested**: RCT against none on colour was never measured, and the only colour fixture (`usb_cine_rgb`) is lossy-sourced, so no bytes verdict could rest on it | none |
 | reversible 5/3 | on | `encode.cpp:33`; `ingest.py:26` | forced by lossless | theory |
-| SIZ depth | the series' BitsStored | `encode.cpp:24`; `ingest.py:243` | HTJ2KENC: a 16-bit SIZ gives "1.0000–1.0017 of the bytes and no decode change" | measured |
+| SIZ depth | the series' BitsStored | `encode.cpp:24`; `ingest.py:243–245` (the input PNM's `maxval`, which `ojph_compress` reads) | HTJ2KENC: a 16-bit SIZ gives "1.0000–1.0017 of the bytes and no decode change" | measured |
 | frame digest | XXH3-64 | `ingest/from-parser/src/main.rs:159`; `ingest.py:350` | `docs/levers.md`: "SHA-256 → XXH3-64 \| row 136: hashing 16–41 % of HTJ2K CPU" | measured |
 | `--jobs` | 4 | `ingest/from-parser/src/main.rs:23`; `from_dicom.py:40` | `docs/levers.md`: "row 52: 4 workers 3.5–3.9×"; 4 against other counts not measured | measured (a speed-up at 4) |
 | pins | libaom 3.15.1, dav1d 1.5.4, OpenJPH 0.31.0 | `ingest/tools.sh:11–16` | `docs/av1/README.md` (VERSIONS): "libaom's head … writes the same bytes as 3.15.1 … Nothing adopted, no pin changed." | measured |
@@ -125,6 +127,7 @@ slowest's bytes").
 | the path | off | `ingest/from-parser/src/main.rs:27–29` | `docs/av1/payload-format.md`: "In the product ingest, experimental … off by default" | owner |
 | Q, the flag bare | 8 | `ingest/from-parser/src/optimal.rs:9` | `docs/client/evidence/which-quality-is-visually-lossless.md`: "Q 8 is a candidate, not visually lossless … The noise rule picks Q 8 for two of the six timed (series, G) cells" | measured, as a candidate (interim) |
 | G (group, keyframe distance) | 8 | `optimal.rs:10`, used at `main.rs:31` | **chosen by no measurement**: `payload-format.md`, "no G is measured per modality yet, so G is the caller's"; `docs/lines/codecs.md`, "No G is decided for DBT." | none |
+| threads | `--threads=1` | `optimal.rs:84` | `docs/av1/encoder-settings.md`: "`--threads=4` changes bytes 0.02–0.06 % a frame (so `--threads=1` is pinned)", measured lossless (POCGAP); "One thread makes no tiles … so the stream's decode does not depend on this flag (*derived*)" | measured (lossless) |
 | speed | `--good --cpu-used=6` | `optimal.rs:84` | `encoder-settings.md`: "no reason recorded for the lossy view" (chosen on lossless bytes) | none |
 | passes, tune, denoise | 1, `psnr`, 0 | `optimal.rs:84–85` | `encoder-settings.md`: "no reason recorded" / "none recorded" (libaom's own defaults) | none |
 | rate control | quantizer held at Q, delta-q and AQ off | `optimal.rs:84–85` | `encoder-settings.md`: "every main-arm `--q-hist` entry at Q" on 700 cells | measured |
@@ -137,14 +140,15 @@ slowest's bytes").
 | default | value | set at | chosen by | kind |
 | --- | --- | --- | --- | --- |
 | serving tree | `<root>/<Study>/<Series>.sbnd`, `study.db` | `ingest/receiver/src/lib.rs:250–251`, `:390` | `docs/adr/pacs-receiver.md`: "a placeholder for #152's layout, which is Open" | none |
-| header cap | 4 KiB | `ingest/receiver/src/package.rs:14` | stated in `pacs-receiver.md`; no reason found | none |
-| group cap | 64 MiB | `package.rs:15` | stated in `pacs-receiver.md`; no reason found | none |
+| header cap | 4 KiB | `ingest/receiver/src/package.rs:14` | stated in `pacs-receiver.md`; **derived**: the header is "exactly five lines" (`pacs-receiver.md`), so 4 KiB is far above any valid one and bounds the read before it is parsed | none |
+| group cap | 64 MiB | `package.rs:15` | stated in `pacs-receiver.md`: "a group past 64 MiB is refused before it is read"; **code**: it bounds the memory one group can take; **untested**: not checked against the largest instance a PCS sends | none |
 | metadata cap | 1 GiB | `package.rs:17` | `pacs-receiver.md`: "a placeholder until the largest series is measured" | none |
 | study database | WAL, `synchronous=FULL` | `ingest/receiver/src/study_db.rs:65–66` | `pacs-receiver.md`: "the rows change together or not at all" | theory |
-| codec when the metadata names none | HTJ2K | `lib.rs:474` | no reason found | none |
+| codec when the metadata names none | HTJ2K | `lib.rs:474` | **code**: the client's rule too (`client/transport/consumer.js`: "absent is HTJ2K", `docs/av1/adr-unit.md` §1), so a bundle without `codec` reads the same on both sides | none |
 | frame alignment | none, frames back to back | `common/series-bundle/src/writer.rs:51–56` | `docs/disk-layout/README.md`: "nothing pads a frame to a sector or a page" | none |
 | writer buffer | 8 KiB | `writer.rs:37` | `disk-layout/README.md`: "(b) is a tie. `pack-series` keeps its 8 KiB `BufWriter`." | measured (a tie) |
-| `fsync` | none | `writer.rs:32–35` | `disk-layout/README.md`: "There is still no `fsync`" | none |
+| `pack-series`'s writer: `fsync` | none | `writer.rs:32–35` | `disk-layout/README.md`: "There is still no `fsync`" | none |
+| the receiver: `fsync` | every staged file, and each directory a rename changes | `ingest/receiver/src/disk.rs:9–13`, `:36–42`; `package.rs:453–454`; `lib.rs:382–398` | `pacs-receiver.md` §0, *durability*: "`fsync` of every staged file and of each directory a rename changes; "stored" only after" (Decided 10-25); its limit, §8: "**Not testable here, and so not claimed:** that the `fsync`s make a placement survive a power cut" | theory |
 
 The receiver has no port or AE title: it takes two directories (`ingest/receiver/src/main.rs:8`).
 
@@ -159,34 +163,34 @@ The receiver has no port or AE title: it takes two directories (`ingest/receiver
 | transport client | `ts` when the transport file names none | `head.js:21–22` | `docs/levers.md`: "both clients: fill 120 against 125 ms … held (TS the default)" | measured (a tie) |
 | frame cache | none | `viewer.js:29` | `client/README.md`: "There is no cache by default"; `design.md` §Open: "The cache stays off." (no arm passed its bar) | measured |
 | HTJ2K decoder build | OpenJPH, single-threaded | `viewer.js:137–139` | `docs/decode/README.md`: "**Adopted: the single-threaded build**, faster than the package in every cell" | measured |
-| the exact series' client | one decoder, no fill | `viewer.js:185–186` | stated in `client/README.md`; no reason found | none |
-| cine period | the series' frame time, else 100 ms | `viewer.js:206` | `docs/ingest/metadata-draft.md`: 100 ms "when both absent"; no reason found | none |
-| zoom and window-drag steps | ×1.25 and ×0.8 by key, ×1.1 by wheel; window `width/256` a pixel | `viewer.js:225`, `:241`, `:258` | no reason found | none |
+| the exact series' client | one decoder, no fill | `viewer.js:185–186` | stated in `client/README.md`; **derived**: an exact frame is asked only when the reader asks for it (`docs/client/design.md` §Decided), so a fill or more decoders would fetch and decode frames nobody asked for | none |
+| cine period | the series' frame time, else 100 ms | `viewer.js:206` | `docs/ingest/metadata-draft.md`: "100 ms a frame when both absent"; **harmless**: it applies only to a series that carries no timing, and sets playback speed, not what is fetched | none |
+| zoom and window-drag steps | ×1.25 and ×0.8 by key, ×1.1 by wheel; window `width/256` a pixel | `viewer.js:225`, `:241`, `:258` | **harmless**: input steps no fetch or decode depends on; ×0.8 undoes ×1.25, and a 256-pixel drag moves the window by its own width; **untested** with readers | none |
 | `decoders` | `min(3, hardwareConcurrency)` | `client/transport/downloader.js:23` | `docs/ARCHITECTURE.md`: "a third in 7 of 7 on four cores and in 2 and 1 of 7 on two"; "The default is measured at two and four cores only." No phone | measured (2 and 4 cores) |
 | `perDecoder` | 2 | `downloader.js:23` | `docs/levers.md`: the first-free policy measured, "**never**" the value 2 | none (the value) |
-| `askDepth` | 4 | `downloader.js:23` | `docs/client/evidence/frame-store-owner.md`: "**`askDepth` is 4, a constant**, inside the 2–5 that client-window-depth.md measured as `D_min` on its grid; it is not derived from the link." | theory (inside a measured range) |
+| `askDepth` | 4 | `downloader.js:23` | `docs/client/evidence/frame-store-owner.md` (its link to `client-window-depth.md` dropped): "**`askDepth` is 4, a constant**, inside the 2–5 that client-window-depth.md measured as `D_min` on its grid; it is not derived from the link." | theory (inside a measured range) |
 | `refill` | `head` | `downloader.js:23` | `docs/client/evidence/re-asking-the-fill-after-an-ask.md`: "the head re-ask became the downloader's default (`refill: "head"`)" | measured |
 | `survival` | on | `downloader.js:23` | `ARCHITECTURE.md`: "nothing runs when nothing dies"; no measurement chose on | none |
 | `span` | 0 | `downloader.js:23` | `spanning-small-gaps-in-the-misses.md`: "default 0 (today's behaviour)"; its experiment "**not run**" | none |
 | `stallMs` | 3 000 ms | `downloader.js:26` | `ARCHITECTURE.md`: "it must outlast the longest legitimate gap between frames (428 KB at 1 Mbit is 3.4 s)" | theory |
-| `redialMs`, `tries` | 1 000 ms, 5 | `downloader.js:26` | no reason found | none |
+| `redialMs`, `tries` | 1 000 ms, 5 | `downloader.js:26` | **untested**: `ARCHITECTURE.md` §An open page follows a server restart: "A fill across a restart rides `tries` × `redialMs`, about 5 s if each stale dial is refused at once, up to about 30 s if each waits out `dialMs`; whether that outlasts a `compose restart` is not measured" | none |
 | `dialMs` | 5 000 ms | `downloader.js:26` | `ARCHITECTURE.md`: "two lost handshake flights, derived, not measured" | theory |
 | `decodeMs` | 10 000 ms | `downloader.js:26` | `ARCHITECTURE.md`: the slowest decode measured "is 355 ms a frame … ~28× under it; a phone's is not measured" | theory |
 | `frozenMs` | 1 000 ms | `downloader.js:26` | `docs/reviews/hidden-page-decode.md`: a timer never a second late "is assumed, not measured" | none |
 | `ATTEMPTS` | 2 | `downloader.js:28` | `ARCHITECTURE.md`: "Lost twice, a frame fails by name"; no reason for 2 | none |
 | `waitAhead` | 1 | `downloader.js:255` | `docs/adr/asking-policy.md`: "**k\* = 8, adopt k = 8**", left to the owner, so 1 ships | measured, not adopted |
 | `startOnNeed`, `readMin`, `recycleAtBytes`, `shortRuns` | off | `downloader.js:151`, `:569`, `:219`, `:266` | `docs/levers.md` and `ARCHITECTURE.md`: each measured or proposed, none adopted | measured, not adopted |
-| `wireBuffers` | `decoders × perDecoder + 2` | `downloader.js:567` | `docs/decode/README.md`: "the frames that can be between the wire and a decoder" | theory |
-| close deadline | 1 000 ms | `client/transport/consumer.js:7` | stated in `ARCHITECTURE.md`; no reason found | none |
+| `wireBuffers` | `decoders × perDecoder + 2` | `downloader.js:567` | `docs/decode/README.md` §The wire buffer ring: "**The size stays `decoders × perDecoder + 2`.** 2, 8 and 16 on both shapes, n = 5: **peak does not move with the size**"; desktop Chrome 148, loopback, an 87-frame series | measured |
+| close deadline | 1 000 ms | `client/transport/consumer.js:7` | `ARCHITECTURE.md` §Closing a client: "after 1 s if it never does (a downloader wedged in a long task)"; **code**: only a wedged downloader is waited for; **untested** | none |
 | `VIEW_MEMORY` | 256 MiB of decoded frames a tab | `client/view/controller.js:7` | `docs/client/evidence/what-a-view-asks-for.md`: "**M, the budget.** **Assumed**"; the owner left the number to the sessions; its size per device class is phase 2's measurement | none (assumed) |
 | the window | 256 MiB ÷ a frame's decoded bytes | `controller.js:31–36` | the same section | theory |
 | want order | nearest first, capped at the window with no cache | `controller.js:22–28` | `docs/levers.md`: "Asks first, centre-out \| rows 65, 120: 0.30–0.77" | measured (for asks) |
-| progress interval | 100 ms | `client/view/view-worker.js:12` | `frame-store-owner.md`: "at most every 100 ms"; no reason found | none |
+| progress interval | 100 ms | `client/view/view-worker.js:12` | `frame-store-owner.md`: "at most every 100 ms"; **harmless**: progress is a display, and the last frame is reported at once (`view-worker.js:11`) | none |
 | AV1 route | WebCodecs first at ≤ 10 bits; dav1d after a refusal or above 10 bits | `client/decode/av1.js:47–52` | the owner, 2026-11-11 (`design.md` §Decided) | owner |
 | `hardwareAcceleration` | `prefer-software` | `client/decode/av1-webcodecs.js:80` | `docs/decode/hardware.md`: "**No reason is recorded: a documentation finding.**"; its sources still support it, as no hardware path returns the view's samples | theory |
 | `optimizeForLatency` | on | `av1-webcodecs.js:80` | `docs/av1/README.md` (WCLAT): "7–28 % faster a frame" | measured |
 | WebCodecs stall | 2 000 ms | `av1-webcodecs.js:47` | `docs/decode/README.md`: "after 2 s the unit is flushed and fails by name"; no reason for 2 s | none |
-| dav1d threads | 1 | `client/decode/av1-dav1d.js:17` | no reason found | none |
+| dav1d threads | 1 | `client/decode/av1-dav1d.js:17` | **derived**: dav1d is the fallback decoder, one per decoder worker, and `decoders` sets the parallelism | none |
 | rescale, VOI, photometric | slope 1, intercept 0; the series' first window, else the frame's decoded range; MONOCHROME2 unless three components | `client/paint/voi.js:6–11`, `:65`; `controller.js:112–122` | DICOM PS3.3 C.11.1 and `docs/display.md`; a standard, not a choice | — |
 | WebGL2 painter | `alpha`, `antialias`, `depth`, `stencil`, `preserveDrawingBuffer` all off | `client/paint/paint-worker.js:198` | `docs/levers.md`: "gl against 2d \| paint-floor: 0.34 against 7.55 ms" (the route only) | measured (the route) |
 
@@ -196,6 +200,12 @@ stays derived until a second phone runs cell 1"); the view worker is not the def
 bound, an *assumption* (`docs/phone-rows/next-round.md`).
 
 ## What this table finds
+
+**Counts** (120 rows, by the kind column's first word): 47 `none`, 44 `measured` (41 plain, 3 measured and not
+adopted), 21 `theory`, 5 `owner`, 3 `—`. Every `none` row says why its value stands; none is left without a reason. The
+ones that stand only because nothing measured them (**untested**) are the owner's list for the next queue: `ASKS_AHEAD`,
+the per-frame grace, the WebSocket handshake bound, the healthchecks, the colour transform, the receiver's group cap,
+the zoom and drag steps, `redialMs` and `tries`, the close deadline, `MAX_FRAME_LEN`.
 
 **Open.** The `none` rows are condition 3's work. Those a page or record already owns: G 8 (`ingest-optimal-quality`
 §7), Q 8 (`visually-lossless` item 5), the view's 256 MiB (`view-target`; phase 2's per-device size), the decoder
