@@ -2,19 +2,21 @@ state: started
 started: 2026-11-24T20:07Z
 heartbeat: 2026-11-24T20:42Z
 by: KncQVQUV
-outputs: claude/ask-cells (the lab builds, from origin/claude/page-runs's base); claude/page-runs (rows; page-runs.md §4 Results)
+outputs: claude/ask-cells (lab builds 583f72d03..; rows lab/viewer/rows/ask/{main,p1b,p1c80}.jsonl); claude/page-runs 9c9743dce (page-runs.md §4 Amendment)
 ## Resume
-2026-11-24T20:21Z: builds (a)-(d) pushed on claude/ask-cells (583f72d03 and after): lab/viewer/hold.js (the hold keys, the install on the
-page controller, the never-skipping driver), trace.js legPath/legWaits, hold.test.mjs + trace tests (mutants M1-M5 each
-fail them), run.mjs --leg-cells (lab/viewer/ask-cells.json), lab/viewer/ask_variants.py. (e) not built: the default
-budget is W = 15 on dbts_b1 for every cell (the row reports W per visit). Bounded-series check of the model:
-claude/work-ledger docs/queue/ASK-CELLS/bounded.py (not yet pushed if absent). Next: smoke visit, the two runtime
-mutants (--mutate hold, --mutate legs), --mutate sample, then an amendment in page-runs.md §4 before the first counted
-row, then the run (job script in this session's scratchpad).
-Rebuild if this session ends: worktree of claude/ask-cells; README Prerequisites; ingest/tools.sh;
+Running: main round 0 (at 2026-11-24T20:42Z)
+Done: builds (a)-(d) + summary on claude/ask-cells (mutants M1-M6 fail the unit tests; runtime mutants hold, legs,
+sample in lab/viewer/rows/ask/mutate-*.jsonl); §4 Amendment on claude/page-runs 9c9743dce before any counted row;
+pilot rows lab/viewer/rows/ask/pilot*.jsonl (not counted).
+Running since 20:42 in this session: docs/queue/ASK-CELLS/job.sh (copy here), P80=1. Per round r: main.jsonl (P1-20,
+P1-40, P1c-12, P2 x 5 arms) r < 10, then p1b.jsonl (4 arms) r < 12; then p1c80.jsonl rounds 0-9. Rows pushed to
+claude/ask-cells after each round; this heartbeat every 20 min.
+If this session ends (heartbeat > 60 min old): on claude/ask-cells rebuild (README Prerequisites; ingest/tools.sh;
 cargo build --release -p series-server -p pack-series; lab/av1/fetch_data.sh dbts_b1;
 lab/av1/.venv/bin/python lab/viewer/view_frames.py ingest/.build lab/.av1-work/ask dbts_b1;
-python3 lab/viewer/ask_variants.py lab/.av1-work/ask/dbts_b1/variants.json;
-NODE_PATH=$(npm root -g) node lab/av1/delivery/total-time/run.mjs --frames lab/.av1-work/ask --sets dbts_b1 --throttles 1 \
-  --leg-cells P1-20,P1-40,P1c-12,P2 --variants behind,ahead34,centred,struck,centredaa --rounds 10 --out <rows>
+python3 lab/viewer/ask_variants.py lab/.av1-work/ask/dbts_b1/variants.json), read the last round in the rows
+(jq .round), then FIRST=<next> P80=1 bash docs/queue/ASK-CELLS/job.sh (paths inside: /home/user/ask, /home/user/ledger).
+Then re-run VOID/failed visits (run.mjs --first-round 12+ on the short cells), then
+node lab/viewer/ask-summary.mjs lab/viewer/rows/ask/{main,p1b,p1c80}.jsonl, and write page-runs.md §4 Results
+(every cell against its prediction, misses included; fixtures and limits) on claude/page-runs; docs/lines/client.md.
 ## Result
