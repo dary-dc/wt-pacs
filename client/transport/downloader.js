@@ -619,12 +619,22 @@ async function firstDial() {
   }
 }
 
-/** A command after a closure re-dials: docs/ARCHITECTURE.md §The downloader. */
+/** A command after a closure re-dials, and a dial that fails is a lost ask: docs/ARCHITECTURE.md §The downloader. */
 async function live() {
   await resuming;
   if (session && !session.stats().closed) return session;
-  await connect();
+  try {
+    await connect();
+  } catch (e) {
+    throw new DialError(e);
+  }
   return session;
+}
+
+class DialError extends Error {
+  constructor(cause) {
+    super(String(cause?.message ?? cause), { cause });
+  }
 }
 
 // The page's own triggers — visibility, pageshow, freeze/resume — are forwarded by consumer.js.
@@ -698,6 +708,6 @@ async function command(e) {
     const reason = String(err?.message ?? err);
     // Index -1 is the start failing; an ask, a fill or a want names its own frames, in its own generation.
     if (!["ask", "fill", "want"].includes(m.kind)) return void toConsumer({ kind: "failed", index: -1, reason });
-    if (gen === generation) for (const index of m.indices ?? [m.index]) fail(index, reason);
+    if (gen === generation) for (const index of m.indices ?? [m.index]) fail(index, reason, err instanceof DialError);
   }
 }
