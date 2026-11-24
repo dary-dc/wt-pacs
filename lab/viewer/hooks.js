@@ -66,8 +66,10 @@ export function pageHooks(q, lab) {
       const legs = held && (async () => {
         held.state = install(controller, lab.hold, { rho: lab.rho, w: held.w, n });
         await until(() => shown()?.i === 0 || errors.length);
+        const fill = { fromMs: performance.now() };
         await until(() => progress().have >= held.w || errors.length);
-        return { w: held.w, hold: lab.hold, spec: lab.legs, ...(await drive({ spec: lab.legs, n, controller, show, errors, hold: held })) };
+        fill.toMs = performance.now();
+        return { w: held.w, hold: lab.hold, spec: lab.legs, ...(await drive({ spec: lab.legs, n, controller, show, errors, hold: held, fill })) };
       })();
       if (lab.legs && !controller) throw new Error("refused: trace=legs under view worker — the hold is the page view's");
       if (!checking && !lab.finished) return;

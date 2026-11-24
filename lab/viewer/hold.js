@@ -52,7 +52,7 @@ export function install(controller, hold, { rho, w, n }) {
 }
 
 /** A leg trace on a display that never skips: each step shown once held, the next due a step later; the hold told when due. */
-export async function drive({ spec, n, controller, show, errors, hold }) {
+export async function drive({ spec, n, controller, show, errors, hold, fill }) {
   const path = legPath(spec, n);
   const state = hold.state;
   const rewant = () => controller.store.want(controller.want());
@@ -72,11 +72,13 @@ export async function drive({ spec, n, controller, show, errors, hold }) {
       if (!controller.store.has(i)) rewant();
     }
     if (errors.length) break;
-    const shownAt = performance.now();
+    const heldMs = performance.now();
     await show(i);
-    steps.push({ i, leg, dueMs: due, heldMs: shownAt, heldAtDue, received: controller.received });
+    const paintedMs = performance.now();
+    steps.push({ i, leg, dueMs: due, heldMs, paintedMs, heldAtDue, received: controller.received });
     s = i;
-    due = Math.max(due, shownAt) + STEP_MS;
+    // The reader steps a step after it sees the frame: a slow paint slows the pace, not the wait.
+    due = paintedMs + STEP_MS;
     if (turn && spec.dwellMs) {
       // The client sees a dwell only once no step has come for two steps' time.
       await sleep(2 * STEP_MS);
@@ -90,5 +92,5 @@ export async function drive({ spec, n, controller, show, errors, hold }) {
     const got = steps.filter((x) => x.leg === k).length;
     if (!spec.oneWay && got !== spec.leg) throw new Error(`leg ${k} took ${got} steps, not ${spec.leg}`);
   }
-  return { steps, interior: state.interior, at: now() };
+  return { steps, interior: state.interior, fill, at: now() };
 }

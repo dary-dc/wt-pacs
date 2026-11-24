@@ -45,14 +45,16 @@ check(refused, "legs past the series are refused");
  * the four counted steps was held when due; two frames arrived from the step before leg 2 to the last.
  */
 const lw = legWaits([
-  { leg: 1, dueMs: 0, heldMs: 500, heldAtDue: false, received: 3 },
-  { leg: 2, dueMs: 540, heldMs: 570, heldAtDue: false, received: 4 },
-  { leg: 2, dueMs: 610, heldMs: 600, heldAtDue: true, received: 4 },
-  { leg: 3, dueMs: 650, heldMs: 650, heldAtDue: false, received: 5 },
-  { leg: 3, dueMs: 690, heldMs: 790, heldAtDue: false, received: 5 },
+  { leg: 1, dueMs: 0, heldMs: 500, paintedMs: 500, heldAtDue: false, received: 3 },
+  { leg: 2, dueMs: 540, heldMs: 570, paintedMs: 570, heldAtDue: false, received: 4 },
+  { leg: 2, dueMs: 610, heldMs: 600, paintedMs: 610, heldAtDue: true, received: 4 },
+  { leg: 3, dueMs: 650, heldMs: 650, paintedMs: 650, heldAtDue: false, received: 5 },
+  { leg: 3, dueMs: 690, heldMs: 790, paintedMs: 790, heldAtDue: false, received: 5 },
 ]);
 check(lw.perLeg.map((x) => x.toFixed(2)).join() === "0.03,0.10" && Math.abs(lw.meanS - 0.065) < 1e-9, `per leg (${lw.perLeg})`);
 check(lw.live === 0.75 && lw.received === 2, `live ${lw.live}, received ${lw.received}`);
+/** The pace leaves the waits out: 220 ms from the first counted paint to the last, less 0.13 s waited, over three steps. */
+check(Math.abs(lw.stepMs - 30) < 1e-9, `the step without its waits (${lw.stepMs} ms)`);
 
 console.log(failed ? `${failed} failed` : "trace: the sawtooth, each step's wait, the legs: ok");
 process.exit(failed ? 1 : 0);

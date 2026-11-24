@@ -61,5 +61,6 @@ export function legWaits(steps, { from = 2, skip = 0 } = {}) {
     meanS: perLeg.reduce((a, b) => a + b, 0) / perLeg.length,
     live: counted.filter((x) => !x.heldAtDue).length / counted.length,
     received: counted.at(-1).received - (before?.received ?? 0),
+    stepMs: (counted.at(-1).paintedMs - counted[0].paintedMs - 1000 * perLeg.reduce((a, b) => a + b, 0)) / (counted.length - 1),
   };
 }
