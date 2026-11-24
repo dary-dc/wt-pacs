@@ -143,7 +143,7 @@ function decoder(length) {
           }
           return pic;
         } catch (err) {
-          if (last?.gen === unit.gen && last.index === unit.index) last = null;
+          if (last && last.gen === unit.gen && last.index === unit.index) last = null;
           if (vd.state === "closed") open();
           const why = err?.message ?? String(err);
           throw new Error(why.startsWith("undecodable:") ? why : `undecodable: ${why}`);
