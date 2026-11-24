@@ -60,7 +60,7 @@ small enough that every open item has an owner and a next step.
    on `claude/core-next` (PR 351), `claude/demo-fixes-0` (PR 355) and `claude/demo-fixes-1` (PR 363), each carried by
    the next. After FREEZE-E2E the owner gives two merge words, PR 367 then PR 250, as merge commits; the PRs and
    branches they carry in full are listed by MERGE-PLAN (`claude/merge-plan:docs/reviews/merge-plan.md`) and closed
-   or deleted after. Nothing reaches `main` uncleaned (`docs/lines/optimal-quality.md` §Open 2 at `54e774b93`).
+   or deleted after. Nothing reaches `main` uncleaned (`docs/lines/optimal-quality.md` §Open 2 at `4c84013ed`).
    Pre-main review of `main...claude/demo-fixes-0` (2026-11-11, for MAIN-REVIEW): no blocker, 11 should-fix, the
    gate green; [`../reviews/pre-main.md`](../reviews/pre-main.md).
 3. The proposed order into `main` after that: `av1-unified-mainbase` ← `line-hygiene` ← `line-server` ← `core` ←
