@@ -150,11 +150,57 @@ The receiver has no port or AE title: it takes two directories (`ingest/receiver
 
 ## Client
 
-*Filled from the client survey; see below.*
+| default | value | set at | chosen by | kind |
+| --- | --- | --- | --- | --- |
+| `?view` | `page` (`worker` allowed; anything else refused) | `client/viewer/viewer.js:26–27` | `docs/client/evidence/page-out-of-pixel-path.md` §7: "**The rule's verdict: A stays** — `?view=page` remains the core's default" | measured |
+| `?fill` | on; only `0` turns it off | `viewer.js:57` | DEFAULTS-FIND item 8: "an asking pattern of the product", not a lever; no measurement | none |
+| `?overlay` | off; only `1` turns it on | `viewer.js:118` | the owner, 2026-11-09 (`docs/client/design.md` §Decided): "a developer overlay behind a toggle" | owner |
+| lab parameters | refused where `lab/` is not served | `client/viewer/head.js:5–8` | a rule (`client/README.md` §The viewer), not a value | — |
+| transport client | `ts` when the transport file names none | `head.js:21–22` | `docs/levers.md`: "both clients: fill 120 against 125 ms … held (TS the default)" | measured (a tie) |
+| frame cache | none | `viewer.js:29` | `client/README.md`: "There is no cache by default"; `design.md` §Open: "The cache stays off." (no arm passed its bar) | measured |
+| HTJ2K decoder build | OpenJPH, single-threaded | `viewer.js:137–139` | `docs/decode/README.md`: "**Adopted: the single-threaded build**, faster than the package in every cell" | measured |
+| the exact series' client | one decoder, no fill | `viewer.js:185–186` | stated in `client/README.md`; no reason found | none |
+| cine period | the series' frame time, else 100 ms | `viewer.js:206` | `docs/ingest/metadata-draft.md`: 100 ms "when both absent"; no reason found | none |
+| zoom and window-drag steps | ×1.25 and ×0.8 by key, ×1.1 by wheel; window `width/256` a pixel | `viewer.js:225`, `:241`, `:258` | no reason found | none |
+| `decoders` | `min(3, hardwareConcurrency)` | `client/transport/downloader.js:23` | `docs/ARCHITECTURE.md`: "a third in 7 of 7 on four cores and in 2 and 1 of 7 on two"; "The default is measured at two and four cores only." No phone | measured (2 and 4 cores) |
+| `perDecoder` | 2 | `downloader.js:23` | `docs/levers.md`: the first-free policy measured, "**never**" the value 2 | none (the value) |
+| `askDepth` | 4 | `downloader.js:23` | `docs/client/evidence/frame-store-owner.md`: "**`askDepth` is 4, a constant**, inside the 2–5 that client-window-depth.md measured as `D_min` on its grid; it is not derived from the link." | theory (inside a measured range) |
+| `refill` | `head` | `downloader.js:23` | `docs/client/evidence/re-asking-the-fill-after-an-ask.md`: "the head re-ask became the downloader's default (`refill: "head"`)" | measured |
+| `survival` | on | `downloader.js:23` | `ARCHITECTURE.md`: "nothing runs when nothing dies"; no measurement chose on | none |
+| `span` | 0 | `downloader.js:23` | `spanning-small-gaps-in-the-misses.md`: "default 0 (today's behaviour)"; its experiment "**not run**" | none |
+| `stallMs` | 3 000 ms | `downloader.js:26` | `ARCHITECTURE.md`: "it must outlast the longest legitimate gap between frames (428 KB at 1 Mbit is 3.4 s)" | theory |
+| `redialMs`, `tries` | 1 000 ms, 5 | `downloader.js:26` | no reason found | none |
+| `dialMs` | 5 000 ms | `downloader.js:26` | `ARCHITECTURE.md`: "two lost handshake flights, derived, not measured" | theory |
+| `decodeMs` | 10 000 ms | `downloader.js:26` | `ARCHITECTURE.md`: the slowest decode measured "is 355 ms a frame … ~28× under it; a phone's is not measured" | theory |
+| `frozenMs` | 1 000 ms | `downloader.js:26` | `docs/reviews/hidden-page-decode.md`: a timer never a second late "is assumed, not measured" | none |
+| `ATTEMPTS` | 2 | `downloader.js:28` | `ARCHITECTURE.md`: "Lost twice, a frame fails by name"; no reason for 2 | none |
+| `waitAhead` | 1 | `downloader.js:255` | `docs/adr/asking-policy.md`: "**k\* = 8, adopt k = 8**", left to the owner, so 1 ships | measured, not adopted |
+| `startOnNeed`, `readMin`, `recycleAtBytes`, `shortRuns` | off | `downloader.js:151`, `:569`, `:219`, `:266` | `docs/levers.md` and `ARCHITECTURE.md`: each measured or proposed, none adopted | measured, not adopted |
+| `wireBuffers` | `decoders × perDecoder + 2` | `downloader.js:567` | `docs/decode/README.md`: "the frames that can be between the wire and a decoder" | theory |
+| close deadline | 1 000 ms | `client/transport/consumer.js:7` | stated in `ARCHITECTURE.md`; no reason found | none |
+| `VIEW_MEMORY` | 256 MiB of decoded frames a tab | `client/view/controller.js:7` | `docs/client/evidence/what-a-view-asks-for.md`: "**M, the budget.** **Assumed**"; the owner left the number to the sessions; its size per device class is phase 2's measurement | none (assumed) |
+| the window | 256 MiB ÷ a frame's decoded bytes | `controller.js:31–36` | the same section | theory |
+| want order | nearest first, capped at the window with no cache | `controller.js:22–28` | `docs/levers.md`: "Asks first, centre-out \| rows 65, 120: 0.30–0.77" | measured (for asks) |
+| progress interval | 100 ms | `client/view/view-worker.js:12` | `frame-store-owner.md`: "at most every 100 ms"; no reason found | none |
+| AV1 route | WebCodecs first at ≤ 10 bits; dav1d after a refusal or above 10 bits | `client/decode/av1.js:47–52` | the owner, 2026-11-11 (`design.md` §Decided) | owner |
+| `hardwareAcceleration` | `prefer-software` | `client/decode/av1-webcodecs.js:80` | `docs/decode/hardware.md`: "**No reason is recorded: a documentation finding.**"; its sources still support it, as no hardware path returns the view's samples | theory |
+| `optimizeForLatency` | on | `av1-webcodecs.js:80` | `docs/av1/README.md` (WCLAT): "7–28 % faster a frame" | measured |
+| WebCodecs stall | 2 000 ms | `av1-webcodecs.js:47` | `docs/decode/README.md`: "after 2 s the unit is flushed and fails by name"; no reason for 2 s | none |
+| dav1d threads | 1 | `client/decode/av1-dav1d.js:17` | no reason found | none |
+| rescale, VOI, photometric | slope 1, intercept 0; the series' first window, else the frame's decoded range; MONOCHROME2 unless three components | `client/paint/voi.js:6–11`, `:65`; `controller.js:112–122` | DICOM PS3.3 C.11.1 and `docs/display.md`; a standard, not a choice | — |
+| WebGL2 painter | `alpha`, `antialias`, `depth`, `stencil`, `preserveDrawingBuffer` all off | `client/paint/paint-worker.js:198` | `docs/levers.md`: "gl against 2d \| paint-floor: 0.34 against 7.55 ms" (the route only) | measured (the route) |
+
+Every client measurement cited is on cloud hosts in headless Chromium with software rendering; none chose a value on a
+phone. The decoder count's phone value waits on cell 1 on a second phone (`docs/decode/mobile/device-model.md`: "§4
+stays derived until a second phone runs cell 1"); the view worker is not the default, and its guard is cell 3's 52 ms
+bound, an *assumption* (`docs/phone-rows/next-round.md`).
 
 ## What this table finds
 
-**Open.** The `none` rows are condition 3's work. Those a page already owns: G 8 (`ingest-optimal-quality` §7), Q 8
-(`visually-lossless` item 5), the idle timeout and keep-alive (`transport-idle-sessions`, proposed). The rest have no
-owner. The two ingests differ on the view above 10 bits (`ingest.py` codes 12 bits at profile 2; the product's
+**Open.** The `none` rows are condition 3's work. Those a page or record already owns: G 8 (`ingest-optimal-quality`
+§7), Q 8 (`visually-lossless` item 5), the view's 256 MiB (`view-target`; phase 2's per-device size), the decoder
+count on a phone (`phone-decode-route` item 5), `waitAhead` (`asking-policy`, the owner's), the idle timeout and
+keep-alive (`transport-idle-sessions`, proposed). The rest have no owner: the client's deadlines but `stallMs`,
+`dialMs` and `decodeMs`, `perDecoder`'s 2, the server's `ASKS_AHEAD`, `POOL_CAP` and per-frame grace, the receiver's
+caps, the deploy's published address and healthchecks. The two ingests differ on the view above 10 bits (`ingest.py` codes 12 bits at profile 2; the product's
 `optimal.rs` cuts or refuses), as `docs/lines/optimal-quality.md` already says.
