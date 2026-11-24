@@ -1,6 +1,6 @@
 # PACS receive and metadata
 
-Last verified 2026-11-20 (PR state and branches; the study-DB schema 2026-11-19; the design state as of 2026-10-29). The design state, its open
+Last verified 2026-11-20 (PR state and branches; the study-DB schema 2026-11-19, reviewed 2026-11-20; the design state as of 2026-10-29). The design state, its open
 conflicts and the owner's decisions on it: [`../ingest/README.md`](../ingest/README.md) §4a; the ingest's decisions
 table: §4 there.
 
@@ -49,7 +49,7 @@ No row runs on this line (2026-11-20).
 2. The synchronization protocol: A + F or E + F; the second writer is the fork (#220's questions for the product
    owner); then implement in sender and receiver.
 3. Owner decisions waiting: hash column type (one schema, `xxh3 TEXT`, built on `claude/study-db-schema` (draft PR
-   407) with a test that `pacs-verify` reads what the receiver writes; `INTEGER` the alternative; 2026-11-19), reply
+   407) with a test that `pacs-verify` reads what the receiver writes; `INTEGER` the alternative; 2026-11-19; reviewed 2026-11-20, no blocker, findings in PR 407's body), reply
    file and words, carrier, study-DB layout, viewer metadata, DB engine, study index (engine and placement: open), serving defaults, verdict travel.
 4. Questions for the PCS team: is each exam's tree kept as the record while updates can come; does it show the current
    state; can it sync a quiet or snapshotted tree; frame-file hashes; layout details.
