@@ -648,3 +648,51 @@ decision does not move. **r-n1**: AD-PUB's cwnd range sourced (the 3.0 MB queue 
 × Cubic's β = 0.7, RFC 9438 §4.6, quoted), and "≈ 38 packets (37.9)". Each change is dated in §1's amendment note.
 Nothing run but `scripts/check_links.py` (9 unresolved, as before) and the sums: 1.2 ÷ √0.001 = 37.9; 3.0 + 0.225 =
 3.2 MB, × 0.7 = 2.26 MB; 0.18–0.19 ÷ 0.086 = 2.1–2.2, × 0.262 = ×0.55–0.57.
+
+### Re-review 2
+
+PAGE-RUNS-PROTOCOL-FIX-2-REVIEW, 2026-11-24 17:20–17:45 UTC, by a session that wrote none of this file, its review,
+its fix, its re-review or fix 2 and will run none of it (`by:` in
+`claude/work-ledger:docs/queue/PAGE-RUNS-PROTOCOL-FIX-2-REVIEW.md`). Read: `git diff 784c88420..cc7b9ccee` (this file's
+§1 and §Fix 2, `docs/lines/coordination.md`; every hunk under R-B1, r-m1, r-m2 or r-n1, nothing else changed); at
+`origin/claude/transport-arms` `lab/order.mjs`, `lab/transport-arms/run.mjs:31-77,258-274`, `summary.py`,
+`stream_mode.rs:8-16`, `tuning.rs:56-61`; at `origin/claude/av1-unified-mainbase` `docs/native/quic-compared.md` §9.7
+(its *Measured* table, row 211); RFC 9438 (https://www.rfc-editor.org/rfc/rfc9438.txt, §4.6). Run: `williams(7)` from
+`lab/order.mjs` over 12 and 14 rounds (14: every arm twice at every position, `balanced()` true for all seven; 12:
+positions uneven, 1–3), `scripts/check_links.py` (9 unresolved, the same as before: 0 new), and the sums below.
+
+* **R-B1: closed.** Both commands read `--rounds 14 --arms WT-TS,WT-TS\',WT-TW,WT-PF,WT-AF,H3-fill,H3-frame`
+  (`run.mjs:52,76` read `--arms` and `--rounds`), 14 being one mirrored period of seven (`order.mjs`: "the period is
+  n rounds, 2n for odd n", checked above); the VOID line's pilot covers WT-TW, WT-PF and WT-AF. WT-AF's flags exist
+  in the rig's server: `PerFrameAsksFirst` under `#[cfg(feature = "lab-levers")]` (`stream_mode.rs:13-15`) and
+  `#[arg(long = "send-window-bytes")]` (`tuning.rs:59`), and the build line carries `lab-levers`.
+* **r-m1: closed.** Row 211's + 6 MiB column behind the deep FIFOs reads ×0.98 (18/800), ×0.92 (103/360), ×0.92
+  (103/800), ×0.91 (103, 92 ms, 800): ×0.91–0.98 as stated; ×0.87 is the uncapped column's. The band now reaches
+  ×0.98, and a median in ×0.95–0.98 is read as no gain, inside the A/A band, so the ≤ ×0.8 rule still decides.
+* **r-m2: closed (argued and labelled).** The loss cells' + 6 MiB asks are ×0.19 and ×0.18; the arithmetic for them,
+  cwnd 1.2 ÷ √0.01 = 12 packets = 0.018 MB, gives (0.018 + 0.57) ÷ (6.29 + 0.57) = ×0.086; 0.18–0.19 ÷ 0.086 = 2.10–2.22;
+  × (0.057 + 2.15) ÷ 8.44 = ×0.262 gives ×0.550–0.580. The carry is labelled **assumed** with both differences named.
+  See r2-n1 for the band's top.
+* **r-n1: closed.** RFC 9438 §4.6, quoted verbatim from the text edition: "The parameter β__cubic_ SHOULD be set to
+  0.7" (the underscores are the plain-text rendering of the subscript). 90 Mbit/s × 20 ms = 0.225 MB; 3.0 + 0.225 =
+  3.225 MB; × 0.7 = 2.26 MB; (2.26 + 2.15) ÷ 8.44 = ×0.52, (3.225 + 2.15) ÷ 8.44 = ×0.64 (the line's ×0.63 rounds
+  3.2, not 3.225: inside the band either way). "≈ 38 packets (37.9)" holds.
+
+New, none blocking (each the run row's first step, lab only, or a line):
+
+* **r2-m1 (minor).** §1's summary cannot report the three arms that decide the page: `summary.py:13` fixes `ARMS` to
+  the eight of §5.1, and its tables iterate that list (`:35`, `:45`, `:76`), so WT-TW, WT-PF and WT-AF are never
+  read. Add "`summary.py`'s arm list" to §1's built-first list (lab only, with the per-arm server arguments).
+* **r2-m2 (minor).** `--out rows/flags-AD.jsonl` is not resolved against the repository (`run.mjs:77` takes it as
+  given; only the default is under `ROOT`), so run from the root the rows land in `./rows/`, while the summary reads
+  `lab/transport-arms/rows`; and the summary names `flags-AD` only, not `flags-CR`. Write both `--out` as
+  `lab/transport-arms/rows/flags-AD.jsonl` and `…/flags-CR.jsonl` and the summary as `… rows flags-AD flags-CR`.
+* **r2-n1 (nit).** r-m2's ratio applied gives ×0.55–0.58, not ×0.57 (0.19 ÷ 0.086 × 0.262 = 0.580): a median of
+  0.575 would be called a refutation of a band its own sum contains. Write ×0.25–0.58. #39's decision does not move
+  (both under ×0.8).
+
+**Verdict.** No blocker open: R-B1, r-m1, r-m2 and r-n1 closed. TRANSPORT-FLAGS-RUN may start; it makes r2-m1 and
+r2-m2 as part of its built-first step (lab only, said in its rows) and reads WT-AF's AD-LTE band as ×0.25–0.58 (r2-n1),
+or a later fix row writes them here first; either way before its first counted row, as this file's amendment rule
+asks. How it serves the value statement: the commands that run are now the ones that measure whether WebTransport
+alone gives "low latency on every jump" during a fill, and the summary must read the arms that answer it.
