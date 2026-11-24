@@ -130,6 +130,9 @@ small enough that every open item has an owner and a next step.
    message names its conflicts); `scripts/gate.sh` full on the merged tree, OK in 722 s. Each PR commented and closed.
    Skipped, with why: 420 (commits after its last review), 413, 418, 419 (review owed), 438 (blocker open), 439
    (review owed then), 411, 412, 424 (structural, the owner's item 1), 406, 408 (rigs), 404, 405, 409 (do not merge).
+   EVAL-RELEASE (2026-11-24, `claude/eval-release` from `b059388b6`): COMPLEXITY-AUDIT re-derived on the tip, items
+   1-4 and 6 landed, so no cleanup commit; items 5, 7, 8, `handoff/`, P4-P8, P10, S2 and S5 one line each in
+   `docs/reviews/eval-release.md` with the page that holds them. Owed: EVAL-RELEASE-REVIEW.
 
 ## Unification (the owner, 2026-11-09)
 
