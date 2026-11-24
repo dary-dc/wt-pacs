@@ -170,3 +170,80 @@ PCS-NOTE (this page), PCS-NOTE-REVIEW (owed: every question traced to its page, 
 > from lossy-sourced public clips, so none is yet a measurement of what you will send.
 >
 > **Not needed from you:** a decoded-samples hash per frame (we check coded hashes; the client checks samples).
+
+## Review
+
+PCS-NOTE-REVIEW, 2026-11-24 14:28–14:50 UTC, by a session that wrote none of this page nor any page it folds (`by:`
+in `claude/work-ledger:docs/queue/PCS-NOTE-REVIEW.md`). Read: this page at `4b48dcc00`; each source at the commit §0
+names (`2413ed211`; none of the five pages has moved since, `git log`): `pacs-sync` §2 and §9,
+`exact-frame-layout` §2 and §9, `ingest-optimal-quality` §2 and §9, `non-cine-series` §2 item 3 and §6,
+`us-dbt-carry` §2, §3 and §6, `83f73e2bc:docs/av1/noise-point.md` §Note; on `origin/claude/unified` `b059388b6`:
+`docs/FIXTURES.md` §Refused, `docs/ingest/contract.md` §What each name means, `docs/adr/pcs-transfer.md` §15.3,
+`docs/ingest/pacs-receive-design.md` §15, `docs/adr/metadata-updates.md` §13.6, `docs/htj2k-tiles.md`,
+`docs/decode/README.md`. Fetched: DICOM PS3.5 2026e (`part05.html`, 2026-11-24 14:29). Nothing run but `git`, a
+whitespace-normalised `diff` of each folded part against its source, and the fetch; the gate not run (docs only).
+
+**Traced, none lost.** Every question of the five drafts is in §9: `pacs-sync` §9 1–10 as A1–A9 and the last line
+(verbatim, `diff` empty but the move of item 10); `exact-frame-layout` §9 1–5 and its quote as B (verbatim); the
+σ_min note's four questions as C1–C4 (verbatim but "(§5.5)" dropped); the G note's 1–2 as C5–C6 and its 3 merged
+into F; `non-cine-series` item 3's three refusals as D1–D3; `us-dbt-carry` item 2's four as E1–E4, its clip as F.
+The PS3.5 §10.18.1 quote matches the fetched text; the "…" stands for "This permits retrieving a thumbnail
+resolution image." The three UIDs are as PS3.5 §10.19 names them. No private name, address or deployment in §9.
+
+**Blocker.**
+
+* **B1. Part B tells the PCS team it delivers HTJ2K, which our own records say it does not.** B's heading is "The
+  HTJ2K frames you deliver", and its source's lead, kept in `exact-frame-layout` §9, "We store and serve your HTJ2K
+  frames". The same note's A5 says "your code writes raw frames as `<I>/G|P|R/%05d`". `contract.md` §What each name
+  means puts the PCS's HTJ2K (`c/0001.<h>`, gathered into `mf.mxf`) in "a later layout that the code does not write
+  yet"; `pcs-transfer.md` §15.3 leaves `sf.jxl`, `mf.mxf`, `mf.mp4` out of the package as "the PDF's containers,
+  replaced by the bundle", and the bundle's HTJ2K is our sender's, coded from the raw frames
+  (`pacs-receive-design.md` §15: "the PACS receives `.sbnd`, not MXF/MP4/JXL"). `htj2k-tiles.md` asks the question
+  of "the PCS's `mf.mxf`", not of a delivery. As written, the recipient reads two contradicting facts about its own
+  output in one note, and B1's "transfer syntax UID" has no referent in a tree that holds raw frames, so
+  `exact-frame-layout` item 2 (whether Layout 1 costs a re-encode) may come back unanswered. The note is sent once,
+  outside the project: this is the page's one yes. Fix: B's heading and lead say what exists (your code writes raw
+  frames, which our sender codes in HTJ2K; your README's planned `c/` and `mf.mxf` are HTJ2K); B1–B4 ask of that
+  planned HTJ2K, and of any HTJ2K object that reaches you from a modality (the received syntax C3 already asks); B5
+  asks whether your planned encoder could write the strips. §3's B row says the lead was reworded and why; the same
+  correction is named for `exact-frame-layout` §9, in place, dated.
+
+**Minor.**
+
+* **m1. §3 maps A6 to "item 7's D14".** D14 is `pacs-sync` item 6 (layout A); item 7 lists D3, D5–D7, D9, D10, D13.
+  Fix: "item 6 (A6, layout A or B; D14)".
+* **m2. B5 is mapped two ways.** §3 sends it to "item 1's D+T3", §7 to "`exact-frame-layout` item 2's build cost".
+  Strips from the PCS change what item 2's build costs; item 1 is the rule that names D+T3. Fix: one of them, the
+  other made to agree.
+* **m3. Part C drops what the PCS would need if it is the side that encodes (C2) or picks G (C6).** §3 says C's
+  computing lines are "shortened to one sentence and a pointer"; §9 has the sentence and no pointer
+  (`83f73e2bc:lab/av1/metrics/quality.py` `sigma`, `83f73e2bc:lab/noise-ingest/src/sigma.rs`), and "(by Sobel gradient)" is gone, so
+  "the steepest 10 %" is undefined. The G note's cost line, "on one volume longer groups saved 4–5 % but decoded
+  about 20 % slower", is dropped, though C6 asks the PCS whether to choose G itself. Fix: the pointer (one line,
+  "on request" if a lab path should not leave the project), "by Sobel gradient", and the cost clause back.
+* **m4. §2's "a no leaves … no lossless-sourced ultrasound clip, so no ultrasound number"** is not what
+  `us-dbt-carry` item 7 says: `uscine_crc1`…`3`, "the one sound cine, pinned 2026-11-04", give "an ultrasound number
+  the provenance rule admits … for the first time" once a row runs them. F's own sentence ("Every ultrasound figure
+  we have is from lossy-sourced public clips") holds today, since no row has. Fix: "no lossless-sourced *breast*
+  clip in the PCS's layout; the one sound public cine is unused (`us-dbt-carry` item 7)".
+* **m5. The yes reads "as it stands" while E rests on an unreviewed page.** §4 and §6 say E changes with
+  US-DBT-CARRY-REVIEW; §2 should say so in the yes: "send it once US-DBT-CARRY-REVIEW leaves item 2 standing (or E
+  edited)", so BRIEF-WEEKEND's line carries the condition.
+* **m6. Questions elsewhere marked for the PCS team are neither in the note nor said answered.**
+  `pacs-receive-design.md` §15: "the PACS receives `.sbnd`, not MXF/MP4/JXL. Agreed?", the reply's
+  "Can the PCS run curl and a small script (resumable upload, mutual TLS, a certificate per site)?", "The date
+  folder `<D>/` (eDA): does the PCS need it in the PACS path?"; `metadata-updates.md` §13.6 Q-U1, Q-U3, Q-U4
+  (a SOP Instance UID the Store SCP already holds), Q-U6 (Key Object Selection), Q-U7; `decode/README.md`: "The
+  parser keeps no raw frame for a single-frame instance, only `sf.jxl` (asked of the PCS team)" and the PCS's own
+  `sf.jxl` setting, which D (stills) is next to. `pacs-sync` §9 chose from §15 and §13.6 without saying what it left;
+  the brief's scope is the pages, so this is not a loss of this row, but a note sent "once" should either carry them
+  or §3 should list them as left out, each with why (answered, moot under rsync, or later).
+
+**Nits.** A's parentheticals are our labels, not the recipient's ("D14", "#220's two unknowns", "the seam", "the
+profile", "the hash bridge's gap"): each could be the plain clause it stands for. E4 adds "and could it be delivered
+as it is?" to `us-dbt-carry` item 2's question; §3 says E is "made into sentences", which is fine, but this is an
+ask the page did not make (§7 does weigh it).
+
+**Verdict.** One blocker (B1). PCS-NOTE-FIX and PCS-NOTE-FIX-REVIEW are appended to the phase 2 queue
+(`claude/work-ledger:docs/queue-2026-11-24.md`); the page's yes waits on the re-review, and BRIEF-WEEKEND's line for
+it reads "after PCS-NOTE-FIX-REVIEW". Every other part of the note stands as traced.
