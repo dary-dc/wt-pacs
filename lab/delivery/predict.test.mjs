@@ -1,7 +1,10 @@
-// node lab/delivery/predict.test.mjs — the model of delivery-comparison.md §4.1 and its plan of cells (§1–§3).
+// node lab/delivery/predict.test.mjs — the model of delivery-comparison.md §4.1 and §Amendment 2, and its plan of cells (§1–§3).
+import { readFileSync } from "node:fs";
 import { balanced } from "../order.mjs";
-import { ARMS, CELLS, VOLUMES, armParams, blackoutPhaseMs, cellLoads } from "./plan.mjs";
-import { band, decodeFloor, digestOf, exactLatency, fill, predictions, regime, slowStart, unitsOf, wire } from "./predict.mjs";
+import { wireCurves } from "./inputs.mjs";
+import { voidOf } from "./judge.mjs";
+import { ARMS, CELLS, K3_PRIME_LOADS, VOLUMES, armParams, blackoutPhaseMs, cellLoads, k3PrimeLoads } from "./plan.mjs";
+import { askLastByte, band, curveStart, decodeFloor, digestOf, exactLatency, fill, predictions, regime, slowStart, unitsOf, wire } from "./predict.mjs";
 
 let failed = 0;
 const check = (ok, claim) => (console.log(`${ok ? "ok" : "FAIL"}: ${claim}`), ok || (failed += 1));
@@ -40,26 +43,60 @@ check(slowStart(36000, 100, 1000) === 100 + 0.192, "slow start: a second flight 
 /** §8's bands: wider on the lossy forms. */
 check(JSON.stringify([band("CLEAN", "fill"), band("LTE", "fill"), band("CR", "latency"), band("LOSS", "latency")]) === "[[0.85,1.15],[0.75,1.33],[0.75,1.33],[0.6,1.67]]", "bands: §8's");
 
-/** Every (cell, volume, arm) is predicted; a prefix cell predicts its first N frames; C1 and C2 carry their second clock. */
+/** Every (cell, volume, arm) is predicted; a prefix cell predicts its first N frames; C1 and FIT carry their second clocks. */
 const vol = { view: { frames: a1.view, group: 8, frameMs: 24.6 }, exact: { frames: a1.exact, frameMs: 19.8, loneMs: 19.8 }, shown: 0 };
 const forms = Object.fromEntries(Object.keys(CELLS).map((c) => [c, clean]));
 const p = predictions({ volumes: { dbts_a1: vol }, forms });
-check(p.length === Object.keys(CELLS).length * (ARMS.length + 2), `predictions: ${p.length} rows, one a (cell, arm) and C1's latency and C2's span`);
+check(p.length === Object.keys(CELLS).length * (ARMS.length + 3), `predictions: ${p.length} rows, one a (cell, arm), C1's latency and ask → last byte, FIT's zoom`);
 check(p.filter((r) => r.cell === "LTE").every((r) => r.frames === 16) && p.filter((r) => r.cell === "CLEAN").every((r) => r.frames === 56), "predictions: LTE predicts its 16-frame prefix, CLEAN the whole volume");
-const c2 = p.find((r) => r.cell === "CLEAN" && r.arm === "C2" && r.kind === "span");
 check(near(p.find((r) => r.cell === "CLEAN" && r.arm === "B").ms, b.ms, 1e-9) && p.find((r) => r.cell === "CLEAN" && r.arm === "C1" && r.kind === "fill").ms < b.ms, "predictions: B fills the exact series, C1 the view");
-check(near(c2.ms, b.ms, 1e-9), "predictions: C2's span is the exact series' own fill, never A's and B's added");
-const dialed = predictions({ volumes: { dbts_a1: vol }, forms, exactDialed: true }).find((r) => r.cell === "CLEAN" && r.kind === "span");
-check(near(c2.ms - dialed.ms, 6, 1e-9), "predictions: a C2 session dialed earlier starts 3 round trips sooner");
 
-/** §2's order: a Williams row of the five arms a round, each volume, volumes rotated; balanced over a period. */
+/** A2.2: on a volume that fits at level 0 FIT is B, and its zoom is one paint, reported and not judged. */
+const fitA = p.filter((r) => r.cell === "CLEAN" && r.arm === "FIT");
+check(near(fitA.find((r) => r.kind === "fill").ms, b.ms, 1e-9) && fitA.find((r) => r.kind === "zoom").ms === 17 && fitA.find((r) => r.kind === "zoom").judged === false, "predictions: FIT at level 0 is B's fill, its zoom 17 ms and not judged");
+
+/** A2.4: K3′'s curve passes through its points, starts at 3 RTT + 20 ms, and continues its last segment past the last point. */
+const lte = { rttMs: 38, curve: [[1e6, 500], [2e6, 1500]] };
+check(wire(0, lte) === curveStart(38) && wire(1e6, lte) === 500 && wire(1.5e6, lte) === 1000 && wire(3e6, lte) === 2500 && near(wire(5e5, lte), (134 + 500) / 2, 1e-9),
+  "wire curve: through its points, from 3 RTT + 20 ms, the last segment continued");
+check(askLastByte(1e6, lte) === 500 - 134 + 38, "C1 ask → last byte on a curve: the first frame's point less the dial, plus one round trip");
+
+/** A2.7's table and A2.3's SPLIT ÷ A, reproduced from the 2026-11-23 inputs and B loads (prefix 0.271 of a frame, its decode 0.29). */
+const R = new URL("./", import.meta.url).pathname;
+const inp = JSON.parse(readFileSync(`${R}inputs.json`));
+const b1 = inp.volumes.dbts_b1;
+b1.fit = { level: 1, prefixes: b1.exact.frames.map((x) => x * 0.271), rests: b1.exact.frames.map((x) => x * 0.729), frameMs: b1.exact.frameMs * 0.29 };
+for (const cell of ["LTE", "LOSS"]) {
+  const pilot = JSON.parse(readFileSync(`${R}rows/${cell}-pilot.pilot-medians.json`));
+  const B = readFileSync(`${R}rows/${cell}.jsonl`, "utf8").trim().split("\n").map(JSON.parse).filter((r) => r.arm === "B" && !voidOf(r, { pilotMedian: pilot[`${cell}/${r.volume}/B`] }).why.length);
+  inp.forms[cell] = { rttMs: inp.forms[cell].rttMs, curves: wireCurves(B, Object.fromEntries(Object.entries(inp.volumes).map(([v, x]) => [v, x.exact.frames])), CELLS[cell].prefix) };
+}
+const q = predictions(inp);
+const s_ = (cell, volume, arm, kind = "fill") => q.find((r) => r.cell === cell && r.volume === volume && r.arm === arm && r.kind === kind).ms / 1000;
+const table = ["CLEAN", "PUB", "CR", "LTE", "LOSS"].map((c) => [s_(c, "dbts_b1", "A"), s_(c, "dbts_b1", "B"), s_(c, "dbts_b1", "FIT"), s_(c, "dbts_b1", "FIT", "zoom")].map((x) => x.toFixed(2)).join(" "));
+check(table.join(" | ") === "5.75 9.97 2.72 0.20 | 5.85 10.08 2.83 0.22 | 13.80 35.07 14.96 1.25 | 2.66 23.40 2.47 0.49 | 5.00 24.35 4.63 0.88", `A2.7: dbts_b1's A, B, FIT and FIT's zoom (${table.join(" | ")})`);
+const splitA = ["CLEAN", "PUB"].map((c) => VOLUMES.map((v) => (s_(c, v, "SPLIT") / s_(c, v, "A")).toFixed(2)).join(" "));
+const xs = VOLUMES.map((v) => q.find((r) => r.cell === "CLEAN" && r.volume === v && r.arm === "SPLIT").x.toFixed(2)).join(" ");
+check(splitA.join(" | ") === "0.90 0.81 0.87 | 0.90 0.82 0.87" && xs === "0.15 0.26 0.19", `A2.3: SPLIT ÷ A on CLEAN and PUB (${splitA.join(" | ")}), x on CLEAN (${xs})`);
+check(["CR", "LTE", "LOSS"].every((c) => VOLUMES.every((v) => s_(c, v, "SPLIT") === s_(c, v, "A"))), "A2.3: SPLIT is A where A is wire-bound (CR, LTE, LOSS)");
+
+/** §2's order: a Williams row of the six arms a round, each volume, volumes rotated; balanced over a period. */
 const loads = cellLoads("CLEAN");
-check(loads.length === 10 * 5 * 3, `plan: ${loads.length} loads, 10 rounds × 5 arms × 3 volumes`);
+check(loads.length === 12 * 6 * 3, `plan: ${loads.length} loads, 12 rounds × 6 arms × 3 volumes`);
 const perVolume = VOLUMES.map((v) => loads.filter((l) => l.volume === v).map((l) => ({ ...l, unit: l.arm })));
 check(perVolume.every((rows) => ARMS.every((a) => balanced(rows, a, ARMS))), "plan: every arm follows every other equally often within a volume");
 check(!ARMS.every((a) => balanced(cellLoads("CLEAN", { fixedOrder: true }).filter((l) => l.volume === "dbts_a1").map((l) => ({ ...l, unit: l.arm })), a, ARMS)), "plan: a fixed order is not balanced");
-check(loads.slice(0, 15).map((l) => l.volume).join() !== loads.slice(15, 30).map((l) => l.volume).join(), "plan: the volumes rotate between rounds");
-check(JSON.stringify([armParams("C1"), armParams("C2"), armParams("B")]) === JSON.stringify([{ decoders: "2", press: "lossless", pressAfter: "1000" }, { decoders: "2", exactFill: "1" }, { decoders: "2" }]), "plan: two decoders every arm, C1 presses 1 s after, C2 fills the exact series");
+check(loads.slice(0, 18).map((l) => l.volume).join() !== loads.slice(18, 36).map((l) => l.volume).join(), "plan: the volumes rotate between rounds");
+check(JSON.stringify([armParams("C1"), armParams("FIT"), armParams("SPLIT"), armParams("B")]) === JSON.stringify([{ decoders: "2", press: "lossless", pressAfter: "1000" }, { decoders: "2", fit: "1", zoomAfter: "1000" }, { decoders: "2", split: "1" }, { decoders: "2" }]),
+  "plan: two decoders every arm, C1 presses 1 s after, FIT zooms 1 s after, SPLIT splits");
+check(loads.filter((l) => l.arm === "FIT").every((l) => l.series === "fit") && loads.filter((l) => l.arm === "SPLIT").every((l) => l.series === "view"), "plan: FIT loads its fit series, SPLIT the view with its pair");
+
+/** A2.4's K3′: 8 B loads a lossy (form, volume), not counted, on the lossy forms only. */
+const k3p = k3PrimeLoads("LOSS");
+check(k3p.length === K3_PRIME_LOADS * 3 && k3p.every((l) => l.arm === "B" && l.calibration === "K3′") && VOLUMES.every((v) => k3p.filter((l) => l.volume === v).length === 8), "K3′: 8 B loads a volume, marked calibration");
+let refusedClean = null;
+try { k3PrimeLoads("CLEAN"); } catch (e) { refusedClean = e.message; }
+check(/only the lossy forms/.test(refusedClean ?? ""), "K3′: a clean form is refused");
 
 /** §3's table pinned: each form's delay one way, rate, queue and loss, its round trip, prefix and K3's prefixes. */
 const relayOf = (c) => CELLS[c].relay.join(" ");

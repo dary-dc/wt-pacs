@@ -1,4 +1,4 @@
-// The delivery comparison's cells, arms and order. docs/client/evidence/delivery-comparison.md §1–§3
+// The delivery comparison's cells, arms and order. docs/client/evidence/delivery-comparison.md §1–§3, §Amendment 2
 import { order } from "../order.mjs";
 
 const link = (delayMs, kbit, pkts, ...rest) => ["--delay-ms", String(delayMs), ...(kbit ? ["--rate-kbit", String(kbit)] : []), "--queue-pkts", String(pkts), ...rest];
@@ -16,12 +16,17 @@ export const CELLS = {
 /** K2's relay: CLEAN's form without a rate. */
 export const UNIMPAIRED = link(1, 0, 300);
 
-export const ARMS = ["A", "A'", "B", "C1", "C2"];
+export const ARMS = ["A", "A'", "B", "C1", "FIT", "SPLIT"];
 export const VOLUMES = ["dbts_a1", "dbts_b1", "dbts_c1"];
 /** §1: C1 asks its exact frame this long after its fill ends. */
 export const PRESS_AFTER_MS = 1000;
+/** A2.5: FIT zooms past the fit this long after its fill ends. */
+export const ZOOM_AFTER_MS = 1000;
 export const DECODERS = 2;
-export const ROUNDS = 10;
+/** A2.8: two Williams periods of six arms. */
+export const ROUNDS = 12;
+/** A2.4: K3′'s calibration loads of arm B a (lossy form, volume). */
+export const K3_PRIME_LOADS = 8;
 
 /** A uniform draw in [0, 1) fixed by `key` (FNV-1a). */
 export function draw(key) {
@@ -38,18 +43,20 @@ export function armParams(arm) {
   const p = { decoders: String(DECODERS) };
   if (arm === "C1") Object.assign(p, { press: "lossless", pressAfter: String(PRESS_AFTER_MS) });
   if (arm === "C2") p.exactFill = "1";
+  if (arm === "FIT") Object.assign(p, { fit: "1", zoomAfter: String(ZOOM_AFTER_MS) });
+  if (arm === "SPLIT") p.split = "1";
   return p;
 }
 
-/** B loads the exact series alone; every other arm the view with its pair. */
-export const seriesOf = (arm) => (arm === "B" ? "exact" : "view");
+/** B loads the exact series alone, FIT its fit series (the exact series where the fit is level 0); every other arm the view with its pair. */
+export const seriesOf = (arm) => (arm === "B" ? "exact" : arm === "FIT" ? "fit" : "view");
 
 /** One cell's loads in run order: a Williams row of the arms a round, run for each volume, the volumes rotated by one a round. */
-export function cellLoads(cell, { rounds = ROUNDS, fixedOrder = false } = {}) {
+export function cellLoads(cell, { rounds = ROUNDS, fixedOrder = false, arms: armSet = ARMS } = {}) {
   if (!CELLS[cell]) throw new Error(`cell ${cell}: one of ${Object.keys(CELLS).join(" ")}`);
   const loads = [];
   for (let round = 0; round < rounds; round++) {
-    const arms = fixedOrder ? ARMS : order(ARMS, round);
+    const arms = fixedOrder ? armSet : order(armSet, round);
     const volumes = VOLUMES.map((_, k) => VOLUMES[(k + round) % VOLUMES.length]);
     for (const volume of volumes) {
       arms.forEach((arm, k) => loads.push({ cell, round, volume, arm, prev: k ? arms[k - 1] : null, series: seriesOf(arm), params: armParams(arm),
@@ -57,4 +64,12 @@ export function cellLoads(cell, { rounds = ROUNDS, fixedOrder = false } = {}) {
     }
   }
   return loads;
+}
+
+/** A2.4's K3′: arm B's loads of a lossy form, interleaved over the volumes, not counted. */
+export function k3PrimeLoads(cell) {
+  if (!CELLS[cell]?.lossy) throw new Error(`K3′ ${cell}: only the lossy forms (${Object.keys(CELLS).filter((c) => CELLS[c].lossy).join(" ")})`);
+  return Array.from({ length: K3_PRIME_LOADS }, (_, round) => VOLUMES.map((_, k) => VOLUMES[(k + round) % VOLUMES.length]).map((volume) => ({
+    cell, round, volume, arm: "B", calibration: "K3′", series: "exact", params: armParams("B"), blackoutPhaseMs: blackoutPhaseMs(cell, `K3′/${round}/${volume}`),
+  }))).flat();
 }
