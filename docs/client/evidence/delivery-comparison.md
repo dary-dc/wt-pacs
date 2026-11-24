@@ -473,9 +473,9 @@ it was shaped after: a sanity check, never a test). §1–§10 bind as written e
 
 | | 2026-11-23 run | DELIVERY-RUN-2 |
 | --- | --- | --- |
-| arms | A, A′, B, C1, C2 | **A, A′, B, C1, FIT, SPLIT** (C2 dropped: `delivery-per-link.md` item 3 answered it) |
+| arms | A, A′, B, C1, C2 | **A, A′, B, C1, FIT, SPLIT** (C2 dropped: its span held on every clean form on the 23rd, and `delivery-per-link.md` item 3 recommends against it) |
 | order | Williams square, 5 arms, 10 rounds | Williams square, 6 arms (even *n*: a period is 6 rounds), **12 rounds** (two periods) |
-| lossy forms' wire | one start and one goodput (A2) | **a curve**: wire time as a function of bytes, from calibration loads of arm B (A2.4) |
+| lossy forms' wire | one start and one goodput (§11 A2) | **a curve**: wire time as a function of bytes, from calibration loads of arm B (A2.4) |
 | C1 | press → painted | press → painted **and ask → last byte** (§5 asked it; the rows lacked it) |
 | the relay | pinned to core 0 | pinned, every browser process's affinity checked per load, two escalations registered in advance (A2.6) |
 | a view load's record | fill, frames | also the switch's reading: *G* of its first group, *d*_V, the pick (A2.5) |
@@ -565,7 +565,7 @@ exact series is reported by name. What would fire it: a host past *G*★ or a sl
 
 ### A2.4 · The lossy forms: a wire curve instead of one goodput
 
-**Why.** On LTE and LOSS the line through K3's two prefixes gave a negative start (A2), and one goodput missed every
+**Why.** On LTE and LOSS the line through K3's two prefixes gave a negative start (§11 A2), and one goodput missed every
 fill shorter than the second prefix (§Results). The rows say why (*measured*, `rows/LTE.jsonl`, arm B, `dbts_b1`, the
 median over 10 loads of each frame's last byte from the dial): frames 1–4 (8.6 MB) by 2.0 s, ~34 Mbit/s; frames 13–16
 (another 8.7 MB) in 7.2 s more, ~9.6 Mbit/s. The first megabytes go near the link's rate before loss shrinks the window. And
@@ -650,7 +650,7 @@ decode is slower (DEVICE-THEORY), FIT's lead on clean links grows; this host can
   picture's truth), the `fit` lever (prefixes asked, decoded at the level and clamped, painted scaled to the viewport),
   the zoom press, the `split` lever, K3′ in `inputs.mjs` and the curve in `predict.mjs`, and A2.5's records.
 * **Rounds**: 12 a cell (two Williams periods of 6 arms), 216 loads; at the 23rd's pace ~52 (CLEAN), ~53 (PUB), ~98
-  (CR), ~69 (LTE), ~71 (LOSS) minutes (*derived*). Order of cells as §6. CR and any cell past 2 h run detached (A5).
+  (CR), ~69 (LTE), ~71 (LOSS) minutes (*derived*). Order of cells as §6. CR and any cell past 2 h run detached (§11 A5).
 * **The rule** (§8, its bands unchanged): a (cell, volume, arm, clock) **holds** when its median ratio is in its band and
   at least 10 of its 12 rounds are; under 10 counted rounds it is `CANNOT HOLD`. Clocks judged: every fill (the fill
   band), C1's press → painted and ask → last byte, FIT's zoom (the latency band). *x*, the switch's reading and the
