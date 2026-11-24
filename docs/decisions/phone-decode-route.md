@@ -203,10 +203,10 @@ not yet written); the round is the owner's local session.
 **The round's code bounds the view's memory** (PR 435, on `claude/unified` since UNIFIED-SYNC-1124 `b7cc007f7`, which
 `claude/phone-run-2` merges). **Theory, from the code, not run:** `memoryWindow` gives 15 frames on `dbts_b1` (2560 ×
 3328 at two bytes), and with no cache the fill asks no more than the window; the round page's `fillFailure`
-(`claude/phone-run:lab/devices/round.mjs`) fails a load that "received" fewer than the series' `frameCount`. So a viewer fill (cells 2
-and 3; cell 1 is the bench) of `dbts_b1` on that code fails as written, and a fill that passes is not the 11-22 fill
-this page's 3.68 s and 1.74 s measured. PHONE-ROUND-2-PREP's dry run decides it; the bound's size at two values (its
-brief) needs a lab setting `claude/unified` does not have (`viewer.js` passes no budget).
+(`claude/phone-run:lab/devices/round.mjs`) fails a load that "received" fewer than the series' `frameCount`. So a
+viewer fill (cells 2 and 3; cell 1 is the bench) of `dbts_b1` on that code fails as written, and a fill that passes is
+not the 11-22 fill this page's 3.68 s and 1.74 s measured. PHONE-ROUND-2-PREP's dry run decides it; the bound's size
+at two values (its brief) needs a lab setting `claude/unified` does not have (`viewer.js` passes no budget).
 
 Rows: DEVICE-THEORY, -REVIEW, -FIX, -FIX-REVIEW (PR 414); PHONE-ROUND (the owner's local session), PHONE-READ,
 -REVIEW, -FIX, -FIX-REVIEW, MOBILE-DECODE-REJUDGE (client queue); ROUTE-POLICY, ROUTE-POLICY-REVIEW (PR 397); earlier,
