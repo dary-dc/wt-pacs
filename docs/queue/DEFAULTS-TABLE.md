@@ -4,7 +4,7 @@ heartbeat: 2026-11-24T11:27Z
 by: aGu8dFAT
 outputs: claude/defaults-table (from origin/claude/unified b059388b6)
 ## Resume
-Claimed. Next: branch claude/defaults-table from origin/claude/unified; start from
-origin/claude/demo-understand:docs/reviews/understand/defaults.md, re-read every default against the tip,
-write docs/defaults.md (value, file:line, the measurement that chose it or "chosen by no measurement" and why).
+Branch claude/defaults-table created locally from origin/claude/unified b059388b6 (nothing pushed yet).
+Surveys of server+deploy, client, ingest defaults running (file:line, measurement doc per default).
+Next: write docs/defaults.md from them, spot-check every line number, check_links.py, push, draft PR → unified.
 ## Result
