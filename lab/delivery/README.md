@@ -95,7 +95,9 @@ exact one): none is a result, and none changes what the run measures.
 * **A zoom's paint is timed at its issue**: the round page's paints are unsettled, as every label clock here is, so the
   zoom carries no draw time (on `dbts_a1`, 0.6 ms for A2.7's 17 ms, which is reported, not judged).
 * On CLEAN, one load each: FIT `dbts_b1` fill 2.76 s (A2.7: 2.72), zoom 0.25 s (0.20), its ask → last byte 0.15 s;
-  FIT `dbts_a1` fill 6.29 s (§4.3's B: 6.29). Each window read-back equal byte for byte (1280 × 1664, 1142 × 1785).
+  FIT `dbts_a1` fill 6.29 s (§4.3's B: 6.29); SPLIT `dbts_b1` 5.60 s, *x* 0.29, beside A's 5.98 s (A2.3: ×0.81, *x*
+  0.26). Each window read-back equal byte for byte (1280 × 1664, 1142 × 1785). K3′ on LOSS `dbts_b1`, 8 B loads, all
+  counted: 2.11 MB at 1.58 s to 17.0 MB at 24.9 s.
 * **The switch's reading is the judge's** (A2.3, A2.5), from what every view load already records: *G* over its first
   group's frames 1–7 (bytes over frame 0's last byte to frame 7's; no frame records its first byte), *d*_V its median
   decode ÷ 2, the pick at *m* = 1. Read back on the 2026-11-23 rows (A, A′, C1, 450 loads): *G* 81–88 Mbit/s on CLEAN,
@@ -128,7 +130,8 @@ Each run 2026-11-20, on the synthetic pair (the model's and the judge's in their
 | A2.8: the read-back from the placed canvas stops the run | `--mutate canvas-readback`, CLEAN `dbts_b1` FIT | `STOP: … window read-back of frame 0: 8946720 bytes for 2129920 samples` |
 | A2.8: the FIT lever ignored: the judge refuses | `--mutate fit-ignored` (the exact series for FIT), then `judge.mjs` | `refused: FIT round 0 dbts_b1: frame 0 carried 2063.7 KiB, its level prefix 556.9 KiB` |
 | A2.8: a browser process allowed on core 0 is `VOID` | `--mutate escaped` | `VOID escaped: chrome … on 0,2-3` |
-| A2.8: K3′ from A loads: the predictor refuses | `inputs.test.mjs`: an A row among the curve's | `K3′: its rows must be B's, got A` |
+| A2.8: K3′ from A loads: the predictor refuses | `--k3-prime --mutate k3-from-a`, LOSS `dbts_b1`, then `wireCurves` (as `inputs.mjs --k3-prime`); `inputs.test.mjs` too | `K3′: its rows must be B's, got A (dbts_b1 round 0)` |
+| A2.8: SPLIT asking only the view: the pilot refuses | `--pilot --mutate split-view-only`, CLEAN `dbts_b1` | `PILOT REFUSES: SPLIT asked no exact group on CLEAN dbts_b1`; unmutated, its pilot passes (forms view, view, view, exact, exact, view, view) |
 
 ## Limits
 
