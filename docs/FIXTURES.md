@@ -120,6 +120,23 @@ study would be one bundle per series plus a study manifest, `study.json` (not th
 per series, so the wire is unchanged, but what the server serves and how the page names a series both change. That
 is the owner's design call.
 
+### Stacks end to end
+
+The gate's step from a real stack to the page (`scripts/stacks_end_to_end.sh`): `usb_cine`, `usb_cine_rgb` and
+`dbts_a1` of §AV1 data, each through `from_dicom.py --codec htj2k`, its bundle's `digests` held to the set's pin in
+`lab/av1/data.json` (every frame's XXH3-64 the fetched frame's), then served and opened by the viewer's page check
+(`client/viewer/check.mjs`) in the page and in the view worker, failing unless every pinned frame is received and
+exact. `dbts_a1` enters as its pinned DICOM object; the two clips are AVI, so each enters as one multi-frame US object
+written from its pinned frames (`ingest/from-dicom/stack_fixture.py`, 8-bit, MONOCHROME2 or RGB). The gate skips it
+by name until the three sets are fetched, 1.7 GB in all, 1.5 GB of it the clips' zip:
+
+```bash
+OUT=lab/av1/data lab/av1/fetch_data.sh usb_cine usb_cine_rgb dbts_a1    # once; DATA=... if fetched elsewhere
+```
+
+It shows the path complete, not how fast it is: the clips are lossy-sourced, so their bytes and times are no result
+(§Provenance), and `dbts_a1`'s are one loopback run's in software decode. US-END-TO-END, 2026-11-24.
+
 ### A compiled ingest at the site — the plan
 
 Queue row INGESTPLAN, 2026-10-10: a design for the owner, theory only; nothing built or timed. The pipeline from the parser to the PACS, weighed against alternatives on every axis, is
