@@ -104,3 +104,91 @@ chain into `av1-unified-mainbase` (its PRs closed 2026-11-18, their branches in 
 `claude/av1-encoder-settings:docs/av1/encoder-settings.md`, `claude/av1-audit-quality:docs/av1/audit-quality.md`,
 `claude/av1-audit-decode:docs/av1/audit-decode.md`, `claude/av1-groups:docs/av1/groups.md`, `claude/av1-svc-preview`,
 `claude/line-server`. The unified codecs branch: `claude/unified-codecs`, from `claude/av1-unified-mainbase`.
+
+## Optimal quality
+
+Folded here from `optimal-quality.md` on 2026-11-24 (LINES-FOLD); its history is in git.
+
+Last verified 2026-11-14 against `claude/unified-client` `e5b20cba` and `claude/direction`'s line doc of 2026-11-12.
+The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The client's side of the design:
+[`../client/design.md`](../client/design.md); the contract: [`../av1/payload-format.md`](../av1/payload-format.md)
+§Optimal quality, §Depth cut, §Source fingerprint; the page: `client/README.md` §Optimal quality, exact on request.
+
+### Optimal quality: goal
+
+Every reader sees a series' optimal-quality AV1 view, and a Lossless request brings that frame whole from its exact
+HTJ2K series; no residual, no server or wire change.
+
+### Optimal quality: in flight
+
+* **On `claude/unified-client`**, with the client line: the pairing, the label, WebCodecs first, the depth cut, the
+  pair served by the web image's `--profile pair`; 40 of 40 on the demo commit under both views
+  ([`../reviews/freeze-e2e.md`](../reviews/freeze-e2e.md)). The product ingest codes it behind a flag, off by default (below).
+* **The integrity and coding-error check** (#368, behind one switch, off by default): its review's findings unfixed —
+  a refused frame leaves the previous green mark; three `decoder.js` mutants survive the gate; no `demo-check.mjs`
+  check per label state; the coding-error test compares the wrong σ; the first picture's +7.8 % at 1× not weighed
+  (`claude/oq-integrity-build:docs/reviews/oq-integrity.md`; the evidence:
+  [`../client/evidence/optimal-quality-reconstruction-digest.md`](../client/evidence/optimal-quality-reconstruction-digest.md)). Until it ships, the green mark claims a check nobody ran. *2026-11-22:* a fault model reads the
+  branch's withheld frame as leaving the previous frame's picture on the canvas, and asks whether a ✓ on a lossy
+  picture says anything once every frame is checked
+  ([`../client/evidence/integrity-model.md`](../client/evidence/integrity-model.md) §5; theory, not run).
+* **The product ingest writes the pair**, a design only (`claude/ingest-oq:docs/reviews/ingest-oq.md`): the Rust
+  ingest's second phase with `aomenc` as a subprocess, held by a parity test; found: signed sources over 10 bits
+  have no form on the product path, and `pairOf` refuses ids with `~`. Its testable claims are tests since 2026-11-21
+  (`claude/ingest-oq-tests`, no fix): T2 and T3 against `ingest.py` in `ingest/coded-frames/pair_contract_test.py`,
+  F1 in `client/viewer/pair.test.mjs`, each failing claim a named known gap the gate keeps green until it holds:
+  `ingest.py` leaves the cut to its caller and codes signed 12-bit sources (the Rust ingest's `optimal::form` cuts and
+  refuses them), it writes no optimal-quality metadata, and `pairOf` admits neither `~` nor `<Study>/<Series>`. Reviewed 2026-11-22 (PR 421's body §INGEST-OQ-TESTS-REVIEW): no blocker; each
+  claim fails on today's code and flips to "gap closed" under a scratch fix; a known gap does not check why it fails (m1).
+* **The product ingest codes optimal quality: built, experimental** (#390): `ingest/from-parser --optimal-quality [Q]
+  [--group G]`, off by default, byte-identical to `ingest.py`'s `lossy` on synthetic sets in the gate and on `dbts_a1`
+  Q 8 G 8 cut ([`../av1/payload-format.md`](../av1/payload-format.md) §Optimal quality). Owed: the owner's S1/S2 for
+  signed sources over 10 bits (S2 built), G per modality once measured, phase 2's display keys and several instances a
+  series, a reconstruction digest if #368 is adopted; the DICOM ingest (`from_dicom.py`) does not code it. Reviewed
+  (#390's body): the flag off writes the same bytes as `e5b20cba`'s ingest on six synthetic sets; no blocker.
+  Untested: the aomenc pin, aomenc not needed with the flag off, exit 1 on a refusal; the "both refuse" for signed over
+  10 bits is `same.py`'s own rule, not `ingest.py`'s.
+* **The two failures the phone found** ([`client.md`](client.md#in-flight) §In flight); the first breaks this line's promise on a
+  lossy link.
+* **Is Q 8 visually lossless at the readers' windows**: owned by the codecs line (above); readers decide, no agent.
+  What the AV1 harvest of 2026-11-10 changes in the demo's claims is in the codecs line's §AV1 harvest: Q 8
+  is a candidate (the noise rule picks it on two of the six timed cells); at the rule's Q the view is 0.10–0.28 of
+  HTJ2K's bytes (*derived*); nothing shows WebCodecs under one HTJ2K frame on a slow device; the depth cut's
+  in-window cost is unmeasured; `claude/oq-ingest` owes a refusal or label of Q 0.
+* **Narrow windows show the coding error most**: an automatic exact request at a narrow window is an option to
+  compare, its threshold set by readers.
+* **Tiles**: AV1 tiles wait (2×2 not ready by their rule); HTJ2K at the screen's resolution is the codecs line's (above).
+* Two `demo-check.mjs` mutants that ask a group ahead survive, cause not traced.
+
+### Optimal quality: PRs
+
+| PR | what | state |
+| --- | --- | --- |
+| #368 | the integrity and coding-error check | draft; the owner's |
+| #358 | the proposals' rounds (`claude/proposals`) | draft |
+| #359 | the phone protocol's second amendment, not on the tip | draft; reaches `main` only if carried |
+| #340, #350, #356, #360–#365 | stale drafts; the tip carries #356 and #360–#365 | open; closes are the owner's |
+
+### Optimal quality: owed runs
+
+The next phone round ([`client.md`](client.md) §Owed runs), its link calibrated and its theory first; #368 on a phone;
+the coding error converted to display levels at the current window, against the quality study's rows.
+The round is pre-registered in [`../phone-rows/next-round.md`](../phone-rows/next-round.md); its review's author
+findings fixed in place and re-reviewed 2026-11-15 (its §Re-review: every finding closed, no blocker; three minors).
+
+### Optimal quality: waits for the owner
+
+Taking #368 and its open choices (the unchecked label, block or paint, the mask); which ingest writes the pair, the
+signed gap, where Q and G come from, whether the PCS may code optimal quality; the phone run's reading (which stands,
+and whether `bbr`'s two failures withdraw it); any merge, close or removal.
+
+### Optimal quality: pointers
+
+`client/viewer/{pair.js,screen.js,demo-check.mjs}`, `ingest/coded-frames/ingest.py`, `scripts/demo-series.sh`,
+`server/dev-server.py`, `deploy/README.md` §Run it, README §Demo; [`../devices.md`](../devices.md) §7 and §8;
+[`../glossary.md`](../glossary.md); `docs/reviews/` (freeze-e2e, e2e-3, demo-e2e-2, demo-tests-mobile, demo-redteam,
+demo-blind); `claude/phone-rows:docs/phone-rows/`; `claude/proposals:docs/lines/proposals.md`;
+`claude/merge-plan:docs/reviews/merge-plan.md`. What a presenter should have known before the demo, fixed after it (the
+names, the check hooks on the image, `viewer.js`'s lab lines, what PR 250 brings to `main`, the committed WASM,
+`framesSha256`): `e5b20cba:docs/lines/optimal-quality.md` §Known before the demo, fixed after it; the names' part is
+`client/README.md` §Optimal quality, exact on request.

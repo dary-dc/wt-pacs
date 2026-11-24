@@ -2247,7 +2247,7 @@ ABUS exists among the fixtures ([`../FIXTURES.md`](../FIXTURES.md)); nothing bel
 
 * **Design chosen (2026-11-09):** every viewer sees the series' **optimal quality**, an AV1 view meant to be visually
   lossless; a reader's explicit request fetches the **exact** HTJ2K frame whole. Its build is
-  [`optimal-quality.md`](../lines/optimal-quality.md). "Visually lossless" is still a metric's candidate, not a reader's
+  [`codecs.md`](../lines/codecs.md#optimal-quality) §Optimal quality. "Visually lossless" is still a metric's candidate, not a reader's
   finding (§AV1 harvest (1)).
 * **Measured, Q 8, G 1, on the three volumes:** the view is 0.07–0.22 of HTJ2K's bytes. That is Q 8's figure, not
   the noise rule's: at the rule's Q the view is 0.10–0.28 and view plus exact frame 1.10–1.28× (*derived*, audit F7).

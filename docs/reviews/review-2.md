@@ -32,7 +32,7 @@ finding, and nothing else fails. No finding.
 
 ## 2. Docs claims against the recorded rows (FIX-1, E2E-3, TEST-MOBILE)
 
-* **Byte fractions.** Checked: `docs/lines/optimal-quality.md` §State now, `docs/reviews/e2e-3.md` step 2, and
+* **Byte fractions.** Checked: `docs/lines/codecs.md` §State now, `docs/reviews/e2e-3.md` step 2, and
   `docs/av1/payload-format.md`'s two byte tables. Each was computed again from E2E-3's per-series KB (KiB) and the
   exact series' bytes in `payload-format.md` (67 815 186, 107 410 134 and 70 668 114 B). All 20 series agree with
   the tables to within the last digit's rounding (at most 0.0001). The line file's ranges hold: 0.0685–0.0687,
@@ -145,7 +145,7 @@ covers that case. The gate runs both. No finding.
 
 | # | where | finding | severity | for |
 | --- | --- | --- | --- | --- |
-| D1 | `docs/lines/optimal-quality.md` §State now, TEST-MOBILE | "Lossless took 3–6 s" omits the jitter cells' 16–17 s | docs, minor | FIX-2 or the line's next writer |
+| D1 | `docs/lines/codecs.md` §State now, TEST-MOBILE | "Lossless took 3–6 s" omits the jitter cells' 16–17 s | docs, minor | FIX-2 or the line's next writer |
 | F1 | #364 | `lab/av1/bytes/prior-gap/pocgap.py` still writes `framesSha256` into its lab sets, unnamed in the PR | docs, minor | #364's body |
 | U1 | #365, `client/decode/av1.js:39` | `refuseWebCodecs`: a lab lever in a product module, reachable from `?opts=` | low; the brief asked for it | EXPERIMENTS-OFF item 13 |
 | U2 | #365 | the tap rule (`pointerType` on `click`) is checked only in emulation | owner | the phone run |

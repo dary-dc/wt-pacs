@@ -4,7 +4,7 @@ Queue row INGEST-OQ, 2026-11-12. This is a proposal for the owner. It is a struc
 Read from the code of the demo tip (`claude/demo-fixes-2` at `18d2d1ff`) and from `claude/line-pacs:docs/ingest/`.
 **Nothing was run or measured for this file.** Every number below is quoted from the document that measured it.
 
-It answers [`../lines/optimal-quality.md`](../lines/optimal-quality.md) Open 6. Today only the lab tool writes an
+It answers [`../lines/codecs.md`](../lines/codecs.md#optimal-quality) Open 6. Today only the lab tool writes an
 optimal-quality series, and the product ingest writes none.
 
 ## 1. What exists
@@ -200,7 +200,7 @@ Every test gets a failing run first and is mutated. The mutants each test must k
 
 The gate's cost: aomenc on 20 frames of 64 × 48 at G 1, 8 and 16 is already in the gate through `lossy_test.py`,
 and T1 to T4 add a few such runs. The DBT parity run is outside the gate. The demo set's 21 series took 527 s on a
-4-core cloud host (FIX-2, [`../lines/optimal-quality.md`](../lines/optimal-quality.md)).
+4-core cloud host (FIX-2, [`../lines/codecs.md`](../lines/codecs.md#optimal-quality)).
 
 ## 8. For the owner
 

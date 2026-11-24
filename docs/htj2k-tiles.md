@@ -368,7 +368,7 @@ arithmetic, *assumption* a band no measurement here backs.*
 
 * **D, the demo.** The optimal-quality (OQ) AV1 series fills the scroll (≤ 10 bits: D > 10 by the depth cut; WebCodecs,
   dav1d only as its fallback); an explicit Lossless request fetches the exact HTJ2K frame whole
-  ([`lines/optimal-quality.md`](lines/optimal-quality.md)).
+  ([`lines/codecs.md`](lines/codecs.md#optimal-quality)).
 * **S, screen level.** Today's HTJ2K codestream, nothing re-encoded. The fill sends each frame's prefix at ℓ_fit for
   the viewport (§Terms), level-first as layout **L** (two store entries a frame, prefixes first); a zoom or a Lossless
   request fetches that frame's rest. A level is a prefix by the progression order (§Theory 1).
