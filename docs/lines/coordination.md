@@ -147,6 +147,11 @@ small enough that every open item has an owner and a next step.
    PAGE-RUNS-PROTOCOL-FIX-2-REVIEW (2026-11-24, the file's §Re-review 2): no blocker open, R-B1 and r-m1, r-m2, r-n1
    closed; r2-m1 and r2-m2 (`summary.py`'s fixed arm list; `--out` paths) for TRANSPORT-FLAGS-RUN's built-first step,
    r2-n1 (AD-LTE's top is ×0.58 by its own sum) for PAGE-RUNS-VERDICT. TRANSPORT-FLAGS-RUN may start.
+   ENGINE-CELLS (2026-11-24, `page-runs.md` §3 Results; rows on `claude/engines:docs/decode/engine-cells/`): 3a, six
+   complete traces on Firefox 159.0.1 and 160.0.1. The G = 8 failure is the client's layout choice for a unit with
+   no sequence header (`av1-payload.js` `layouts()`), not Gecko's decoder: a bug with no trade-off, for
+   BRIEF-WEEKEND's list. 3b, M5 at 12 rounds on 160.0.1: memory held, `ring` fill ÷ `today` 1.24, so the bar flips
+   and `ring` does not qualify. PAGE-RUNS-VERDICT reads both.
 
 ## Unification (the owner, 2026-11-09)
 

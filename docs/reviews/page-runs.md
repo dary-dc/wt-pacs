@@ -401,6 +401,38 @@ Linux x86-64, software decode; no timing claimed. Decode only, no link, so the t
 serves the value statement: the Firefox reader of a colour stack in groups gets a view that fails by name; the fix
 restores that view, and every frame stays exact.
 
+**3b, measured.** 12 rounds, two whole Williams periods of the six arms (72 rows, every row 80 of 80 frames exact
+and on disk, none stopped). Run 2026-11-24 19:53–20:15 UTC on Firefox 160.0.1 over Marionette on Xvfb. The rig is
+`claude/frame-memory-m5-run` `1a90eb992` with `claude/core-m5b`'s `lab/opfs-cache/`, its decoders matching
+`manifest.sha256`. One uncounted smoke round ran first. Rows, `summary.py`'s output and `against.py`:
+`claude/engines:docs/decode/engine-cells/3b/`. The command block above says `--rounds 7`; this run used the
+text's 12 (§Review m4).
+
+| measure (MiB, median) | predicted | measured | |
+| --- | --- | --- | --- |
+| `disk` growth | 420–580 | 526 [477–594] | held |
+| `ring` growth | 680–880 | 764 [691–831] | held |
+| `ring` − `disk` | 250–310 | 237 (of the medians; 226 paired by round) | **missed**, below the band: the ring sits nearer the floor than predicted |
+| rounds with `ring` ≤ median `disk` + 320 (846) | 12 of 12 | 12 of 12, least room 15 MiB | held |
+| `ring` fill ÷ `today` | 0.80–0.95 | **1.241** [1.130–1.430], every round over 1.10 | **missed** |
+| `ring2` vs `ring` | within 64 MiB, 0.90–1.10 | 47 MiB, 0.980 | held, not `VOID` |
+
+**The bar flips** on the fill, not on memory: `ring` does not qualify on 160.0.1 (median fill 8.27 s against
+`today`'s 6.26 s on loopback, a ratio inside each round). `summary.py`'s verdict: no arm qualifies on Firefox
+(`transfer` and `transfer-k` 1.47–1.49 and over the memory bar; `disk` 1.23, and its ask 29.7 ms against `ring`'s
+0.02 + 16.7). 155.0's 0.85 is not reproduced. 160.0.1 reads like 159.0's 1.30, which was taken under the struck
+reading. So `engines` item 4 reads: on Firefox 160.0.1 the ring holds its memory and misses the fill bar. Chromium's
+rows under the same bar stand as measured; the rule wants both engines, so lever 2 stays with the owner, as
+`summary.py` prints. **Host:** CPU busy 0.71 median [0.62–0.92] through the fills, so the host is near its ceiling.
+No fill time is claimed as an absolute, only as a ratio inside a round. None stopped for "host saturated".
+
+Fixtures and limits: one synthetic series of 80 frames of 3328×4096 (2.03 GiB decoded), from
+`lab/viewer-ceiling/make_series.py`. It is not DBT pixel data, though DBT-sized; no ultrasound. Loopback, no relay,
+so neither the link nor the decode binds: the cell is memory and the store's write path. One 4-vCPU, 16 GiB cloud
+container without a GPU; Firefox 160.0.1 alone; a 256 MiB window. How it serves the value statement: on Firefox the
+fixed memory bound costs about a quarter more full-fill time than today's store. The owner's lever 2 decides between
+a bounded tab and the "fast full fill".
+
 ## 4 · Asking (`asking` §6: P1, P1b, P1c, the corrected P2) → ASK-CELLS
 
 **The question.** Which frames does the store let go first when a reader scrolls back and forth past its window?
