@@ -1,13 +1,14 @@
 // §7: where A/A is not a tie, the band widened to the A/A pair's per-round ratio range; each verdict re-read
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
-const J = await import("/home/user/wt-pacs/lab/delivery/judge.mjs");
-const R = "/home/user/wt-pacs/lab/delivery/rows";
-const P = JSON.parse(fs.readFileSync("/home/user/wt-pacs/lab/delivery/predictions.json")).predictions;
+const ROOT = new URL("../../../../", import.meta.url).pathname;
+const J = await import(`${ROOT}lab/delivery/judge.mjs`);
+const R = `${ROOT}lab/delivery/rows`;
+const P = JSON.parse(fs.readFileSync(`${ROOT}lab/delivery/predictions.json`)).predictions;
 const med = (v) => { const s = [...v].sort((a, b) => a - b); return s.length % 2 ? s[(s.length - 1) >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 for (const cell of process.argv.slice(2)) {
   const aa = JSON.parse(fs.readFileSync(`${R}/${cell}.aa.json`));
-  const verdicts = Object.fromEntries(execFileSync("python3", ["/home/user/wt-pacs/lab/scripts/aa_rule.py", `${R}/${cell}.aa.json`, "--bar", "0.05"]).toString().trim().split("\n").map((l) => [l.split(" ")[0], JSON.parse(l.slice(l.indexOf("{"))).verdict]));
+  const verdicts = Object.fromEntries(execFileSync("python3", [`${ROOT}lab/scripts/aa_rule.py`, `${R}/${cell}.aa.json`, "--bar", "0.05"]).toString().trim().split("\n").map((l) => [l.split(" ")[0], JSON.parse(l.slice(l.indexOf("{"))).verdict]));
   const pm = JSON.parse(fs.readFileSync(`${R}/${cell}-pilot.pilot-medians.json`));
   const rows = fs.readFileSync(`${R}/${cell}.jsonl`, "utf8").trim().split("\n").map(JSON.parse).filter((r) => !J.voidOf(r, { pilotMedian: pm[`${r.cell}/${r.volume}/${r.arm}`] }).why.length);
   for (const [key, v] of Object.entries(aa)) {
