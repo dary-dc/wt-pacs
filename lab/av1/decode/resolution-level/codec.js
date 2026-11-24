@@ -4,11 +4,13 @@ import { decodeLevel } from "./level.js";
 
 let dec = null;
 
+/** `d.levelPackage`, where the whole frame's build lacks `decodeSubResolution`: the package that decodes the level. */
 export async function init(d) {
   await product.init(d);
-  const src = await (await fetch(d.glue)).text();
+  const p = d.levelPackage ?? d;
+  const src = await (await fetch(p.glue)).text();
   const factory = new Function(`${src}\nreturn typeof Module !== "undefined" ? Module : OpenJPHModule;`).call(globalThis);
-  const M = await factory({ locateFile: (f) => d.dir + "/" + f, wasmBinary: await (await fetch(d.wasm)).arrayBuffer() });
+  const M = await factory({ locateFile: (f) => p.dir + "/" + f, wasmBinary: await (await fetch(p.wasm)).arrayBuffer() });
   dec = new M.HTJ2KDecoder();
 }
 

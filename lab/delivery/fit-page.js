@@ -6,12 +6,16 @@
 import { FIT } from "../../client/view/controller.js";
 import { tableShape, windowTable } from "../../client/paint/voi.js";
 
-/** `?fit=1`: a series whose metadata names a fit level is decoded by FIT's worker at that level. */
+/** The shipped OpenJPH package, which decodes a resolution level; the product's build decodes whole frames only. */
+const PACKAGE = { glue: "/client/decode/wasm/vendor/openjph/openjphjs.js", wasm: "/client/decode/wasm/vendor/openjph/openjphjs.wasm", dir: "/client/decode/wasm/vendor/openjph" };
+
+/** `?fit=1`: a series whose metadata names a fit level is decoded by FIT's worker, its levels by the package, its whole frames by the product's build. */
 export async function fitLevers(lab, q) {
   const meta = await (await fetch(lab.metadata ?? "/series/metadata")).json();
   if (!meta.fit) return lab;
   const { built } = await import("../../client/decode/wasm-glue.js");
-  Object.assign(lab.opts, { decoderWorker: new URL("./fit-decoder.js", import.meta.url).href, decoder: { ...(await built("openjph")), fit: { ...meta.fit, mutate: q.get("mutate") ?? undefined } } });
+  const fit = { ...meta.fit, mutate: q.get("mutate") ?? undefined };
+  Object.assign(lab.opts, { decoderWorker: new URL("./fit-decoder.js", import.meta.url).href, decoder: { ...(await built("openjph")), levelPackage: PACKAGE, fit } });
   return lab;
 }
 
