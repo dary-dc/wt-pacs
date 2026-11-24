@@ -6,6 +6,9 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+source client/contract/browser_env.sh
+require_browser
+require_vendor
 DATA="${DATA:-$ROOT/lab/av1/data}"
 BUILD="${INGEST_BUILD:-$ROOT/ingest/.build}"
 PY="${PYTHON:-python3}"
