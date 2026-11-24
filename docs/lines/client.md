@@ -27,6 +27,9 @@ exact frame bit for bit, and only checked claims on screen.
   2026-11-24, FAILED-FRAME-WITHHELD-FIX-2: a command's own failed re-dial (`live()`, for `ask`, `fill`, `want`) now
   fails its frames as lost, so they are asked once more (downloader and controller tests, mutated; R1 and R6 killed);
   `again()`'s failed re-dial after a decoder loss named, not changed. FAILED-FRAME-WITHHELD-FIX-2-REVIEW next.
+  2026-11-24, FAILED-FRAME-WITHHELD-FIX-2-REVIEW: no blocker open (PR 438 §Re-review 2); R-B1, m1, m2 closed,
+  gate `--quick` green at `eed7ebe0f`. Before a sync row can merge it, the branch conflicts with `claude/unified`
+  (`b059388b6`) in `client/view/controller.js`, `client/viewer/viewer.js` and this file.
 * **The unified branch** `claude/unified-client` (the client, optimal-quality and native lines): the demo tip with the
   cleaning and the renames merged; one `info.path` left in `lab/faultbench/index.html` (now `info.route`), a finding in
   #382. Reaches `main` through #367 then #250, on the owner's word ([`coordination.md`](coordination.md)).
