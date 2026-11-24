@@ -13,7 +13,7 @@ exact frame bit for bit, and only checked claims on screen.
 
 ## In flight
 
-* **The next AV1 unit while the last is read back** (DECODE-OVERLAP, 2026-11-24, `claude/decode-overlap`, a draft
+* **The next AV1 unit while the last is read back** (DECODE-OVERLAP, 2026-11-24, `claude/decode-overlap`, PR 447, a draft
   into `claude/unified`): the read-back is 39–46 % of a WebCodecs frame on `dbts_b1-q8-g8` in the cloud, measured; the
   overlap built, tests mutated; on the 4-core host the bench's span is +3.5 % at 1× and −21.5 % at a 4× throttle
   that idles the thread, not a result ([`../decode/README.md`](../decode/README.md) §The read-back's share).
