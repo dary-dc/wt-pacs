@@ -147,6 +147,39 @@ async function pass(browser, query) {
   };
 }
 
+/**
+ * The exact series' metadata held until the page has a frame, then answered (`refused`: with a frame count that is not
+ * the pair's): the session dials without the pair, and nothing is painted or labelled before its check passes.
+ */
+async function heldPair(browser, refused) {
+  const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(watch);
+  const log = () => page.evaluate(() => globalThis.__log ?? []);
+  const received = (l) => l.some((e) => e.id === "status" && /received [1-9]/.test(e.text));
+  let releasedAt = null;
+  await page.route(`**/series/${exactId}/metadata`, async (route) => {
+    for (const end = Date.now() + 15000; Date.now() < end && !received(await log()); ) await page.waitForTimeout(20);
+    releasedAt = await page.evaluate(() => performance.now());
+    const meta = JSON.parse(readFileSync(exactMetaPath));
+    if (refused) meta.frameCount += 1;
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify(meta) });
+  });
+  await page.goto(`http://127.0.0.1:8765/?overlay=1&view=${VIEW}${LEVERS}`);
+  const painted = (l) => l.some((e) => ["overlay", "quality"].includes(e.id) && e.text);
+  const settled = (l) => releasedAt !== null && (refused ? l.some((e) => e.id === "status" && /error: refused/.test(e.text)) : painted(l));
+  for (const end = Date.now() + 60000; Date.now() < end && !settled(await log()); ) await page.waitForTimeout(20);
+  if (refused) await page.waitForTimeout(2000);
+  const l = await log();
+  const held = l.filter((e) => e.t < releasedAt);
+  const r = { receivedHeld: received(held), paintedHeld: painted(held), painted: painted(l), status: l.findLast((e) => e.id === "status")?.text,
+    slider: await page.locator("#slice").isVisible(), errors };
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await page.close();
+  return r;
+}
+
 const LABELS = ["Optimal quality", "Optimal quality · fetching lossless…", "✓ Lossless", "Optimal quality"];
 const FAILED = "Lossless check failed · optimal quality shown";
 const routeOf = (overlay) => overlay.match(/^(\S+)( after WebCodecs refused: (.*?))? · ([\d.]+) KB · decode ([\d.]+) ms/);
@@ -194,6 +227,15 @@ try {
   const RETRIED = [LABELS[0], LABELS[1], FAILED, LABELS[1], FAILED];
   check(JSON.stringify(r.labels) === JSON.stringify(RETRIED), `a wrong digest, \`l\` and its retry: the label ran ${JSON.stringify(r.labels)}, not ${JSON.stringify(RETRIED)}`);
   report.tampered = r.labels;
+  stop();
+  await serve(dir);
+  const held = await heldPair(browser, false);
+  check(held.receivedHeld, `the pair held: no frame received before its metadata came, so the dial waited for it: ${held.status}`);
+  check(!held.paintedHeld && held.painted, `the pair held: ${held.paintedHeld ? "a frame painted or labelled before its check" : "nothing painted after it"}`);
+  const refused = await heldPair(browser, true);
+  check(refused.receivedHeld && !refused.painted && !refused.slider && /error: refused: exact series .* has \d+ frames/.test(refused.status),
+    `a refused pair: a frame received before it ${refused.receivedHeld}, painted ${refused.painted}, the slider shown ${refused.slider}, status ${refused.status}`);
+  report.held = { held, refused };
 } catch (e) {
   failures.push(e.message);
 } finally {
