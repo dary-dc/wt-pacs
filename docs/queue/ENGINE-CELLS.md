@@ -1,8 +1,8 @@
 state: started
 started: 2026-11-24T19:27Z
-heartbeat: 2026-11-24T19:47Z
+heartbeat: 2026-11-24T20:08Z
 by: Zz3Kihvk
-outputs: claude/engines 7048b6534 (trace), cc2b4c22d (3a rows); claude/page-runs e59c6e9d1 (page-runs.md §3 Results, 3a)
+outputs: claude/engines 7048b6534 (trace), cc2b4c22d (3a rows), 9881d90dd (3b rows); claude/page-runs 13a0c5eca (page-runs.md §3 Results, docs/lines/coordination.md)
 ## Resume
 Done: 3a whole. Six counted runs complete (claude/engines cc2b4c22d, docs/decode/engine-cells/3a/), result in
 page-runs.md §3 Results (claude/page-runs e59c6e9d1): the failure is the client's layout choice (av1-payload.js
@@ -17,4 +17,6 @@ client/decode/wasm/built copied from claude/engines (sha256sum -c ../build/manif
 claude/engines:docs/decode/engine-cells/3b/m5-firefox.jsonl, pushed every ~8 min. If cut: count whole rounds in the
 file, rerun with --first-round <next> (same --out); then `python3 lab/opfs-cache/summary.py docs/decode/engine-cells/3b`
 (reads m5-firefox.jsonl) and write §3b in page-runs.md §3 Results against the table.
+2026-11-24T20:08Z: 3b done (72 rows, claude/engines 9881d90dd), §3 Results 3b pushed (claude/page-runs 13a0c5eca). Gate
+(`scripts/gate.sh --quick`) running on claude/engines; then finish the status file.
 ## Result
