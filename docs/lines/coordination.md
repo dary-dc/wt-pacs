@@ -141,7 +141,10 @@ small enough that every open item has an owner and a next step.
    of 18; m1–m7 fixed, m3 argued in part (AD-LTE's loss keeps cwnd under TW's 2 MB).
    PAGE-RUNS-PROTOCOL-FIX-REVIEW (2026-11-24, the same file's §Re-review): B2 and m1–m7 closed; B1 open in part
    (R-B1: §1's commands omit WT-AF and run 12 rounds, not 14); r-m1, r-m2 (WT-AF's bands against row 211), r-n1.
-   Owed: PAGE-RUNS-PROTOCOL-FIX-2, its re-review; TRANSPORT-FLAGS-RUN waits on it, REPORT-RERUNS does not.
+   PAGE-RUNS-PROTOCOL-FIX-2 (2026-11-24, §1 in place, the file's §Fix 2): R-B1 by WT-AF in both commands at 14
+   rounds and in the pilot; r-m1 (WT-AF's AD-PUB band to ×0.98, the + 6 MiB arm's ×0.91–0.98), r-m2 (AD-LTE to
+   ×0.57, the carry labelled assumed), r-n1 (cwnd's floor is Cubic's β, RFC 9438 §4.6).
+   Owed: PAGE-RUNS-PROTOCOL-FIX-2-REVIEW; TRANSPORT-FLAGS-RUN waits on it, REPORT-RERUNS does not.
 
 ## Unification (the owner, 2026-11-09)
 

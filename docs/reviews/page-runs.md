@@ -81,12 +81,13 @@ CR cannot fall between them; the rig's order is kept. `aa_rule.py --bar 0.05` on
 
 | cell | WT-TW | WT-PF | WT-AF | H3-fill / H3-frame (reference, re-measured) |
 | --- | --- | --- | --- | --- |
-| AD-PUB | **a tie, ×0.95–1.05** | ×0.95–1.45 | **×0.52–0.95** | 0.50–0.60 / 1.6–2.0 (measured 0.548 / 1.809) |
-| AD-LTE | **×0.70–0.88** | ×0.95–1.45 | **×0.25–0.50** | 0.47–0.58 / 1.5–1.9 (measured 0.525 / 1.678) |
+| AD-PUB | **a tie, ×0.95–1.05** | ×0.95–1.45 | **×0.52–0.98** | 0.50–0.60 / 1.6–2.0 (measured 0.548 / 1.809) |
+| AD-LTE | **×0.70–0.88** | ×0.95–1.45 | **×0.25–0.57** | 0.47–0.58 / 1.5–1.9 (measured 0.525 / 1.678) |
 | CR | ×0.97–1.03 | **×0.60–1.00** | ×0.97–1.45 (fill) | 0.95–1.05 / 0.58–0.70 (measured 1.001 / 0.630) |
 
 (Amended 2026-11-24 by PAGE-RUNS-PROTOCOL-FIX, before any row: WT-AF added (§Review B1); WT-TW's AD bands were
-×0.80–1.02 and ×0.85–1.02 (m3); WT-PF's AD bands were ×1.00–1.80 and ×1.00–1.70 (m1).)
+×0.80–1.02 and ×0.85–1.02 (m3); WT-PF's AD bands were ×1.00–1.80 and ×1.00–1.70 (m1). Amended again 2026-11-24 by
+PAGE-RUNS-PROTOCOL-FIX-2, before any row: WT-AF's AD bands were ×0.52–0.95 and ×0.25–0.50 (§Re-review r-m1, r-m2).)
 
 * **WT-TW on AD.** What the ask waits behind is the fill already admitted to the send window. TW sets that window
   to cwnd plus two of the series' largest frames (`server.rs:148-155`): 2 × 2.15 MB ≈ 4.3 MB plus cwnd, against
@@ -95,7 +96,7 @@ CR cannot fall between them; the rig's order is kept. `aa_rule.py --bar 0.05` on
   tail-drop queue ("cwnd + M is no cap … Cubic grows into the queue", row 207; asks first's cwnd at the ask up to
   4.1 MB behind deep FIFOs, row 211, **measured** on another rig), so cwnd sits above 2 MB and the band is the A/A's,
   ×0.95–1.05 (`aa_rule.py --bar 0.05`); a ×0.80 there is a refutation, not a hit (**theory**). **AD-LTE: a gain.**
-  Its 0.1 % iid loss holds Cubic's window near 1.2 ÷ √p ≈ 39 packets ≈ 0.06 MB (`quic-compared.md` §9.6's form,
+  Its 0.1 % iid loss holds Cubic's window near 1.2 ÷ √p ≈ 38 packets (37.9) ≈ 0.06 MB (`quic-compared.md` §9.6's form,
   **theory**), far under 2 MB, so the ask waits behind ≈ 4.4 MB, not 6.29 MB: (4.4 + 2.15) ÷ (6.29 + 2.15) ≈ ×0.78
   (**derived**), the band ×0.70–0.88. This reads the review's m3 (a tie on both forms) as holding for PUB only; LTE's
   loss is what keeps cwnd under the 2 MB. A median within ×0.75–0.85 on AD-LTE alone is named as not deciding the
@@ -116,11 +117,19 @@ CR cannot fall between them; the rig's order is kept. `aa_rule.py --bar 0.05` on
 * **WT-TW on CR**: the cap is the client's stream credit, not the server's window, so a tie (**theory**).
 * **WT-AF on AD.** Asks first ranks the ask's stream above every fill stream (`link.rs:228-231`), so the ask waits
   only behind the bytes in flight, ≤ min(cwnd, the 6 MiB send window), not behind the 6.29 MB `shared` has written
-  ahead (`quic-compared.md` §9.7's mechanism, **theory**). AD-PUB: cwnd 2.25–3.2 MB in the 3.0 MB queue gives
-  (2.25–3.2 + 2.15) ÷ 8.44 ≈ ×0.52–0.63 (**derived**); the band's upper end ×0.95 is row 211's miss of the same
-  theory behind deep FIFOs, ×0.87–0.98 measured where it predicted ≈ ×0.68 (103 Mbit/s behind 360 ms: (4.1 + 0.57) ÷
-  (6.29 + 0.57)). AD-LTE: cwnd ≈ 0.06 MB under the loss gives ≈ (0.06 + 2.15) ÷ 8.44 ≈ ×0.26 (**derived**); row 211's
-  loss cells measured ×0.18–0.19 where the same arithmetic gives ≈ ×0.09, so the band is ×0.25–0.50.
+  ahead (`quic-compared.md` §9.7's mechanism, **theory**). AD-PUB: cwnd 2.25–3.2 MB, its top the 3.0 MB queue
+  plus the 0.23 MB path (90 Mbit/s × 20 ms), its floor that top × Cubic's β = 0.7 after a drop (RFC 9438 §4.6: "The
+  parameter β__cubic_ SHOULD be set to 0.7"), gives (2.25–3.2 + 2.15) ÷ 8.44 ≈ ×0.52–0.63 (**derived**); the band's
+  upper end ×0.98 is row 211's miss of the same theory behind deep FIFOs: the + 6 MiB arm, the one WT-AF copies,
+  measured ×0.91–0.98 (18/800, 103/360, 103/800, 103/92/800; ×0.87 there is uncapped asks first's) where it
+  predicted ≈ ×0.68 (103 Mbit/s behind 360 ms: (4.1 + 0.57) ÷ (6.29 + 0.57)). A median in ×0.95–0.98 sits inside the
+  A/A's band, so it is read as no gain for #39 (the ≤ ×0.8 rule below decides), not as a hit that separates WT-AF from
+  WT-TS. AD-LTE: cwnd ≈ 0.06 MB under the loss gives ≈ (0.06 + 2.15) ÷ 8.44 ≈ ×0.26 (**derived**), the band's lower
+  end. Its upper end: row 211's loss cells measured ×0.18–0.19 where the same arithmetic gives ≈ ×0.09, 2.1–2.2 times
+  it; that ratio applied to ×0.26 gives ×0.55–0.57, so the band is ×0.25–0.57. The carry is **assumed**: row 211's
+  loss was 1 % behind 20 ms (a window ~√10 smaller), its frames 0.57 MB, and the excess's cause is not isolated, so
+  it is carried as a ratio for want of a term; a median above ×0.57 refutes the arithmetic, not the lever, and still
+  counts against the ≤ ×0.8 rule as measured.
 * **WT-AF on CR (its fill).** Its streams escape the one stream's credit, but the 6 MiB send window caps the bytes in
   flight at the same ~63 Mbit/s over 0.8 s, so the cap predicts a tie (**theory**). Row 211 measured asks first under
   a 6 MiB send window costing its fill +2 to +44 % in all nine cells, the cap binding in none, with more, smaller
@@ -141,7 +150,7 @@ at ≤ ×0.8 also keeps "no GET path" open, on that build. **#96 is not answered
 
 **VOID** (the rig's `judge.mjs:27-31`): the relay guard's p99 over 1 ms; the busiest core over 0.95; a crash; a fetch
 arm on the wrong protocol; a visit past 3 × the pilot median (`rows/pilot-medians.json`, extended by a 2-round
-pilot for WT-TW and WT-PF, not counted); a server whose start line lacks the arm's flag. Over 25 % `VOID` in a cell:
+pilot for WT-TW, WT-PF and WT-AF, not counted); a server whose start line lacks the arm's flag. Over 25 % `VOID` in a cell:
 both readings, strict and round-paired, as §6.6. **Host:** relay on core 0, server on core 1, driver and browser on
 2–3 (the rig's pinning, RESULTS-BRIEF §1.12's recommendation already met); the relay saturates at 100 Mbit/s and
 nothing is claimed above 90. The links are a userspace relay's models, **assumed**, not a radio.
@@ -150,9 +159,9 @@ nothing is claimed above 90. The links are a userspace relay's models, **assumed
 
 ```bash
 cargo build --release -p series-server --features lab-get,lab-levers
-node lab/transport-arms/run.mjs --cell AD --rounds 12 --arms WT-TS,WT-TS\',WT-TW,WT-PF,H3-fill,H3-frame \
+node lab/transport-arms/run.mjs --cell AD --rounds 14 --arms WT-TS,WT-TS\',WT-TW,WT-PF,WT-AF,H3-fill,H3-frame \
   --pilot-medians lab/transport-arms/rows/pilot-medians.json --limit-ms 600000 --out rows/flags-AD.jsonl
-node lab/transport-arms/run.mjs --cell CR --rounds 12 --arms WT-TS,WT-TS\',WT-TW,WT-PF,H3-fill,H3-frame \
+node lab/transport-arms/run.mjs --cell CR --rounds 14 --arms WT-TS,WT-TS\',WT-TW,WT-PF,WT-AF,H3-fill,H3-frame \
   --pilot-medians lab/transport-arms/rows/pilot-medians.json --limit-ms 600000 --out rows/flags-CR.jsonl
 python3 lab/transport-arms/summary.py lab/transport-arms/rows flags-AD
 ```
@@ -626,3 +635,16 @@ under 30 ms with probability 1.3 × 10⁻³; 1.2 ÷ √0.001 = 37.9 packets = 0.
 does not (its blocker, B2, is closed; R-B1 is §1's alone); ENGINE-CELLS, ASK-CELLS and CACHE-CELLS were never waiting
 on this. How it serves the value statement: the run that decides #39 is the one that says whether an ask during a fill
 ("low latency on every jump") can be had within WebTransport, so the arm must be in the commands that run.
+
+**Fix 2** (PAGE-RUNS-PROTOCOL-FIX-2, 2026-11-24, by a session that wrote none of this file, its review, its fix or its
+re-review and will run none of it; §1 only, before any row). **R-B1**: both commands carry `WT-AF` in `--arms` and
+`--rounds 14` (seven arms, one mirrored Williams period, `lab/order.mjs:16`), and the VOID line's pilot covers WT-TW,
+WT-PF and WT-AF. **r-m1**: the anchor restated as the + 6 MiB arm's ×0.91–0.98 behind deep FIFOs (row 211, §9.7's
+table; ×0.87 named as uncapped asks first's), WT-AF's AD-PUB band widened to ×0.52–0.98, and a median in ×0.95–0.98
+read as no gain for #39, since it sits inside the A/A's band. **r-m2**: the AD-LTE band widened to ×0.25–0.57 (row
+211's measured-to-arithmetic ratio, 2.1–2.2, applied to ×0.26), the carry labelled **assumed** with its two
+differences (1 % loss behind 20 ms against 0.1 %; 0.57 MB frames); the band stays under the ≤ ×0.8 rule, so #39's
+decision does not move. **r-n1**: AD-PUB's cwnd range sourced (the 3.0 MB queue plus the 0.23 MB path; the floor
+× Cubic's β = 0.7, RFC 9438 §4.6, quoted), and "≈ 38 packets (37.9)". Each change is dated in §1's amendment note.
+Nothing run but `scripts/check_links.py` (9 unresolved, as before) and the sums: 1.2 ÷ √0.001 = 37.9; 3.0 + 0.225 =
+3.2 MB, × 0.7 = 2.26 MB; 0.18–0.19 ÷ 0.086 = 2.1–2.2, × 0.262 = ×0.55–0.57.
