@@ -151,7 +151,7 @@ HTJ2K series; no residual, no server or wire change.
 * **The two failures the phone found** ([`client.md`](client.md#in-flight) §In flight); the first breaks this line's promise on a
   lossy link.
 * **Is Q 8 visually lossless at the readers' windows**: owned by the codecs line (above); readers decide, no agent.
-  What the AV1 harvest of 2026-11-10 changes in the demo's claims is in the codecs line's §AV1 harvest: Q 8
+  What the AV1 harvest of 2026-11-10 changes in the demo's claims is in [`../av1/README.md`](../av1/README.md) §The harvest of 2026-11-10: Q 8
   is a candidate (the noise rule picks it on two of the six timed cells); at the rule's Q the view is 0.10–0.28 of
   HTJ2K's bytes (*derived*); nothing shows WebCodecs under one HTJ2K frame on a slow device; the depth cut's
   in-window cost is unmeasured; `claude/oq-ingest` owes a refusal or label of Q 0.

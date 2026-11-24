@@ -7,7 +7,7 @@ Read at `claude/demo-fixes-1` `daee0d1d` (the demo tip; `claude/demo-fixes-2` do
 `client/view`, `client/paint`, `client/decode`, `client/transport` (`consumer.js`, `downloader.js`, `ts/`),
 `server/dev-server.py`, `server/` (the flags and the session's shape; `read_path.rs` and the tests were not read
 line by line), `README.md` §Demo, `client/README.md` §The viewer, `docs/lines/client.md`,
-`docs/lines/codecs.md`.
+`docs/lines/optimal-quality.md` (at `daee0d1d`).
 
 Every path below is a path at that commit; some are not on `main` yet.
 
