@@ -7,12 +7,14 @@ DELIVERY-RUN's.
 
 | file | what |
 | --- | --- |
-| `plan.mjs` | §1–§3: the five forms (relay arguments, prefixes, K3's two prefixes), the arms' levers (`decoders=2`; C1 `press=lossless&pressAfter=1000`; C2 `exactFill=1`), a cell's loads in §2's order (a Williams row of the arms a round, run for each volume, the volumes rotated by one a round), each LTE load's first blackout |
-| `predict.mjs` | §4.1's model (wire, decode floor, fill, regime, C1's slow start from 12 000 B, C2's span) and `predictions.json` from `inputs.json`, with its XXH3-64 by the product's hasher |
-| `inputs.mjs` | §4.2: K1 (each frame's coded bytes), K2 (the bench's median per-frame decode), K3 (the line through two prefixes' medians) as `inputs.json` |
-| `run.mjs` | the driver: one cell's loads, or K2's bench loads (`--bench`), each a fresh relay, both series' servers and the page server in the relay's server namespace, a fresh browser; raw rows as they land, the page's beacon records in each row |
-| `judge.mjs` | §6–§8: each load's `VOID` reasons and the stop; per (cell, volume, arm, clock) the ratio's median, rounds in band, holds, misses and its side, or `CANNOT HOLD` under 8 counted rounds; regime misses, strict and round-paired past 25 % `VOID`; `UNBALANCED`; §7's input for `lab/scripts/aa_rule.py` with A′ ÷ A's median beside it; the pilot's medians for `--pilot-medians` |
-| `series.sh` | the arms' series as `scripts/demo-series.sh` codes them (each set's HTJ2K and its Q 8 G 8 view), frames kept for K1, and the prefixes |
+| `plan.mjs` | §1–§3, A2.1: the five forms (relay arguments, prefixes, K3's two prefixes), the arms' levers (`decoders=2`; C1 `press=lossless&pressAfter=1000`; FIT `fit=1&zoomAfter=1000`; SPLIT `split=1`), a cell's loads in §2's order (a Williams row of the six arms a round, 12 rounds, run for each volume, the volumes rotated by one a round), each LTE load's first blackout, K3′'s 8 B loads a lossy (form, volume) |
+| `predict.mjs` | §4.1's model (wire, decode floor, fill, regime, C1's slow start from 12 000 B) with A2.3's SPLIT, A2.4's wire curve and C1's ask → last byte, A2.7's FIT fill and zoom; `predictions.json` from `inputs.json`, with its XXH3-64 by the product's hasher |
+| `inputs.mjs` | §4.2: K1 (each frame's coded bytes, FIT's prefixes and rests), K2 (the bench's median per-frame decode, FIT's level decode), K3 (the line through two prefixes' medians), K3′ (A2.4's curve from B loads only) as `inputs.json` |
+| `run.mjs` | the driver: one cell's loads, K2's bench loads (`--bench`) or K3′'s (`--k3-prime`), each a fresh relay, both series' servers and the page server in the relay's server namespace, a fresh browser at A2.2's viewport; raw rows as they land, the page's beacon records in each row, A2.5's cores, softirqs and the relay's involuntary switches |
+| `judge.mjs` | §6–§8, A2.8: each load's `VOID` reasons (`escaped` among them) and the stop; per (cell, volume, arm, clock) the ratio's median, rounds in band, holds, misses and its side, or `CANNOT HOLD` under 10 counted rounds; a level-0 zoom reported, SPLIT's *x* beside its prediction, the switch's exact picks named; a FIT load not asking its prefixes refused; regime misses, strict and round-paired past 25 % `VOID`; `UNBALANCED`; §7's input for `lab/scripts/aa_rule.py` with A′ ÷ A's median beside it; the pilot's medians for `--pilot-medians` |
+| `series.sh` | the arms' series as `scripts/demo-series.sh` codes them (each set's HTJ2K and its Q 8 G 8 view), frames kept for K1, the prefixes, and FIT's series where the fit is a level |
+| `fit_truth.py`, `fit.mjs` | A2.2: the fit level by ADR §8.2's rule on 1080 × 2100, `ll.py`'s clamped low band as each frame's truth; FIT's series (entry *i* < F frame *i*'s smallest exact prefix, F + *i* its rest), each frame checked whole, at the level from the whole and from the prefix, and one byte short |
+| `fit-decoder.js`, `fit-page.js` | FIT in the viewer: the worker (the level by the shipped OpenJPH package, checked against the truth's XXH3; the rest joined and checked by the frame digest), the `fit` lever, the window read-back and the zoom after the fill; C1's ask → last byte |
 | `prefix.py` | a series' first N frames as a series of its own (`<id>-p<N>`), the view's naming its exact series' prefix |
 | `k3.sh` | K3: `claude/transport-arms` `9fad9d9b`'s `run.mjs`, its WT-TS arm alone, on `dbts_b1` HTJ2K at each form's two prefixes, four visits each, interleaved, in a worktree at that commit with `k3-blackout.patch` applied (LTE's first blackout at the phase `plan.mjs` draws for the visit) |
 
@@ -78,6 +80,25 @@ None of these is in the protocol's text; each changes how the rig runs, none wha
 * **The A/A input** feeds A′ as both the copy and the arm judged, so `aa_rule.py` can return only `tie` or `not
   conclusive`; §7 uses the pair's spread alone. The judge prints A′ ÷ A's median beside it, which shows a biased A′.
 
+## What FIT-ARM-BUILD found (§Amendment 2)
+
+Smoke loads only, 2026-11-24, on this 4-core container (`dbts_b1`, `dbts_a1` HTJ2K; the view series stood in by the
+exact one): none is a result, and none changes what the run measures.
+
+* **The product's OpenJPH build has no `decodeSubResolution`.** FIT's level is decoded by the shipped package (as
+  RESLEVEL did), its whole frame by the product's build; `codec.js` takes the package as `levelPackage`.
+* **The level decode reads ×0.49 of the whole frame's here**, not RESLEVEL's ×0.27–0.31 that A2.7 used (K2's bench, 3
+  loads, two decoders: 20.2 against 41.0 ms a frame; the level's clamp and its lab check inside the span). FIT stays
+  wire-bound on `dbts_b1` (a floor ~0.5 s against ≥ 2.5 s of wire); the run's predictions come from its own K2.
+* **The clamp matters on `dbts_b1`**: unclamped, 5 of its 50 level pictures (frames 5–9) are not the truth.
+* **FIT's prefixes are 26.9–27.3 % of a frame, 0.2712 of the series**, as RESLEVEL measured on `dbts_b1`.
+* **A zoom's paint is timed at its issue**: the round page's paints are unsettled, as every label clock here is, so the
+  zoom carries no draw time (on `dbts_a1`, 0.6 ms for A2.7's 17 ms, which is reported, not judged).
+* On CLEAN, one load each: FIT `dbts_b1` fill 2.76 s (A2.7: 2.72), zoom 0.25 s (0.20), its ask → last byte 0.15 s;
+  FIT `dbts_a1` fill 6.29 s (§4.3's B: 6.29). Each window read-back equal byte for byte (1280 × 1664, 1142 × 1785).
+* **Not built yet: SPLIT and the switch's reading** (A2.3, A2.5): `split=1` is refused by no lever and acted on by none;
+  the rows carry no `split` or `switch` record. The judge and the predictions already read them.
+
 ## Checks, and their mutants (§10)
 
 Each run 2026-11-20, on the synthetic pair (the model's and the judge's in their tests, `predict.test.mjs`,
@@ -93,6 +114,12 @@ Each run 2026-11-20, on the synthetic pair (the model's and the judge's in their
 | C1 painted without an exact frame: the load fails | the C1 page's own check (`losslessFailure`); with `flip-exact`, any load that checks frame 0 fails | as the first row |
 | C2 judged from A's and B's rows added: the judge refuses | `judge.test.mjs`: a C2 row with no `exactFill` record | `C2 … reads only its own`; a span from A + B is killed by a claim |
 | `predictions.json` changed after the first counted row: the judge refuses | `judge.test.mjs`: one prediction edited | `refused: … carries predictions …` |
+| A2.8: a sample flipped in a level-1 picture stops the run | `--mutate flip-level`, CLEAN `dbts_b1` FIT | `STOP: … received 49 of 50` (frame 0's level unequal to its truth) |
+| A2.8: the clamp removed stops the run | `--mutate no-clamp`, CLEAN `dbts_b1` FIT | `STOP: … received 45 of 50` (frames 5–9) |
+| A2.8: the read-back from the placed canvas stops the run | `--mutate canvas-readback`, CLEAN `dbts_b1` FIT | `STOP: … window read-back of frame 0: 8946720 bytes for 2129920 samples` |
+| A2.8: the FIT lever ignored: the judge refuses | `--mutate fit-ignored` (the exact series for FIT), then `judge.mjs` | `refused: FIT round 0 dbts_b1: frame 0 carried 2063.7 KiB, its level prefix 556.9 KiB` |
+| A2.8: a browser process allowed on core 0 is `VOID` | `--mutate escaped` | `VOID escaped: chrome … on 0,2-3` |
+| A2.8: K3′ from A loads: the predictor refuses | `inputs.test.mjs`: an A row among the curve's | `K3′: its rows must be B's, got A` |
 
 ## Limits
 
