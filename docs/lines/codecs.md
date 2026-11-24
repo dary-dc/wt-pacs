@@ -201,6 +201,9 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
    (`lab/noise-ingest`) equals the rows' σ on 175 of 175 frames, at 0.002–0.003 CPU s/Mpx, 12–20 % of the exact
    path's CPU a frame. σ over all samples is lower on two of three and would move the rule's Q 8 → 2 and 4 → 2, so
    σ_min waits for phase 2's window. Results and misses: [`../av1/noise-point.md`](../av1/noise-point.md) §Measured.
+   *2026-11-24 (row NOISE-INGEST-REVIEW, a session that wrote none of it):* no blocker; P1–P5 recomputed from the raw
+   rows, mutants 1–3 fail the golden test, and mutant 4 is equivalent on any frame of more than 36 410 kept samples
+   at 12 bits or fewer (*theory*: both `_lerp` forms are then exact). Findings in PR 413's body.
 4. Owed to a GPU machine or a phone: hardware decoders' exactness, reduced-depth paint timing, group arms, the OQ
    view's decode speed on a real slow device.
 5. A note to the PCS team on G for AV1 cine; keep or remove the client's G > 1 path.
