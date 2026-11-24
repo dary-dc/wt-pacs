@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it).
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23.
 
 ## Goal
 
@@ -120,6 +120,11 @@ small enough that every open item has an owner and a next step.
    `exactClient`; `requestExactFrame` and `info.path` where four lab pages still read them (`r3_arm.test.mjs` failed on
    the base); the mark and the status line say *no digest*; the product's *lossy stream* in
    `rules-for-showing-lossy-pictures.md`. Owed: UNIFIED-SIMPLIFY-REVIEW.
+   SELINUX-BUILD-RESTORE (2026-11-23, `claude/selinux-build-restore`, draft PR into unified): B2's merge
+   (`dd681539d`) took the tip's form of the client and deploy files and so dropped every hunk of `5ce4f0876` (the
+   decoder build unlabelled on SELinux hosts; rootless podman's run); restored, the gate OK. The same rule's other
+   absent hunks (twelve commits, a line match) are listed in that PR's body, unjudged.
+   Reviewed (SELINUX-BUILD-RESTORE-REVIEW, 2026-11-23, PR 433's body): no blocker; three minors.
 
 ## Unification (the owner, 2026-11-09)
 
