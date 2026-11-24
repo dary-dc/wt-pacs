@@ -97,7 +97,7 @@ async function connect({ port, url, certHash, opts: { writer, holdEveryOther, ..
     dialled,
     cache: writer === "decoders" && store.cache ? { key: url } : undefined,
     onFrame: (f) => controller.take(f),
-    onError: ({ frameIndex, reason }) => controller.refused(frameIndex, reason),
+    onError: ({ frameIndex, reason, lost }) => controller.refused(frameIndex, reason, lost),
   });
   // A task later, so the dial has been posted: connect posts it after a microtask.
   if (gl.canvas) setTimeout(() => startPainter(gl.canvas));

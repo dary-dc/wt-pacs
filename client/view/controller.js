@@ -57,6 +57,8 @@ export class Controller {
   #exact = null;
   #exactAsks = new Map();
   #cutShift;
+  /** Frames lost once and asked once more: lost again, they are withheld. */
+  #lostOnce = new Set();
 
   /** `paint(frame, display, { read })` draws a held frame, and a null one as the cleared canvas; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR. */
   constructor({ meta, fillMode, paint, emit, size, budget }) {
@@ -167,7 +169,7 @@ export class Controller {
     try {
       this.take(await this.client.requestFrame(want));
     } catch (e) {
-      if (this.#asks.get(want) === step) this.refused(want, e.message);
+      if (this.#asks.get(want) === step) this.refused(want, e.message, e.lost);
     } finally {
       if (this.#asks.get(want) === step) this.#asks.delete(want);
     }
@@ -225,12 +227,26 @@ export class Controller {
     return this.repaint();
   }
 
-  /** A frame the downloader could not deliver, withheld for the session; index -1 is the series. */
-  refused(i, reason) {
+  /** A frame the downloader could not deliver, withheld for the session, but a `lost` one first asked once more; index -1 is the series. */
+  refused(i, reason, lost = false) {
     if (i < 0) return this.#emit("failed", { scope: "series", reason });
+    if (lost && !this.#lostOnce.has(i)) {
+      this.#lostOnce.add(i);
+      this.#emit("failed", { scope: "frame", i, reason });
+      return this.#askAgain(i);
+    }
     this.store.withhold(i, reason);
     this.#emit("failed", { scope: "frame", i, reason });
     if (i === this.current) this.repaint();
+  }
+
+  /** The worker view's want sent again with `i` owed; the page view's step asks it again if it is still the current frame. */
+  #askAgain(i) {
+    if (this.store.downloader) {
+      this.store.lost(i);
+      return void this.store.want(this.want());
+    }
+    queueMicrotask(() => i === this.current && this.show(i));
   }
 
   /** Any of `window` (null: the metadata's), `invert`, `pose`; the current frame painted again. */

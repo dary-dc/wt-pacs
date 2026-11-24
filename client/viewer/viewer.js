@@ -170,7 +170,7 @@ try {
     controller.client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {
       ...connectOpts,
       onFrame: (f) => controller.take(f),
-      onError: ({ frameIndex, reason }) => controller.refused(frameIndex, reason),
+      onError: ({ frameIndex, reason, lost }) => controller.refused(frameIndex, reason, lost),
     });
   }
 } catch (e) {
