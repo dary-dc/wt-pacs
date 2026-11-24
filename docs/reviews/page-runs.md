@@ -205,16 +205,37 @@ whole-millisecond clock, 1 ms on a ~1.2 ms floor). Arms: all nine (`off`, the se
 Williams order, Chromium. Lbusy: a 50 ms long task every 100 ms (the rig's). D5a busy: Lbusy's long task, the
 renderer killed 0–50 ms after the fault (`report-plan.md:1703-1705`).
 
+**D5a busy is built first** (lab code, `lab/report-arms/run.mjs`; it is not there today: the kill is a fixed 50 ms
+after the fault for D5a, `ending === "D5a" ? 50 : 500`, and `busy` is set only for Lbusy). An ending `D5a-busy`: the
+page as for Lbusy (`busy: "1"`), then D5a's fault and kill, the kill delay *d* drawn per load uniformly on 0–50 ms
+by a seeded rule (seed = round × 100 + the unit's index, printed), passed to `killAfterFault` and recorded in the row
+with the delay the driver actually saw (`row.kill`). Mutant: a fixed 50 ms delay must fail a spread check, run on
+each cell before it is read: the 18 drawn delays of an arm span at least 30 ms (a uniform 0–50 ms draw of 18 spans
+under 30 ms with probability ≈ 1.3 × 10⁻³, **derived**), else the cell is `VOID`.
+
+**The band, derived from the delay's distribution.** A page-thread carrier (BEACON-*) hands the report off only
+when the long task ends. With a 50 ms task every 100 ms and the fault at a time independent of the task's phase
+(**assumed**), the fault falls inside a task with probability 0.5 and the remaining wait *w* is then uniform on
+0–50 ms; outside a task the hand-off is within Lbusy's p50 ≈ 2 ms, before any kill but the first ~2 ms
+(**measured** shape: p50 ≈ 2, p99 ≈ 51 ms, `report-plan.md` §Results 2). The report is lost when *d* < *w*:
+P(lost | *d*) = 0.5 × (1 − *d* ÷ 50), and over *d* uniform on 0–50, P(lost) = 0.25. So **13.5 of 18 delivered
+expected** (**derived**), and under Binomial(18, 0.75) the band **10–17 of 18** holds 97.5 % (**derived**, recomputed
+here; §Review's 94 % was for the same band). The pre-registered reading uses the recorded delays: expected delivered
+= 18 − Σ 0.5 × (1 − *dᵢ* ÷ 50), the band that sum ± 3.5. 18 of 18 has probability 0.006 under this model: it refutes
+the race as modelled (the hand-off does not wait on the task), it is not a hit for BEACON-*.
+
 | cell | predicted | basis |
 | --- | --- | --- |
 | Lbusy p99, `off` and BEACON-* | 45–55 ms | measured 50.84–51.39 (the run was `VOID` on its A/A only) |
 | Lbusy p99, KEEPALIVE-* | ≤ 5 ms | measured 2.46 |
 | Lbusy p99, SESSION-* | ≤ 5 ms | measured 1.99–2.31 |
 | D5a busy, safety report delivered, KEEPALIVE-* and SESSION-* | 18/18 each | idle D5a 18/18 every arm (measured); these carriers sent within 5 ms under the long task |
-| D5a busy, safety report delivered, BEACON-* | **4–14 of 18** | **theory**: the report waits for the page thread (p99 ≈ 51 ms) and the kill lands 0–50 ms after the fault, so about half are killed before the send |
+| D5a busy, safety report delivered, BEACON-* | **10–17 of 18** (expected 13.5; read against the recorded delays, above) | **derived**: the report waits for the page thread half the time, ~uniform on 0–50 ms, and the kill is drawn on 0–50 ms, so a quarter are killed before the send (amended 2026-11-24 from "4–14 of 18", §Review B2) |
 | D5a busy, fill record | Y arms 18/18, H arms 0/18 | idle pattern (measured) |
 
-Refuted: any band missed. **The race (b) asks for exists** if BEACON-* deliver ≤ 16/18 and KEEPALIVE-Y 18/18.
+Refuted: any band missed. **The race (b) asks for exists** if BEACON-* deliver ≤ 16/18 and KEEPALIVE-Y 18/18; under
+the band above, BEACON-* ≤ 16 has probability 0.96 (**derived**), so the rule reads the race the model predicts and
+a 17 is a hit of the band that the rule does not count as a race.
 
 **Firefox cells (after 0).** The full list (D1 D2 D9 D4 D5b D8 D5a D3 D7 L Lbusy C, then D6 under `--tun`) is
 ~45 h of host time (`report-plan.md:1062-1063`), past this row's latest. In this order, as time allows, each a whole
@@ -234,7 +255,8 @@ C="beacon:H,beacon:Y,keepalive:H,keepalive:Y"   # (a) adds off, off', and KEEPAL
 node lab/report-arms/run.mjs --receiver receiver --wait 60 --engine chromium --units "off,$C,<KEEPALIVE-Y°>,off'" \
   --endings C --rounds 28 --out rows/r3-chromium-C.jsonl
 node lab/report-arms/run.mjs --receiver receiver --wait 60 --engine chromium --units "off,beacon:H,beacon:Y,keepalive:H,keepalive:Y,session:1,session:Y,session:H,off'" \
-  --endings Lbusy --rounds 18 --out rows/r3-chromium-Lbusy.jsonl      # then --endings D5a with the busy page
+  --endings Lbusy --rounds 18 --out rows/r3-chromium-Lbusy.jsonl
+node lab/report-arms/run.mjs ... --engine chromium --endings D5a-busy --rounds 18 --out rows/r3-chromium-D5a-busy.jsonl  # after its build
 FIREFOX_PATH=... node lab/report-arms/run.mjs ... --engine firefox --endings D5a --rounds 18 --out rows/r3-firefox-D5a.jsonl
 ```
 
