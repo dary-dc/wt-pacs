@@ -121,17 +121,21 @@ export function predictions(inputs) {
   return rows;
 }
 
-/** The predictions file's XXH3-64, by the product's hasher, which fetches its built wasm and manifest by path. */
-export async function digestOf(text) {
+/** The product's XXH3-64 hasher, which fetches its built wasm and manifest by path. */
+export async function xxh3() {
   const fetch0 = globalThis.fetch;
   globalThis.fetch = async (url) => new Response(readFileSync(String(url).replace(/^file:\/\//, "")));
   try {
     const { hasher } = await import("../../client/decode/xxh3.js");
-    return (await hasher()).init().update(new TextEncoder().encode(text)).digest("hex");
+    const h = await hasher();
+    return (bytes) => h.init().update(bytes).digest("hex");
   } finally {
     globalThis.fetch = fetch0;
   }
 }
+
+/** The predictions file's XXH3-64. */
+export const digestOf = async (text) => (await xxh3())(new TextEncoder().encode(text));
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [inputs, out] = process.argv.slice(2);

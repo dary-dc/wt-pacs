@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The arms' series as scripts/demo-series.sh codes them (each set's exact HTJ2K series and its Q 8 G 8 view, the depth
-# cut on dbts_a1 and dbts_c1), frames kept beside each bundle for K1, then each form's prefixes of both.
+# cut on dbts_a1 and dbts_c1), frames kept beside each bundle for K1, then each form's prefixes of both, and FIT's series.
 # docs/client/evidence/delivery-comparison.md §2–§4; lab/delivery/README.md
 #
 #   lab/delivery/series.sh OUT [SET …]        default the three timed sets; BUILD=..., DATA=... as demo-series.sh
@@ -35,5 +35,8 @@ for set in "${SETS[@]}"; do
     for id in "$set" "$set-q8-g8${cut:+-cut}"; do python3 "$ROOT/lab/delivery/prefix.py" "$OUT" "$id" "$n" >/dev/null; done
   done
   python3 "$ROOT/lab/delivery/prefix.py" "$OUT" "$set" 4 >/dev/null
+  # FIT's series where the fit is a level above 0, whole and at each lossy form's prefix (A2.2).
+  "$PY" "$ROOT/lab/delivery/fit_truth.py" "$DATA/$set" "$OUT/.truth-$set" | grep -q "level 0 (" && continue
+  for n in "" 16 8; do node "$ROOT/lab/delivery/fit.mjs" "$OUT" "$set" "$OUT/.truth-$set" ${n:+--frames $n}; done
 done
 ls -l "$OUT"/*.sbnd

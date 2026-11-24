@@ -71,11 +71,11 @@ r = await judge(text, rowsOf({ edit: (l) => (l.arm === "C1" ? { records: [{ kind
 check(verdictOf(r, "C1", "latency").holds && !verdictOf(r, "C1", "askLastByte").holds && verdictOf(r, "C1", "askLastByte").side === "above", "C1: ask → last byte judged on its own clock (A2.4)");
 
 /** A2.8: a FIT load on a volume with a level asks only its prefixes; the lever ignored (whole frames) refuses the judge. */
-const fitText = JSON.stringify({ inputs: { volumes: { dbts_a1: { fit: { prefixes: Array(16).fill(500000) } } } }, predictions });
+const fitText = JSON.stringify({ inputs: { volumes: { dbts_a1: { fit: { prefixes: Array(16).fill(512000) } } } }, predictions });
 const fitDigest = await digestOf(fitText);
 const fitRows = (kb) => rowsOf().map((x) => ({ ...x, predictionsXxh3: fitDigest, ...(x.arm === "FIT" && { load: { ...x.load, frames: x.load.frames.map((f) => ({ ...f, kb })) } }) }));
 check((await throws(() => judge(fitText, fitRows(500)))) === null, "FIT: every frame its prefix, judged");
-check(/refused: FIT round 0 dbts_a1: frame 0 carried 1800 kB, its level prefix 500.0 kB/.test((await throws(() => judge(fitText, fitRows(1800)))) ?? ""), "FIT: whole frames asked where the fit is a prefix, the judge refuses");
+check(/refused: FIT round 0 dbts_a1: frame 0 carried 1800 KiB, its level prefix 500.0 KiB/.test((await throws(() => judge(fitText, fitRows(1800)))) ?? ""), "FIT: whole frames asked where the fit is a prefix, the judge refuses");
 
 /** A2.3: a load whose switch picked the exact series is named. */
 r = await judge(text, rowsOf({ edit: (l, row) => (l.arm === "A" && l.round === 4 ? { records: [{ kind: "switch", pick: "exact", G: 200, dV: 10 }] } : {}) }));

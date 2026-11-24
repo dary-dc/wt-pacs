@@ -57,8 +57,9 @@ export const coresOf = (list) => list.split(",").flatMap((part) => { const [a, b
 /** A2.8: a FIT load on a volume with a level to gain asks each frame's prefix only; any other frame's bytes refuse the judge. */
 export function fitRefusal(row, fit) {
   if (row.arm !== "FIT" || !fit || !row.load?.frames) return null;
-  const whole = row.load.frames.find((f) => Math.abs(f.kb * 1000 - fit.prefixes[f.i]) > 100);
-  return whole && `refused: FIT round ${row.round} ${row.volume}: frame ${whole.i} carried ${whole.kb} kB, its level prefix ${(fit.prefixes[whole.i] / 1000).toFixed(1)} kB`;
+  // `kb` is beacon.js's KiB to one decimal.
+  const whole = row.load.frames.find((f) => Math.abs(f.kb * 1024 - fit.prefixes[f.i]) > 0.1 * 1024);
+  return whole && `refused: FIT round ${row.round} ${row.volume}: frame ${whole.i} carried ${whole.kb} KiB, its level prefix ${(fit.prefixes[whole.i] / 1024).toFixed(1)} KiB`;
 }
 
 /** §6: why a load is VOID, [] when counted; `stop` when the run must stop (a frame that failed its check). */
