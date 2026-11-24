@@ -24,7 +24,7 @@ E = {
 "client/decode/htj2k.js": [
   ("  dec.decode();\n  const out = dec.getDecodedBuffer();\n  const wide", "  dec.decode();\n  globalThis.__decoded = performance.now();\n  const out = dec.getDecodedBuffer();\n  const wide"),
 ],
-"client/viewer/store.js": [
+"client/view/store-worker.js": [
   ("async function write({ index, info }) {\n", "async function write({ index, info }) {\n  const p = { who: \"store\", i: index, at: performance.timeOrigin + performance.now(), t0: performance.now() };\n  try { return await write0({ index, info }); } finally { p.write = performance.now(); " + LOG + " }\n}\nasync function write0({ index, info }) {\n"),
 ],
 }

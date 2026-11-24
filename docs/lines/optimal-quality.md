@@ -19,10 +19,18 @@ HTJ2K series; no residual, no server or wire change.
   a refused frame leaves the previous green mark; three `decoder.js` mutants survive the gate; no `demo-check.mjs`
   check per label state; the coding-error test compares the wrong σ; the first picture's +7.8 % at 1× not weighed
   (`claude/oq-integrity-build:docs/reviews/oq-integrity.md`; the evidence:
-  [`../client/evidence/optimal-quality-reconstruction-digest.md`](../client/evidence/optimal-quality-reconstruction-digest.md)). Until it ships, the green mark claims a check nobody ran.
+  [`../client/evidence/optimal-quality-reconstruction-digest.md`](../client/evidence/optimal-quality-reconstruction-digest.md)). Until it ships, the green mark claims a check nobody ran. *2026-11-22:* a fault model reads the
+  branch's withheld frame as leaving the previous frame's picture on the canvas, and asks whether a ✓ on a lossy
+  picture says anything once every frame is checked
+  ([`../client/evidence/integrity-model.md`](../client/evidence/integrity-model.md) §5; theory, not run).
 * **The product ingest writes the pair**, a design only (`claude/ingest-oq:docs/reviews/ingest-oq.md`): the Rust
   ingest's second phase with `aomenc` as a subprocess, held by a parity test; found: signed sources over 10 bits
-  have no form on the product path, and `pairOf` refuses ids with `~`.
+  have no form on the product path, and `pairOf` refuses ids with `~`. Its testable claims are tests since 2026-11-21
+  (`claude/ingest-oq-tests`, no fix): T2 and T3 against `ingest.py` in `ingest/coded-frames/pair_contract_test.py`,
+  F1 in `client/viewer/pair.test.mjs`, each failing claim a named known gap the gate keeps green until it holds:
+  `ingest.py` leaves the cut to its caller and codes signed 12-bit sources (the Rust ingest's `optimal::form` cuts and
+  refuses them), it writes no optimal-quality metadata, and `pairOf` admits neither `~` nor `<Study>/<Series>`. Reviewed 2026-11-22 (PR 421's body §INGEST-OQ-TESTS-REVIEW): no blocker; each
+  claim fails on today's code and flips to "gap closed" under a scratch fix; a known gap does not check why it fails (m1).
 * **The product ingest codes optimal quality: built, experimental** (#390): `ingest/from-parser --optimal-quality [Q]
   [--group G]`, off by default, byte-identical to `ingest.py`'s `lossy` on synthetic sets in the gate and on `dbts_a1`
   Q 8 G 8 cut ([`../av1/payload-format.md`](../av1/payload-format.md) §Optimal quality). Owed: the owner's S1/S2 for

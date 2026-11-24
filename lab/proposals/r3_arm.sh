@@ -18,7 +18,7 @@ def patch(f, old, new):
     s = open(p).read()
     assert s.count(old) == 1, (f, old)
     open(p, "w").write(s.replace(old, new))
-patch("viewer/viewer.js", "losslessEl.onclick = ", "losslessEl.onpointerdown = () => controller.exactSource?.wake();\nlosslessEl.onclick = ")
+patch("viewer/viewer.js", "losslessEl.onclick = ", "losslessEl.onpointerdown = () => controller.exactClient?.wake();\nlosslessEl.onclick = ")
 patch("transport/consumer.js", "  stats() {", "  wake() {\n    this.#worker.postMessage({ kind: \"wake\" });\n  }\n\n  stats() {")
 patch("transport/downloader.js", '    if (m.kind === "check") return void watch();',
       '    if (m.kind === "wake") return void (await session?.endStream().catch(() => {}));\n    if (m.kind === "check") return void watch();')

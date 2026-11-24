@@ -2,7 +2,8 @@
 import { DownloaderClient } from "/client/transport/consumer.js";
 import { built } from "/client/decode/wasm-glue.js";
 import { Painter } from "/client/paint/painter.js";
-import { asPainted, Controller, FIT, wantFrom } from "/client/view/controller.js";
+import { now } from "/client/view/clock.js";
+import { asPainted, Controller, FIT, memoryWindow, wantFrom } from "/client/view/controller.js";
 import { View, ViewWorker } from "/client/view/view.js";
 import { checkPair, pairOf } from "/client/viewer/pair.js";
 import { labelOf, lastError, markOf, overlayText, unfoldOnTap } from "/client/viewer/screen.js";
@@ -18,7 +19,6 @@ const overlayEl = document.getElementById("overlay");
 const barEl = document.getElementById("bar");
 const sliceEl = document.getElementById("slice");
 statusEl.onclick = qualityEl.onclick = (e) => unfoldOnTap(barEl, e);
-const at = () => performance.timeOrigin + performance.now();
 
 const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport])
   .then(([levers, transport]) => ({ ...levers, pinned: Boolean(levers.transport), transport }), (e) => ({ refused: e.message }));
@@ -37,7 +37,7 @@ if (lab.refused) {
 const booted = where === "worker" && lab.opts.viewWorkerFirst ? ViewWorker.boot() : undefined;
 const meta = await globalThis.viewerMetadata;
 /** Epoch ms of the page's start, for the lab's ledger: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
-const boot = { metadata: at() };
+const boot = { metadata: now() };
 const n = meta.frameCount;
 // An optimal-quality series is shown at optimal quality, each frame exact on request from its exact series.
 const pair = await (async () => {
@@ -98,10 +98,10 @@ let controller = null;
 let worker = null;
 if (where === "page") {
   const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`), lab: { settle: lab.settle } });
-  painter.renderer.then((r) => ((boot.gl = at()), emit("renderer", { renderer: r })), (e) => emit("renderer", { error: e.message }));
+  painter.renderer.then((r) => ((boot.gl = now()), emit("renderer", { renderer: r })), (e) => emit("renderer", { error: e.message }));
   controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
 } else {
-  boot.viewWorker = at();
+  boot.viewWorker = now();
   worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit,
     lab: { watch: hooks?.watch, settle: lab.settle, check: hooks?.check, booted, glAfterDial: Boolean(lab.opts.glAfterDial) } });
 }
@@ -124,7 +124,7 @@ function status() {
     `frame ${(view?.current ?? 0) + 1} of ${n}`,
     `client ${transport.client}`,
     `view ${where}`,
-    `received ${progress.have}, exact ${progress.seen.exact}, not exact ${progress.seen.inexact}, unchecked ${progress.seen.unchecked}`,
+    `received ${progress.have}, exact ${progress.seen.exact}, not exact ${progress.seen.inexact}, no digest ${progress.seen.unchecked}`,
     `routes: ${routes}`,
     `codec ${meta.codec ?? "htj2k"}`,
     `renderer ${rendererName}${soft}`,
@@ -139,14 +139,13 @@ const decoder = options.decoder ?? (meta.codec === "av1"
   : await built("openjph"));
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
 const groups = meta.lossy?.g > 1 ? { groupLength: meta.lossy.g, frameCount: n } : {};
-const all = [...Array(n).keys()];
 // A lab harness slows the CPU from here: lab/viewer/levers.js.
 await lab.started?.();
-issuedAt = at();
+issuedAt = now();
 boot.connect = issuedAt;
 const connectOpts = {
   transport: transport.module,
-  ...(fillMode && { fill: all }),
+  ...(fillMode && controller && { fill: controller.want() }),
   // The file follows a restarted server; a pair the lab named stays pinned.
   transportFile: lab.pinned ? undefined : transportFile,
   digests,
@@ -156,15 +155,16 @@ const connectOpts = {
 };
 try {
   // What the page dials with, under the lab's `pageDials`: the view worker's first want, unless a cache or a half-held store shapes it.
-  const firstWant = options.pageDials && !writer && !options.holdEveryOther ? wantFrom(0, n, fillMode, Boolean(options.waitAhead)) : undefined;
+  const firstWant = options.pageDials && !writer && !options.holdEveryOther ? wantFrom(0, n, fillMode, Boolean(options.waitAhead), memoryWindow(meta)) : undefined;
   if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer, firstWant }, issuedAt);
   else {
     controller.issuedAt = issuedAt;
-    controller.client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {
+    const client = await DownloaderClient.connect(transport.wt_url, transport.cert_sha256, {
       ...connectOpts,
       onFrame: (f) => controller.take(f),
       onError: ({ frameIndex, reason }) => controller.refused(frameIndex, reason),
     });
+    controller.link(client, connectOpts.fill ?? []);
   }
 } catch (e) {
   fail(`connect: ${e.message}`);
@@ -187,7 +187,7 @@ async function connectExact() {
   };
   try {
     if (worker) await worker.connectExact(pair.transport.wt_url, pair.transport.cert_sha256, opts);
-    else controller.exactSource = await DownloaderClient.connect(pair.transport.wt_url, pair.transport.cert_sha256, opts);
+    else controller.exactClient = await DownloaderClient.connect(pair.transport.wt_url, pair.transport.cert_sha256, opts);
     losslessEl.hidden = false;
   } catch (e) {
     fail(`lossless: ${e.message}`);
@@ -266,4 +266,4 @@ canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 addEventListener("resize", () => view.resize(size()));
 
 await hooks?.run({ n, fillMode, view, worker, controller, progress: () => progress, errors, shown: () => shown, show, toggleCine, cineFps,
-  rendererName: () => rendererName, boot, issuedAt, at });
+  rendererName: () => rendererName, boot, issuedAt });

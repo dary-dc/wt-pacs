@@ -1,0 +1,9 @@
+200
+chromium getstats-result {"has":"function","proto":"undefined","ready":true}
+Mozilla Firefox 160.0.1
+console.log: "getstats-result {\"has\":\"function\",\"proto\":\"function\",\"ready\":true,\"stats\":{\"atSendCapacity\":false,\"bytesAcknowledged\":4145,\"bytesLost\":0,\"bytesReceived\":7632,\"bytesSent\":4145,\"datagrams\":[\"droppedIncoming\",\"expiredIncoming\",\"expiredOutgoing\",\"lostOutgoing\"],\"estimatedSendRate\":64621314,\"minRtt\":0.585195,\"packetsLost\":0,\"packetsReceived\":13,\"packetsSent\":11,\"rttVariation\":1.096365,\"smoothedRtt\":1.549953}}"
+Mozilla Firefox 163.0a1
+console.log: "getstats-result {\"has\":\"function\",\"proto\":\"function\",\"ready\":true,\"stats\":{\"atSendCapacity\":false,\"bytesAcknowledged\":4016,\"bytesLost\":0,\"bytesReceived\":7513,\"bytesSent\":4016,\"datagrams\":[\"droppedIncoming\",\"expiredIncoming\",\"expiredOutgoing\",\"lostOutgoing\"],\"estimatedSendRate\":90883519,\"minRtt\":0.243473,\"packetsLost\":0,\"packetsReceived\":9,\"packetsSent\":10,\"rttVariation\":0.602124,\"smoothedRtt\":1.1020699999999999}}"
+159.0.8154.13 getstats-result {"has":"function","proto":"undefined","ready":true}
+160.0.8173.0 getstats-result {"has":"function","proto":"function","ready":true,"stats":{"datagrams":["droppedIncoming","expiredIncoming","expiredOutgoing","lostOutgoing"],"estimatedSendRate":208009360,"minRtt":0.178,"rttVariation":1.159,"smoothedRtt":1.707}}
+158.0.8127.36 getstats-result {"has":"function","proto":"undefined","ready":true}

@@ -186,7 +186,7 @@ All per volume, at both VL rungs unless named; the collector's medians decide. "
 | S5 | Every slice at VL, decode: `snr` ÷ `two` 1.3–1.7 | outside |
 | S6 | Exact by residual against whole HTJ2K at the exact stage (`two` against `sep`): the residual's bytes fewer and its decode + add 0.75–1.1× an HTJ2K frame, so `two` **better** than `sep` | `sep` dominating at any stage |
 | S7 | `two` against `one`: **a trade** — `two` dominates at first picture and preview, `one` at VL (its VL is `two`'s minus the preview) | any other label |
-| S8 | `two` and `snr` against `svc` (Q 8): **a trade** — `svc` dominates at first picture, preview and exact bytes, the two-layer carriers at VL | any other label |
+| S8 | `two` and `snr` against `svc` (Q 8): **a trade** — `svc` dominates at first picture, preview and exact bytes, the two-layer carriers at VL (in bytes and time, not fidelity; *added 2026-11-22, decode audit 19*) | any other label |
 | S9 | `snr` against `two`: `two` **better** (`snr` dominated at VL, nowhere dominating) | `snr` dominating at any stage |
 
 ### 5 · The protocol
@@ -303,7 +303,8 @@ its 90th percentile 28 · 17 · 7.6 · 7.1 · 20 · 13 · 12 % (*derived*). The 
 30–70 % (`snr` against `two` at VL) or orders of magnitude (first picture against `one` and `svc`); the residual
 against the whole HTJ2K frame (S6), predicted within 0.75–1.1×, may not resolve, which the label then shows as a stage
 neither side dominates. The pilot's own medians, crude and not read: `snr` ÷ `two` to every slice at VL 1.13–1.65,
-`two` ÷ `sep` to every slice exact 1.04–1.11.
+`two` ÷ `sep` to every slice exact 1.04–1.11 (the JavaScript add on `two`'s clock only: a tie once it is taken off,
+§SNR preview, measured, corrected 2026-11-11, decode audit 6).
 
 **Order at that n.** The four-arm blocks' Williams period is 4 rounds, the five-arm blocks' 10, the round's own order
 of 18 blocks 18: 20 rounds are whole periods of the first two, so each arm follows each other arm 5 times in a
@@ -602,12 +603,16 @@ step ran exactly as §Shards writes it. `rule_test.py` holds 48/48 on this check
 | `snr` against `svc` (Q 8) | a trade, all three | a trade, all three | a trade on `dbts_a1`, `dbts_c1`; **worse on `dbts_b1`** |
 
 The stages decide it like this (from `collected.md`). `svc` dominates the two-layer carriers at the first picture,
-at preview and at every slice exact. `two` dominates `svc` at VL: `svc`'s next picture is the exact one, 4–13× `two`'s
+at preview and at every slice exact (*added 2026-11-11, decode audit 19:* dominance counts bytes and time, not
+fidelity: a quarter-size q 40 base at 38.0–38.7 dB upscaled, against a full-size Q 24 preview at 45.8–46.5 dB). `two` dominates `svc` at VL: `svc`'s next picture is the exact one, 4–13× `two`'s
 VL bytes for one slice (Q 8). On `dbts_b1` · G 16 `snr`'s VL also costs fewer bytes than `svc`'s, but its time is decided
 higher, so `snr` dominates `svc` nowhere. `two` dominates `one` at preview, and at the first picture except on
 `dbts_b1` at G 8 · 16, where `one`'s first unit decodes faster. `one` dominates `two` at VL and exact, with fewer
-bytes and less time. Against `sep`, `two` has fewer bytes to exact (`sep` 1.07–1.47 of HTJ2K, `two` 1.02–1.08) but
-is decided slower, 1.04–1.11× (ratio of medians, *derived*). Every earlier stage is the same arm, so neither side
+bytes and less time. Against `sep`, `two` has fewer bytes to exact (`sep` 1.07–1.47 of HTJ2K, `two` 1.02–1.08), and
+its time is a tie. *Corrected 2026-11-11 (decode audit 6):* this read "decided slower, 1.04–1.11×". `two`'s
+exact-stage clock spans `decodeFrame` plus the JavaScript add, and `ctrl`'s spans `decodeFrame` alone. With each
+block's median add taken off, the ratio is 0.98–1.02 in all 18 cells (*derived*). So `two` dominates `sep` to exact
+on bytes. Every earlier stage is the same arm, so neither side
 dominates.
 
 **Predictions** (§4), against the pooled rows; bands are §4's:
@@ -632,7 +637,8 @@ rule. **`two` against `one`, `dbts_b1` · G 8 · Q 8: a trade.** `two` dominates
 against 23.2 MB, log time ratio −0.240, interval −0.271 to −0.205) and jump preview. `one` dominates at VL and exact,
 both kinds (every slice VL: 23.2 against 24.9 MB, +0.580, interval +0.567 to +0.596). At the first picture `two` has
 fewer bytes (49.5 against 468 kB) but `one` is decided faster (+0.096, interval +0.023 to +0.186), so neither
-dominates there. **`snr` against `svc`, `dbts_b1` · G 16 · Q 8: worse.** `svc` dominates at the first picture
+dominates there. **`snr` against `svc`, `dbts_b1` · G 16 · Q 8: worse** (in bytes and time, not fidelity: `svc`'s
+quarter-size base is the lower-fidelity picture; *added 2026-11-22, decode audit 19*). `svc` dominates at the first picture
 (2.5 against 64.2 kB, +2.33), every slice preview, jump preview and every slice exact (101 against 115 MB, +0.355).
 At VL `snr` has fewer bytes, but `svc` is decided faster (every slice +0.079, interval +0.047 to +0.110; jump
 +0.107), so neither dominates there.
@@ -694,7 +700,9 @@ times leave out `dbts_a1` (not read).
 What the table says, on these three volumes only. The quarter base (`svc`) is the cheapest first picture by
 7–20× in bytes and 7–18× in time against `two`. The two-layer preview (`two`) gets a full-size first picture for 0.5–2.3 %
 of an HTJ2K frame. It decodes in 1.7–2.2 HTJ2K frames, so it costs more time than the shipped HTJ2K frame, though
-far fewer bytes. To the exact frame, every AV1 carrier decodes 2.8–10× slower than HTJ2K over the whole volume
+far fewer bytes. To the exact frame, every AV1 carrier decodes 2.8–10× slower than HTJ2K (against the package's HTJ2K, which carries a range pass
+the product no longer runs; against the product's build the gap is up to 21–31 % wider; added 2026-11-11, decode audit
+16) over the whole volume
 (`one` 2.8–4.1×, `sep` 4.0–5.4×, `two` 4.2–5.8×, `snr` 5.0–7.7×, `svc` 3.5–10×; *derived*, ratios of medians). The quality-layer form (`snr`) costs 1.01–1.55× `two`'s bytes to VL and 1.01–1.13× to exact, and 1.17–1.66× its
 decode to VL, and it is better at no stage.
 

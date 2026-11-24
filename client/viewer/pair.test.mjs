@@ -1,6 +1,7 @@
 // node client/viewer/pair.test.mjs — an optimal-quality series paired with its exact series, and every malformed pair refused by name.
 import assert from "node:assert/strict";
-import { checkPair, cutShift, pairOf } from "./pair.js";
+import { cutShift } from "../decode/depth-cut.js";
+import { checkPair, pairOf } from "./pair.js";
 
 const source = { frameCount: 3, width: 4, height: 2, bitsStored: 10, signed: false, sourceFingerprint: "00000000f00df00d" };
 const optimal = { ...source, codec: "av1", lossy: { q: 30, g: 8, depth: 10 }, exactSeries: "1.2.840.5" };
@@ -58,5 +59,22 @@ for (const [bad, why] of [
   [{ lossy: { ...cut.lossy, bitsStored: 14 } }, /bitsStored 12/],
   [{ bitsStored: 17, lossy: { ...cut.lossy, bitsStored: 17 } }, /depth cut/],
 ]) assert.throws(() => pairOf({ ...cut, ...bad }), why);
+
+/** A known gap: its claim fails on today's code and prints so; once it holds, this throws until the mark is removed. */
+function knownGap(claim, why, f) {
+  try { f(); } catch (e) { console.log(`known gap: ${claim} — ${why} (${e.message})`); return; }
+  throw new Error(`gap closed: ${claim} holds; make it an assertion`);
+}
+
+/** F1 (docs/reviews/ingest-oq.md §6): an exact series served by its PCS-coded UIDs, `<Study>/<Series>` as the server parses
+ * the name (server/src/media/series_tree.rs `SeriesName::parse`). "1.2.3" codes as TOMG and "1.2.999" as TON~x0 (docs/ingest/contract.md §The layout). */
+const F1 = "pairOf's /^[\\w.-]+$/ is not the serving grammar";
+knownGap("pairOf admits a coded UID with ~", F1, () => assert.equal(pairOf({ ...optimal, exactSeries: "TON~x0" }).id, "TON~x0"));
+knownGap("pairOf admits <Study>/<Series>", F1, () => assert.equal(pairOf({ ...optimal, exactSeries: "TOMG/TON~x0" }).id, "TOMG/TON~x0"));
+
+/** Whatever grammar replaces it, a name that leaves its study, or has an empty or third segment, stays refused. */
+for (const bad of ["TOMG/../x0", "TOMG/..", "../TON~x0", "TOMG/", "/TON~x0", "TOMG//TON~x0", "TOMG/TON~x0/x0", "TOMG\\TON~x0"]) {
+  assert.throws(() => pairOf({ ...optimal, exactSeries: bad }), /exactSeries/, bad);
+}
 
 console.log("pair: ok");

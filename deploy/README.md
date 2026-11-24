@@ -28,7 +28,7 @@ server; host networking for `server` and `exact` is proposed, unmeasured, in
 
 ## Run it
 
-From a fresh clone or a `git archive` of one, with docker (or podman; every `docker` below reads `podman` as well):
+From a fresh clone or a `git archive` of one, with docker (podman: §With podman, rootless, below):
 
 ```bash
 docker compose -f deploy/compose.yml build
@@ -76,6 +76,30 @@ Off this host, add `EXACT_WT_URL=https://203.0.113.7:4434/` beside `WT_URL`.
 | `MEMLOCK` | `67108864` (64 MiB) | the server's locked-memory limit, soft and hard, which its rings are charged to (§Container settings) |
 | `NOFILE` | `65535` | the server's open-file limit, soft and hard; a ring holds one (two until row 250) |
 | `BUILD_CA` | `/dev/null` (none) | the CA of a TLS-inspecting proxy the build must go through, a build secret |
+
+### With podman, rootless
+
+```bash
+for t in server web; do
+  podman build -f deploy/Containerfile --target "$t" --build-arg REGISTRY=docker.io/library \
+    --secret id=build_ca,src="${BUILD_CA:-/dev/null}" -t "wt-pacs-$t" .
+done
+cd deploy && MEMLOCK=8388608 TLS_PORT=8443 STUDIES=/path/to/studies SERIES=ct podman-compose -f compose.yml up -d
+```
+
+* **The build is `podman build`.** `docker compose build` passes the `build_ca` secret, which only BuildKit (docker's
+  `buildx` plugin) takes; podman's own build takes it.
+* **The start is `podman-compose`, from `deploy/`.** docker's compose sends the seccomp profile's contents, which podman
+  refuses (`file name too long`); podman-compose passes `./seccomp-uring.json` as written, so it runs where that file
+  is. A container that fails to be created leaves it waiting for that container's health forever:
+  `podman-compose --verbose` shows the error.
+* **A user's limits.** `MEMLOCK` cannot pass the user's hard limit (`ulimit -Hl`; 8 MiB on Fedora, ~1 000 rings,
+  §Container settings), and ports below 1024 need root, so `TLS_PORT` moves.
+
+Checked 2026-11-09 on Fedora 45 (SELinux enforcing), podman 6.1.3, podman-compose 1.6.0: the decoder build matched
+its manifest, `check_equivalence.sh` passed, and `client/viewer/check.mjs --url` drew three exact frames with each
+client. The server reported `read_ring=refused`: §Open's io_uring row. The block then began with the decoder build,
+which the deploy no longer runs (owner's decision D2); it was not re-run without that line.
 
 ## A server compiled outside the image
 
@@ -188,7 +212,8 @@ Cross-Origin-Resource-Policy: same-origin
 
 Cross-origin isolation is what gives the page `SharedArrayBuffer`. Losing it degrades the client silently rather
 than failing, since the downloader refuses to start without it. Pages and the metadata are revalidated
-(`Cache-Control: no-cache` on `text/html` and `application/json`); modules and WASM keep heuristic caching. The
+(`Cache-Control: no-cache` on `text/html` and `application/json`); modules and WASM keep heuristic caching, so after a deploy a browser may run the previous build's modules for a tenth
+of that build's age ([`../docs/client/evidence/stale-client-code.md`](../docs/client/evidence/stale-client-code.md)). The
 `types` block is there because nginx's `mime.types` answers `.js` as `application/javascript` and has no `.mjs`.
 
 **A Content-Security-Policy on every response**, so the workers carry it as well as the page:
@@ -407,7 +432,7 @@ Kubernetes (not run here): copy the profile to each node's `/var/lib/kubelet/sec
 `securityContext.seccompProfile: {type: Localhost, localhostProfile: seccomp-uring.json}`. Kubernetes has no
 per-pod `ulimit`, so `memlock` is the node runtime's. Podman: `--security-opt seccomp=deploy/seccomp-uring.json`;
 rootless Podman 5.8.4 accepts it, and on its SELinux-enforcing host the ring then needs the row above
-(`docs/adr/disk-access.md` §In a container). The rest of rootless podman is unchecked (§Open). `seccomp-uring.json` is Docker's Apache-2.0 profile with one
+(`docs/adr/disk-access.md` §In a container). The rest of rootless podman: §Run it *With podman, rootless*. `seccomp-uring.json` is Docker's Apache-2.0 profile with one
 entry added. `seccomp-uring.sh` writes it from the pinned, checksummed fetch, and `--check` says whether it is
 current (a changed entry and a wrong checksum each failed it). Regenerate it when the pinned Docker moves.
 
@@ -430,7 +455,7 @@ server's (with no `ulimits` set they are the daemon's). **Proposed, not built:**
 
 | what | why it matters | what would close it |
 | --- | --- | --- |
-| rootless podman | the brief's first runtime is unchecked | a host with it: build, `up`, the page check |
+| ~~rootless podman~~ *closed 2026-11-09* | the brief's first runtime is unchecked | closed: build, `up` and the page check on a host with it, and what differs from docker: §Run it *With podman, rootless* |
 | io_uring on an SELinux-enforcing host | the profile is not enough there: `EACCES` (§Container settings) | the owner's call: `label=disable` or a policy module granting `io_uring { allowed }`; neither ships. The module's source is [`wtpacs_io_uring.te`](wtpacs_io_uring.te) (row 262, untried); `lab/scripts/workstation_run.sh` tries `label=disable` on such a host and prints the root steps that load the module |
 | ~~a stale server binary~~ *closed by row BUILDCACHE, 2026-10-15* | the build stage's `target` cache mount is shared by every build on the daemon; cargo trusts mtimes, so a tree whose sources are older than the cache's last build ships the old binary, silently (row 231: its `read_ring=` line was missing until the sources were touched and the build ran with `--no-cache-filter build,server`) | closed: the build touches every source it copied before `cargo build` (§5), proved in §Verified *Row BUILDCACHE* |
 | studies by name | one server serves one series (`SERIES`) | a study manifest, proposed in `docs/FIXTURES.md` §From DICOM |

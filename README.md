@@ -2,10 +2,18 @@
 
 WebTransport PACS — web-native medical imaging transport (MIT).
 
+## Purpose
+
+wt-pacs lets a radiologist open a breast DBT or ultrasound study in a web browser — on a phone over unreliable
+wireless as well as on a workstation — and start reading sooner than today's web viewers allow: a fast first
+picture, a fast full fill, and low latency on every jump. Every frame the reader asks to see exactly is the
+original, bit for bit, and checked. It does this at the lowest server and network cost per reading session, as
+one small MIT-licensed server. Its input is what the PCS delivers; the PCS itself is out of scope.
+
 ## Prerequisites
 
 Linux on x86-64 (the server's read path uses io_uring; the pinned `wasm-opt` is x86-64), Rust 1.88 or newer
-with `rustup`, Node 22 (`.nvmrc`), Python 3.11 to 3.13, and on PATH: git, curl, tar, sha256sum,
+with `rustup`, Node 22 (`.nvmrc`), Python 3.11 to 3.13 with pip, and on PATH: git, curl, tar, sha256sum,
 openssl, jq, binutils' `nm` and `strings`, and docker, in which the full gate rebuilds the decoders (`--quick` skips it, and so does its absence, by name).
 The first builds fetch from crates.io, npm and GitHub.
 
@@ -365,7 +373,7 @@ browser honors it. Not checked: the phone, its Chrome's flags page, the tether, 
   (the encoder's quantizer: higher, more error), G (frames per keyframe) and depth (*depth cut of 12*: 10-bit codes of a
   12-bit series).
 * **The status line**: the frame shown of the series; the transport client (`ts`); where frames are held (`page`);
-  frames received, of which exact, not exact and unchecked (an optimal-quality frame is unchecked; the exact frame does
+  frames received, of which exact, not exact and *no digest* (every optimal-quality frame; the exact frame does
   not count here); frames per decode route; the codec; the GPU renderer, *(software)* when it is not a GPU; the fill's
   time from the connect to the last frame received, or *on demand* under `?fill=0`; the last error. On a phone the line is cut at
   the screen's width: a tap on the label or the status line shows it whole, wrapped, and another tap folds it.

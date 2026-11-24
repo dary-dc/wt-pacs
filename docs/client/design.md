@@ -46,7 +46,7 @@ on threads ([`../native/README.md`](../native/README.md) §Built). The page's co
 * The want stays ordered down to the wire; the server does not reorder ([`../adr/reject-server-ordering.md`](../adr/reject-server-ordering.md)).
 * A frame is (series, index, metadata version); the generation steps only when the series or its version changes.
 * At most `K` frames are dispatched and unacked (credits), so a full store reaches the wire as a pause.
-* A frame leaves memory only over the byte budget, only once written, farthest from the current frame first.
+* A frame leaves memory only over the byte budget (256 MiB of decoded frames by default, [*M, the budget*](evidence/what-a-view-asks-for.md)), farthest from the current frame first; with a writer, its ack waits for its write, and with none the fill stops at the window, so nothing it asks is let go on arrival.
 * Under `worker` no frame, pixel or port reaches the page; VOI is part of paint.
 * Paint first: the frame on screen is painted before its cache write, and no write runs on the view worker's thread.
 * An exact frame is checked against its ingest digest before it is handed on; a frame not checked `true` is never shown as exact.
@@ -182,7 +182,8 @@ blocker (`claude/lossless-under-loss:docs/reviews/lossless-under-loss.md`); whet
 sends nothing at rate 0 ([`what-a-load-report-sends.md`](evidence/what-a-load-report-sends.md)). For the owner: a
 coded-bytes digest, to tell the bytes' fault from the decoder's
 ([`where-a-frame-can-be-corrupted.md`](evidence/where-a-frame-can-be-corrupted.md) Q1); a series without digests;
-whether a blocked frame has a reveal. How the load and safety reports leave the page is chosen empirically between `sendBeacon`,
+whether a blocked frame has a reveal; each worked from a fault model, 2026-11-22
+([`integrity-model.md`](evidence/integrity-model.md) §6, §7, theory). How the load and safety reports leave the page is chosen empirically between `sendBeacon`,
 `fetch` with `keepalive` and the WebTransport session, and two receivers; run 2026-11-16 to 18 and judged
 (Chromium cell D only, provisional): BEACON and KEEPALIVE pass, the hybrid timing leading at-hide by 50 points; the
 carrier, the safety report's carrier and the receiver undecided ([`evidence/report-plan.md`](evidence/report-plan.md)
@@ -202,7 +203,11 @@ by strips, or an exact level picture first, and in what words
 
 **What a view asks for.** Never designed (the owner, 2026-11-02). Proposed, theory only: one rule, a memory window
 from the current frame; several series under a client arbiter ([`what-a-view-asks-for.md`](evidence/what-a-view-asks-for.md),
-its §5 decides; [`how-viewers-and-readers-ask.md`](evidence/how-viewers-and-readers-ask.md)). Beside it, each the
+its §5 decides; [`how-viewers-and-readers-ask.md`](evidence/how-viewers-and-readers-ask.md)). *2026-11-22, theory:*
+a model of the reader gives one key, a frame's need time, for the want, the store and what the transport commits;
+with no slice skipped its hold lets go behind first while the reader moves and stays centred while the reader
+dwells (the window behind first derived was struck by its fix), and it takes `waitAhead`'s k as the frames committed
+([`ask-model.md`](evidence/ask-model.md); its §7 lists what a cloud run could refute, its §9 the owner's calls). Beside it, each the
 owner's: an ask during a fill ([`ask-during-a-fill.md`](evidence/ask-during-a-fill.md)), a scroll ahead
 ([`what-a-scroll-ahead-asks.md`](evidence/what-a-scroll-ahead-asks.md)), an ask behind the decoders
 ([`ask-behind-a-decoder-queue.md`](evidence/ask-behind-a-decoder-queue.md)).
@@ -238,6 +243,15 @@ owner's: an ask during a fill ([`ask-during-a-fill.md`](evidence/ask-during-a-fi
 [`av1-cold-open-depth-hint.md`](evidence/av1-cold-open-depth-hint.md)); a wake before the exact ask
 ([`wake-before-lossless.md`](evidence/wake-before-lossless.md)); the WebGL painter on a real GPU; Firefox and WebKit
 ([`browser-av1-profile-support.md`](evidence/browser-av1-profile-support.md),
-[`browser-decode-routes.md`](evidence/browser-decode-routes.md)); `sf.jxl` and G > 1 for AV1 cine from the PCS
+[`browser-decode-routes.md`](evidence/browser-decode-routes.md); each result per engine: [`../decode/engines.md`](../decode/engines.md)); `sf.jxl` and G > 1 for AV1 cine from the PCS
 contract ([`../lines/codecs.md`](../lines/codecs.md)); the reviews' and proposals' open items in
-[`../lines/client.md`](../lines/client.md). What series that are not cine-like get is not stated yet.
+[`../lines/client.md`](../lines/client.md).
+
+**What series that are not cine-like get.** Not stated yet. *So far (2026-11-22), theory and sources only*
+([`non-cine-series.md`](evidence/non-cine-series.md)): three classes, not one. A large single frame at 12 bits or
+under (the synthesized 2D picture of each DBT view, a 2D mammogram) is half the pictures of a DBT exam: proposed, its
+exact frame alone, whole, and no AV1 view; an exact level picture first is measured at level 2 (`ffdm_d`), and level 1,
+the level a phone's device pixels need, is the one cell worth a cloud run. Ultrasound
+stills are a stack of exact frames once the ingest admits a real series (mixed sizes, a clip among stills, a lossy
+source: refused today). Over 12 bits waits with tiles (2026-10-10). Read in the code, not run: a frame larger than the
+device's largest texture paints nothing and says nothing. *Decides:* the `non-cine-series` page, then the owner.

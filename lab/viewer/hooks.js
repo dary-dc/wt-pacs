@@ -1,4 +1,5 @@
 /** The page hooks: what the viewer check and a lab harness do with the product's page. Loaded by levers.js alone. */
+import { now } from "../../client/view/clock.js";
 import { run as runCheck } from "./check-page.js";
 
 const CHECK_VIEW = new URL("./check-view.js", import.meta.url).href;
@@ -42,7 +43,7 @@ export function pageHooks(q, lab) {
     },
 
     /** Once the page has dialled: the lab's trace and steps, then the check or the lab's ledger after the fill. */
-    async run({ n, fillMode, view, worker, controller, progress, errors, shown, show, toggleCine, cineFps, rendererName, boot, issuedAt, at }) {
+    async run({ n, fillMode, view, worker, controller, progress, errors, shown, show, toggleCine, cineFps, rendererName, boot, issuedAt }) {
       const stepped = [];
       const until = (done) => new Promise((resolve) => {
         const poll = setInterval(() => done() && (clearInterval(poll), resolve()), 5);
@@ -53,7 +54,7 @@ export function pageHooks(q, lab) {
         const t0 = performance.now();
         for (const [k, i] of lab.trace.steps(n).entries()) {
           await new Promise((r) => setTimeout(r, t0 + (k + 1) * lab.trace.everyMs - performance.now()));
-          stepped.push({ i, at: at() });
+          stepped.push({ i, at: now() });
           show(i);
         }
         // On demand a frame the reader left may never be asked, so the trace ends on its last step's frame.
@@ -63,7 +64,7 @@ export function pageHooks(q, lab) {
 
       const giveUp = checking ? performance.now() + 60000 : Infinity;
       // The check judges a fill that stops short rather than waiting on it.
-      await until(() => progress().have + errors.length >= n || (!fillMode && progress().have) || performance.now() > giveUp);
+      await until(() => progress().have + errors.length >= progress().total || (!fillMode && progress().have) || performance.now() > giveUp);
       await lab.filled?.();
       await view.repaint();
       if (checking) {
@@ -74,7 +75,7 @@ export function pageHooks(q, lab) {
       }
       await traced;
       for (const i of lab.steps ?? []) {
-        stepped.push({ i, at: at() });
+        stepped.push({ i, at: now() });
         show(i);
         await until(() => shown()?.i === i || errors.length);
       }

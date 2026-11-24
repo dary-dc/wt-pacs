@@ -1,10 +1,12 @@
 /** The view's controller: the current frame, what it wants and in what order, and its paint. docs/adr/frame-path.md §3, *Built* */
+import { now } from "./clock.js";
 import { FrameStore } from "./store.js";
-import { CUT_DEPTH, cutShift } from "../viewer/pair.js";
+import { CUT_DEPTH, cutShift } from "../decode/depth-cut.js";
 
-const at = () => performance.timeOrigin + performance.now();
 /** ms before the one re-ask of a lost exact ask; a refusal or a failed check is never asked again. docs/reviews/lossless-under-loss.md */
 const EXACT_RETRY_MS = 1000;
+/** Decoded frames a tab holds by default, in bytes. docs/client/evidence/what-a-view-asks-for.md, *M, the budget* */
+const VIEW_MEMORY = 256 * 2 ** 20;
 export const FIT = { fit: true, zoom: 1, panX: 0, panY: 0, rotate: 0, flipH: false, flipV: false };
 
 export const asPainted = (info) => ({ pixels: info.pixels, width: info.width, height: info.height, bits: info.bits, components: info.components, signed: info.signed, cutShift: info.cutShift });
@@ -18,13 +20,21 @@ export function samplesOf(info) {
   return new View(info.pixels);
 }
 
-/** What a view on frame `c` of `n` wants, `c` first: when filling, the series nearest first or `ascending`; on demand, `c` alone. */
-export function wantFrom(c, n, fillMode, ascending) {
+/** What frame `c` of `n` wants, `c` first, at most `w`: docs/client/evidence/what-a-view-asks-for.md, *M, the budget* */
+export function wantFrom(c, n, fillMode, ascending, w = n) {
   if (!fillMode) return [c];
-  if (ascending) return Array.from({ length: n }, (_, d) => (c + d) % n);
+  if (ascending && w >= n) return Array.from({ length: n }, (_, d) => (c + d) % n);
   const order = [c];
-  for (let d = 1; order.length < n; d++) for (const i of [c + d, c - d]) if (i >= 0 && i < n) order.push(i);
-  return order;
+  for (let d = 1; order.length < Math.min(n, w); d++) for (const i of [c + d, c - d]) if (i >= 0 && i < n && order.length < w) order.push(i);
+  return ascending ? [...order.filter((i) => i >= c).sort((a, b) => a - b), ...order.filter((i) => i < c)] : order;
+}
+
+/** The memory window a view holds by default, in frames: the series' whole decoded frames that fit in 256 MiB; a sample is one byte at 8 bits or in colour, else two. */
+export function memoryWindow({ width, height, channels = 1, bitsStored }) {
+  const sample = channels === 3 || bitsStored <= 8 ? 1 : 2;
+  const w = Math.floor(VIEW_MEMORY / (width * height * channels * sample));
+  // Metadata without the frame's size bounds nothing.
+  return Number.isNaN(w) ? Infinity : w;
 }
 
 export class Controller {
@@ -42,6 +52,8 @@ export class Controller {
   lastPaint = null;
   #meta;
   #n;
+  /** The frames the store keeps; with no cache, the fill asks no more. */
+  #window;
   #fillMode;
   #emit;
   #voi = null;
@@ -55,14 +67,15 @@ export class Controller {
   #asks = new Map();
   #steps = 0;
   /** Under an optimal-quality series, the client of its exact series; `#exact`, the one frame asked exact, `{ i, frame?, failed? }`. */
-  exactSource = null;
+  exactClient = null;
   #exact = null;
   #exactAsks = new Map();
   #exactRetryMs;
   #cutShift;
 
-  /** `paint(frame, display, { read })` draws a held frame; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR. */
-  constructor({ meta, fillMode, paint, emit, size, budget, exactRetryMs = EXACT_RETRY_MS }) {
+  /** `paint(frame, display, { read })` draws a held frame; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR; `budget` in frames. */
+  constructor({ meta, fillMode, paint, emit, size, budget = memoryWindow(meta), exactRetryMs = EXACT_RETRY_MS }) {
+    this.#window = budget;
     this.store = new FrameStore({ arrived: (i, frame) => this.#arrived(i, frame), budget });
     this.store.painted = () => this.#painting;
     this.#meta = meta;
@@ -82,7 +95,7 @@ export class Controller {
       return this.refused(f.frameIndex, `a depth cut's frame decoded at ${f.info.bits} bits, not ${CUT_DEPTH}`);
     }
     const info = this.#cutShift ? { ...f.info, cutShift: this.#cutShift } : f.info;
-    this.store.put(f.frameIndex, { info, arrived: at(), write: f.write }, f.ack);
+    this.store.put(f.frameIndex, { info, arrived: now(), write: f.write }, f.ack);
   }
 
   #arrived(i, { info }) {
@@ -90,9 +103,10 @@ export class Controller {
     const e = info.exact;
     this.seen[e === true ? "exact" : e === false ? "inexact" : "unchecked"]++;
     if (info.route) this.seen.routes[info.route] = (this.seen.routes[info.route] ?? 0) + 1;
-    if (this.#fillMode && this.fillMs === null && this.received === this.#n) this.fillMs = at() - this.issuedAt;
+    const have = this.#have();
+    if (this.#fillMode && this.fillMs === null && have === this.#fillSize()) this.fillMs = now() - this.issuedAt;
     if (i === this.current) this.repaint();
-    this.#emit("progress", { have: this.received, total: this.#n, seen: this.seen, fillMs: this.fillMs, at: at() });
+    this.#emit("progress", { have, total: this.#fillSize(), seen: this.seen, fillMs: this.fillMs, at: now() });
   }
 
   /** The frame's display: its own rescale and window where the metadata varies them, the user's window over both. */
@@ -127,7 +141,7 @@ export class Controller {
         try {
           const d = this.display(i, f.info);
           this.lastPaint = await this.paint(f, d);
-          const drawn = this.lastPaint?.drawn ?? at();
+          const drawn = this.lastPaint?.drawn ?? now();
           f.painted ??= drawn;
           this.paints += 1;
           if (this.firstShownMs === null && f.info.exact === true) this.firstShownMs = drawn - this.issuedAt;
@@ -171,8 +185,26 @@ export class Controller {
     }
   }
 
+  /** A frame let go with no cache would be asked again, so the want stops at the window; with one, the whole series fills. */
   want() {
-    return wantFrom(this.current, this.#n, this.#fillMode, this.ascending);
+    return wantFrom(this.current, this.#n, this.#fillMode, this.ascending, this.#fillSize());
+  }
+
+  /** The page view's downloader; past the window with no cache, each step's misses go through the store, as under the worker view. */
+  link(client, sent) {
+    this.client = client;
+    if (!this.#fillMode || this.#fillSize() === this.#n) return;
+    this.store.want(sent);
+    this.store.link(client, sent);
+  }
+
+  /** The fill's frames here: with no cache the window's held, else every arrival. */
+  #have() {
+    return this.#fillMode && !this.store.cache ? this.want().filter((i) => this.store.has(i)).length : this.received;
+  }
+
+  #fillSize() {
+    return this.store.cache ? this.#n : Math.min(this.#n, this.#window);
   }
 
   /** The frame painted at `i`: its exact frame once that is here and checked, else the store's. */
@@ -195,13 +227,13 @@ export class Controller {
   /** The current frame from the exact series, painted in its place once checked; it stays until the reader leaves it. */
   async showExact() {
     const i = this.current;
-    if (!this.exactSource || (this.#exact?.i === i && !this.#exact.failed)) return;
+    if (!this.exactClient || (this.#exact?.i === i && !this.#exact.failed)) return;
     const e = (this.#exact = { i });
     this.repaint();
     for (let retry = true; ; retry = false) {
       try {
         const { info } = await this.#askExact(i);
-        if (info.exact === true) e.frame = { info, arrived: at() };
+        if (info.exact === true) e.frame = { info, arrived: now() };
         else e.failed = info.exact === false ? `not exact: ${info.reason}` : "the exact series has no digest for this frame";
         break;
       } catch (err) {
@@ -219,7 +251,7 @@ export class Controller {
   }
 
   #askExact(i) {
-    if (!this.#exactAsks.has(i)) this.#exactAsks.set(i, this.exactSource.requestFrame(i).finally(() => this.#exactAsks.delete(i)));
+    if (!this.#exactAsks.has(i)) this.#exactAsks.set(i, this.exactClient.requestFrame(i).finally(() => this.#exactAsks.delete(i)));
     return this.#exactAsks.get(i);
   }
 

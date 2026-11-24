@@ -16,6 +16,6 @@ p = sys.argv[1]
 s = open(p).read()
 old = "losslessEl.onclick = "
 assert s.count(old) == 1, old
-s = s.replace(old, "losslessEl.onpointerdown = () => controller.exactSource?.cancel();\n" + old)
+s = s.replace(old, "losslessEl.onpointerdown = () => controller.exactClient?.cancel();\n" + old)
 open(p, "w").write(s)
 PY

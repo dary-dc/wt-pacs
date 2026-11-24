@@ -52,7 +52,7 @@ async function finish(client) {
   for (let i = FILL; i < FILL + AFTER; i++) {
     const t0 = at();
     try {
-      pixels.set(i, (await client.requestExactFrame(i)).bytes);
+      pixels.set(i, (await client.requestFrame(i)).bytes);
       after.push({ i, ms: at() - t0 });
     } catch (e) {
       failures.push({ i, reason: String(e?.message ?? e) });
@@ -81,7 +81,7 @@ const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
   onFrame: (f) => {
     const i = INTERLEAVED ? (f.frameIndex - 1) / 2 : f.frameIndex - EXACT_AT;
     const { lastByte, decoder, decodeStart: start, decodeEnd: end } = f.info.stamps;
-    frames.push({ i, page: at(), lastByte, decoder, start, end, exact: f.info.exact, path: f.info.path, wireBytes: f.info.wireBytes });
+    frames.push({ i, page: at(), lastByte, decoder, start, end, exact: f.info.exact, path: f.info.route, wireBytes: f.info.wireBytes });
     pixels.set(i, f.bytes);
     settled(client);
   },
@@ -105,7 +105,7 @@ const client = await DownloaderClient.connect(q.get("wt"), q.get("hash"), {
 issuedAt = q.get("origin") === "navigation" ? performance.timeOrigin : at();
 // Asked frames come back through their promise, never onFrame.
 for (const i of q.get("asks")?.split(",").map(Number) ?? []) {
-  client.requestExactFrame(i).then(exact, (e) => failures.push({ i, reason: String(e?.message ?? e) })).then(() => settled(client));
+  client.requestFrame(i).then(exact, (e) => failures.push({ i, reason: String(e?.message ?? e) })).then(() => settled(client));
 }
 if (FILL || q.get("asks")) client.fill(ENTRIES);
 else finish(client);

@@ -38,6 +38,7 @@ class Handler(SimpleHTTPRequestHandler):
     # An optimal-quality series' exact series, by the id its metadata names: client/README.md §Optimal quality, exact on request
     exact: dict[str, Path] = {}
     log_requests = False
+    revalidate = False
     csp = policy("127.0.0.1")
     # Where the lab's client beacon is appended as JSONL, None to refuse it: lab/devices/README.md §The round
     beacon: Path | None = None
@@ -92,7 +93,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def send_header(self, keyword, value):
         super().send_header(keyword, value)
-        if keyword.lower() == "content-type" and value.split(";")[0].strip() in REVALIDATED:
+        if keyword.lower() == "content-type" and (self.revalidate or value.split(";")[0].strip() in REVALIDATED):
             super().send_header("Cache-Control", "no-cache")
 
     def end_headers(self):
@@ -120,6 +121,8 @@ def main():
     parser.add_argument("--exact-metadata", type=Path, help="a lossy --metadata's exact series: its metadata")
     parser.add_argument("--exact-transport", type=Path, help="and the transport file of the server that serves it")
     parser.add_argument("--beacon", type=Path, metavar="FILE", help="append the lab's client beacon here as JSONL (lab/devices/README.md §The round)")
+    parser.add_argument("--revalidate", action="store_true",
+                        help="no-cache on every response, modules too: docs/client/evidence/stale-client-code.md")
     parser.add_argument("--log-requests", action="store_true", help="print each path asked for (client/viewer/check.mjs)")
     args = parser.parse_args()
     if args.bind.is_unspecified:
@@ -132,6 +135,7 @@ def main():
     Handler.transport = args.transport and args.transport.resolve()
     Handler.log_requests = args.log_requests
     Handler.beacon = args.beacon and args.beacon.resolve()
+    Handler.revalidate = args.revalidate
     Handler.csp = policy(str(args.bind))
     if args.exact_metadata or args.exact_transport:
         if not (args.metadata and args.exact_metadata and args.exact_transport):

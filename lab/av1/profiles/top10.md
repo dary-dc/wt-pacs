@@ -5,7 +5,9 @@
    ≤ 10-bit form reaches a lossy view with the fewest bytes at equal quality?
 2. **Answer.** The top 10 bits do not cost more at equal quality. libaom's rate-distortion multiplier grows faster
    with Q at 12 bits than at 10, so the same Q buys a *different quality*: the 10-bit stream sits higher on the same
-   curve. Matched on PSNR, the top 10 bits are 0.93–1.04× the 12-bit stream's bytes. Ship the top 10 bits, rounded
+   curve. Matched on all-sample PSNR at Q 12–40, the top 10 bits are 0.93–1.04× the 12-bit stream's bytes. *Added
+   2026-11-11 (audit F12):* all-sample PSNR counts the air (`dbts_b1` Q 8: 52.05 dB all-sample, 47.43 in-window), and
+   the optimal-quality rung Q 8 is outside these arms; its only Q 8 reading is the campaign row, 0.928× at −0.28 dB. Ship the top 10 bits, rounded
    to nearest, at the Q that hits the target quality (about 1–3 rungs above the 12-bit Q). A "lossy split" (a lossy
    top plus a low-bits stream) means nothing on these series: the low bits are noise, far under the lossy error.
 3. **The numbers that decide it** (`dbts_a1`, `dbts_c1`, Q 12–40): at equal Q the top 10 bits are 1.07–1.19× the

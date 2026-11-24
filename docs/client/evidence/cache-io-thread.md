@@ -23,7 +23,7 @@ against today's path. Paint first: it is the latency-critical path; the cache wr
 **The question:** which arm keeps the shown frame on time while a fill writes, sustains the fill's write rate, and
 reads a memory miss fastest, per engine. **A** a sync access handle in the view worker; **B** the async API in the view
 worker (`createWritable` to write; `getFile()`, then `slice().arrayBuffer()` to read); **C** a store worker with a sync
-handle, `client/viewer/store.js` as built. A and B each in two orders: **write on arrival**, and **paint first**, the
+handle, `client/view/store-worker.js` as built. A and B each in two orders: **write on arrival**, and **paint first**, the
 write drained after the paint. Frames: **S1** 512² (0.52 MB), **S2** 2560×3328 (17.0 MB), **S3** 3328×4096 (27.3 MB),
 16-bit. §4 already holds the sync handle's facts (dedicated workers only, the exclusive lock,
 `AllowSharedBufferSource`, the write path per engine); they are not repeated.
@@ -545,7 +545,7 @@ arm here too. Chromium only (the owner, 2026-10-31). Nothing below is measured.
 
 * **C-shared.** The view worker posts the frame's `SharedArrayBuffer` itself, no transfer list, to the store worker on
   the port the page hands both (a `MessageChannel`, worker to worker); the store writes it with its sync handle from
-  shared memory (`client/viewer/store.js` unchanged: `write` takes `AllowSharedBufferSource`, §4). C as built stays,
+  shared memory (`client/view/store-worker.js` unchanged: `write` takes `AllowSharedBufferSource`, §4). C as built stays,
   C′ its A/A. Copies in script a frame: 2, as A paint first.
 * **A-left.** A paint first, with the fixed 8 ms replaced by what is left of the tick: after the paint, a 1 MiB piece
   starts only if *now + the last piece's time* is before *the tick's start + T − g*, with T the period the cell

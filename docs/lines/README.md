@@ -1,7 +1,7 @@
 # Lines of work
 
 A **line** is one direction of work on wt-pacs, each with one file here. A line file holds the work only — the goal
-in one line, what is in flight, PRs, owed runs, pointers — and no design or results, which live in their subject's
+in one line, what is in flight, PRs, owed runs, what waits for the owner, pointers — and no design or results, which live in their subject's
 home (`CLAUDE.md` §Docs); it is updated in place, and git keeps its history.
 
 **A session working on a line reads its file first and updates it before it ends**: state now, open, any new
@@ -10,11 +10,11 @@ decision, and the date at the top. Something learned for another line goes into 
 | line | goal | file | last verified |
 | --- | --- | --- | --- |
 | coordination | merges, review order, branch and PR hygiene across the lines | [`coordination.md`](coordination.md) | 2026-11-11; Open 8 2026-11-16 |
-| codecs and lab | HTJ2K and AV1, server, transport and disk, measured to `CLAUDE.md` §Measurement | [`codecs.md`](codecs.md) | 2026-11-10; Open 11–14 2026-11-15 |
+| codecs and lab | HTJ2K and AV1, server, transport and disk, measured to `CLAUDE.md` §Measurement | [`codecs.md`](codecs.md) | 2026-11-20 (state and PRs); findings as of their dates |
 | optimal quality | the product's approach ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product), built for the demo of 2026-11-13 | [`optimal-quality.md`](optimal-quality.md) | 2026-11-14 |
 | client | the browser client: transport, decode, cache, paint, telemetry | [`client.md`](client.md) | 2026-11-15 |
-| PACS receive and metadata | receive what the PCS sends, build and update each study's store, serve by UID | [`metadata.md`](metadata.md) | 2026-10-29; branches 2026-11-09 |
-| 2D viewer | a 2D DICOM viewer product on the client, breast reading first (paused) | [`viewer.md`](viewer.md) | 2026-11-12 |
+| PACS receive and metadata | receive what the PCS sends, build and update each study's store, serve by UID | [`metadata.md`](metadata.md) | 2026-10-29; branches 2026-11-20 |
+| 2D viewer | a 2D DICOM viewer product on the client, breast reading first (paused) | [`viewer.md`](viewer.md) | 2026-11-12; branches 2026-11-20 |
 | native | a native client on raw QUIC, without the browser's limits (paused) | [`native.md`](native.md) | 2026-11-15 |
 | devices | runs on real phones and machines, one press and no hands after; the device kit | [`devices.md`](devices.md) | 2026-11-15 |
 
@@ -27,6 +27,4 @@ P4, I2, I3 and R1 are cited from here only.
 "Last verified" is the newest date the line's state was checked; "branches" means only the branch and PR state was
 read again on that date, not the line's findings.
 
-What the product is: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. Every line shares one direction: most sessions at the lowest cost, low latency and fast fills, for mobile on lossy
-wireless; the exact frame bit-exact; breast imaging first. The PCS (the separate service that receives, parses and
-encodes studies) is upstream: our scope starts at the PACS, and the PCS's directory layout is our input contract.
+What the product is and the direction every line shares: [`../../README.md`](../../README.md) §Purpose.

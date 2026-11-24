@@ -264,7 +264,7 @@ series of a pair, under the default view (`?view=page`, no URL flags):
    digest never reads *Lossless*).
 8. **No mark beside an optimal-quality frame; the label is green.** Its metadata carries no digests, since there is no
    source to check an optimal-quality frame against; the label says what it is, so only *NOT EXACT* is marked beside it
-   (`viewer/screen.test.mjs`). The status line's *unchecked* count is the same fact.
+   (`viewer/screen.test.mjs`). The status line's *no digest* count is the same fact.
 
 One level down, where a point needs it: a frame whose digest does not match is decoded once more on another path
 before it is called not exact (`decoder.js` `checked`; [`docs/adr/exactness-in-production.md`](../docs/adr/exactness-in-production.md)
@@ -507,11 +507,12 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   client's files when it names `"wasm"`, any other name refused by name ([`docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client). The module dials at once, with the whole series as the opening fill, while the
   painter starts in parallel.
 * **Frames.** Frames are kept in memory by index. There is no cache by default. *Corrected 2026-11-14:* this bullet
-  said each frame checked `true` is also written to OPFS by a store worker (`viewer/store.js`); no product module
+  said each frame checked `true` is also written to OPFS by a store worker (`view/store-worker.js`); no product module
   loads that worker (`viewer/viewer.js`: `writer = lab.writer`), so it is written only under the lab's `?writer=`
   (*Where the frames are*, below). With a writer, a reopened series fills only what is not there, a frame on disk is
-  read back re-checked and asked again if it fails, and past 256 MiB the frames on disk farthest from the current one
-  leave memory ([`docs/client/evidence/cache-in-opfs.md`](../docs/client/evidence/cache-in-opfs.md) §Proposed: the client cache in OPFS). A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
+  read back re-checked and asked again if it fails. Writer or not, past 256 MiB of decoded frames (counted in the
+  series' frames, `view/controller.js`) the frame farthest from the current one leaves memory and is asked again on
+  return; with no writer the fill asks only that window, nearest first, and a step asks only the frames entering it (*built 2026-11-23*; [`docs/client/evidence/what-a-view-asks-for.md`](../docs/client/evidence/what-a-view-asks-for.md) *M, the budget*). *Corrected 2026-11-22*, before that build: this said "past 256 MiB the frames on disk farthest from the current one leave memory" while `view/store.js`'s `FrameStore` took a `budget` no caller gave, so no frame left memory then. A step to a frame not yet here asks it ahead of the fill, once while its ask is pending. With `?fill=0`
   there is no fill, and each step asks its frame, the newest ask alone kept: a step superseded while it waits on
   its cancel asks nothing.
 * **Where the frames are.** `?view=page` (the default) or `?view=worker`. Either way `view/controller.js` holds the
@@ -521,7 +522,7 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   decoders post to it, and the page (`view/view.js`) sends intents and hears `shown`, `progress` and `failed`, never a
   frame ([`docs/client/evidence/frame-store-owner.md`](../docs/client/evidence/frame-store-owner.md) §3, *Built*). The status line names the view. Under
   `worker` the store looks in an OPFS cache before it asks (`view/cache.js`): when the lab's `?writer=` names who writes it — the
-  store worker (`viewer/store.js`), the decoders or the view worker — a series with digests is written there after each
+  store worker (`view/store-worker.js`), the decoders or the view worker — a series with digests is written there after each
   frame's paint, and read back checked on a later open. With no writer, the default, there is no cache, as on main
   ([`docs/client/evidence/speed-of-the-assembled-design.md`](../docs/client/evidence/speed-of-the-assembled-design.md) §The core, assembled).
 * **Exactness.** A frame whose `exact` is not `true` is marked on screen and counted, never shown as exact. A
@@ -533,7 +534,7 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   the slices, the touch gesture taking nothing the canvas uses (one finger stays window/level; the choice and its
   sources: `claude/slice-touch:docs/reviews/slice-touch.md`). Moving it pauses cine; every slice shown otherwise moves
   it; a focused slider answers the stepping keys itself, so the page skips them. Both views alike.
-* **The status line.** It shows the frame, the client, frames received, exact, not exact and unchecked, the frames per route, the
+* **The status line.** It shows the frame, the client, frames received, exact, not exact and *no digest*, the frames per route, the
   codec, the renderer (marked software when it is), the fill's time, and the last error by name. A tap
   (touch only; a mouse click does nothing) on it or on the quality label unfolds it whole, wrapped; the next folds it
   (`viewer/screen.js` `unfoldOnTap`).

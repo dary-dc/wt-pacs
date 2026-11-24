@@ -1,0 +1,10 @@
+fetched chrome-stable-158.0.8127.36 sha256=dba9cc838e1ce269c33ea68170881127bd15d078fc3ca5891c90802819a4d7c7
+fetched chrome-beta-159.0.8154.13 sha256=96bf3cc45c4767242e855cae5f28c0bf353ac3d7dbb38ab97598144a60e9035b
+fetched chrome-canary-160.0.8173.0 sha256=1c8343bd6f40a22868525433c2988fae62b6ca8c65eba6c2e68535ed06becc11
+fetched firefox-160.0.1 sha256=844d8a77aa4672a08ded949b6206f84d91bb82f6637c090fd58c3126e9d44119
+fetched firefox-163.0a1 sha256=a1b2b0a6e8974b1e9135b564680ad9b951a5e3c7d38847892ed43999a350d433
+ok   chrome-stable-158.0.8127.36: Google Chrome for Testing 158.0.8127.36 — offers ['draft-02'] reset_stream_at [], server ['draft-02', 'draft-07'] reset_stream_at [], negotiated draft-02, frame exact
+ok   chrome-beta-159.0.8154.13: Google Chrome for Testing 159.0.8154.13 — offers ['draft-02'] reset_stream_at [], server ['draft-02', 'draft-07'] reset_stream_at [], negotiated draft-02, frame exact
+ok   chrome-canary-160.0.8173.0: Google Chrome for Testing 160.0.8173.0 — offers ['draft-02'] reset_stream_at [], server ['draft-02', 'draft-07'] reset_stream_at [], negotiated draft-02, frame exact
+ok   firefox-160.0.1: Mozilla Firefox 160.0.1 — offers ['draft-02'] reset_stream_at ['0x1d'], server ['draft-02', 'draft-07'] reset_stream_at [], negotiated draft-02, frame exact
+ok   firefox-163.0a1: Mozilla Firefox 163.0a1 — offers ['draft-02'] reset_stream_at ['0x1d'], server ['draft-02', 'draft-07'] reset_stream_at [], negotiated draft-02, frame exact

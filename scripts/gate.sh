@@ -101,7 +101,7 @@ run 1 node client/decode/wasm-glue.test.mjs
 run 1 node client/decode/xxh3.test.mjs
 run 1 node client/transport/downloader.test.mjs
 run 1 node client/transport/consumer.test.mjs
-run 1 node client/viewer/store.test.mjs
+run 1 node client/view/store-worker.test.mjs
 run 2 node client/decode/av1.test.mjs
 run 1 python3 server/dev-server.test.py
 run 1 bash server/scripts/gen_dev_cert_test.sh
@@ -115,7 +115,7 @@ run 1 node client/view/depth-cut.test.mjs
 run 1 node client/view/view.test.mjs
 run 1 node client/view/view-worker.test.mjs
 run 1 node client/view/cache.test.mjs
-run 1 node client/viewer/store.test.mjs
+run 1 node client/view/store-worker.test.mjs
 run 1 node client/view/clock.test.mjs
 run 1 node lab/frame-clock/arms.test.mjs
 run 1 node lab/frame-clock/measure.test.mjs
@@ -188,10 +188,11 @@ else
   skip "DICOM to .sbnd needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi
 
-step "ingest: optimal quality — its metadata and pairing, every frame from its keyframe, close and not exact, at G 1, 8 and 16"
+step "ingest: optimal quality — its metadata and pairing, every frame from its keyframe, close and not exact, at G 1, 8 and 16; the product's value matrix and pair, known gaps named"
 if [[ -f "$INGEST_BUILD/payload/libdecode.so" && -x "$INGEST_BUILD/aom-3.15.1/bin/aomenc" ]] \
   && "$PYTHON" -c "import numpy, xxhash" 2>/dev/null; then
   run 1 "$PYTHON" ingest/coded-frames/lossy_test.py "$INGEST_BUILD"
+  run 1 "$PYTHON" ingest/coded-frames/pair_contract_test.py "$INGEST_BUILD"
 else
   skip "optimal quality's test needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi

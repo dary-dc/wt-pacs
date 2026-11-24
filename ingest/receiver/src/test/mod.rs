@@ -1,6 +1,7 @@
 mod addition;
 mod crash;
 mod receive;
+mod signed;
 
 use crate::group::{coded, SERIES_UID, SOP_INSTANCE_UID, STUDY_UID};
 use crate::{study_db, Downstream, Outcome, Receiver};
@@ -334,12 +335,12 @@ impl Site {
     }
 
     pub fn db(&self) -> Connection {
-        Connection::open(self.study().join(study_db::FILE)).unwrap()
+        Connection::open(self.study().join(study_db::FILE_NAME)).unwrap()
     }
 
     /// (table, uid, bytes) of every group row, sorted.
     pub fn rows(&self) -> Vec<(String, String, Vec<u8>)> {
-        if !self.study().join(study_db::FILE).exists() {
+        if !self.study().join(study_db::FILE_NAME).exists() {
             return Vec::new();
         }
         let db = self.db();

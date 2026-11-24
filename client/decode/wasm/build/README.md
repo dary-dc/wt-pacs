@@ -9,7 +9,7 @@ The outputs are committed in `client/decode/wasm/built/` (owner's decision D2, 2
 deploys them as they are, and building them is a way to verify or change them, not a deploy step.
 
 ```bash
-client/decode/wasm/build/build.sh            # ~3 min on 4 cores; needs docker, git, curl, python3 with pip
+client/decode/wasm/build/build.sh            # ~3 min on 4 cores; needs docker, git, curl, python3 with pip, npm
 UPDATE=1 client/decode/wasm/build/build.sh   # after a change to a pin, a flag or a wrapper: rewrite the manifest, commit both
 ```
 
@@ -27,6 +27,16 @@ allows no such skip.
 both in the same commit. The next full gate rebuilds from the new pins and compares, so a `built/` committed without
 its manifest, or the reverse, fails it.
 
+## The container
+
+It runs unlabelled (`--security-opt label=disable`). On an SELinux-enforcing host (Fedora, RHEL) a container may
+read only files labelled for containers, and a checkout in a home directory is not: the build stops at
+`inside.sh: Permission denied`. The other way in, `:z`, relabels the whole checkout, `.git` included, for every
+container on the host. What unlabelled gives up is SELinux's hold on this one container: under rootless podman
+it then has the user's own rights, as the script's fetches on the host already do; under a root daemon, SELinux is
+one of the walls between an escaped root process and the host. Its inputs are pinned and checked, and it has no
+network. Where SELinux is off the flag changes nothing.
+
 ## Pins
 
 Every pin is in [`pins.sh`](pins.sh) and [`requirements.txt`](requirements.txt); the scripts refuse any other.
@@ -37,7 +47,7 @@ Every pin is in [`pins.sh`](pins.sh) and [`requirements.txt`](requirements.txt);
 | emscripten | 3.1.74, release `c2655005…`, `wasm-binaries.tar.xz` | sha256, and `emcc --version` in the container |
 | Node (emscripten's) | 18.20.3, the emsdk 3.1.74 pin | sha256 |
 | cmake, meson, ninja | 3.31.6, 1.5.2, 1.11.1.4, wheels | `pip --require-hashes`, and `cmake --version` |
-| OpenJPH | 0.31.0, commit `c68064d0…` | commit, and `ojph_version.h` in the container |
+| OpenJPH | 0.33.0, commit `345a8bcd…` | commit, and `ojph_version.h` in the container |
 | dav1d | 1.5.4, commit `54706fc6…` | commit, and `meson.build`'s version in the container |
 | xxHash | v0.8.4, commit `c87183a7…` | commit, and `xxhash.h`'s version in the container |
 | hash-wasm (its `LICENSE`, for the notices) | 4.12.0 | `client/decode/wasm/fetch_xxh3.sh`'s tarball sha256 |

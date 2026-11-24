@@ -203,7 +203,7 @@ async function visit() {
     decode: false, onFrame: (fr) => S.landed(fr.frameIndex, fr.bytes), onError: (e) => failures.push({ e: e.frameIndex, reason: e.reason }) });
   const askEntries = (list) => {
     counts.asks += list.length;
-    for (const e of list) bandsClient.requestExactFrame(e).then((fr) => S.landed(e, fr.bytes), (err) => failures.push({ e, reason: String(err.message ?? err) }));
+    for (const e of list) bandsClient.requestFrame(e).then((fr) => S.landed(e, fr.bytes), (err) => failures.push({ e, reason: String(err.message ?? err) }));
   };
   log("bands client", Boolean(bandsClient));
   const exactClient = C.exact && await DownloaderClient.connect(C.exact.url, C.exact.hash, {
@@ -230,7 +230,7 @@ async function visit() {
       onFrame: (fr) => {
         counts.bytes += fr.info.wireBytes ?? 0;
         oqInfo[fr.info.exact === true ? "exact" : fr.info.exact === false ? "inexact" : "unchecked"] += 1;
-        oqInfo.paths[fr.info.path] = (oqInfo.paths[fr.info.path] ?? 0) + 1;
+        oqInfo.paths[fr.info.route] = (oqInfo.paths[fr.info.route] ?? 0) + 1;
         const px = new Uint8Array(fr.bytes.byteLength);
         px.set(fr.bytes);
         picture(fr.frameIndex, "oq", px);
@@ -259,7 +259,7 @@ async function visit() {
     }));
     if (exactClient) {
       counts.asks += 1;
-      const fr = await exactClient.requestExactFrame(f);
+      const fr = await exactClient.requestFrame(f);
       counts.bytes += fr.info.wireBytes ?? 0;
       const px = new Uint8Array(fr.bytes.byteLength);
       px.set(fr.bytes);

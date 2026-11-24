@@ -28,8 +28,8 @@ sets no threshold.*
 * **DICOM: no threshold.** "The context where the usage of lossy compression of medical images is clinically
   acceptable is beyond the scope of the DICOM Standard" (PS3.5 2026d §8.2). The defined terms for Lossy Image
   Compression Method (0028,2114) list JPEG, JPEG-LS near-lossless, JPEG 2000, HTJ2K, JPEG XL, MPEG-2, H.264 and HEVC:
-  **no AV1**. The lossy stream is not a DICOM object, so the marking rules (Lossy Image Compression "01", DERIVED, a
-  new SOP Instance UID) bind only if a lossy frame is ever exported as DICOM (*derived*).
+  **no AV1**. The optimal-quality series is not a DICOM object, so the marking rules (Lossy Image Compression "01", DERIVED, a
+  new SOP Instance UID) bind only if an optimal-quality frame is ever exported as DICOM (*derived*).
 * **Germany: binding for X-ray, no number.** StrlSchV §127: "Daten können komprimiert werden, wenn sichergestellt
   ist, dass die diagnostische Aussagekraft erhalten bleibt." It binds storage of X-ray data used for diagnosis; the
   exact store meets it; whether a lossy display stream counts as such data no source settles (*derived*). Ultrasound

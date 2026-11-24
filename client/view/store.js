@@ -1,5 +1,6 @@
 /** The frames here, by index: memory, then the cache, then the downloader for the misses. docs/adr/frame-path.md §3, *Built* */
-const at = () => performance.timeOrigin + performance.now();
+import { now } from "./clock.js";
+
 const same = (a, b) => a.length === b.length && a.every((i, k) => i === b[k]);
 
 export class FrameStore {
@@ -97,7 +98,7 @@ export class FrameStore {
     for (let i = next(); i !== undefined; i = next()) {
       this.#read.add(i);
       const info = await this.cache.read(i);
-      if (info) this.put(i, { info, arrived: at() });
+      if (info) this.put(i, { info, arrived: now() });
       else {
         this.reasked += 1;
         this.cache.present.delete(i);
@@ -111,9 +112,9 @@ export class FrameStore {
   async #write(i, frame) {
     if (!this.cache || this.cache.present.has(i) || frame.info.exact !== true) return;
     await this.painted();
-    frame.writeAsked = at();
+    frame.writeAsked = now();
     if (await this.cache.write(i, frame)) {
-      frame.written = at();
+      frame.written = now();
       this.cache.present.add(i);
     }
   }

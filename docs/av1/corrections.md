@@ -6,6 +6,13 @@
 `claude/docs-lines-3:docs/lines/codecs.md` §AV1 harvest (2). Every number below is quoted from an audit, which marks
 each as derived from committed rows or read in code; none is new.*
 
+**Applied, every entry** (row CORRECTIONS-APPLY, 2026-11-20, on `claude/av1-corrections-apply` into
+`claude/unified`, which now carries every file named below): each passage is corrected in place in its file, §6
+already since 2026-11-14. §1 carries B0's re-read x\* ([`audit-protocols.md`](audit-protocols.md) §B0 · measured),
+which supersedes the 4.8 ± 0.15 proposed below; κ's two meanings are named apart in
+[`../glossary.md`](../glossary.md). Line numbers below are at each study branch's commit, not at today's files. This
+file stays as the record of what each passage read.
+
 The rule followed is [`../adr/disk-access.md`](../adr/disk-access.md) §2 and §11: a retracted claim is corrected
 where it stands and says what it used to read. Main's one affected file, [`../lines/codecs.md`](../lines/codecs.md),
 is corrected in place on this branch. Every other study lives on its own branch, which this row may not push. For
