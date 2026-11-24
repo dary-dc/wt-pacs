@@ -369,8 +369,8 @@ only if that matches, with `info.mismatchOn` naming the route that missed; other
 A frame the downloader could not deliver (a refusal, a decoder that threw, a decoder lost `ATTEMPTS` times) or the
 controller refused (a depth cut's frame at another depth) is **withheld** for the session: the store keeps it out of
 every later want, a step onto it asks nothing, and in its place the canvas is cleared, never the previous slice's
-picture (`view/controller.test.mjs`; RESULTS-BRIEF §8.1). A lost ask (the session gone and its re-dials failed, the
-downloader's `failed` message marked `lost`) is asked once more first: the worker view wants it again, the page view
+picture (`view/controller.test.mjs`; RESULTS-BRIEF §8.1). A lost ask (the session gone and its re-dials failed, or a
+command's own re-dial after a closure failed; the downloader's `failed` message marked `lost`) is asked once more first: the worker view wants it again, the page view
 asks it again while it is the current frame; lost a second time, it is withheld. The browser side of a withheld frame
 (the painters' null frame, the page's `withheld` handler) has no browser test yet. The words for it on screen are
 the `frame-integrity` decision page's; until then the status line names the failure and the mark and label are blank.
