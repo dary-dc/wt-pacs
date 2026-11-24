@@ -26,7 +26,7 @@ exact frame bit for bit, and only checked claims on screen.
   window's frames held; a test each, mutated. Re-reviewed 2026-11-23 (PR 435 §Re-review 2): every
   finding closed or argued, no blocker open; three minors (a progress test with a cache, `viewer.js` untested, a step
   during the page view's fill now ends the fill's run as the worker view's does).
-* **The dial before the pair** (DIAL-BEFORE-PAIR, 2026-11-24, `claude/dial-before-pair`, a draft into
+* **The dial before the pair** (DIAL-BEFORE-PAIR, 2026-11-24, `claude/dial-before-pair`, PR 448, a draft into
   `claude/unified`; IMPROVE-1's candidate 3, `claude/work-ledger:docs/queue/IMPROVE-1/candidates.md` §4): the session
   dials while an optimal-quality series' pair is fetched and checked, and the decoder manifest is fetched beside the
   metadata; no frame is painted or labelled before the check passes, in either view, and a refused pair closes the
