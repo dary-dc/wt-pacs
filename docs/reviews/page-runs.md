@@ -651,7 +651,7 @@ Nothing run but `scripts/check_links.py` (9 unresolved, as before) and the sums:
 
 ### Re-review 2
 
-PAGE-RUNS-PROTOCOL-FIX-2-REVIEW, 2026-11-24 17:20–17:45 UTC, by a session that wrote none of this file, its review,
+PAGE-RUNS-PROTOCOL-FIX-2-REVIEW, 2026-11-24 17:16–17:25 UTC, by a session that wrote none of this file, its review,
 its fix, its re-review or fix 2 and will run none of it (`by:` in
 `claude/work-ledger:docs/queue/PAGE-RUNS-PROTOCOL-FIX-2-REVIEW.md`). Read: `git diff 784c88420..cc7b9ccee` (this file's
 §1 and §Fix 2, `docs/lines/coordination.md`; every hunk under R-B1, r-m1, r-m2 or r-n1, nothing else changed); at
@@ -685,8 +685,9 @@ New, none blocking (each the run row's first step, lab only, or a line):
   read. Add "`summary.py`'s arm list" to §1's built-first list (lab only, with the per-arm server arguments).
 * **r2-m2 (minor).** `--out rows/flags-AD.jsonl` is not resolved against the repository (`run.mjs:77` takes it as
   given; only the default is under `ROOT`), so run from the root the rows land in `./rows/`, while the summary reads
-  `lab/transport-arms/rows`; and the summary names `flags-AD` only, not `flags-CR`. Write both `--out` as
-  `lab/transport-arms/rows/flags-AD.jsonl` and `…/flags-CR.jsonl` and the summary as `… rows flags-AD flags-CR`.
+  the rig's own rows directory (its first argument as §1 writes it); and the summary names `flags-AD` only, not
+  `flags-CR`. Write both `--out` under the rig's rows directory, beside `pilot-medians.json`, and the summary as
+  `summary.py <that directory> flags-AD flags-CR`.
 * **r2-n1 (nit).** r-m2's ratio applied gives ×0.55–0.58, not ×0.57 (0.19 ÷ 0.086 × 0.262 = 0.580): a median of
   0.575 would be called a refutation of a band its own sum contains. Write ×0.25–0.58. #39's decision does not move
   (both under ×0.8).
