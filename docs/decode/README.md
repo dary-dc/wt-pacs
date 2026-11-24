@@ -2300,6 +2300,10 @@ the stride fix.
 
 ### Decode time against HTJ2K
 
+*Added 2026-11-11 (decode audit, §The HTJ2K frame is not one unit):* the HTJ2K unit here is the package through the
+decoder worker (decode, range pass, XXH3, messaging) on Chromium 141.0.7390.37. It cannot be set beside a ratio from
+another study, which uses one of three other units.
+
 Queue row SPEED ([`lab/av1/decode/per-frame`](../../lab/av1/decode/per-frame/README.md)), 2026-10-03. The first 18 frames of three
 real series (the public series set, queue row DATA), each as the served HTJ2K and as lossless AV1 intra (libaom 3.15.1 `cpu-used`
 0, G = 1 as the lossless-bytes measurement recommends, queue row SIZE). Every variant is the product's decoder worker — `decoder.js` with the
@@ -2387,7 +2391,9 @@ work over more cores helps an ask on an idle phone, never a fill.
 1. **No flush at G = 1** (WebCodecs). A shown keyframe refreshes every reference (`( frame_type == KEY_FRAME &&
    show_frame ) ) { refresh_frame_flags = allFrames`, §Uncompressed header syntax). A parsed `frame_type` +
    `show_frame` check can therefore replace the flush's guard against a mislabelled key. Removing the flush measured
-   −7 to −20 % at 1× and −3 to −28 % at 4×, exact (row WCLAT, other content). *Phone: holds*, because it removes a
+   −7 to −20 % at 1× and −3 to −28 % at 4× (row WCLAT, other content). *Corrected 2026-11-11 (decode audit 20):*
+   those arms also differed in `optimizeForLatency`; the flush alone waits 1.3–2.0 ms a frame at 1× (§keyParse,
+   measured and not adopted). *Phone: holds*, because it removes a
    wait and adds no work.
 2. **The JS passes cut** (WebCodecs). Skip `neutral()` when the sequence header says `mono_chrome` ("does not contain
    U and V color planes", §Color config semantics). Fuse the two `place()` passes. Predicted −3 to −8 % *d*.
@@ -2720,7 +2726,8 @@ shape (2.80 → 2.10 GHz). Each ratio is paired within one browser, and each hal
 
 The A/A missed in 1 cell of 8 (`dbts_b1` at 1×), which the protocol allows. **By the rule as written, R does not
 become the default.** It meets its line in all six DBT cells, but on `mr_ispy1` at 4× its upper end is 1.024 > 1.02.
-**S is not proposed for building.** Its ratio to W2 lies below 0.90 in five DBT cells, but at 4× on `dbts_a1` the
+**S is not proposed for building.** *Added 2026-11-11 (decode audit 18):* against R, which shares S's buffer reuse,
+S is 0.82–0.92; "not proposed" stands with a smaller margin. Its ratio to W2 lies below 0.90 in five DBT cells, but at 4× on `dbts_a1` the
 interval reaches 0.908. S and G go to the owner with these numbers, and G has none. The host did not saturate: no
 second reached 95 % of the 4 CPUs, and the busiest reached 49 %. Nothing is claimed for fills, concurrency or phones.
 
@@ -3260,7 +3267,8 @@ that a memory protocol must pin (a forced GC before the read, or the mode report
 * **Decode verdicts were ranked where decode is the fill's clock** — the colour cine loop, one ask,
   and the fast end of the target link. On a long 16-bit fill decode hides inside the receive (§The
   decode tail).
-* **The fixtures are synthetic.** Decoded size, which the memory tables are indexed on, is exact
+* *Corrected 2026-11-11 (decode audit 20):* no longer true of the AV1 timings, which use three EA1141 DBT volumes;
+  true of the rows this list indexes. **The fixtures are synthetic.** Decoded size, which the memory tables are indexed on, is exact
   regardless; decode time depends on content (§Content). *Corrected:* this list once put the
   greyscale `field` sets near 0.8:1; their ratio is 1.28:1 (§Content).
 

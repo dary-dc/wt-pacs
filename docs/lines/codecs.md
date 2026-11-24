@@ -31,8 +31,9 @@ measured, and every result names its fixtures.
   (`stacks.md` §6.6): H3-fill and H2-fill answer an ask during a fill faster than WT-TS (0.50–0.68), a miss below
   §5.3's ×1.0–2.0. Next: the `transport-stack` decision page (TRANSPORT-PAGE). One 4-core container, Chromium 157
   headless, the TUN relay ≤ 90 Mbit, `dbts_b1` HTJ2K, no radio.
-* **The audits' corrections** ([`../av1/corrections.md`](../av1/corrections.md)), applied in place to the files it
-  names, by row CORRECTIONS-APPLY (`claude/av1-corrections-apply`, not before 2026-11-20 08:00).
+* **The audits' corrections** ([`../av1/corrections.md`](../av1/corrections.md)): every entry applied in place
+  2026-11-20 by row CORRECTIONS-APPLY (`claude/av1-corrections-apply`, PR 416), reviewed 2026-11-22; it merges after
+  PR 415, after its re-review.
 * **The noise rule at ingest**: its protocol written 2026-11-19 (NOISE-INGEST-PROTOCOL, `claude/noise-ingest`, draft
   PR 413); NOISE-INGEST-MEASURE next, ending in the `ingest-optimal-quality` page.
 * **An 8-bit depth cut for hardware** ([`../av1/depth-cut-8.md`](../av1/depth-cut-8.md), theory 2026-11-14, measured
@@ -51,7 +52,7 @@ measured, and every result names its fixtures.
 
 | PR | what | state |
 | --- | --- | --- |
-| #398 | stage A1: this line's 34 branches into `claude/unified-codecs` (five by `-s ours`, call M1); the gate green, the product the baseline but the two lines of a `stallMs` key; blind review in its body, no blocker | draft; in `claude/unified`; `av1-paint-depth` (#309) stays out (call M6) |
+| #398 | stage A1: this line's 34 branches into `claude/unified-codecs` (five by `-s ours`, call M1: [`../av1/README.md`](../av1/README.md) §Paths kept in history only); the gate green, the product the baseline but the two lines of a `stallMs` key; blind review in its body, no blocker | draft; in `claude/unified`; `av1-paint-depth` (#309) stays out (call M6) |
 | #340, #350 | the two reviewed line-doc PRs of `claude/unified-codecs` | draft |
 | #329, #331, #332, #334 | quality audit; encoder settings; noise ratio; decode audit | draft; their branches in `claude/unified` |
 | #391 | the transport's design, an inventory | draft |
@@ -80,9 +81,17 @@ The harvest's ten questions ([`../av1/README.md`](../av1/README.md) §The owner'
 zero-encode re-reads first; holding WebCodecs speed claims; the noise-ratio protocol first; "also for diagnosis"; the
 study branches' corrections. Also: the anchor quoted as [Q_lo, Q_hi] with ν beside, and "keep at least half" (Q_ν) as
 an option; a note to the PCS team on G for AV1 cine, and keeping or removing the client's G > 1 path; the held server
-defaults in `line-server`'s index (#254); the idea of 2026-11-09, undecided (optimal quality split into top and low
-bits, the low on request); whether an 8-bit view is acceptable; a GET path in the product (`stacks.md` §5.5); who
+defaults in `line-server`'s index (#254); whether an 8-bit view is acceptable; a GET path in the product (`stacks.md` §5.5); who
 uploads the coded sets; any merge, close or removal.
+
+*Corrected 2026-11-22:* this list also held "the idea of 2026-11-09, undecided (optimal quality split into top and
+low bits, the low on request)", whose target was "the optimal-quality image, not lossless"; the owner discarded it
+on 2026-11-09 ([`../av1/README.md`](../av1/README.md) §The owner's decisions), so nothing waits on it.
+
+*Dropped as superseded 2026-11-20* (recoverable from this file's history at `4a2b4277f`): Open 2, harvesting the AV1
+chain into `av1-unified-mainbase` (its PRs closed 2026-11-18, their branches in `claude/unified`); Open 11's
+"Next: stage B" (stage B ran 2026-11-15; its pointer to §Paths kept in history only is in the #398 row);
+§The unified branch's "every other PR of the line's chain waits for a review row" (those PRs closed 2026-11-18).
 
 ## Pointers
 

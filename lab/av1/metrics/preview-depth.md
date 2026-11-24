@@ -393,7 +393,7 @@ What was run: §4's two arms (full-depth and reduced-depth preview) over the who
 
 What it shows: the level bound (P1) holds exactly; at equal bytes the reduced preview reads "same" on error and in-window SSIM on every A and C volume (P5) and costs 1.00 × the bytes there, 1.09 × on B (P6).
 
-Where it does not: P5 fails on `dbts_b4` and `dbts_b5`, the two B volumes with the least noise (σ 2.4 and 1.9); P2 misses at W = 1024 on most series, and P7 misses by one point on the level count. Under the rule as written, P2, P5 and P7 read refuted.
+Where it does not: P5 fails on `dbts_b4` and `dbts_b5` (*corrected 2026-11-11, audit F10, F13:* this called them "the two B volumes with the least noise (σ 2.4 and 1.9)", a σ that no estimator here produced. This file's rows read B 3.4–5.6, and the quality study's Immerkær σ is 5.60 (`dbts_b4`) and 3.65 (`dbts_b5`). What does set those two apart is unexplained (*unverified*); one candidate is that lossless AV1 is 0.743 and 0.775 of HTJ2K there against 0.94–0.95 elsewhere (profiles §1b, line 792). G 16, lag 0 only); P2 misses at W = 1024 on most series, and P7 misses by one point on the level count. Under the rule as written, P2, P5 and P7 read refuted.
 
 It rests on these 21 series only, on libaom 3.15.1 · dav1d 1.5.4 output standing for every conformant decoder (§1), and on one 4-core host.
 

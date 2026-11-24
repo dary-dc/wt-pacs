@@ -782,7 +782,8 @@ P9.** P10: recorded below, no verdict (lossy-sourced).
 
 In short (every number in the tables after): the sign of inter's gain does turn with Q, as 1b says — at Q 2 and 8 the
 G = 16 gain is −1.2 to +6.8 %, at each series' crossover rung (Q 16 on A, C and `dbts_b2`; Q 32 on the other four of
-B) +29 to +61 %, at Q 56 +75 to +86 %. It turns at the noise (P6), rises with Q (P3) and scales with G as 1d (P4).
+B) +29 to +61 %, at Q 56 +75 to +86 % (every gain in this paragraph is at equal Q, not equal quality: audit F2,
+corrected 2026-11-11). It turns at the noise (P6), rises with Q (P3) and scales with G as 1d (P4).
 What is wrong is **how much** (P2: +80 % system medians at the first rung ≥ 2σ, Q 56 on every series that reaches it,
 where +15 to +50 % was predicted), **which system** (P5: B gains least, not most), **one cell under the noise** (P1:
 `dbts_b3` +6.8 % at Q 8, where its RMSE 3.13 is under σ ÷ 2 = 3.34 — with σ known only to one 0.741 step there, see the
@@ -2427,7 +2428,7 @@ the pool, every cell and the *derived* link figures: `rows/decode-pooled.txt`
 (`decode_pool.py rows/decode-shard-*.json --links`).*
 
 * **Run:** §7's six blocks, one per fresh 4-core host, pooled by §7's rule: 108 rounds in all (15, 24, 22, 13, 11, 23), every block kept.
-* **Shows:** D1, D2 and D3 are each **refuted**. A lossy frame through WebCodecs costs more than an HTJ2K exact frame at 1×; a jump at G 16 is not 5–9 jumps at G 1 through dav1d-WASM; residual + add costs 1.4–1.7× an HTJ2K frame, not 0.9–1.1.
+* **Shows:** D1, D2 and D3 are each **refuted**. A lossy frame through WebCodecs costs more than an HTJ2K exact frame at 1×; a jump at G 16 is not 5–9 jumps at G 1 through dav1d-WASM; residual + add costs 1.4–1.7× an HTJ2K frame, not 0.9–1.1. *Added 2026-11-11 (decode audit 3, 5):* the residual's clock spans the JavaScript add and H's does not. Aligned with the other two residual harnesses, the residual's decode alone is 1.02–1.07 HTJ2K frames and the add 0.3–0.4 more. The residual is dropped (the owner, 2026-11-09); this stands only as a record.
 * **Rests on:** `dbts_a1`, `dbts_b1`, `dbts_c1` only. These are one DBT volume per system: three volumes, their middle 16 slices, at the bytes run's crossover rung and the rungs either side. One decode in flight; Chromium 141.0.7390.37 headless, the shards' Intel Xeon hosts at 2.1–2.8 GHz.
 * **Left:** cine and ABUS series (none in the repo is breast cine); other host types, phones, concurrent decodes, past 4×; timed links (only *derived* here); everything else §7 lists as left.
 * **Missing:** shard 3's own section. Its session pushed every round's rows, and its driver stopped before round 22 at `--until` (its log), but it wrote no prose. Its block is pooled from those rows, which pass every check below.
@@ -2491,6 +2492,22 @@ For the owner: what a slice costs to show, per decoder, pattern and G. *÷ G 1* 
 at G 1. *÷ HTJ2K* is against one HTJ2K exact frame, H; for a jump it is the mean time to reach a slice. Each figure is
 the range of pooled ratios over the 9 cells at 1× (three series × three rungs) or the 3 at 4× (the crossover rung).
 The verdict is the rule's where a band applies.
+
+*Corrected 2026-11-11 (decode audit 1, 2, 7, 13).* Four things qualify every row below.
+(1) **4×** caps each thread, not the cores (`throttleTree` without `cores`, `decode_block.mjs:93`). Multi-threaded
+WebCodecs therefore gets several quarter-CPUs against single-threaded OpenJPH's one, so the 4× rows are not a slow
+device. "WebCodecs in order at 4× at or under one H" (0.81–0.97) reads the thread count; a slow device's speed is
+unmeasured.
+(2) The **lossy clock** carries `back()`, a JavaScript pass that allocates and loops over every sample, even at
+shift 0, and whose result is discarded; the H clock has none. Taken off the clock, the coarse rungs move to about
+0.77–1.06 and Q 8 stays above one frame (`dbts_a1` ~1.55, `dbts_c1` ~1.81; *derived* by the audit from a Node
+timing of `back()` on another host).
+(3) Each **WebCodecs jump** opens a new `VideoDecoder`, about 0.2–0.25 H of start-up, which the product does not pay.
+(4) **"1.05–2.04" at G 1, 1×** spans three rungs a set. At Q 8 only `dbts_a1` and `dbts_c1` have cells (1.824, 2.040,
+top-10-bit stream); `dbts_b1`'s lowest rung is Q 16 (1.714), and the 1.05 end is `dbts_a1` Q 32, "not decided".
+The Chromium version is recorded per block, not per row (141.0.7390.37 by §Profiles decode, measured).
+Measured since on the product's HTJ2K unit, core-capped (C, `docs/av1/audit-protocols.md` §C · measured, 2026-11-12):
+`docs/lines/codecs.md` §Open 10.
 
 | decoder | pattern | G | throttle | ÷ G 1 | ÷ HTJ2K | the rule |
 | --- | --- | --: | --- | --- | --- | --- |

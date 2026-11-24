@@ -2333,7 +2333,10 @@ three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no
   at Q 12–40 (audit F12). Banding (CAMBI) was not run (F10), and λ scales differently at 10 and 12 bits (F9). The cut's
   in-window cost at Q 8 is unmeasured; it stays justified by the decode route alone.
 
-**(2) Corrections owed in other documents** (not edited here; each is its owner branch's to make, in place):
+**(2) Corrections in other documents**, applied in place 2026-11-20 on `claude/unified` (row CORRECTIONS-APPLY,
+`claude/av1-corrections-apply`), every row below, the κ row as two names in `docs/glossary.md`. *Corrected
+2026-11-20:* this read "owed in other documents (not edited here; each is its owner branch's to make, in place)".
+The x\* row took B0's values (§The audits' protocols, measured), not 4.8 ± 0.15:
 
 | result | doc (branch) | correction | from |
 | --- | --- | --- | --- |
@@ -2406,7 +2409,8 @@ on `dbts_b1` every lookahead arm, the unfiltered alt-ref too, costs 11–25 % at
 ### The audits' protocols, measured
 
 **The audits' corrections and protocols** (row AV1-CORRECT, 2026-11-11; measured since decisions 0.6 and 0.7
-were written): each study branch applies its entry of [`../av1/corrections.md`](../av1/corrections.md) in place;
+were written): every entry of [`../av1/corrections.md`](../av1/corrections.md) applied in place 2026-11-20
+(CORRECTIONS-APPLY);
 [`../av1/audit-protocols.md`](../av1/audit-protocols.md) pre-registers A (noise kept, ν, QA F4), B (one bar at the
 estimator's resolution, integer Q, QA F1, F2) and C (decode on the product's HTJ2K unit, core-capped, decode audit
 1, 2, 13) for a session that did not write them.
