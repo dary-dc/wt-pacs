@@ -19,6 +19,8 @@ into `claude/phone-run` for the next phone round, DEFAULTS-TABLE and US-END-TO-E
 its re-review is PHASE2-PLAN-FIX-REVIEW.
 2026-11-24: PHASE2-PLAN-FIX-REVIEW: B2, B3, m1–m4 closed; B1 open in part (PR 436's base is `claude/phone-run`,
 so the staging merge would mark it merged): PHASE2-PLAN-FIX-2 moves the round's code to `claude/phone-run-2`.
+2026-11-24: PHASE2-PLAN-FIX-2: R-B1 closed in place: the next round's code and rows on `claude/phone-run-2` (from
+`origin/claude/phone-run`), PR 436 untouched; n1 closed; its re-review is PHASE2-PLAN-FIX-2-REVIEW.
 
 **The routines** (claude.ai routines; their prompts switch from the program to phase 2 on 11-24 00:00 and close
 after 11-27 23:59): queue workers (Opus) A `trig_01Y6vNmyv6K54Uqcs8RXV1Gu` at :45, B `trig_014L1Sgp7h8TW8qnzWMZ1HEQ`
