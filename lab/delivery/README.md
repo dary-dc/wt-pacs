@@ -100,8 +100,13 @@ exact one): none is a result, and none changes what the run measures.
   group's frames 1–7 (bytes over frame 0's last byte to frame 7's; no frame records its first byte), *d*_V its median
   decode ÷ 2, the pick at *m* = 1. Read back on the 2026-11-23 rows (A, A′, C1, 450 loads): *G* 81–88 Mbit/s on CLEAN,
   58–83 on PUB, 2–10 on CR (its first group in slow start), the view picked in every load (*derived*).
-* **Not built yet: SPLIT** (A2.3): `split=1` is acted on by no lever; the judge and the predictions already read its
-  `split` record.
+* **SPLIT's fill, as built** (A2.3 names the rule, not these): both sessions dial at load and carry bytes alone
+  (`decode: false`); two decode slots for the load, each a view group (its 8 frames on one decoder, key first) or one
+  exact frame; a group's form is chosen as it is asked, exact when a landed frame waits for a slot, else the view, the
+  first group always the view; groups are asked while the bytes on the wire are under the form's round trip × its rate
+  (`ahead`, 22.5 kB on CLEAN, 9 MB on CR), so on CLEAN each group is decided as the one before it lands. Its fill
+  counts from the first `connect` to the last frame checked; A's from the downloader's own dial stamp (a few ms apart,
+  not measured). The viewer itself never dials on a SPLIT load, as on K2's.
 
 ## Checks, and their mutants (§10)
 
