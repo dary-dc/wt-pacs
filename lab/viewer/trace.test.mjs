@@ -1,5 +1,5 @@
 // node lab/viewer/trace.test.mjs — the sawtooth trace and its waits. lab/viewer/trace.js
-import { sawtooth, waits } from "./trace.js";
+import { legPath, legWaits, sawtooth, waits } from "./trace.js";
 
 let failed = 0;
 const check = (ok, what) => {
@@ -29,5 +29,30 @@ check(never.forwardMs === null && never.backwardMs === 0 && never.missingMs === 
 const last = waits([{ i: 1, at: 0 }, { i: 0, at: 40 }], new Map([[1, 0]]));
 check(last.forwardMs === 0 && last.backwardMs === null && last.missingMs === 20, `the last step's frame never held (${JSON.stringify(last)})`);
 
-console.log(failed ? `${failed} failed` : "trace: the sawtooth, each step's wait: ok");
+/** Legs of 20 from 15 over 50 frames: 15 approach steps, then nine legs of exactly 20, turning at 35 and 15, the last step of each a turn. */
+const path = legPath({ lo: 15, leg: 20, count: 9 }, 50);
+const lens = [...Array(10).keys()].map((k) => path.filter((x) => x.leg === k).length);
+check(lens.join() === "15,20,20,20,20,20,20,20,20,20", `leg lengths (${lens})`);
+check(path[34].i === 35 && path[34].turn && path[54].i === 15 && path[54].turn && path.filter((x) => x.turn).length === 9, "turns at 35 and 15");
+check(path.every((x, k) => Math.abs(x.i - (k ? path[k - 1].i : 0)) === 1), "every step one frame from the last: no skip");
+check(legPath({ oneWay: true }, 50).map((x) => x.i).join() === [...Array(49).keys()].map((k) => k + 1).join(), "one way: 1 … 49");
+let refused = false;
+try { legPath({ lo: 5, leg: 45, count: 2 }, 50); } catch { refused = true; }
+check(refused, "legs past the series are refused");
+
+/**
+ * Two counted legs (2 and 3) of two steps each, leg 1 the first pass: leg 2 waits 0.03 + 0 s, leg 3 0 + 0.1 s; one of
+ * the four counted steps was held when due; two frames arrived from the step before leg 2 to the last.
+ */
+const lw = legWaits([
+  { leg: 1, dueMs: 0, heldMs: 500, heldAtDue: false, received: 3 },
+  { leg: 2, dueMs: 540, heldMs: 570, heldAtDue: false, received: 4 },
+  { leg: 2, dueMs: 610, heldMs: 600, heldAtDue: true, received: 4 },
+  { leg: 3, dueMs: 650, heldMs: 650, heldAtDue: false, received: 5 },
+  { leg: 3, dueMs: 690, heldMs: 790, heldAtDue: false, received: 5 },
+]);
+check(lw.perLeg.map((x) => x.toFixed(2)).join() === "0.03,0.10" && Math.abs(lw.meanS - 0.065) < 1e-9, `per leg (${lw.perLeg})`);
+check(lw.live === 0.75 && lw.received === 2, `live ${lw.live}, received ${lw.received}`);
+
+console.log(failed ? `${failed} failed` : "trace: the sawtooth, each step's wait, the legs: ok");
 process.exit(failed ? 1 : 0);

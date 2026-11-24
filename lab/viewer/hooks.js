@@ -1,6 +1,7 @@
 /** The page hooks: what the viewer check and a lab harness do with the product's page. Loaded by levers.js alone. */
 import { now } from "../../client/view/clock.js";
 import { run as runCheck } from "./check-page.js";
+import { drive, install } from "./hold.js";
 
 const CHECK_VIEW = new URL("./check-view.js", import.meta.url).href;
 
@@ -60,6 +61,15 @@ export function pageHooks(q, lab) {
         // On demand a frame the reader left may never be asked, so the trace ends on its last step's frame.
         await until(() => shown()?.i === stepped.at(-1)?.i || errors.length);
       })();
+      // docs/reviews/page-runs.md §4: the window's size read before the hold replaces the want.
+      const held = lab.legs && controller && { w: controller.want().length };
+      const legs = held && (async () => {
+        held.state = install(controller, lab.hold, { rho: lab.rho, w: held.w, n });
+        await until(() => shown()?.i === 0 || errors.length);
+        await until(() => progress().have >= held.w || errors.length);
+        return { w: held.w, hold: lab.hold, spec: lab.legs, ...(await drive({ spec: lab.legs, n, controller, show, errors, hold: held })) };
+      })();
+      if (lab.legs && !controller) throw new Error("refused: trace=legs under view worker — the hold is the page view's");
       if (!checking && !lab.finished) return;
 
       const giveUp = checking ? performance.now() + 60000 : Infinity;
@@ -74,6 +84,7 @@ export function pageHooks(q, lab) {
           close: () => (worker ?? controller.client).close() });
       }
       await traced;
+      const legRun = await legs?.catch((e) => (errors.push(e.message), undefined));
       for (const i of lab.steps ?? []) {
         stepped.push({ i, at: now() });
         show(i);
@@ -81,7 +92,7 @@ export function pageHooks(q, lab) {
       }
       const cine = await lab.cine?.({ worker, controller, fps: cineFps });
       const ledger = await (worker ?? controller).ledger({ flip: q.get("mutate") === "sample" });
-      lab.finished({ ...ledger, boot: { ...boot, ...ledger.boot }, issuedAt, errors, stepped, cine });
+      lab.finished({ ...ledger, boot: { ...boot, ...ledger.boot }, issuedAt, errors, stepped, cine, legs: legRun });
     },
   };
 }

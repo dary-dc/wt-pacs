@@ -217,6 +217,7 @@ run 1 sh lab/phone/read-path_test.sh
 run 1 "$PYTHON" lab/phone/link_test.py
 run 1 "$PYTHON" lab/phone/fill_test.py
 run 1 node lab/viewer/trace.test.mjs
+run 1 node lab/viewer/hold.test.mjs
 
 step "lab: the device kit's plan, bundle reader, collector and server start; the prebuilt recipe's server stage is the Containerfile's"
 run 1 node lab/devices/plan.test.mjs

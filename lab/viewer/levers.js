@@ -3,12 +3,16 @@ import { Cine, now } from "../../client/view/clock.js";
 import { busyPage } from "../frame-clock/busy.js";
 import { pageHooks } from "./hooks.js";
 import { sawtooth, STEP_MS, waits } from "./trace.js";
+import { HOLDS } from "./hold.js";
 
 /** Settings the page view would ignore, or under `pixels` copy each paint: docs/adr/frame-path.md §The core, assembled. */
 const WORKER_ONLY = ["writer", "waitAhead", "holdEveryOther", "pixels", "pageDials", "viewWorkerFirst", "glAfterDial", "shortRuns"];
 
 export function levers(q) {
-  if (q.get("trace") && q.get("trace") !== "sawtooth") throw new Error(`refused: trace ${JSON.stringify(q.get("trace"))} — sawtooth`);
+  if (q.get("trace") && !["sawtooth", "legs"].includes(q.get("trace"))) throw new Error(`refused: trace ${JSON.stringify(q.get("trace"))} — sawtooth or legs`);
+  const hold = q.get("hold") ?? "centred";
+  if (!HOLDS.includes(hold)) throw new Error(`refused: hold ${JSON.stringify(hold)} — ${HOLDS.join(", ")}`);
+  if (hold !== "centred" && q.get("trace") !== "legs") throw new Error("refused: hold without trace=legs — the hold is the leg trace's");
   const opts = q.get("opts") ? JSON.parse(q.get("opts")) : {};
   if ("digests" in opts && !(Array.isArray(opts.digests) && opts.digests.length)) throw new Error("refused: opts.digests — a list of the frames' digests; the frame check cannot be turned off");
   const writer = q.get("writer") ?? undefined;
@@ -30,9 +34,11 @@ export function levers(q) {
     transport: q.get("wt") ? { wt_url: q.get("wt"), cert_sha256: q.get("hash") } : undefined,
     metadata: q.get("metadata") ?? undefined,
     writer,
-    ...(q.get("post") && totalTime(q.get("post"), q.get("origin"), settle, opts, q.get("fill") === "0" ? Number(q.get("after") ?? 0) : 0, Boolean(q.get("trace")), tasks, spans)),
+    ...(q.get("post") && totalTime(q.get("post"), q.get("origin"), settle, opts, q.get("fill") === "0" ? Number(q.get("after") ?? 0) : 0, q.get("trace") === "sawtooth", tasks, spans)),
     ...(seconds && { cine: cineOf(seconds * 1000) }),
-    ...(q.get("trace") && { trace: { steps: sawtooth, everyMs: STEP_MS } }),
+    ...(q.get("trace") === "sawtooth" && { trace: { steps: sawtooth, everyMs: STEP_MS } }),
+    // docs/reviews/page-runs.md §4 (claude/page-runs); `mutate=hold` installs no hold, `mutate=legs` cuts each leg short.
+    ...(q.get("trace") === "legs" && { legs: legSpec(q), hold: q.get("mutate") === "hold" ? "centred" : hold, rho: Number(q.get("rho") ?? 0.216) }),
   };
   return { ...lab, hooks: pageHooks(q, lab) };
 }
@@ -49,7 +55,7 @@ function totalTime(post, origin, settle, opts, after, traced, tasks, spans) {
     steps: Array.from({ length: after }, (_, k) => k + 1),
     started: () => send("hello"),
     filled: () => send("filled"),
-    async finished({ error, issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped = [], cine, boot }) {
+    async finished({ error, issuedAt, firstShownMs, fillMs, frames, errors, stats, stepped = [], cine, boot, legs }) {
       if (error) return send("result", { error }).catch(() => {});
       // Each frame's digest is taken where the frame is held, so no pixel need reach the page: client/view/controller.js.
       const sha = Object.fromEntries(frames.map((f) => [f.i, f.sha]));
@@ -65,9 +71,17 @@ function totalTime(post, origin, settle, opts, after, traced, tasks, spans) {
         failures: errors.map((reason) => ({ reason })), sha, previews: [], previewSha: {},
         after: asked.map(({ i, at }) => ({ i, ms: arrived.get(i) - at, screen: byIndex.get(i).painted - byIndex.get(i).decoded, handoff: byIndex.get(i).decoded })),
         tasks, spans, cine, resumes: stats.resumedAt.length, checked: stats.exact, boot,
-        ...(traced && { trace: waits(stepped, arrived) }) }).catch(() => {});
+        ...(traced && { trace: waits(stepped, arrived) }), ...(legs && { legs }) }).catch(() => {});
     },
   };
+}
+
+/** `?leg=` frames a leg from `?lo=`, `?legs=` of them, `?dwell=` ms at each turn; `?oneway=1`, frames 1 … n − 1 once. */
+function legSpec(q) {
+  const num = (k, d) => Number(q.get(k) ?? d);
+  const spec = { lo: num("lo", 0), leg: num("leg", 0), count: num("legs", 9), dwellMs: num("dwell", 0), oneWay: q.get("oneway") === "1", short: q.get("mutate") === "legs" };
+  if (!spec.oneWay && !(spec.leg > 0)) throw new Error("refused: trace=legs needs ?leg or ?oneway=1");
+  return spec;
 }
 
 /** Cine on the thread that holds the frames, the phase worker started with the page: docs/adr/frame-path.md §7 */

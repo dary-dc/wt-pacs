@@ -34,3 +34,40 @@ export function waits(steps, held) {
     waits: all.map((s) => (s.ms === null ? null : Math.round(s.ms))),
   };
 }
+
+/**
+ * `asking` §6's trace from frame 0: steps up to `lo` (leg 0, the approach), then `count` legs of `leg` frames between
+ * `lo` and `lo + leg`, the last step of each a turn; `oneWay`, frames 1 … n − 1 as one leg. `short`, the mutant: legs
+ * one frame short.
+ */
+export function legPath({ lo = 0, leg, count, oneWay = false, short = false }, n) {
+  if (oneWay) return Array.from({ length: n - 1 }, (_, k) => ({ i: k + 1, turn: false, leg: 1 }));
+  const len = short ? leg - 1 : leg;
+  if (lo + len >= n) throw new Error(`refused: legs ${lo} … ${lo + len} past ${n} frames`);
+  const path = Array.from({ length: lo }, (_, k) => ({ i: k + 1, turn: false, leg: 0 }));
+  for (let k = 1; k <= count; k++) {
+    const from = k % 2 ? lo : lo + len;
+    const dir = k % 2 ? 1 : -1;
+    for (let j = 1; j <= len; j++) path.push({ i: from + dir * j, turn: j === len, leg: k });
+  }
+  return path;
+}
+
+/**
+ * Seconds a leg waited, each step's frame held at `heldMs` against its `dueMs`: legs from `from` on (the first pass,
+ * and under `skip` the first steps, not counted); `live`, the share of their steps whose frame was not held when due;
+ * `received`, frames that arrived after them began.
+ */
+export function legWaits(steps, { from = 2, skip = 0 } = {}) {
+  const counted = steps.filter((x) => x.leg >= from).slice(skip);
+  const legs = [...new Set(counted.map((x) => x.leg))];
+  const wait = (xs) => xs.reduce((a, x) => a + Math.max(0, x.heldMs - x.dueMs), 0) / 1000;
+  const perLeg = legs.map((k) => wait(counted.filter((x) => x.leg === k)));
+  const before = steps[steps.indexOf(counted[0]) - 1];
+  return {
+    perLeg,
+    meanS: perLeg.reduce((a, b) => a + b, 0) / perLeg.length,
+    live: counted.filter((x) => !x.heldAtDue).length / counted.length,
+    received: counted.at(-1).received - (before?.received ?? 0),
+  };
+}

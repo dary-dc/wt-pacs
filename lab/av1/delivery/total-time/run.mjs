@@ -56,6 +56,12 @@ const CC_TRACE = arg("--cc-trace", null);
 /** A fixed-rate link's one-way delay in ms: half its round trip. */
 const ONE_WAY = Number(arg("--one-way-ms", 20));
 const TRACE = arg("--trace", null);
+/** `asking` §6's cells by name, each a leg trace on its own link, in place of --links and --trace: lab/viewer/ask-cells.json */
+const LEG_CELLS = arg("--leg-cells", null)?.split(",").map((name) => {
+  const c = JSON.parse(readFileSync(new URL("../../../viewer/ask-cells.json", import.meta.url), "utf8"))[name];
+  if (!c) throw new Error(`unknown leg cell ${name}`);
+  return { name, ...c };
+});
 /** An arm built elsewhere (perf_nightly.mjs): its series-server and pack-series, and the tree whose client the page loads. */
 const BIN = arg("--bin", null);
 const SERVE = arg("--serve", ROOT);
@@ -109,7 +115,7 @@ function variantOf(set, name) {
   if (name === "htj2k" || a.codec === "htj2k" || a.downloader) {
     // A layered HTJ2K series (lab/av1/decode/resolution-level): F prefixes, then F rests.
     const layered = a.layers && { layers: a.layers, frames: set.frames, level: a.level };
-    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, initialWindow: a.initialWindow, viewer: a.viewer, view: a.view, settle: a.settle,
+    return { ext: a.ext ?? (a.layers ? name : "htj2k"), codec: "htj2k", entries: set.frames * (a.layers ?? 1), previewTruth: a.previewTruth, congestion: a.congestion, initialWindow: a.initialWindow, viewer: a.viewer, view: a.view, settle: a.settle, hold: a.hold,
       opts: { decoder: { ...(a.openjph === "delivered" ? DELIVERED : a.openjph ? built(a.openjph) : OPENJPH), ...layered }, ...(a.worker && { decoderWorker: a.worker }),
         // Decode pacing: the downloader's lab flag.
         ...(a.startOnNeed && { startOnNeed: true }),
@@ -340,7 +346,7 @@ const started = (child, re) => new Promise((resolve, reject) => {
   child.once("exit", (c) => reject(new Error(`exited ${c}: ${out}`)));
 });
 
-async function visit(engine, set, variant, linkName, impairment, throttle, round) {
+async function visit(engine, set, variant, linkName, impairment, throttle, round, legCell) {
   const [variantName, orderName = "seq"] = variant.split("@");
   const a = variantOf(set, variantName);
   const fill = Number(FILL ?? a.entries);
@@ -383,7 +389,8 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     ...(orderName === "prio" ? { asks: need.join(",") } : {}), ...(MUTATE === "sample" ? { mutate: "sample" } : {}),
     // The viewer: the product's page on the variant's metadata, and both pages timed from navigation.
     ...(a.viewer && { metadata: `/${FRAMES}/${set.name}/${a.viewer}` }), ...(a.view && { view: a.view }), ...(a.settle && { settle: a.settle }), ...(arg("--origin") && { origin: arg("--origin") }),
-    ...(TRACE && a.viewer && { trace: TRACE }) });
+    ...(TRACE && a.viewer && { trace: TRACE }),
+    ...(legCell && { trace: "legs", ...legCell.q, ...(a.hold && { hold: a.hold }), ...(["hold", "legs"].includes(MUTATE) && { mutate: MUTATE }) }) });
   let r = null;
   const threads = {};
   try {
@@ -400,7 +407,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
 
   const late = relayLog.match(/self-timing packets \d+ late p50 [\d.]+ p99 ([\d.]+)/g)?.pop();
   const s2c = relayLog.match(/server->client sent (\d+) lost (\d+)/)?.slice(1).map(Number);
-  const row = { round, engine, set: set.name, variant: variant, congestion: ran, initialWindow: window, transport: /transport=(.*)/.exec(serverOut)[1],
+  const row = { round, engine, set: set.name, variant: variant, ...(legCell && { cell: legCell.name }), congestion: ran, initialWindow: window, transport: /transport=(.*)/.exec(serverOut)[1],
     ...(ccTrace && { ccTrace: path.relative(ROOT, ccTrace) }), link: linkName, impairment, throttle,
     oneWayMs: Number(/delay_ms=([\d.]+)/.exec(relayLog)?.[1]), rateKbit: Number(/rate_kbit=([\d.]+)/.exec(relayLog)?.[1]), owed: fill + AFTER, s2c, errors, relayP99: late ? Number(late.split(" p99 ")[1]) : null,
     void: !late || /VOID/.test(relayLog), ...(BUSY && { busy: true }), ...(CINE && { cineS: CINE }), ...(AFTER && { asks: AFTER }) };
@@ -440,7 +447,7 @@ async function visit(engine, set, variant, linkName, impairment, throttle, round
     receivedMs: Math.round(t("lastByte", Math.max)),
     decodedMs: Math.round(t("page", Math.max)),
     ...(r.fillMs != null && { fillMs: Math.round(r.fillMs), mediaReads: r.mediaReads, fillReads: r.fillReads }),
-    ...(r.trace && { trace: r.trace }),
+    ...(r.trace && { trace: r.trace }), ...(r.legs && { legs: r.legs }),
     centreMs: Math.round(shown.get(need[0]) - r.issuedAt),
     ...pool(r.frames, threads),
     ...pageFigures(r, threads),
@@ -511,25 +518,26 @@ function useful(set) {
 /** `seq` fills every frame; `prio` asks the useful ones first, then fills. */
 const variants = (set) => set.variantNames.flatMap((a) => ORDERS.map((o) => (o === "seq" ? a : `${a}@${o}`)));
 
-const cells = ENGINES.flatMap((engine) => sets.flatMap((s) => LINKS.flatMap((l) => IMPAIRS.flatMap((impairment) =>
-  THROTTLES.map((throttle) => ({ engine, set: s.name, link: l, impairment, throttle }))))));
+const cells = ENGINES.flatMap((engine) => sets.flatMap((s) => (LEG_CELLS ?? LINKS.map((l) => ({ link: l }))).flatMap(({ link: l, ...legCell }) => IMPAIRS.flatMap((impairment) =>
+  THROTTLES.map((throttle) => ({ engine, set: s.name, link: l, impairment, throttle, ...(LEG_CELLS && { legCell }) }))))));
 const rows = [];
 for (let round = FIRST; round < FIRST + ROUNDS && !process.argv.includes("--summary"); round++) {
-  for (const [k, { engine, set: name, link: l, impairment, throttle }] of order(cells, round).entries()) {
+  for (const [k, { engine, set: name, link: l, impairment, throttle, legCell }] of order(cells, round).entries()) {
     const set = sets.find((s) => s.name === name);
     let prev = null;
     for (const a of order(variants(set), round + k)) {
-      const row = { ...(await visit(engine, set, a, l, impairment, throttle, round)), prev };
+      const row = { ...(await visit(engine, set, a, l, impairment, throttle, round, legCell)), prev };
       prev = a;
       rows.push(row);
       if (OUT) appendFileSync(OUT, JSON.stringify(row) + "\n");
-      console.error(`round ${round} ${engine} ${name} ${l} ${impairment} ${throttle}x ${a}: first ${row.firstMs} useful ${row.usefulMs} received ${row.receivedMs} decoded ${row.decodedMs} ms,` +
+      console.error(`round ${round} ${engine} ${name} ${legCell ? `${legCell.name} ` : ""}${l} ${impairment} ${throttle}x ${a}: ${row.legs ? `legs ${row.legs.steps.length} steps, interior ${row.legs.interior}, ` : ""}first ${row.firstMs} useful ${row.usefulMs} received ${row.receivedMs} decoded ${row.decodedMs} ms,` +
         `${row.trace ? ` up ${Math.round(row.trace.forwardMs)} down ${Math.round(row.trace.backwardMs)} missing ${Math.round(row.trace.missingMs)} ms, live ${Math.round(row.trace.live * 100)} %,` : ""}` +
         `${row.fillMs !== undefined ? ` fill ${row.fillMs} ms over ${row.fillReads} reads` : ""} exact ${row.exact}/${row.owed}${row.paths && Object.keys(row.paths).length ? ` checked ${row.checked} ${JSON.stringify(row.paths)}` : ""}${row.afterMs?.length ? `, asks after ${row.afterMs.join(" ")} ms` : ""}${row.previews !== undefined ? `, every frame shown ${row.shownMs} ms, previews ${row.previewExact}/${set.frames} as native, ${row.late} late, ${row.strays} stray` : ""}, relay p99 ${row.relayP99}${row.void ? " VOID" : ""}${row.errors.length ? " " + row.errors[0] : ""}${row.failure ? " " + row.failure : ""}`);
     }
   }
 }
 
+if (LEG_CELLS) process.exit(0); // read by lab/viewer/ask-summary.mjs
 const med = (a) => { const s = [...a].sort((x, y) => x - y); return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 const span = (a) => `${med(a).toFixed(0)} [${Math.min(...a)}–${Math.max(...a)}]`;
 if (OUT) rows.splice(0, rows.length, ...readFileSync(OUT, "utf8").trim().split("\n").map((l) => JSON.parse(l)));
