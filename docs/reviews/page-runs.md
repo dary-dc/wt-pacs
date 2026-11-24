@@ -20,8 +20,8 @@ are wire-bound by design (the relay's models of PUB, LTE and the full LTE queue)
 
 | § | run row | page and item | runs in the cloud | built first (lab only) |
 | ---: | --- | --- | --- | --- |
-| 1 | TRANSPORT-FLAGS-RUN | `transport-stack` 2 | yes | per-arm server arguments; WT-TW, WT-PF; `lab-levers` build |
-| 2 | REPORT-RERUNS | `reports` 3 | yes | the Firefox driver's three fixes; a µs sink clock; KEEPALIVE-Y° |
+| 1 | TRANSPORT-FLAGS-RUN | `transport-stack` 2 | yes | per-arm server arguments; WT-TW, WT-PF, WT-AF; `lab-levers` build |
+| 2 | REPORT-RERUNS | `reports` 3 | yes | the Firefox driver's three fixes; a µs sink clock; KEEPALIVE-Y°; D5a on a busy page with a drawn kill delay |
 | 3 | ENGINE-CELLS | `engines` 3, 4 | yes | the G = 8 trace; pinned Firefox builds |
 | 4 | ASK-CELLS | `asking` §6 | yes | the never-skipping display, the hold key, leg traces, the per-leg wait |
 | 5 | CACHE-CELLS | `cache` 1 | yes, if CACHE-DESIGN-1124 keeps it | PSS by process, per-index verify, a handle a group, two VOID rules |
@@ -35,7 +35,7 @@ build cannot be made without product code, the run row stops, names it, and the 
 
 **The question.** Does WebTransport, with flags the server already has, get the two wins the fetch arms showed (an
 ask during a fill, cell AD; the credit-bound fill at ~0.8 s RTT, cell CR) before any second wire is considered? It
-also answers PR 254's #39 and #96, which `transport-stack` §3 holds "for item 2's run".
+also answers PR 254's #39, which `transport-stack` §3 holds "for item 2's run"; #96 stays held, untested here (below).
 
 **The rig as it stands, and what the run row adds first** (read at `origin/claude/transport-arms`):
 
@@ -46,59 +46,98 @@ also answers PR 254's #39 and #96, which `transport-stack` §3 holds "for item 2
   a build without it refuses the flag, `server/README.md:142-147`). `--stream-mode per-frame` is in the default build
   (`server/src/transport/stream_mode.rs:12`).
 * So **before any counted row** the run row adds, as lab code with one mutant each: a per-arm server argument list
-  in `run.mjs`; the server built `--features lab-get,lab-levers`; two arms, **WT-TW** (`--send-window-follows-cwnd`)
-  and **WT-PF** (`--stream-mode per-frame`). Mutants: WT-TW started without its flag must read as a tie with WT-TS on
-  AD-PUB (the flag is what is measured); a server that silently ignores an argument must fail the visit (the server's
-  start line, which echoes its options, is checked by `judge.mjs`). No product code changes.
+  in `run.mjs`; the server built `--features lab-get,lab-levers`; three arms, **WT-TW** (`--send-window-follows-cwnd`),
+  **WT-PF** (`--stream-mode per-frame`) and **WT-AF** (`--stream-mode per-frame-asks-first --send-window-bytes
+  6291456`: #39's lever as row 211 measured it, asks first under a 6 MiB send window; `per-frame-asks-first` is in the
+  `lab-levers` build, `stream_mode.rs:13-15`, and the default send window is quinn's 10 MB, `tuning.rs:58-61` and
+  `quic-compared.md` §9.7, so the 6 MiB is set). Mutants: WT-TW started without its flag must read as a tie with WT-TS
+  on AD-PUB (the flag is what is measured); WT-AF started as `per-frame` must lose its AD gain (its asks no longer
+  ranked above the fill, `link.rs:228-231`); a server that silently ignores an argument must fail the visit (the
+  server's start line, which echoes its options, is checked by `judge.mjs`). No product code changes.
 
 **A naming conflict, recorded, not resolved here.** The page calls `--send-window-follows-cwnd` "the one queue". In
 `claude/docs-client:docs/client/evidence/ask-during-a-fill.md:21-23` the one queue (Q) is `--fill-resumes-after-asks`,
 QW is Q plus the window, and TW is the window alone; the same file finds TW's asks within ±0.04 of QW's (`:132`).
 `--fill-resumes-after-asks` is on `origin/claude/unified` (`server/src/main.rs:140`) and absent from the rig's server.
-This run measures **TW and PF**, the two flags the page names; QW is not an arm. If TW misses below, the page's
-"WT with its flags" is answered for TW and PF only, and QW is named as untested.
+This run measures **TW and PF**, the two flags the page names, and **AF**, #39's lever; QW is not an arm. If TW
+misses below, the page's "WT with its flags" is answered for TW, PF and AF only, and QW is named as untested.
+**#96 stays held, untested here**: its lever is the one queue as product code (`transport-stack` §3: "#96 | the one
+queue as product code, no flag"), `--fill-resumes-after-asks`, which the rig's server lacks; porting it to the rig is
+a lab build no row names, and the arms do not run on `claude/unified`'s server. BRIEF-WEEKEND's list names it.
 
-**Arms (6):** WT-TS (reference), WT-TS' (A/A), WT-TW, WT-PF, H3-fill, H3-frame. **Cells**, the rig's own
+**Arms (7):** WT-TS (reference), WT-TS' (A/A), WT-TW, WT-PF, WT-AF, H3-fill, H3-frame. **Cells**, the rig's own
 (`run.mjs:54-68`): AD-PUB (10 ms one way, 90 000 kbit, 2 000-packet queue; n 50, the ask at frame 8), AD-LTE (19 ms,
 50 000 kbit, 3 300 packets, iid loss 0.1 %; n 16, the ask at frame 4), CR (400 ms one way, 90 000 kbit, 1 875 packets;
 a fill of 50). Measures as the rig records them: AD the asked frame's last byte − the page's ask call; CR the latest
 last byte − the dial. **Latency for AD, fill time for CR**; never both for one cell. Fixture `dbts_b1` as HTJ2K
 (50 frames, 2.15 MB a frame), as the baselines.
 
-**Rounds and order.** 12 rounds a cell (two Williams periods of six arms, `lab/order.mjs`; `balanced()` must not flag
-`UNBALANCED`), the cells in the order AD-PUB, CR, AD-LTE, each cell's rounds contiguous, arms rotated within each
-round. `aa_rule.py --bar 0.05` on WT-TS' and each candidate, as §6.6.
+**Rounds and order.** 14 rounds a cell (one mirrored Williams period of seven arms, `lab/order.mjs`: "the period is
+n rounds, 2n for odd n"; `balanced()` must not flag `UNBALANCED`), the cell AD first, then CR, each cell's rounds
+contiguous, arms rotated within each round. `--cell AD` runs AD-PUB and AD-LTE as its two forms (`run.mjs:68`), so
+CR cannot fall between them; the rig's order is kept. `aa_rule.py --bar 0.05` on WT-TS' and each candidate, as §6.6.
 
 **Predictions** (ratio to WT-TS in the same round, median; **derived** unless labelled):
 
-| cell | WT-TW | WT-PF | H3-fill / H3-frame (reference, re-measured) |
-| --- | --- | --- | --- |
-| AD-PUB | **×0.80–1.02** | ×1.00–1.80 | 0.50–0.60 / 1.6–2.0 (measured 0.548 / 1.809) |
-| AD-LTE | **×0.85–1.02** | ×1.00–1.70 | 0.47–0.58 / 1.5–1.9 (measured 0.525 / 1.678) |
-| CR | ×0.97–1.03 | **×0.60–1.00** | 0.95–1.05 / 0.58–0.70 (measured 1.001 / 0.630) |
+| cell | WT-TW | WT-PF | WT-AF | H3-fill / H3-frame (reference, re-measured) |
+| --- | --- | --- | --- | --- |
+| AD-PUB | **a tie, ×0.95–1.05** | ×0.95–1.45 | **×0.52–0.95** | 0.50–0.60 / 1.6–2.0 (measured 0.548 / 1.809) |
+| AD-LTE | **×0.70–0.88** | ×0.95–1.45 | **×0.25–0.50** | 0.47–0.58 / 1.5–1.9 (measured 0.525 / 1.678) |
+| CR | ×0.97–1.03 | **×0.60–1.00** | ×0.97–1.45 (fill) | 0.95–1.05 / 0.58–0.70 (measured 1.001 / 0.630) |
+
+(Amended 2026-11-24 by PAGE-RUNS-PROTOCOL-FIX, before any row: WT-AF added (§Review B1); WT-TW's AD bands were
+×0.80–1.02 and ×0.85–1.02 (m3); WT-PF's AD bands were ×1.00–1.80 and ×1.00–1.70 (m1).)
 
 * **WT-TW on AD.** What the ask waits behind is the fill already admitted to the send window. TW sets that window
   to cwnd plus two of the series' largest frames (`server.rs:148-155`): 2 × 2.15 MB ≈ 4.3 MB plus cwnd, against
-  today's 6 MiB. It gains only while cwnd < 6 MiB − 4.3 MB ≈ 2.0 MB. PUB's queue holds 3.0 MB and LTE's 5.0 MB, and
-  Cubic fills a tail-drop queue, so under a fill cwnd may pass 2 MB: hence a band that reaches a tie (**theory**,
-  not traced). The earlier ×0.32–0.90 was QW's, measured on 0.57 MB frames, where two frames are 1.1 MB
+  today's 6 MiB, the client's stream credit, which bounds what `shared` has written ahead. It gains only while cwnd <
+  6 MiB − 4.3 MB ≈ 2.0 MB. **AD-PUB: a tie.** PUB's queue holds 3.0 MB and has no random loss; Cubic fills a
+  tail-drop queue ("cwnd + M is no cap … Cubic grows into the queue", row 207; asks first's cwnd at the ask up to
+  4.1 MB behind deep FIFOs, row 211, **measured** on another rig), so cwnd sits above 2 MB and the band is the A/A's,
+  ×0.95–1.05 (`aa_rule.py --bar 0.05`); a ×0.80 there is a refutation, not a hit (**theory**). **AD-LTE: a gain.**
+  Its 0.1 % iid loss holds Cubic's window near 1.2 ÷ √p ≈ 39 packets ≈ 0.06 MB (`quic-compared.md` §9.6's form,
+  **theory**), far under 2 MB, so the ask waits behind ≈ 4.4 MB, not 6.29 MB: (4.4 + 2.15) ÷ (6.29 + 2.15) ≈ ×0.78
+  (**derived**), the band ×0.70–0.88. This reads the review's m3 (a tie on both forms) as holding for PUB only; LTE's
+  loss is what keeps cwnd under the 2 MB. A median within ×0.75–0.85 on AD-LTE alone is named as not deciding the
+  page. The earlier ×0.32–0.90 was QW's, measured on 0.57 MB frames, where two frames are 1.1 MB
   (`ask-during-a-fill.md:76-88,130`; Chromium 141, another rig), so it does not carry to `dbts_b1` (**derived**).
-* **WT-PF on AD.** A stream a frame does not by itself put the asked frame ahead of streams already open; H3-frame,
-  its nearest analogue, was ×1.68–1.81 slower. Predicted no gain (**theory**; quinn's scheduling of equal-priority
-  streams not read for this file: the run records each stream's priority if the server exposes it).
+* **WT-PF on AD.** The streams are not of equal priority: `per-frame` gives each stream a rank strictly below every
+  earlier ask (`link.rs:215-226`; test `later_asks_rank_strictly_below_earlier_ones`, `:262-266`), so the asked frame
+  ranks below every fill stream already open (**source**). Row 180 measured `per-frame` tying `shared`, ×0.96–1.03
+  (Chromium 141, `lab/ask-ahead`, 0.57 MB frames: **measured**, another rig and fixture), the band's lower end. Its
+  upper end: the per-frame streams escape the one stream's 6 MiB credit and are bounded by quinn's 10 MB send window
+  instead, if Chromium's connection credit allows it (the CR assumption below), so up to (10 + 2.15) ÷ (6.29 + 2.15)
+  ≈ ×1.44 (**derived**). No gain predicted.
 * **WT-PF on CR.** H3-frame's ×0.630 came from escaping one stream's 6 MiB credit, which caps a stream at ~63 Mbit/s
   over 0.8 s (`transport-stack` §5). PF escapes it too **if** Chromium's connection-level receive window for a
   WebTransport session exceeds 6 MiB; not read here, an **assumption**, which is why the band reaches a tie. A tie
   says the connection window binds; the run records the session's flow-control-blocked events from the server's
   QUIC statistics if present.
 * **WT-TW on CR**: the cap is the client's stream credit, not the server's window, so a tie (**theory**).
+* **WT-AF on AD.** Asks first ranks the ask's stream above every fill stream (`link.rs:228-231`), so the ask waits
+  only behind the bytes in flight, ≤ min(cwnd, the 6 MiB send window), not behind the 6.29 MB `shared` has written
+  ahead (`quic-compared.md` §9.7's mechanism, **theory**). AD-PUB: cwnd 2.25–3.2 MB in the 3.0 MB queue gives
+  (2.25–3.2 + 2.15) ÷ 8.44 ≈ ×0.52–0.63 (**derived**); the band's upper end ×0.95 is row 211's miss of the same
+  theory behind deep FIFOs, ×0.87–0.98 measured where it predicted ≈ ×0.68 (103 Mbit/s behind 360 ms: (4.1 + 0.57) ÷
+  (6.29 + 0.57)). AD-LTE: cwnd ≈ 0.06 MB under the loss gives ≈ (0.06 + 2.15) ÷ 8.44 ≈ ×0.26 (**derived**); row 211's
+  loss cells measured ×0.18–0.19 where the same arithmetic gives ≈ ×0.09, so the band is ×0.25–0.50.
+* **WT-AF on CR (its fill).** Its streams escape the one stream's credit, but the 6 MiB send window caps the bytes in
+  flight at the same ~63 Mbit/s over 0.8 s, so the cap predicts a tie (**theory**). Row 211 measured asks first under
+  a 6 MiB send window costing its fill +2 to +44 % in all nine cells, the cap binding in none, with more, smaller
+  packets and stalls of up to 2.9 s that the model has no term for (**measured**, cause not isolated). Hence ×0.97–1.45.
+  **What carries from row 211:** the mechanism and the existence of the fill cost; **not** its values: its frames were
+  0.57 MB (`dbt10_ea1141`, 24 frames) against `dbts_b1`'s 2.15 MB, so a fill here opens about a quarter as many
+  streams a byte; Chromium 141 through `lab/ask-ahead`, not this rig's relay and build.
 
 **Refuted, for each:** the cell's median outside its band. **What decides the page** (its §6): WT-TW or WT-PF at
 ≤ ×0.8 of WT-TS's ask on AD, i.e. as good as the fill-shape fetch's ×0.50–0.68 band's upper end, keeps "no GET path";
 both above ×0.8 on AD leaves the page's next step ("a GET path for asks alone is the next structural draft"). WT-PF
-≤ ×0.75 on CR answers CR within WebTransport. #39 and #96 (asks first under a 6 MiB send window; the one queue as
-product code) are answered **only** by these rows' AD ask and CR fill together: a lever that gains the ask and costs
-the fill more than ×1.05 is a trade-off for the owner, not a default.
+≤ ×0.75 on CR answers CR within WebTransport. **WT-AF decides #39** (asks first under a 6 MiB send window) by its
+AD ask and CR fill together: ≤ ×0.8 on both AD forms with a CR fill ≤ ×1.05 makes the lever net on these cells, the
+owner's to adopt (it is a `lab-levers` flag: a product build row would follow, not this run); a gain on AD with a
+CR fill above ×1.05 is a trade-off for the owner, as row 211 found, not a default; no gain on AD answers #39 no. The
+prediction is the trade-off if row 211's fill cost carries to 2.15 MB frames, a tie on CR if it does not. WT-AF alone
+at ≤ ×0.8 also keeps "no GET path" open, on that build. **#96 is not answered** by this run (above).
 
 **VOID** (the rig's `judge.mjs:27-31`): the relay guard's p99 over 1 ms; the busiest core over 0.95; a crash; a fetch
 arm on the wrong protocol; a visit past 3 × the pilot median (`rows/pilot-medians.json`, extended by a 2-round
