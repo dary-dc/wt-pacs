@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """A fetched set (lab/av1/fetch_data.py's OUT/<set>/NNN.raw, docs/FIXTURES.md §AV1 data) as the ingest's input, and a
-bundle's metadata held to that set's pin.
+bundle held to that set's pin.
 
 usage: stack_fixture.py dicom SET_DIR OUT.dcm --size H W --channels C --modality M [--cine-rate R]
-       stack_fixture.py same SET_DIR MANIFEST NAME BUNDLE.metadata.json
+       stack_fixture.py same SET_DIR MANIFEST NAME BUNDLE.sbnd
 """
 import argparse
 import hashlib
 import json
+import struct
 import sys
 from pathlib import Path
 
@@ -47,6 +48,14 @@ def dicom(a):
     ds.save_as(a.out, enforce_file_format=True)
 
 
+def bundle_metadata(sbnd):
+    """The metadata a bundle carries, which the server serves (docs/FIXTURES.md §SBND series bundle)."""
+    b = Path(sbnd).read_bytes()
+    _, _, length, count = struct.unpack_from("<4sIII", b)
+    start = 16 + 12 * count
+    return json.loads(b[start:start + length])
+
+
 def same(a):
     """The set's frames are its pin, and the bundle's digests are the XXH3-64 of those frames' bytes in order."""
     files = raws(a.set_dir)
@@ -54,12 +63,12 @@ def same(a):
     hexes = "".join(hashlib.sha256(f.read_bytes()).hexdigest() for f in files)
     if hashlib.sha256(hexes.encode()).hexdigest() != sets[a.name]["frames_sha256"]:
         sys.exit(f"{a.set_dir}: its {len(files)} frames are not {a.name}'s pin in {a.manifest}")
-    meta = json.loads(Path(a.metadata).read_text())
+    meta = bundle_metadata(a.bundle)
     want = [xxhash.xxh3_64_hexdigest(f.read_bytes()) for f in files]
     got = meta.get("digests", {}).get("frames", [])
     if got != want:
         bad = [i for i in range(max(len(got), len(want))) if got[i:i + 1] != want[i:i + 1]]
-        sys.exit(f"{a.metadata}: {len(got)} digests against {a.name}'s {len(want)} pinned frames, frames {bad[:5]} differ")
+        sys.exit(f"{a.bundle}: {len(got)} digests against {a.name}'s {len(want)} pinned frames, frames {bad[:5]} differ")
     print(f"{a.name}: {len(want)} frames, each bundle digest the pinned frame's")
 
 
@@ -77,7 +86,7 @@ def main():
     s.add_argument("set_dir")
     s.add_argument("manifest")
     s.add_argument("name")
-    s.add_argument("metadata")
+    s.add_argument("bundle")
     a = ap.parse_args()
     dicom(a) if a.cmd == "dicom" else same(a)
 

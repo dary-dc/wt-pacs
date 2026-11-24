@@ -21,7 +21,7 @@ trap 'rm -rf "$T"' EXIT
 through() {  # SET INPUT
   local set=$1 out="$T/$1.sbnd" n
   "$PY" ingest/from-dicom/from_dicom.py "$BUILD" "$2" "$out" --codec htj2k --jobs "$(nproc)" >/dev/null
-  "$PY" "$FIXTURE" same "$DATA/$set" "$MANIFEST" "$set" "$T/$set.metadata.json"
+  "$PY" "$FIXTURE" same "$DATA/$set" "$MANIFEST" "$set" "$out"
   n=$(jq .frameCount "$T/$set.metadata.json")
   for view in page worker; do
     node client/viewer/check.mjs --series "$out" --decoder htj2k --view "$view" | tee "$T/check"
