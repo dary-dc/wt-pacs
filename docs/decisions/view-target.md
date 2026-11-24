@@ -165,3 +165,21 @@ checked, the cache off and telemetry off all stand in both views.
   `claude/memory-on-navigation` (PR 434).
 * Proposals: [`../proposals/simplify-fable.md`](../proposals/simplify-fable.md) §P5, §P6. PRs 434, 435 (merged into
   `claude/unified` by UNIFIED-SYNC-1124).
+
+## Review (PHONE-CARRY-REVIEW, 2026-11-24)
+
+By a session that wrote none of this page or of PHONE-CARRY; read as `phone-decode-route.md` §Review says. Checked and
+holding: nothing marked **provisional**; PRs 434 and 435 on `claude/unified` (UNIFIED-SYNC-1124's status file: merged,
+commented, closed); the 15-frame window and the fill cut to it with no cache (**theory, from the code**: the arithmetic
+and the code read in that review); the frame-change 11.4 and 13.3 ms are §3's, PHONE-READ-3D's; `ace5af899` on
+`claude/phone-run` is DEVICEKIT-TOOLS' resource snapshot and `--fresh-chrome`; IMPROVE-1's `candidates.md` §2 is
+*The window against the group (model)*.
+
+* **m1. §6's *The round's code* is superseded** (the same as `phone-decode-route` m1): "the cell compares with 11-22
+  only with the bound lifted or sized to the series" is what `round-2.md` §2 now does (cell 3 `budget=` the series'
+  frames, `?budget` on `claude/phone-run-2` `313ad1b55`, lab only). The bullet should say the round lifts it, and keep
+  that the default window is untested at `dbts_b1`'s size (`round-2.md` §6).
+* **n1.** The bullet's "the round page's `fillFailure` would fail each load" holds for the default window only; with
+  the budget set it does not (same fix).
+
+No blocker here; the fix row's m1 edits both pages together.

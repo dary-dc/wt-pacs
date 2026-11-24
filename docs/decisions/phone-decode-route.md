@@ -218,3 +218,43 @@ Files: `claude/mobile-decode:docs/decode/mobile/route-policy.md`, `…/README.md
 [`../transport/link-profiles.md`](../transport/link-profiles.md), [`../av1/payload-format.md`](../av1/payload-format.md),
 [`../WIRE.md`](../WIRE.md); [`visually-lossless.md`](visually-lossless.md), [`reports.md`](reports.md),
 [`paused-lines.md`](paused-lines.md).
+
+## Review (PHONE-CARRY-REVIEW, 2026-11-24)
+
+By a session that wrote none of this page or of PHONE-CARRY. Read: PHONE-CARRY's `87e3867ba`, `b77ba07ba`, `138b35022`,
+`a962ba03f`; against `origin/claude/unified` `b059388b6`, `claude/phone-run-2` `21c8102b0`
+(`docs/phone-rows/round-2.md`, written by PHONE-ROUND-2-PREP at 13:09, after PHONE-CARRY), the status files named.
+Nothing run but git reads and `scripts/check_links.py` (17 unresolved, as before).
+
+**Checked and holding.** No mark **provisional** on the page (grep). `memoryWindow` on `dbts_b1`: ⌊2²⁸ ÷ (2560 × 3328 ×
+2)⌋ = ⌊15.75⌋ = 15 frames (**derived**; 10 of 16 bits stored, `docs/FIXTURES.md`, so two bytes a sample); `viewer.js`
+on unified constructs the `Controller` with no `budget`; `#fillSize()` is the window with no cache; the round page's
+`fillFailure` compares `frames.length`, and `ledger()` lists the store's keys, i.e. the frames held, so a fill of
+`dbts_b1` at the default fails it (**theory, from the code**, as the page says). Items 5, 8 and 10's middle-band cell
+matches `round-2.md` §Middle-band phone (item 8). The 216.5 ms against 80–130 is §4's. PHONE-READ-3D concerns cell 3
+only, so "carried as it stands" adds nothing here, correctly.
+
+* **B1. §8.1 sends items 6, 7, 9 and 10 to PHONE-ROUND-2 cells the round does not carry.** The table names "PHONE-ROUND-2,
+  item 7's M17 and M5" (and M5 for 6, 9, 10). `round-2.md` §5, *Cells a page asks for that this round does not carry*:
+  M17 "no lossy HTJ2K series in `demo-series`; cell 1's bench has no lossy arm"; M5 at a volume's size "`make_hw_units.py`
+  at 2048² stops in `ingest.decode` (`av1 decode failed (-2)`, *measured* here)"; "Each needs a build first". So the
+  owner reading §2 item 7's yes ("a yes changes: two asks in its preparation rows") and §8.1 would take both asks as
+  scheduled; they are not, and no row of `claude/work-ledger:docs/queue-2026-11-24.md` builds either. Fix: §8.1's cells for 6, 7, 9, 10
+  read "not in PHONE-ROUND-2 (`round-2.md` §5): needs <its build>", and §2 item 7's *a yes changes* says the
+  preparation row found each needs a build; the two builds go to BRIEF-WEEKEND's list for the next queue (no row fits
+  before 2026-11-27 20:00 with a phone round after it).
+* **m1. The bound paragraph is superseded.** "PHONE-ROUND-2-PREP's dry run decides it; the bound's size at two values
+  ... needs a lab setting `claude/unified` does not have": PREP built that setting on `claude/phone-run-2` (`?budget`,
+  `313ad1b55`, lab only, the product unchanged without it) and `round-2.md` §2 sets cell 3's budget to the series and
+  runs cell M at *w* and 2*w*. Say so; keep the theory label, since `round-2.md` §6 says the 15-frame window "is not
+  exercised by the synthetic pair, whose 20 frames all fit".
+* **m2. The exact frame's 216.5 ms is "named for that row" and that row did not take it**: `round-2.md` names it
+  nowhere, §5 included. It falls through unless carried: to BRIEF-WEEKEND's list, with the cell that would ask it.
+* **m3. §8.1 splits §8.** It sits between §8's carried findings and its *Rows:* and *Files:* paragraphs, which now read
+  as §8.1's. Move §8.1 after them (or under §6, what would change the recommendation).
+* **n1.** "UNIFIED-SYNC-1124 `b7cc007f7`" is the sync's tip, the merge of PR 437, not of PR 435; "the sync's tip" or
+  PR 435's own merge commit.
+* **n2.** "cells 2 and 3": PHONE-ROUND-2 runs cell 3 and cell M only (`round-2.md` §0).
+
+Verdict: one blocker; PHONE-CARRY-FIX and PHONE-CARRY-FIX-REVIEW appended to the queue (amendment 17). The page's
+yes lines in BRIEF-WEEKEND wait on the re-review.
