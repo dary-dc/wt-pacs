@@ -1,6 +1,6 @@
 // node lab/delivery/judge.test.mjs — the judge of delivery-comparison.md §6–§8 on rows made to each case.
 import { cellLoads } from "./plan.mjs";
-import { aaCells, aaMedianRatio, blackoutsFromDial, decodersReadBack, exactLatencyOf, holds, judge, line, measuredRegime, pilotMedians, voidOf, voidShares } from "./judge.mjs";
+import { aaCells, aaMedianRatio, blackoutsFromDial, decodersReadBack, exactLatencyOf, holds, judge, line, measuredRegime, pilotMedians, switchReading, voidOf, voidShares } from "./judge.mjs";
 import { digestOf } from "./predict.mjs";
 
 let failed = 0;
@@ -46,7 +46,7 @@ let r = await judge(text, rowsOf());
 check(r.verdicts.length === predictions.length && r.verdicts.every((v) => (v.holds || v.reported) && !v.regimeMiss), "judge: loads on their predictions hold, no regime miss");
 check(verdictOf(r, "FIT", "zoom").reported && /REPORTED, not judged/.test(line(verdictOf(r, "FIT", "zoom"))), "judge: a level-0 zoom is reported, not judged");
 check(verdictOf(r, "SPLIT").xMeasured === 0.25 && /x 0\.25 \(predicted 0\.25\)/.test(line(verdictOf(r, "SPLIT"))) && verdictOf(r, "SPLIT").regimeMisses === undefined, "judge: SPLIT's x reported beside its prediction, no regime judged");
-check(r.exactPicks.length === 0, "judge: no switch record picks the exact series");
+check(r.exactPicks.length === 0, "judge: no view load picks the exact series");
 check(!r.unbalanced.length, "judge: the plan's Williams order is balanced");
 
 /** The 10-of-12 rule: three rounds out of band misses though the median is in it. */
@@ -77,9 +77,15 @@ const fitRows = (kb) => rowsOf().map((x) => ({ ...x, predictionsXxh3: fitDigest,
 check((await throws(() => judge(fitText, fitRows(500)))) === null, "FIT: every frame its prefix, judged");
 check(/refused: FIT round 0 dbts_a1: frame 0 carried 1800 KiB, its level prefix 500.0 KiB/.test((await throws(() => judge(fitText, fitRows(1800)))) ?? ""), "FIT: whole frames asked where the fit is a prefix, the judge refuses");
 
-/** A2.3: a load whose switch picked the exact series is named. */
-r = await judge(text, rowsOf({ edit: (l, row) => (l.arm === "A" && l.round === 4 ? { records: [{ kind: "switch", pick: "exact", G: 200, dV: 10 }] } : {}) }));
-check(r.exactPicks.join() === "LTE/dbts_a1/A round 4", "switch: an exact pick is named, not judged");
+/** A2.3: the switch read off a view load's first group: G over frames 1–7, d_V the median decode ÷ 2, the pick at m = 1. */
+const group = (kb, everyMs, decodeMs) => Array.from({ length: 8 }, (_, i) => ({ i, kb, lastByte: 1000 + i * everyMs, decodeMs }));
+const s1 = switchReading({ load: { frames: group(100, 10, 20) } }, 8 * 1e6);
+check(Math.abs(s1.G - 81.92) < 1e-9 && s1.dV === 10 && s1.pick === "view", `switch: 100 KiB a frame every 10 ms is ${s1.G} Mbit/s; b_E ÷ d_V 800 Mbit/s: the view`);
+check(switchReading({ load: { frames: group(100, 1, 20) } }, 8 * 1e6).pick === "exact", "switch: past b_E ÷ d_V the exact series");
+const pickText = JSON.stringify({ inputs: { volumes: { dbts_a1: { exact: { frames: [1e6] } } } }, predictions });
+const pickDigest = await digestOf(pickText);
+r = await judge(pickText, rowsOf().map((x) => ({ ...x, predictionsXxh3: pickDigest, ...(x.arm === "A" && x.round === 4 && { load: { ...x.load, frames: group(100, 1, 20) } }) })));
+check(r.exactPicks.join() === "LTE/dbts_a1/A round 4" && r.switches.length === 12 * 4, `switch: an exact pick is named, not judged; every view load read (${r.switches.length})`);
 
 /** predictions.json changed after the rows: the digest in the rows refuses it. */
 const changed = await throws(() => judge(text.replace('"ms":400', '"ms":401'), rowsOf()));

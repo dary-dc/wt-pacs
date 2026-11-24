@@ -96,8 +96,12 @@ exact one): none is a result, and none changes what the run measures.
   zoom carries no draw time (on `dbts_a1`, 0.6 ms for A2.7's 17 ms, which is reported, not judged).
 * On CLEAN, one load each: FIT `dbts_b1` fill 2.76 s (A2.7: 2.72), zoom 0.25 s (0.20), its ask → last byte 0.15 s;
   FIT `dbts_a1` fill 6.29 s (§4.3's B: 6.29). Each window read-back equal byte for byte (1280 × 1664, 1142 × 1785).
-* **Not built yet: SPLIT and the switch's reading** (A2.3, A2.5): `split=1` is refused by no lever and acted on by none;
-  the rows carry no `split` or `switch` record. The judge and the predictions already read them.
+* **The switch's reading is the judge's** (A2.3, A2.5), from what every view load already records: *G* over its first
+  group's frames 1–7 (bytes over frame 0's last byte to frame 7's; no frame records its first byte), *d*_V its median
+  decode ÷ 2, the pick at *m* = 1. Read back on the 2026-11-23 rows (A, A′, C1, 450 loads): *G* 81–88 Mbit/s on CLEAN,
+  58–83 on PUB, 2–10 on CR (its first group in slow start), the view picked in every load (*derived*).
+* **Not built yet: SPLIT** (A2.3): `split=1` is acted on by no lever; the judge and the predictions already read its
+  `split` record.
 
 ## Checks, and their mutants (§10)
 

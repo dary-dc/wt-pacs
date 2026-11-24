@@ -7,6 +7,8 @@ import { balanced } from "../order.mjs";
 import { ARMS, DECODERS, VOLUMES } from "./plan.mjs";
 import { decodeFloor, digestOf, regime, unitsOf } from "./predict.mjs";
 
+/** The arms whose fill asks the view: each reads A2.3's switch. */
+export const VIEW_ARMS = ["A", "A'", "C1", "SPLIT"];
 /** fraction of a core over a load */
 export const BUSY_VOID = 0.95;
 export const PILOT_VOID = 3;
@@ -47,6 +49,18 @@ export function measured(row) {
   if (row.arm === "C1") Object.assign(out, { latency: exactLatencyOf(row.records ?? []), askLastByte: recordOf(row, "askLastByte")?.ms ?? null });
   if (row.arm === "FIT") out.zoom = recordOf(row, "zoom")?.ms ?? null;
   return out;
+}
+
+/**
+ * A2.3's switch, read on a view load: G, its first group's rate (frames 1–7's bytes over frame 0's last byte to frame
+ * 7's), d_V its median decode ÷ the decoders, and the pick at m = 1: the exact series when G > b_E ÷ d_V.
+ */
+export function switchReading(row, exactBits, group = 8) {
+  const frames = (row.load?.frames ?? []).filter((f) => f.form !== "exact").sort((a, b) => a.i - b.i).slice(0, group);
+  if (frames.length < 2 || exactBits == null) return null;
+  const G = (8 * 1024 * frames.slice(1).reduce((a, f) => a + f.kb, 0)) / (frames.at(-1).lastByte - frames[0].lastByte) / 1000;
+  const dV = median(frames.map((f) => f.decodeMs)) / DECODERS;
+  return { G, dV, pick: G > exactBits / dV / 1000 ? "exact" : "view" };
 }
 
 /** The cores the browser may use (§2): the driver's and so every process it starts. */
@@ -126,8 +140,10 @@ export async function judge(text, rows, { group = { view: 8, exact: 1 } } = {}) 
     return rs.length ? ARMS.filter((a) => !balanced(rs, a, ARMS)).map((a) => `${cell}/${volume}/${a}`) : [];
   }));
   // A2.3: the switch's reading is reported, never judged; a load that picked the exact series is named.
-  const exactPicks = live.filter((r) => recordOf(r, "switch")?.pick === "exact").map((r) => `${r.cell}/${r.volume}/${r.arm} round ${r.round}`);
-  return { digest, verdicts, unbalanced, aa: aaCells(live), exactPicks };
+  const bE = (v) => { const f = inputs?.volumes?.[v]?.exact?.frames; return f && (8 * f.reduce((a, b) => a + b, 0)) / f.length; };
+  const readings = live.filter((r) => VIEW_ARMS.includes(r.arm)).map((r) => ({ r, s: switchReading(r, bE(r.volume)) })).filter((x) => x.s);
+  const exactPicks = readings.filter((x) => x.s.pick === "exact").map(({ r }) => `${r.cell}/${r.volume}/${r.arm} round ${r.round}`);
+  return { digest, verdicts, unbalanced, aa: aaCells(live), exactPicks, switches: readings.map(({ r, s }) => ({ cell: r.cell, volume: r.volume, arm: r.arm, round: r.round, ...s })) };
 }
 
 /** A′ ÷ A's median fill a cell, over the rounds with both. */
