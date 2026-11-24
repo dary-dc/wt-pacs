@@ -43,10 +43,7 @@ export async function roundLoads({ quick = false, counts = {} } = {}) {
   }));
 }
 
-/**
- * Cell M of docs/phone-rows/round-2.md: eight loads on one renderer, each view at the store's default window `w` and
- * at twice it, worker first as on 2026-11-22; each load steps within what it holds.
- */
+/** Cell M, eight loads on one renderer, each view at the default window `w` and twice it: docs/phone-rows/round-2.md */
 export function memoryCell(series, w, n) {
   const arms = [["worker", w], ["worker", 2 * w], ["page", 2 * w], ["page", w]];
   return [...arms, ...arms].map(([view, budget], k) => {
@@ -55,10 +52,7 @@ export function memoryCell(series, w, n) {
   });
 }
 
-/**
- * The loads `cells` names (every one without it), cell M added on `view`; a cell-3 load's store holds its whole series,
- * as on 2026-11-22, and its worker loads start with the start's fix. `metaOf(series)` reads a series' metadata.
- */
+/** The loads `cells` names (all without it), cell M on `view`; cell 3 holds its whole series, its worker with the start's fix. */
 export function shapeLoads(loads, cells, metaOf, view) {
   const memory = cells?.includes("M") ? memoryCell(view, memoryWindow(metaOf(view)), metaOf(view).frameCount).map((l) => ({ ...l, url: pageOf(l) })) : [];
   const shaped = [...loads.filter((l) => !cells || cells.includes(l.cell)), ...memory]
