@@ -128,14 +128,18 @@ The gate's step from a real stack to the page (`scripts/stacks_end_to_end.sh`): 
 (`client/viewer/check.mjs`) in the page and in the view worker, failing unless every pinned frame is received and
 exact. `dbts_a1` enters as its pinned DICOM object; the two clips are AVI, so each enters as one multi-frame US object
 written from its pinned frames (`ingest/from-dicom/stack_fixture.py`, 8-bit, MONOCHROME2 or RGB). The gate skips it
-by name until the three sets are fetched, 1.7 GB in all, 1.5 GB of it the clips' zip:
+by name until the three sets are fetched, 1.7 GB in all, 1.5 GB of it the clips' zip (the gate workflow fetches them
+on a cache miss and keeps the sets, not the zip):
 
 ```bash
 OUT=lab/av1/data lab/av1/fetch_data.sh usb_cine usb_cine_rgb dbts_a1    # once; DATA=... if fetched elsewhere
 ```
 
 It shows the path complete, not how fast it is: the clips are lossy-sourced, so their bytes and times are no result
-(§Provenance), and `dbts_a1`'s are one loopback run's in software decode. US-END-TO-END, 2026-11-24.
+(§Provenance), and `dbts_a1`'s are one loopback run's in software decode. Complete for an uncompressed 8-bit US object
+only: the clip's object is explicit little-endian, `PlanarConfiguration` 0, the easiest the ingest reads, while a
+modality's US objects are often JPEG baseline in `YBR_FULL_422`, which `dicom_series.py` refuses, and planar 1 is not
+exercised (US-END-TO-END-REVIEW m2); what the PCS's US objects are is `pcs-note`'s question. US-END-TO-END, 2026-11-24.
 
 ### A compiled ingest at the site — the plan
 
