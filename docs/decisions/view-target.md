@@ -9,7 +9,9 @@ review, fix and re-review for the round's cells 92–96); `claude/unified` at `4
 [`../proposals/simplify-fable.md`](../proposals/simplify-fable.md) §P5, §P6 (FABLE-SIMPLIFY, #366);
 `claude/work-ledger:docs/queue/MEMORY-LEAK-TRACE.md` §Result (corrected 2026-11-23). Every row of the question is
 done, so the recommendation is not provisional; the first-picture guard it leans on is an **assumption** (amendment
-24), and the verdict does not turn on it.
+24), and the verdict does not turn on it. Read again 2026-11-24 by row PHONE-CARRY
+(`claude/work-ledger:docs/queue-2026-11-24.md`): nothing marked provisional; PHONE-READ-3D, its review and
+PHONE-READ-CODE-CHECK carried as they stand; PRs 434 and 435 merged; §6 names the PHONE-ROUND-2 cell each check waits for.
 
 Labels: **source** (quoted in the file named), **theory**, **derived**, **measured**; **(A)** an assumption named so a
 measurement can replace it. *Page view* is `?view=page`, today's default: the page's thread holds the controller and
@@ -108,7 +110,7 @@ reason to keep the page view as the default: each is a choice inside the view wo
 | question | decided by | where it stands |
 | --- | --- | --- |
 | who writes the cache | the cache-I/O arms, arm D added | cache off ([`cache.md`](cache.md)); which store is CACHE-DESIGN's (phase 2) |
-| who owns a frame's memory; K | M5 with a disk-only arm | a 256 MiB default budget for both views, PR 435 (VIEW-MEMORY-BOUND, reviewed twice, no blocker open) |
+| who owns a frame's memory; K | M5 with a disk-only arm | a 256 MiB default budget for both views, PR 435, on `claude/unified` since UNIFIED-SYNC-1124 (`b7cc007f7`); its window cuts groups, which re-fetches a group a step (**theory**, `claude/work-ledger:docs/queue/IMPROVE-1/candidates.md` §2; WINDOW-WHOLE-GROUPS tests it) |
 | the downloader merged into the view worker | a fill's inter-arrival p99 beside a cine of 17 MB frames | open ([`receive-loop-beside-paint.md`](../client/evidence/receive-loop-beside-paint.md)) |
 | a frame clock in a dedicated worker | the clock protocol, a WebKit cell, a hidden-tab cell | no verdict, every Chromium cell saturated ([`frame-clock-in-a-worker.md`](../client/evidence/frame-clock-in-a-worker.md)) |
 | misses split into one-frame runs | a fill from a half-held cache at 46 and 92 ms RTT | open; waits on the cache |
@@ -125,10 +127,17 @@ reason to keep the page view as the default: each is a choice inside the view wo
 * **The first picture on the phone.** PHONE-ROUND-2's cell 3, under one condition and with the start's fix (item 4),
   finding the view worker's first picture later than the page view's by the guard's 52 ms **(A)** would keep the
   page view the default. The interval so far reaches +27.1 ms, without the fix.
+* **The round's code (PHONE-CARRY, 2026-11-24).** Cell 3 of PHONE-ROUND-2 runs on `claude/unified`'s memory bound:
+  15 frames on `dbts_b1`, the fill cut to them with no cache (**theory**, from `client/view/controller.js`), so the
+  round page's `fillFailure` would fail each load and a step past the window is a miss, not the held frame the 11-22
+  frame-change measured (11.4 and 13.3 ms). The cell compares with 11-22 only with the bound lifted or sized to the
+  series; [`phone-decode-route.md`](phone-decode-route.md) §8.1 says the same for the fill, PHONE-ROUND-2-PREP's dry
+  run decides it.
 * **Safari.** The engines page's Safari probe failing paint in a worker would keep the page view as Safari's view and
   P5 not taken.
-* **The phone's memory.** The +1 452 and +1 528 MiB after worker loads traced to the view worker (PHONE-ROUND-2 with
-  per-load resources decides) would add a fix before item 1's PR reaches a phone round.
+* **The phone's memory.** The +1 452 and +1 528 MiB after worker loads traced to the view worker (PHONE-ROUND-2's
+  memory after worker loads, with DEVICEKIT-TOOLS's per-load resource snapshot and `--fresh-chrome`, `claude/phone-run`
+  `ace5af899`, decides) would add a fix before item 1's PR reaches a phone round.
 * **A real reader's page.** If the product's page never runs a long task while a reader works, there is nothing for
   the view worker to win; one measurement of the real page's long tasks during a reading (the Long Tasks entries over
   a scripted reading) would show it.
@@ -154,4 +163,5 @@ checked, the cache off and telemetry off all stand in both views.
   [`view-worker-under-a-busy-page.md`](../client/evidence/view-worker-under-a-busy-page.md),
   [`page-out-of-pixel-path.md`](../client/evidence/page-out-of-pixel-path.md) §7; `navigation-memory.md` on
   `claude/memory-on-navigation` (PR 434).
-* Proposals: [`../proposals/simplify-fable.md`](../proposals/simplify-fable.md) §P5, §P6. PRs 434, 435.
+* Proposals: [`../proposals/simplify-fable.md`](../proposals/simplify-fable.md) §P5, §P6. PRs 434, 435 (merged into
+  `claude/unified` by UNIFIED-SYNC-1124).

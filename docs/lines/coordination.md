@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review, its fix and re-review 2026-11-23; the order to decide in 2026-11-23; phase 2's queue (`claude/work-ledger:docs/queue-2026-11-24.md`, PHASE2-PLAN) 2026-11-24, its review (three blockers, the fix loop opened) 2026-11-24. The carry to ultrasound and DBT (`docs/decisions/us-dbt-carry.md`, US-DBT-CARRY) 2026-11-24. The one PCS note (`docs/decisions/pcs-note.md`, PCS-NOTE) 2026-11-24.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review, its fix and re-review 2026-11-23; the order to decide in 2026-11-23; phase 2's queue (`claude/work-ledger:docs/queue-2026-11-24.md`, PHASE2-PLAN) 2026-11-24, its review (three blockers, the fix loop opened) 2026-11-24. The carry to ultrasound and DBT (`docs/decisions/us-dbt-carry.md`, US-DBT-CARRY) 2026-11-24. The one PCS note (`docs/decisions/pcs-note.md`, PCS-NOTE) 2026-11-24. The phone's reading carried (PHONE-CARRY) 2026-11-24.
 
 ## Goal
 
@@ -66,6 +66,8 @@ small enough that every open item has an owner and a next step.
   premise 2 retired for ultrasound, eight yes or no lines, its review owed.
   One note to the PCS team 2026-11-24 (PCS-NOTE, [`pcs-note.md`](../decisions/pcs-note.md)): five drafts folded, one
   yes ("send it"), its review owed.
+  The phone's reading carried 2026-11-24 (PHONE-CARRY): `phone-decode-route` §8.1 and `view-target` §6 name each
+  open item's PHONE-ROUND-2 cell; the round's memory bound breaks the 11-22 fill (theory), its review owed.
 
 ## Open (ordered)
 
