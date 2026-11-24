@@ -19,7 +19,10 @@ HTJ2K series; no residual, no server or wire change.
   a refused frame leaves the previous green mark; three `decoder.js` mutants survive the gate; no `demo-check.mjs`
   check per label state; the coding-error test compares the wrong σ; the first picture's +7.8 % at 1× not weighed
   (`claude/oq-integrity-build:docs/reviews/oq-integrity.md`; the evidence:
-  [`../client/evidence/optimal-quality-reconstruction-digest.md`](../client/evidence/optimal-quality-reconstruction-digest.md)). Until it ships, the green mark claims a check nobody ran.
+  [`../client/evidence/optimal-quality-reconstruction-digest.md`](../client/evidence/optimal-quality-reconstruction-digest.md)). Until it ships, the green mark claims a check nobody ran. *2026-11-22:* a fault model reads the
+  branch's withheld frame as leaving the previous frame's picture on the canvas, and asks whether a ✓ on a lossy
+  picture says anything once every frame is checked
+  ([`../client/evidence/integrity-model.md`](../client/evidence/integrity-model.md) §5; theory, not run).
 * **The product ingest writes the pair**, a design only (`claude/ingest-oq:docs/reviews/ingest-oq.md`): the Rust
   ingest's second phase with `aomenc` as a subprocess, held by a parity test; found: signed sources over 10 bits
   have no form on the product path, and `pairOf` refuses ids with `~`. Its testable claims are tests since 2026-11-21

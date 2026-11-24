@@ -182,7 +182,8 @@ blocker (`claude/lossless-under-loss:docs/reviews/lossless-under-loss.md`); whet
 sends nothing at rate 0 ([`what-a-load-report-sends.md`](evidence/what-a-load-report-sends.md)). For the owner: a
 coded-bytes digest, to tell the bytes' fault from the decoder's
 ([`where-a-frame-can-be-corrupted.md`](evidence/where-a-frame-can-be-corrupted.md) Q1); a series without digests;
-whether a blocked frame has a reveal. How the load and safety reports leave the page is chosen empirically between `sendBeacon`,
+whether a blocked frame has a reveal; each worked from a fault model, 2026-11-22
+([`integrity-model.md`](evidence/integrity-model.md) §6, §7, theory). How the load and safety reports leave the page is chosen empirically between `sendBeacon`,
 `fetch` with `keepalive` and the WebTransport session, and two receivers; run 2026-11-16 to 18 and judged
 (Chromium cell D only, provisional): BEACON and KEEPALIVE pass, the hybrid timing leading at-hide by 50 points; the
 carrier, the safety report's carrier and the receiver undecided ([`evidence/report-plan.md`](evidence/report-plan.md)
