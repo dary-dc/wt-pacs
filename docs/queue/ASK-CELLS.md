@@ -1,9 +1,10 @@
 state: started
 started: 2026-11-24T20:07Z
-heartbeat: 2026-11-24T21:02Z
-by: KncQVQUV
+heartbeat: 2026-11-24T22:06Z
+by: CTgAp86M
 outputs: claude/ask-cells (lab builds 583f72d03..; rows lab/viewer/rows/ask/{main,p1b,p1c80}.jsonl); claude/page-runs 9c9743dce (page-runs.md §4 Amendment)
 ## Resume
+Resumed 2026-11-24T22:06Z by CTgAp86M (stalled: KncQVQUV heartbeat 21:02, last push 21:12, round 0 of main only).
 Running: main round 0 (at 2026-11-24T21:02Z)
 Done: builds (a)-(d) + summary on claude/ask-cells (mutants M1-M6 fail the unit tests; runtime mutants hold, legs,
 sample in lab/viewer/rows/ask/mutate-*.jsonl); §4 Amendment on claude/page-runs 9c9743dce before any counted row;
