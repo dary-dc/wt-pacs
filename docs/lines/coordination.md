@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 2026-11-24.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 and US-END-TO-END 2026-11-24.
 
 ## Goal
 
@@ -130,6 +130,10 @@ small enough that every open item has an owner and a next step.
    message names its conflicts); `scripts/gate.sh` full on the merged tree, OK in 722 s. Each PR commented and closed.
    Skipped, with why: 420 (commits after its last review), 413, 418, 419 (review owed), 438 (blocker open), 439
    (review owed then), 411, 412, 424 (structural, the owner's item 1), 406, 408 (rigs), 404, 405, 409 (do not merge).
+   US-END-TO-END (2026-11-24, `claude/us-end-to-end`, draft PR into unified): the evaluation release's condition 2 as
+   a gate step, `scripts/stacks_end_to_end.sh` (`docs/FIXTURES.md` §Stacks end to end): `usb_cine`, `usb_cine_rgb` and
+   `dbts_a1` through the DICOM ingest, held to their pins, every frame exact in the page and the view worker; skipped by
+   name until the three sets are fetched. Owed: US-END-TO-END-REVIEW.
 
 ## Unification (the owner, 2026-11-09)
 
