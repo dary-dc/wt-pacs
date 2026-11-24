@@ -123,6 +123,8 @@ function theRoundsLevers() {
   check(levers(new URLSearchParams({ decoders: "2" })).opts.decoders === 2, "decoders=2 sets the fill's count");
   check(levers(new URLSearchParams({ decoders: "4", opts: JSON.stringify({ span: 1 }) })).opts.span === 1, "the count beside other opts");
   check(!("decoders" in levers(new URLSearchParams({ opts: "{}" })).opts), "no decoders, the downloader's default");
+  check(levers(new URLSearchParams({ budget: "120" })).budget === 120, "budget=120 sets the store's frames");
+  check(!("budget" in levers(new URLSearchParams({ opts: "{}" }))), "no budget, the controller's default");
   for (const [query, said] of [
     [{ decoders: "0" }, 'refused: decoders "0" — a whole number 1 to 8'],
     [{ decoders: "9" }, 'refused: decoders "9" — a whole number 1 to 8'],
@@ -132,6 +134,8 @@ function theRoundsLevers() {
     [{ exactFill: "1" }, "refused: ?exactFill without ?round — a round's cell records it"],
     [{ bench: "50", round: "http://host/", beacon: "c" }, "refused: bench without decoders — cell 1's arm names its count"],
     [{ bench: "x", decoders: "1", round: "http://host/", beacon: "c" }, 'refused: bench "x" — a frame count'],
+    [{ budget: "0" }, 'refused: budget "0" — a positive whole number of frames'],
+    [{ budget: "2.5" }, 'refused: budget "2.5" — a positive whole number of frames'],
   ]) check(refusal(query) === said, `${JSON.stringify(query)}: ${refusal(query)}`);
 }
 theRoundsLevers();
@@ -139,7 +143,7 @@ theRoundsLevers();
 /** A host that does not serve `lab/` refuses each of the round's levers alone: the page's list names every one. */
 async function thePageNamesTheRoundsLevers() {
   const named = (await import("node:fs")).readFileSync(new URL("../../client/viewer/head.js", import.meta.url), "utf8").match(/const asked = (\[[^\]]*\])/)[1];
-  const missing = ["round", "beacon", "decoders", "bench", "exactFill"].filter((k) => !JSON.parse(named).includes(k));
+  const missing = ["round", "beacon", "decoders", "bench", "exactFill", "budget"].filter((k) => !JSON.parse(named).includes(k));
   check(!missing.length, `head.js names the round's levers as lab parameters${missing.length ? `; missing ${missing}` : ""}`);
 }
 await thePageNamesTheRoundsLevers();

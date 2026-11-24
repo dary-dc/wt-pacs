@@ -87,7 +87,7 @@ export class ViewWorker {
    * `lab`, none in the product: lab/viewer/levers.js names its fields.
    */
   constructor(canvas, { meta, fillMode, size, emit, lab = {} }) {
-    const { watch, settle, check, booted, glAfterDial = false } = lab;
+    const { watch, settle, check, booted, glAfterDial = false, budget } = lab;
     this.#worker = booted ?? new Worker(SCRIPT, { type: "module" });
     this.#worker.onerror = (e) => this.#end(this.#started ? `the view worker failed: ${e.message}` : `the view worker did not start: ${e.message || "its script did not load"}`);
     this.#worker.onmessageerror = () => this.#end("a message from the view worker could not be read");
@@ -101,7 +101,7 @@ export class ViewWorker {
       else r.resolve(data.value);
     };
     const offscreen = canvas.transferControlToOffscreen();
-    this.#worker.postMessage({ kind: "start", canvas: offscreen, meta, fillMode, size, lab: { settle, check, glAfterDial } }, [offscreen]);
+    this.#worker.postMessage({ kind: "start", canvas: offscreen, meta, fillMode, size, lab: { settle, check, glAfterDial, budget } }, [offscreen]);
     this.#emit = emit;
     this.#watch = watch;
     if (booted?.unloaded) this.#end(`the view worker did not start: ${booted.unloaded}`);

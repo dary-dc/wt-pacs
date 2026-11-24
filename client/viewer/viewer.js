@@ -99,11 +99,11 @@ let worker = null;
 if (where === "page") {
   const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`), lab: { settle: lab.settle } });
   painter.renderer.then((r) => ((boot.gl = now()), emit("renderer", { renderer: r })), (e) => emit("renderer", { error: e.message }));
-  controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
+  controller = new Controller({ meta, fillMode, emit, size: size(), budget: lab.budget, paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
 } else {
   boot.viewWorker = now();
   worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit,
-    lab: { watch: hooks?.watch, settle: lab.settle, check: hooks?.check, booted, glAfterDial: Boolean(lab.opts.glAfterDial) } });
+    lab: { watch: hooks?.watch, settle: lab.settle, check: hooks?.check, booted, glAfterDial: Boolean(lab.opts.glAfterDial), budget: lab.budget } });
 }
 
 /** The quality label says what is painted, as the controller judged it; the overlay, `?overlay=1`, how it got here. */

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { balanced } from "../order.mjs";
 import { ARMS, BENCH, SERIES, STOPPED_GAP_MS, TICK_MS, fillFailure, largestGap, roundOrder, verdict } from "./round.mjs";
-import { countsOf, roundLoads, roundPlan } from "./round_plan.mjs";
+import { countsOf, roundLoads, roundPlan, shapeLoads } from "./round_plan.mjs";
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -105,6 +105,29 @@ test("the plan's count flags reach the round's order", async () => {
   for (const bad of [["--rounds"], ["--pairs", "0"], ["--bench-reps", "-1"], ["--rounds", "2.5"], ["--pairs", "--quick"]]) {
     assert.throws(() => countsOf(bad), /positive integer/, bad.join(" "));
   }
+});
+
+/**
+ * PHONE-ROUND-2's shape (docs/phone-rows/round-2.md): --cells keeps only the cells it names; cell 3's loads hold the
+ * whole series (budget = its frames) and its worker loads carry the start's four settings; cell M is eight loads on one
+ * renderer, each view at the default window and twice it, its first load alone relaunched; an unknown cell is refused.
+ */
+test("round 2's loads: the cells named, cell 3 whole with the start's fix, cell M on one renderer", async () => {
+  const meta = { frameCount: 64, width: 2048, height: 2048, bitsStored: 10 };
+  const loads = shapeLoads(await roundLoads(), ["3", "M"], () => meta, SERIES[0]);
+  const cell3 = loads.filter((l) => l.cell === "3");
+  assert.equal(cell3.length, 48);
+  assert.equal(loads.length, 48 + 8);
+  assert.ok(cell3.every((l) => l.budget === 64 && l.url.includes("&budget=64")));
+  const fix = (l) => decodeURIComponent(l.url.split("&opts=")[1] ?? "");
+  assert.ok(cell3.filter((l) => l.view === "worker").every((l) => JSON.parse(fix(l)).pageDials && JSON.parse(fix(l)).viewWorkerFirst && JSON.parse(fix(l)).glAfterDial && JSON.parse(fix(l)).shortRuns));
+  assert.ok(cell3.filter((l) => l.view === "page").every((l) => !l.url.includes("&opts=")));
+  const m = loads.filter((l) => l.cell === "M");
+  assert.deepEqual(m.map((l) => [l.view, l.budget]), [["worker", 32], ["worker", 64], ["page", 64], ["page", 32], ["worker", 32], ["worker", 64], ["page", 64], ["page", 32]]);
+  assert.deepEqual(m.map((l) => Boolean(l.sameRenderer)), [false, true, true, true, true, true, true, true]);
+  assert.ok(m.every((l) => l.url.includes(`&budget=${l.budget}`) && l.steps === Math.min(20, Math.floor((Math.min(64, l.budget) - 1) / 2))));
+  assert.equal(shapeLoads(await roundLoads(), undefined, () => meta, SERIES[0]).length, 144);
+  assert.throws(() => shapeLoads([], ["9"], () => meta, SERIES[0]), /names no cell/);
 });
 
 let failed = 0;

@@ -26,6 +26,7 @@ export function levers(q) {
   for (const k of ["bench", "exactFill"]) if (q.has(k) && !q.has("round")) throw new Error(`refused: ?${k} without ?round — a round's cell records it`);
   if (q.has("bench") && !(Number.isInteger(Number(q.get("bench"))) && Number(q.get("bench")) > 0)) throw new Error(`refused: bench ${JSON.stringify(q.get("bench"))} — a frame count`);
   if (q.has("bench") && !q.has("decoders")) throw new Error("refused: bench without decoders — cell 1's arm names its count");
+  if (q.has("budget") && !/^[1-9][0-9]*$/.test(q.get("budget"))) throw new Error(`refused: budget ${JSON.stringify(q.get("budget"))} — a positive whole number of frames`);
   if (q.has("round") && !q.get("beacon")) throw new Error("refused: round without beacon — a round's loads name their controller");
   const settle = q.get("settle") ?? "fence";
   if (!["fence", "read"].includes(settle)) throw new Error(`refused: settle ${JSON.stringify(settle)} — fence or read`);
@@ -38,6 +39,7 @@ export function levers(q) {
     transport: q.get("wt") ? { wt_url: q.get("wt"), cert_sha256: q.get("hash") } : undefined,
     metadata: q.get("metadata") ?? undefined,
     writer,
+    ...(q.has("budget") && { budget: Number(q.get("budget")) }),
     ...(q.get("post") && totalTime(q.get("post"), q.get("origin"), settle, opts, q.get("fill") === "0" ? Number(q.get("after") ?? 0) : 0, Boolean(q.get("trace")), tasks, spans)),
     ...(seconds && { cine: cineOf(seconds * 1000) }),
     ...(q.get("beacon") && (q.has("round") ? roundHooks(q) : beaconHooks(q))),

@@ -64,7 +64,7 @@ def head() -> str:
 
 
 class Rig:
-    def __init__(self, d: Path, commit: str, loads_per_block=(2, 2), dead=(), silent=(), exits=(), gapS=0, budgetsS=None):
+    def __init__(self, d: Path, commit: str, loads_per_block=(2, 2), dead=(), silent=(), exits=(), gapS=0, budgetsS=None, same=()):
         self.d = d
         bindir = d / "bin"
         bindir.mkdir()
@@ -86,6 +86,8 @@ class Rig:
             if b in exits:
                 server = {"cmd": [sys.executable, "-c", "print('starting')"], "readyLine": "transport=", "readyS": 30}
             loads = [{"url": f"http://127.0.0.1:{port}/?overlay=1&view=page&beacon=cubic-restart", "cell": "2", "arm": "A", "press": "lossless"} for _ in range(n)]
+            for k in same:
+                loads[k]["sameRenderer"] = True
             blocks.append({"name": f"b{b}", "servers": [server], "loads": loads, **({"rebootAfter": True} if b == 0 else {})})
         self.plan = d / "plan.json"
         self.plan.write_text(json.dumps({"commit": commit, "gapS": gapS, "fillS": 30, "blocks": blocks, **({"budgetsS": budgetsS} if budgetsS else {})}))
@@ -230,6 +232,17 @@ class RoundHost(unittest.TestCase):
                               "shell am force-stop com.android.chrome",
                               f"shell am start -a android.intent.action.VIEW -d http://127.0.0.1:{self.rig.port}/next?after=0 {same_tab}",
                               "shell pidof com.android.chrome"])
+
+    def test_a_load_marked_same_renderer_gets_no_relaunch_before_it(self):
+        """--fresh-chrome skips the relaunch before a load marked `sameRenderer` (round-2.md's cell M), and only there."""
+        self.rig = Rig(self.d, head(), loads_per_block=(3,), same=(1,))
+        beacon = self.d / "beacon.jsonl"
+        beacon.write_text("".join(json.dumps({"step": k, "kind": "verdict", "ok": True}) + "\n" for k in range(3)))
+        self.rig.start("--fresh-chrome", "--beacon", str(beacon))
+        self.walk()
+        events = [e for e in self.rig.events() if e["event"] in ("load opened", "relaunch", "relaunch skipped")]
+        self.assertEqual([(e["event"], e.get("load", e.get("after"))) for e in events],
+                         [("load opened", 0), ("load opened", 1), ("relaunch", 1), ("load opened", 2)])
 
     def test_fresh_chrome_without_a_beacon_is_refused(self):
         """--fresh-chrome needs the beacon its gate reads: refused before any adb call."""

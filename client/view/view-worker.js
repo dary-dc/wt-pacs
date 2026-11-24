@@ -52,7 +52,7 @@ function paint(frame, display, { read = false } = {}) {
 /** Under the viewer check, `lab.check` its module, every cache write on this thread is counted from the start. */
 function start({ canvas, meta, fillMode, size, lab = {} }) {
   boot.viewStart = now();
-  controller = new Controller({ meta, fillMode, paint, emit, size });
+  controller = new Controller({ meta, fillMode, paint, emit, size, budget: lab.budget });
   settle = lab.settle;
   checks = lab.check && import(lab.check);
   checks?.then((m) => m.watchWrites());

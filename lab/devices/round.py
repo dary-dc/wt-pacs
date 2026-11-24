@@ -283,7 +283,7 @@ class Round:
             self.restore()
             return None
         if after is not None:
-            if self.beacon:
+            if self.beacon and not load.get("sameRenderer"):
                 self.relaunch(after, ended)
             time.sleep(max(0, self.plan["gapS"] - (time.monotonic() - ended)))
         self.reads(k, "before")

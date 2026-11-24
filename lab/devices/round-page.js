@@ -1,5 +1,6 @@
 /** The round's hook in the viewer, `?round=<host>&at=<k>`: one load recorded, then the host's next. lab/devices/README.md §The round */
 import { Cine, now } from "../../client/view/clock.js";
+import { memoryWindow } from "../../client/view/controller.js";
 import { beaconHooks } from "./beacon.js";
 import { bench, exactFill } from "./bench.js";
 import { TICK_MS, fillFailure, largestGap, losslessFailure, verdict } from "./round.mjs";
@@ -50,7 +51,10 @@ export function roundHooks(q) {
         await fault(q.get("fault"));
         const quality = document.getElementById("quality");
         const lossless = document.getElementById("lossless");
-        failure = fillFailure(ledger, (await globalThis.viewerMetadata).frameCount);
+        const meta = await globalThis.viewerMetadata;
+        const held = Math.min(meta.frameCount, q.has("budget") ? Number(q.get("budget")) : memoryWindow(meta));
+        recorder.record("memory", { budget: q.has("budget") ? Number(q.get("budget")) : null, window: held, deviceMemory: navigator.deviceMemory ?? null, maxTextureSize: maxTextureSize() });
+        failure = fillFailure(ledger, held);
         if (!failure && q.get("exactFill") === "1") {
           const r = await exactFill(await globalThis.viewerMetadata, await globalThis.viewerTransport, decoders);
           recorder.record("exactFill", r);
@@ -207,4 +211,12 @@ async function fault(kind) {
 function stall(ms) {
   const t0 = performance.now();
   while (performance.now() - t0 < ms);
+}
+
+/** The largest texture side WebGL2 offers here, or null without WebGL2: phone-decode-route's MAX_TEXTURE_SIZE ask. */
+function maxTextureSize() {
+  const gl = document.createElement("canvas").getContext("webgl2");
+  const size = gl?.getParameter(gl.MAX_TEXTURE_SIZE) ?? null;
+  gl?.getExtension("WEBGL_lose_context")?.loseContext();
+  return size;
 }
