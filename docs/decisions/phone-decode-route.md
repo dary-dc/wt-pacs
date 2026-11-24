@@ -14,7 +14,8 @@ row DECISION-PAGES-FIX under the owner's word of 2026-11-23 ~02:00 (the program,
 will accept hardware decoding and not checking"; `docs/decisions/README.md` §Review B1): items 6 and 9 changed, §7
 names the reopen. Read again 2026-11-24 by row PHONE-CARRY (`claude/work-ledger:docs/queue-2026-11-24.md`): no mark
 **provisional**; PHONE-READ, -FIX, -CODE-CHECK, PHONE-READ-3D and its review are carried as they stand, and §8.1
-names the PHONE-ROUND-2 cell each open item waits for.
+names the PHONE-ROUND-2 cell each open item waits for. Fixed 2026-11-24 by row PHONE-CARRY-FIX (§Review B1, m1–m3,
+nits): PHONE-ROUND-2 carries neither M17 nor M5 at a volume's size (`round-2.md` §5), so §2 item 7 and §8.1 say so.
 
 Labels: **source** (quoted in the file named), **theory**, **derived**, **measured**; **(A)** an assumption named so
 that a measurement can replace it. *The view* is the optimal-quality AV1 series, *the exact series* its HTJ2K pair
@@ -45,7 +46,7 @@ real-device cloud.**
 | 4 | Arm B's bytes are bought for fill seconds by default on phones (B on, or a switch made a default) | **no, for now** | — | bytes stay the payer: 1.94 s for 84 MB on `dbts_b1`, 0.24 s for 63 MB on `dbts_a1` (**derived** on **measured**) not taken until item 3's run |
 | 5 | A decoder count per form (HTJ2K one more than the view) as a default | **no, for now** | — | `min(3, hardwareConcurrency)` for every form; decided after cell 1 on a second phone |
 | 6 | **B1**, read again under the word: a hardware view, unchecked, is built as a phone route; of its forms, the 10-bit stream in 4:2:0 (not the two 8-bit forms, whose only purpose was a check) | **no, for now** (**changed** reason: the check no longer binds the view, so no 8-bit form is needed; what blocks a hardware view now is its form, measured only at 256 × 256) | — | the view in software at 10 bits (the depth cut above), checked where it can be ([`frame-integrity.md`](frame-integrity.md) item 6); M5 at a volume's size (item 7) decides whether the 4:2:0 form decodes, and at what depth it reaches the painter; amendment 16's 8-bit fallback stays on paper |
-| 7 | M17 (lossy against lossless HTJ2K, in memory) and M5 at a volume's size (a form other than 4:0:0) go into PHONE-ROUND-2 | **yes** | two asks in its preparation rows (PHASE2-PLAN) | the one result that questions whether AV1 stays the phone's view stays unmeasured |
+| 7 | M17 (lossy against lossless HTJ2K, in memory) and M5 at a volume's size (a form other than 4:0:0) go into PHONE-ROUND-2 | **yes** | two asks in its preparation rows (PHASE2-PLAN); **corrected 2026-11-24** (PHONE-CARRY-FIX): PHONE-ROUND-2-PREP found that each needs a build first and the round carries neither (`round-2.md` §5); no phase 2 row builds them, so both builds go to BRIEF-WEEKEND's list for the next queue | the one result that questions whether AV1 stays the phone's view stays unmeasured |
 | 8 | Cell 1 on one middle-band phone with two fast cores, through a real-device cloud (AWS Device Farm's free trial; the account is the owner's to open) | **yes** | the owner opens the trial; one phase 2 row writes the run; static HTTPS, public fixtures, no patient data | the class table stays **derived**, ×3.6–5.2 wide in its view column |
 | 9 | Hardware paints first, unchecked, the software frame confirms (4.7) | **no** (**changed** reason: the confirming software decode pays a second decode a frame for a check the word no longer asks of the view, so 4.7 is dominated by hardware alone, item 6) | — | 4.7 closed; the hardware view, unchecked, waits for item 7's M5 as item 6 says |
 | 10 | The held AV1 rows (§Trimmed; `README.md` §6.1): the decode audit's three checks **released**; GROUPS-SHARD2 held until M17; NOISE-RATIO-RUN held (the view claims nothing, `visually-lossless.md`); TILES-STEP held behind M13; the other codecs' and the strips' byte cells held until a second phone's M4 and item 7's M5 | **yes, as listed** | the audit's checks queued in phase 2 (no encoding; DELIVERY-RUN's model quotes the view's cloud decode) | all six stay held; PROGRAM-CLOSE lists them |
@@ -187,27 +188,6 @@ ranges: 4.1 is §5's view column, 4.2 the exact column, 4.4 the better of them p
 may be the receive path, not decode; it moves only *G*_B's lower ends and the exact column's upper ends. (m4 is
 closed: PHONE-READ-CODE-CHECK done 2026-11-23, no load set apart.)
 
-### 8.1 · What still waits for a phone (PHONE-CARRY, 2026-11-24)
-
-Each item against the cells PHONE-ROUND-2-PREP's brief carries (`claude/phone-run-2:docs/phone-rows/round-2.md`,
-not yet written); the round is the owner's local session.
-
-| item | waits for | cell |
-| --- | --- | --- |
-| 6, 9 (the hardware view, unchecked) | M5 at a volume's size, the depth it reaches the painter | PHONE-ROUND-2, item 7's M5 |
-| 7 (M17, M5) | the two asks themselves | PHONE-ROUND-2, item 7's M17 and M5 |
-| 5 (decoders per form), 8, the class table's *d*_V | cell 1 on a second phone | §Middle-band phone (MIDDLE-PHONE-RUN, the owner's account), not PHONE-ROUND-2 |
-| 10 (the byte cells held) | a second phone's M4 and item 7's M5 | §Middle-band phone and PHONE-ROUND-2's M5 |
-| the exact frame's 216.5 ms against 80–130 predicted (§4) | a cause | **no cell asks it** in PHONE-ROUND-2-PREP's brief: named for that row |
-
-**The round's code bounds the view's memory** (PR 435, on `claude/unified` since UNIFIED-SYNC-1124 `b7cc007f7`, which
-`claude/phone-run-2` merges). **Theory, from the code, not run:** `memoryWindow` gives 15 frames on `dbts_b1` (2560 ×
-3328 at two bytes), and with no cache the fill asks no more than the window; the round page's `fillFailure`
-(`claude/phone-run:lab/devices/round.mjs`) fails a load that "received" fewer than the series' `frameCount`. So a
-viewer fill (cells 2 and 3; cell 1 is the bench) of `dbts_b1` on that code fails as written, and a fill that passes is
-not the 11-22 fill this page's 3.68 s and 1.74 s measured. PHONE-ROUND-2-PREP's dry run decides it; the bound's size
-at two values (its brief) needs a lab setting `claude/unified` does not have (`viewer.js` passes no budget).
-
 Rows: DEVICE-THEORY, -REVIEW, -FIX, -FIX-REVIEW (PR 414); PHONE-ROUND (the owner's local session), PHONE-READ,
 -REVIEW, -FIX, -FIX-REVIEW, MOBILE-DECODE-REJUDGE (client queue); ROUTE-POLICY, ROUTE-POLICY-REVIEW (PR 397); earlier,
 MOBILE-DECODE-OPTIONS, the MOBILE-OPT rows, MOBILE-DECODE-COMPARE and its fix, AV1-HW-CHIPS, HTJ2K-PREVIEW-MOBILE
@@ -218,6 +198,36 @@ Files: `claude/mobile-decode:docs/decode/mobile/route-policy.md`, `…/README.md
 [`../transport/link-profiles.md`](../transport/link-profiles.md), [`../av1/payload-format.md`](../av1/payload-format.md),
 [`../WIRE.md`](../WIRE.md); [`visually-lossless.md`](visually-lossless.md), [`reports.md`](reports.md),
 [`paused-lines.md`](paused-lines.md).
+
+### 8.1 · What still waits for a phone (PHONE-CARRY, 2026-11-24; fixed by PHONE-CARRY-FIX, 2026-11-24)
+
+Each item against the cells PHONE-ROUND-2 carries (`claude/phone-run-2:docs/phone-rows/round-2.md` at `21c8102b0`,
+written by PHONE-ROUND-2-PREP after PHONE-CARRY: cell 3 and cell M only, §0); the round is the owner's local session.
+The first version of this table sent items 6, 7, 9 and 10 to "PHONE-ROUND-2, item 7's M17 and M5"; the round carries
+neither, and `round-2.md` §5 says why: "Each needs a build first; none is improvised on the evening".
+
+| item | waits for | cell |
+| --- | --- | --- |
+| 6, 9 (the hardware view, unchecked) | M5 at a volume's size, the depth it reaches the painter | **not in PHONE-ROUND-2** (`round-2.md` §5): needs "a unit at the frame's size from a real `dbts_b1` frame, or the decode's size limit raised" (`make_hw_units.py` at 2048² stops in `ingest.decode`, *measured* there) |
+| 7 (M17, M5) | the two asks themselves | **not in PHONE-ROUND-2** (`round-2.md` §5): M17 needs "the 16 `dbts_b1` frames at Δ 16 (`ojph_compress`), a bench arm, interleaved"; M5 as for 6 and 9 |
+| 5 (decoders per form), 8, the class table's *d*_V | cell 1 on a second phone | §Middle-band phone (MIDDLE-PHONE-RUN, the owner's account), not PHONE-ROUND-2 |
+| 10 (the byte cells held) | a second phone's M4 and item 7's M5 | §Middle-band phone for M4; M5 **not in PHONE-ROUND-2**, as for 6 and 9 |
+| the exact frame's 216.5 ms against 80–130 predicted (§4) | a cause | **no cell asks it**: PHONE-ROUND-2-PREP did not take it (`round-2.md` names it nowhere, §5 included) |
+
+**For BRIEF-WEEKEND's list** (the next queue; no row fits before 2026-11-27 20:00 with a phone round after it): the
+two builds, M17's lossy HTJ2K bench arm and an M5 unit at a volume's size, then their phone cells; and a cell for the
+exact frame's 216.5 ms, the exact ask timed by stage on the phone (ask to first byte, to last byte, decode, check,
+paint) on `dbts_b1`, a proposal no protocol has written.
+
+**The round's code bounds the view's memory** (PR 435, merged into `claude/unified` at `96b61668f` by UNIFIED-SYNC-1124;
+`claude/phone-run-2` merges unified's tip `b059388b6`). **Theory, from the code, not run:** `memoryWindow` gives 15
+frames on `dbts_b1` (2560 × 3328 at two bytes), and with no cache the fill asks no more than the window; the round
+page's `fillFailure` (`claude/phone-run:lab/devices/round.mjs`) fails a load that "received" fewer than the series'
+`frameCount`. So at the default window a viewer fill of `dbts_b1` fails as written, and a fill that passes is not the
+11-22 fill this page's 3.68 s and 1.74 s measured. PHONE-ROUND-2-PREP answers it with a lab setting, `?budget=`
+(`claude/phone-run-2` `313ad1b55`, lab only; without it the product's default holds): cell 3's loads hold the whole
+series, "as on 2026-11-22", and cell M runs the window at *w* and 2*w* (`round-2.md` §2). The default window at
+`dbts_b1`'s size stays untested: it "is not exercised by the synthetic pair, whose 20 frames all fit" (`round-2.md` §6).
 
 ## Review (PHONE-CARRY-REVIEW, 2026-11-24)
 
@@ -258,3 +268,10 @@ only, so "carried as it stands" adds nothing here, correctly.
 
 Verdict: one blocker; PHONE-CARRY-FIX and PHONE-CARRY-FIX-REVIEW appended to the queue (amendment 17). The page's
 yes lines in BRIEF-WEEKEND wait on the re-review.
+
+**Fix** (PHONE-CARRY-FIX, 2026-11-24, by a session that wrote none of PHONE-CARRY or this review; this page and
+`view-target.md` only). B1: §8.1's cells for items 6, 7, 9 and 10 read "not in PHONE-ROUND-2" with `round-2.md` §5's
+build quoted; §2 item 7's *a yes changes* corrected in place; both builds named for BRIEF-WEEKEND's list. m1: the bound
+paragraph says the round lifts the bound (`?budget`, `313ad1b55`) and keeps the theory label and §6's untested window.
+m2: the 216.5 ms named for BRIEF-WEEKEND's list with the cell that would ask it. m3: §8.1 moved after §8's *Rows:* and
+*Files:*. n1: PR 435's merge `96b61668f`. n2: the round's cells are 3 and M.
