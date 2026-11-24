@@ -86,7 +86,8 @@ export class ViewWorker {
    * `emit(type, event)` hears renderer, progress, shown and failed `{scope: frame | series | cache | worker, reason}`.
    * `lab`, none in the product: lab/viewer/levers.js names its fields.
    */
-  constructor(canvas, { meta, fillMode, size, emit, lab = {} }) {
+  /** `paintAfterPair`: nothing is painted until `paired()`. */
+  constructor(canvas, { meta, fillMode, size, emit, paintAfterPair = false, lab = {} }) {
     const { watch, settle, check, booted, glAfterDial = false } = lab;
     this.#worker = booted ?? new Worker(SCRIPT, { type: "module" });
     this.#worker.onerror = (e) => this.#end(this.#started ? `the view worker failed: ${e.message}` : `the view worker did not start: ${e.message || "its script did not load"}`);
@@ -101,7 +102,7 @@ export class ViewWorker {
       else r.resolve(data.value);
     };
     const offscreen = canvas.transferControlToOffscreen();
-    this.#worker.postMessage({ kind: "start", canvas: offscreen, meta, fillMode, size, lab: { settle, check, glAfterDial } }, [offscreen]);
+    this.#worker.postMessage({ kind: "start", canvas: offscreen, meta, fillMode, size, paintAfterPair, lab: { settle, check, glAfterDial } }, [offscreen]);
     this.#emit = emit;
     this.#watch = watch;
     if (booted?.unloaded) this.#end(`the view worker did not start: ${booted.unloaded}`);
@@ -162,6 +163,10 @@ export class ViewWorker {
       this.#replies.set(id, { resolve, reject });
       this.#worker.postMessage({ kind, id, ...args }, transfer);
     });
+  }
+
+  paired() {
+    this.#worker.postMessage({ kind: "paired" });
   }
 
   show(i) {
