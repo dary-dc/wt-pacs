@@ -112,6 +112,10 @@ small enough that every open item has an owner and a next step.
    each `--no-ff` with its conflicts named in its message; `gate.sh --quick` OK, its skips named in the row's status file.
    DOCS-SYNC-1120 (2026-11-20): `device-theory` (PR 414, re-review with no blocker open), `--no-ff`, no conflict;
    `transport-design`'s §6.6 not merged (a run with no review row yet), the owner's to judge.
+   UNIFIED-LEVERS (2026-11-21, `claude/lab-levers-one-field`, PR 423): audit item 6's lever
+   pairs in `Sessions::new` become one `lab-levers` line, `LabLevers::onto`; not the audit's one `LabLevers` field,
+   which the gate refused (`check_telemetry_absent.sh`: a lever's flag in the default binary). Default build's
+   served bytes unchanged; the `--advise-tile-names` path has no test, before and after. Owed: UNIFIED-BUILDS-REVIEW.
 
 ## Unification (the owner, 2026-11-09)
 

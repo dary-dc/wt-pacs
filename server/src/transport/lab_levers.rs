@@ -1,7 +1,7 @@
 //! Levers a deployment never pulls, compiled only under `lab-levers`. server/README.md §Lab only
 
 use crate::media::frame_store::FrameStore;
-use crate::transport::server::ServeConfig;
+use crate::transport::server::{Series, ServeConfig, Sessions};
 use tracing::warn;
 use wtransport::endpoint::IncomingSessionFuture;
 use wtransport::quinn;
@@ -57,6 +57,21 @@ impl Default for LabLevers {
 }
 
 impl LabLevers {
+    /// The levers every session is served with; warns for `--send-window-follows-cwnd`, as `apply` for the rest.
+    pub(super) fn onto(&self, mut sessions: Sessions) -> Sessions {
+        if let (true, Series::One(store)) = (self.send_window_follows_cwnd, &sessions.series) {
+            let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
+            let bytes = 2 * u64::from(largest);
+            warn!(bytes, "--send-window-follows-cwnd: the send window is cwnd + this; a lab flag, not a deployment one");
+            sessions.cwnd_ahead = Some(bytes);
+        }
+        sessions.advise_tile_names = self.advise_tile_names;
+        sessions.stall = self.stall_after_bytes;
+        sessions.fill_resumes = self.fill_resumes_after_asks;
+        sessions.ask_stream = self.ask_stream_priority;
+        sessions
+    }
+
     pub(super) fn forcing_misses(&self, mut store: FrameStore) -> FrameStore {
         if self.force_pool_reads {
             store.force_pool_reads();

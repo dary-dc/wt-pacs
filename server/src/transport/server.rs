@@ -145,66 +145,41 @@ pub(super) enum Series {
 pub(super) struct Sessions {
     pub(super) series: Series,
     read_mode: ReadMode,
-    advise_tile_names: bool,
     mode: StreamMode,
     pub(super) opening_ask: bool,
-    stall: Option<u64>,
-    cwnd_ahead: Option<u64>,
-    /// Lab only, `lab-levers`: `--fill-resumes-after-asks`.
-    fill_resumes: bool,
-    /// Lab only, `lab-levers`: `--ask-stream-priority`.
-    ask_stream: Option<i32>,
+    // Lab levers, all off unless `lab_levers.rs` sets them.
+    pub(super) advise_tile_names: bool,
+    pub(super) stall: Option<u64>,
+    pub(super) cwnd_ahead: Option<u64>,
+    pub(super) fill_resumes: bool,
+    pub(super) ask_stream: Option<i32>,
     #[cfg(feature = "telemetry")]
     taps: Arc<dyn Fn() -> Option<Tap> + Send + Sync>,
 }
 
 impl Sessions {
-    /// Warns for each lab lever that is on, so a lab flag is never mistaken for a deployment.
     fn new(config: &ServeConfig, series: Series) -> Self {
-        #[cfg(feature = "lab-levers")]
-        let cwnd_ahead = match &series {
-            Series::One(store) if config.lab.send_window_follows_cwnd => Some(store),
-            _ => None,
-        }
-        .map(|store| {
-            let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
-            2 * u64::from(largest)
-        });
-        #[cfg(not(feature = "lab-levers"))]
-        let cwnd_ahead = None;
-        if let Some(bytes) = cwnd_ahead {
-            warn!(bytes, "--send-window-follows-cwnd: the send window is cwnd + this; a lab flag, not a deployment one");
-        }
         let read_mode = ReadMode::parse(std::env::var("WTPACS_READ_PATH").ok().as_deref())
             .unwrap_or_else(|err| {
                 warn!("{err}; using auto");
                 ReadMode::Auto
             });
-        Sessions {
+        let sessions = Sessions {
             series,
             read_mode,
-            #[cfg(feature = "lab-levers")]
-            advise_tile_names: config.lab.advise_tile_names,
-            #[cfg(not(feature = "lab-levers"))]
-            advise_tile_names: false,
             mode: config.mode,
             opening_ask: config.opening_ask,
-            #[cfg(feature = "lab-levers")]
-            stall: config.lab.stall_after_bytes,
-            #[cfg(not(feature = "lab-levers"))]
+            advise_tile_names: false,
             stall: None,
-            cwnd_ahead,
-            #[cfg(feature = "lab-levers")]
-            fill_resumes: config.lab.fill_resumes_after_asks,
-            #[cfg(not(feature = "lab-levers"))]
+            cwnd_ahead: None,
             fill_resumes: false,
-            #[cfg(feature = "lab-levers")]
-            ask_stream: config.lab.ask_stream_priority,
-            #[cfg(not(feature = "lab-levers"))]
             ask_stream: None,
             #[cfg(feature = "telemetry")]
             taps: Arc::new(Tap::for_session),
-        }
+        };
+        #[cfg(feature = "lab-levers")]
+        let sessions = config.lab.onto(sessions);
+        sessions
     }
 
     pub(super) fn pipeline(&self, store: Arc<FrameStore>, link: Link) -> ProductPipeline {
