@@ -17,7 +17,9 @@ exact frame bit for bit, and only checked claims on screen.
   `claude/unified`, docs only): a dwell trigger sized from the delivery run's C1 rows
   ([`../client/evidence/exact-unasked.md`](../client/evidence/exact-unasked.md)): one frame a dwell, 0.2–1.3 s after
   the trigger on short round trips for every phone class, 6.2–7.2 s on a loaded one; recommended yes for the owner
-  (it extends the decided "on an explicit Lossless request" by one case). Review owed (EXACT-UNASKED-REVIEW).
+  (it extends the decided "on an explicit Lossless request" by one case). Reviewed 2026-11-24
+  (EXACT-UNASKED-REVIEW, PR 440's body): blocker B1, *T*d misreads Beard 1994 (0.2 s is a display time, 0.54 s the
+  per-step pace), and m1–m6; EXACT-UNASKED-FIX owed.
 * **The view's memory bound** (VIEW-MEMORY-BOUND, 2026-11-23, `claude/view-memory-bound`, a draft into
   `claude/unified`): the view holds 256 MiB of decoded frames a tab by default, in the series' frames, farthest first
   ([`../client/evidence/what-a-view-asks-for.md`](../client/evidence/what-a-view-asks-for.md) *M, the budget*); the
