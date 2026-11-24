@@ -1,0 +1,57 @@
+1. Model check: section 4.1 single frame against predictions.json's C1 (ms)
+  CLEAN dbts_a1  model     150  file   150
+  CLEAN dbts_b1  model     256  file   256
+  CLEAN dbts_c1  model     135  file   135
+  PUB   dbts_a1  model     233  file   233
+  PUB   dbts_b1  model     339  file   339
+  PUB   dbts_c1  model     218  file   218
+  CR    dbts_a1  model    5760  file  5760
+  CR    dbts_b1  model    6610  file  6610
+  CR    dbts_c1  model    5718  file  5718
+  LTE   dbts_a1  model    1033  file  1033
+  LTE   dbts_b1  model    1680  file  1680
+  LTE   dbts_c1  model     915  file   915
+  LOSS  dbts_a1  model    2218  file  2218
+  LOSS  dbts_b1  model    3695  file  3695
+  LOSS  dbts_c1  model    1943  file  1943
+
+2. Ask -> painted, measured on the cloud host, then per class (h1 swapped), ms
+  CLEAN dbts_a1  cloud   193  entry   213-  228  middle   194-  211  premium   191-  199
+  CLEAN dbts_b1  cloud   339  entry   397-  440  middle   343-  391  premium   334-  356
+  CLEAN dbts_c1  cloud   186  entry   206-  221  middle   187-  204  premium   184-  192
+  PUB   dbts_a1  cloud   291  entry   312-  327  middle   293-  310  premium   290-  298
+  PUB   dbts_b1  cloud   456  entry   515-  558  middle   461-  509  premium   452-  474
+  PUB   dbts_c1  cloud   281  entry   301-  316  middle   282-  299  premium   279-  287
+  CR    dbts_a1  cloud  6394  entry  6414- 6429  middle  6395- 6412  premium  6392- 6400
+  CR    dbts_b1  cloud  7139  entry  7197- 7240  middle  7143- 7191  premium  7134- 7156
+  CR    dbts_c1  cloud  6221  entry  6241- 6256  middle  6223- 6239  premium  6220- 6227
+  LTE   dbts_a1  cloud   467  entry   487-  502  middle   468-  485  premium   465-  473
+  LTE   dbts_b1  cloud   689  entry   747-  790  middle   693-  741  premium   684-  706
+  LTE   dbts_c1  cloud   459  entry   480-  494  middle   461-  477  premium   458-  465
+  LOSS  dbts_a1  cloud   767  entry   788-  803  middle   769-  786  premium   766-  773
+  LOSS  dbts_b1  cloud  1168  entry  1226- 1269  middle  1172- 1220  premium  1163- 1185
+  LOSS  dbts_c1  cloud   680  entry   700-  715  middle   682-  698  premium   678-  686
+
+3. Dwell start -> painted exact (s): dwell trigger + the class range across the three volumes
+  CLEAN dwell 0.20  entry 0.41-0.64  middle 0.39-0.59  premium 0.38-0.56
+  CLEAN dwell 0.54  entry 0.75-0.98  middle 0.73-0.93  premium 0.72-0.90
+  PUB   dwell 0.20  entry 0.50-0.76  middle 0.48-0.71  premium 0.48-0.67
+  PUB   dwell 0.54  entry 0.84-1.10  middle 0.82-1.05  premium 0.82-1.01
+  CR    dwell 0.20  entry 6.44-7.44  middle 6.42-7.39  premium 6.42-7.36
+  CR    dwell 0.54  entry 6.78-7.78  middle 6.76-7.73  premium 6.76-7.70
+  LTE   dwell 0.20  entry 0.68-0.99  middle 0.66-0.94  premium 0.66-0.91
+  LTE   dwell 0.54  entry 1.02-1.33  middle 1.00-1.28  premium 1.00-1.25
+  LOSS  dwell 0.20  entry 0.90-1.47  middle 0.88-1.42  premium 0.88-1.38
+  LOSS  dwell 0.54  entry 1.24-1.81  middle 1.22-1.76  premium 1.22-1.72
+
+4. The window +-1 (three frames, centre first, one idle session): the neighbours' extra wait, model, ms
+  CLEAN dbts_a1 +  261  dbts_b1 +  473  dbts_c1 +  231
+  PUB   dbts_a1 +  261  dbts_b1 +  473  dbts_c1 +  231
+  CR    dbts_a1 + 1683  dbts_b1 + 1586  dbts_c1 + 1599
+  LTE   dbts_a1 + 1849  dbts_b1 + 3144  dbts_c1 + 1613
+  LOSS  dbts_a1 + 4282  dbts_b1 + 7236  dbts_c1 + 3732
+
+5. Bytes a session against B (the exact series alone): view + dwelt share of distinct frames
+  dbts_a1 view 0.0684  d 0.05: 0.118  d 0.10: 0.168  d 0.25: 0.318  d 0.50: 0.568  break-even d = 0.932  a frame 1.26 MB = 15.2 view frames
+  dbts_b1 view 0.2161  d 0.05: 0.266  d 0.10: 0.316  d 0.25: 0.466  d 0.50: 0.716  break-even d = 0.784  a frame 2.11 MB = 4.6 view frames
+  dbts_c1 view 0.0883  d 0.05: 0.138  d 0.10: 0.188  d 0.25: 0.338  d 0.50: 0.588  break-even d = 0.912  a frame 1.09 MB = 12.1 view frames
