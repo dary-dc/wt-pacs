@@ -1,6 +1,6 @@
 # PACS receive and metadata
 
-Last verified 2026-11-20 (PR state and branches; the study-DB schema 2026-11-19, reviewed 2026-11-20; the design state as of 2026-10-29). The design state, its open
+Last verified 2026-11-20 (PR state and branches; the study-DB schema 2026-11-19, reviewed 2026-11-20; the design state as of 2026-10-29; §Open 2's two conflicts reconciled 2026-11-20, P4's conditions corrected 2026-11-23). The design state, its open
 conflicts and the owner's decisions on it: [`../ingest/README.md`](../ingest/README.md) §4a; the ingest's decisions
 table: §4 there.
 
@@ -20,7 +20,13 @@ No row runs on this line (2026-11-20).
   `rsync-updates` are all in `claude/unified` (checked 2026-11-20).
 * **The rsync delivery, proposed** (2026-10-28): [`../ingest/pcs-pacs-options.md`](../ingest/pcs-pacs-options.md),
   eight parts, four profiles; the structure awaits review. Open in it: the hash bridge, P3 against E, the layout, the
-  kept mirror ([`../ingest/README.md`](../ingest/README.md) §4a).
+  kept mirror ([`../ingest/README.md`](../ingest/README.md) §4a). *Reconciled 2026-11-20*
+  ([`rsync-updates.md`](../ingest/rsync-updates.md) §6.1): the hash bridge (a) in every pattern (#234's (b) was cost
+  alone and misses rot at rest); #223's pre-registered rule on #234's own estimates gives E (P4) on satellite and on
+  rural ADSL if rsync's file list compresses to ≤ 0.6× (M-R2, not run), else P3 there (*derived*). *Corrected
+  2026-11-23* (PR 417 §SYNC-RECONCILE-REVIEW B1): P4 only if the metadata call uses zstd (`--zc=zstd`) and rsync's
+  file list compresses to ≤ 34 KB for ct and ≤ 221 KB at 2 000 instances (*derived*; M-R2, M-R3 not run); else P3.
+  *Re-reviewed 2026-11-23* (PR 417 §Re-review): no blocker open; two minor items left.
 * **The study DB's schema**: one schema, `xxh3 TEXT`, with a test that `pacs-verify` reads what the receiver writes
   (STUDY-DB-TEST, 2026-11-19, draft PR 407); its review is due. SYNC-RECONCILE and RECEIVER-RANGE follow; all three
   end in the `pacs-sync` decision page (`claude/work-ledger:docs/queue-2026-11-14.md`).
@@ -47,7 +53,8 @@ No row runs on this line (2026-11-20).
 1. Evaluate under rsync, in order: cleared `incoming/` or kept mirror (turns on the PCS team's answers); the hash
    bridge; for a cleared `incoming/`, P3 vs E; layout A or B and who builds the `.sbnd`.
 2. The synchronization protocol: A + F or E + F; the second writer is the fork (#220's questions for the product
-   owner); then implement in sender and receiver.
+   owner); then implement in sender and receiver. Under rsync, E (P4) provisional on M-R2; the bridge (a) (2026-11-20). *Corrected
+   2026-11-23:* E (P4) only with zstd on the metadata call and rsync's listing ≤ 34 KB (ct), ≤ 221 KB (2 000).
 3. Owner decisions waiting: hash column type (one schema, `xxh3 TEXT`, built on `claude/study-db-schema` (draft PR
    407) with a test that `pacs-verify` reads what the receiver writes; `INTEGER` the alternative; 2026-11-19; reviewed 2026-11-20, no blocker, findings in PR 407's body), reply
    file and words, carrier, study-DB layout, viewer metadata, DB engine, study index (engine and placement: open), serving defaults, verdict travel.
