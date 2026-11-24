@@ -4,9 +4,9 @@ name: gate
 
 on:
   pull_request:
-    branches: [claude/av1-unified-mainbase, claude/core, main]
+    branches: [claude/av1-unified-mainbase, claude/core, claude/unified, claude/eval-release, main]
   push:
-    branches: [claude/av1-unified-mainbase, claude/core, main]
+    branches: [claude/av1-unified-mainbase, claude/core, claude/unified, claude/eval-release, main]
 
 permissions:
   contents: read
