@@ -256,6 +256,34 @@ test("worker view: a lost fill frame is wanted once more, then withheld", async 
   assert.equal(events.filter(([t]) => t === "failed").length, 2);
 });
 
+/** A want whose own re-dial failed fails its frames as lost: each is wanted again, none withheld, though none was asked before. */
+test("worker view: a want's frames failed by its re-dial are wanted again", async () => {
+  const wants = [];
+  const { c } = rig({ held: [0], wants });
+  c.show(0);
+  for (const i of [1, 2, 3]) c.refused(i, "no route", true);
+  assert.deepEqual([...c.store.withheld.keys()], [], "none withheld");
+  assert.deepEqual(c.store.want(c.want()), [1, 2, 3], "every one still a miss");
+  assert.ok(wants.at(-1).split(",").includes("1") && wants.at(-1).split(",").includes("3"), `wanted again (${wants})`);
+});
+
+/** A lost ask is asked once more only while it is the current frame; a reader who stepped away asks it on return. */
+test("page view: a lost ask is not asked again once the reader has stepped away, and is on return", async () => {
+  const { c, calls } = rig({ held: [0] });
+  let reject;
+  c.client.requestFrame = (i) => (calls.push(`ask ${i}`), i === 2 && !reject ? new Promise((_, r) => (reject = r)) : Promise.resolve(frame(i)));
+  const step = c.show(2);
+  await c.show(3);
+  reject(Object.assign(new Error("frame 2 unavailable: no route"), { lost: true }));
+  await step;
+  for (let n = 0; n < 5; n++) await Promise.resolve();
+  assert.deepEqual(calls, ["ask 2", "ask 3"], "not asked while the reader is on 3");
+  assert.equal(c.current, 3, "the view stays where the reader is");
+  assert.equal(c.store.withheld.has(2), false);
+  await c.show(2);
+  assert.deepEqual(calls, ["ask 2", "ask 3", "ask 2"], "asked on return");
+});
+
 /** In the page view a lost ask on the current frame is asked once more; lost again, the step asks nothing more. */
 test("page view: a lost ask is asked once more, then withheld", async () => {
   const { c, calls } = rig({ held: [0] });

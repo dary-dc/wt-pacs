@@ -97,6 +97,64 @@ async function aRedialThatFailsIsLost() {
 }
 await aRedialThatFailsIsLost();
 
+/** Fill frames still owed when the re-dials run out are failed as lost, as an owed ask is. */
+async function aFillOwedWhenRedialsRunOutIsLost() {
+  let dials = 0;
+  globalThis.fakeTransport = {
+    connect: async () => {
+      if (++dials > 1) throw new Error("no route");
+      return {
+        requestFrame: () => new Promise(() => {}),
+        stats: () => ({ closed: null, lastByteAt: 0 }),
+        fillFrames() {},
+        endStream: async () => {},
+        close() {},
+      };
+    },
+  };
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // fill-redial-fails`;
+  posted.length = 0;
+  await import("./downloader.js?fill-redial-fails");
+  await onmessage({ data: { kind: "start", config: { decode: false, decoders: 0, transport, survival: { stallMs: 20, redialMs: 1, tries: 2 } } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  await onmessage({ data: { kind: "fill", indices: [1, 2] } });
+  for (let n = 0; n < 100 && posted.filter((m) => m.kind === "failed").length < 2; n++) await new Promise((r) => setTimeout(r, 10));
+  const fs = [1, 2].map((i) => posted.find((m) => m.kind === "failed" && m.index === i));
+  check(fs.every((f) => f?.lost === true), `fill frames failed by re-dials run out are marked lost (${JSON.stringify(fs)})`);
+}
+await aFillOwedWhenRedialsRunOutIsLost();
+
+/** An ask and a want sent after the session closed re-dial; a dial that fails fails their frames as lost, not refused. */
+async function aCommandsOwnRedialThatFailsIsLost() {
+  for (const [label, command, indices] of [["ask", { kind: "ask", index: 4 }, [4]], ["want", { kind: "want", indices: [5, 6] }, [5, 6]]]) {
+    let dials = 0;
+    const closed = { at: null };
+    globalThis.fakeTransport = {
+      connect: async () => {
+        if (++dials > 1) throw new Error("no route");
+        return {
+          requestFrame: () => new Promise(() => {}),
+          stats: () => ({ closed: closed.at, lastByteAt: performance.now() }),
+          fillFrames() {},
+          endStream: async () => {},
+          close() {},
+        };
+      },
+    };
+    const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // command-redial-${label}`;
+    posted.length = 0;
+    await import(`./downloader.js?command-redial-${label}`);
+    await onmessage({ data: { kind: "start", config: { decode: false, decoders: 0, transport, survival: { stallMs: 60_000, redialMs: 1, tries: 2 } } } });
+    await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+    closed.at = { reason: "the peer went away" };
+    await onmessage({ data: command });
+    const fs = indices.map((i) => posted.find((m) => m.kind === "failed" && m.index === i));
+    check(dials === 2, `${label}: a command after a closure re-dials (${dials} dials)`);
+    check(fs.every((f) => f?.lost === true), `${label}: its frames, failed by its own re-dial, are marked lost (${JSON.stringify(fs)})`);
+  }
+}
+await aCommandsOwnRedialThatFailsIsLost();
+
 /** A transport whose fill and asks the test feeds by hand. */
 function handFed() {
   const fed = { fill: null, asks: new Map() };
