@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-23T11:17Z
-heartbeat: 2026-11-24T04:17Z
+heartbeat: 2026-11-24T04:22Z
 outputs: claude/failed-frame-withheld (PR 438)
 ## Resume
-Resumed 2026-11-24T04:17Z (stalled since 2026-11-23T11:17Z, nothing pushed by the first claim). Next: read PR 438 body §FAILED-FRAME-WITHHELD-REVIEW, write B1's failing test (a lost ask from resume() stays wantable / asked once more), then the fix; then m1, m2; gate.
+2026-11-24T04:22Z: on claude/failed-frame-withheld the first claim's failing tests 17ea1f69b are pushed; corrected (not yet pushed) and the fix written locally: downloader fail(..., lost) from resume(), consumer carries lost to onError and the rejection, Controller.refused(i, reason, lost) asks a lost frame once more (worker view: FrameStore.lost(i) then want; page view: the current frame asked again), withholds it the second time. Next: mutants, commit + push, PR body (B1 sentence, m1 untested paths, m2), README/store comment, gate.
 ## Result
