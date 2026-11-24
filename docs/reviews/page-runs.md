@@ -269,6 +269,25 @@ node lab/report-arms/run.mjs ... --engine chromium --endings D5a-busy --rounds 1
 FIREFOX_PATH=... node lab/report-arms/run.mjs ... --engine firefox --endings D5a --rounds 18 --out rows/r3-firefox-D5a.jsonl
 ```
 
+### §2 Amendment (REPORT-RERUNS, 2026-11-24 19:40 UTC, before the first counted row)
+
+Found in the run row's smoke (rows not counted), each a lab change on `claude/report-arms` `f23fb35e6`:
+
+* **D5a-busy's kill could not land inside the long task as written.** Timed through `rig.sinceFault()` and followed
+  by a read of `rig.safety` before `Page.crash`, every driver call waited for the page thread's 50 ms task (the driver
+  learned of the fault 25–44 ms late; a dedicated worker's CDP session waited too), so the kill always fell after the
+  hand-off and the race (b) asks for could not be placed. Now the decoder worker POSTs `{load, at}` to the sink's
+  `/fault` at the fault and the driver sends `Page.crash` at the drawn delay, with no call through the page
+  (`Page.crash` measured to land ~20 ms after it is sent, mid-task, **measured** in one probe). The driver learns
+  2–12 ms after the fault (**measured**, smoke), so a drawn delay under that is sent at once and marked `late`.
+* **The delays the reading uses** are the delays the crash was sent at, `row.kill.atKill` (capped at 50 ms), as "the
+  delay the driver actually saw" reads; the drawn `row.killDelay` is reported beside. The band is unchanged:
+  Σ 0.5 × (1 − *dᵢ* ÷ 50) lost, ± 3.5.
+* **KEEPALIVE-Y°** is the unit `keepalive-offdecoder:Y`. The µs clock's mutant (a whole-ms clock) is killed by unit
+  tests in RECEIVER and the sink, not by failing a cell's A/A, which would cost a cell (~3 h).
+* **Hosts:** headless Chromium is 158.0.8127.36 here (REPORT-RUN-2's was 153.0.8010.12); Firefox 160.0.1; nginx 1.31.8.
+* **Cell order:** D5a-busy, Lbusy, C on Chromium; then Firefox D5a, D1, L, D6 (`--tun`), as time allows.
+
 ## 3 · Engines (`engines` items 3 and 4) → ENGINE-CELLS
 
 **Firefox builds.** No script installs a pinned Firefox: `scripts/wtcompat.py --fetch` takes only the latest release
