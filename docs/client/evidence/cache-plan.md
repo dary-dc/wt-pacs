@@ -72,7 +72,7 @@ is built. **What every design shares**, so that no option pays for another's inf
 
 | survivor | must decide | already known (reuse) | changed by a best effort |
 | --- | --- | --- | --- |
-| **OPFS-SYNC** | writer: store worker posted a slot, or the decoders posting to it; packed file per series (one writer, `truncate` at open) or a file per frame; reads in the view worker or the writer | the store and its rules as built (`client/view/cache.js`, `frame-file.js`; `client/viewer/store.js`); M1 reopen ≤ 0.028 × a fetch, M3 eviction holds on Chromium and Firefox, M4 a torn frame caught 4 of 4 (*measured*); sync read 40.1 ms against async 83.4 at S3 (R, Chromium) | C wrote a copy, not the slot: by source no copy is needed ("Read and write take a view of shared memory", cache-in-opfs §4). D opened a handle per frame: a packed file with one writer avoids it |
+| **OPFS-SYNC** | writer: store worker posted a slot, or the decoders posting to it; packed file per series (one writer, `truncate` at open) or a file per frame; reads in the view worker or the writer | the store and its rules as built (`client/view/cache.js`, `frame-file.js`; `client/view/store-worker.js`); M1 reopen ≤ 0.028 × a fetch, M3 eviction holds on Chromium and Firefox, M4 a torn frame caught 4 of 4 (*measured*); sync read 40.1 ms against async 83.4 at S3 (R, Chromium) | C wrote a copy, not the slot: by source no copy is needed ("Read and write take a view of shared memory", cache-in-opfs §4). D opened a handle per frame: a packed file with one writer avoids it |
 | **OPFS-ASYNC** | file per frame (a packed file is ruled out by its own cost: "One writable per frame on one series file copies n²/2 frames: 21 GB for `dbts_b1`'s 50 × 17 MB", cache-io-thread *What this rules out*); `keepExistingData` off; who writes; reading by `getFile()` or by a sync handle | B's two copies on the calling thread; Chromium's `.crswap` and move; WebKit's copy at close and "`callOnMainThread(`" for every call (cache-io-thread (a), (b)) | B ran on the view thread on a packed-file-free rig; off it, its copies cost the writer, not the paint |
 | **IDB** | value per frame or chunked; `ArrayBuffer` or `Blob`; one transaction per frame or a batch; `durability: "relaxed"` ("Web applications are encouraged to use "relaxed" for ephemeral data such as caches", IndexedDB `index.bs` 940–942); keys (series, index, version); how it answers "does it fit" with no `truncate` | Chromium's Snappy and blob file above 64 KiB, Gecko's file above 1 MiB, WebKit's SQLite column (cache-options §2.1); writers on one store run in turn (`index.bs` 1148) | never built: everything |
 | **CACHESTORAGE** | a `Cache` per series (eviction by `caches.delete`), keys as synthetic URLs per frame, the digest in a header; `put` batch; read by `match` then `arrayBuffer()` | a body is `BufferSource`, copied ("Set source to a copy of the bytes held by object.", fetch `fetch.bs` 8256–8257); a batch rolled back on an exception | never built: everything |
@@ -169,7 +169,7 @@ slot numbers to on a port each: the view thread posts nothing for the cache, and
 loss on Firefox, ~50 ms a frame at S1, *measured*, cache-io-thread §Arm D, Results). A read is served by the same store
 worker into a free slot and answered by slot number; the re-check runs where §3's seam puts it.
 
-The series' key is the session URL as built (`client/viewer/store.js`); one manifest per series holds the digest list
+The series' key is the session URL as built (`client/view/store-worker.js`); one manifest per series holds the digest list
 it was written for, `frameBytes`, the shape and the last open. A digest list that differs at open drops the series.
 
 ### 7.1 · OPFS-SYNC: one packed file, one sync handle, written from the slot
@@ -184,7 +184,7 @@ it was written for, `frameBytes`, the shape and the last open. A digest list tha
 | reads | the store worker `read(slotView, {at})` into a free slot: no copy in script, no new buffer. **Reads first** (*advocate*): a pending read is served before the next write piece (below) | fs 1423; "offers synchronous methods" (fs 611): a read posted during a write waits for it, so the order is the design's to choose |
 | eviction | close the handle, then `removeEntry(series, {recursive: true})`; another tab's handle on the victim refuses, so it is skipped | as built (`evictOne`); Chromium refuses removal under any handle, *run once* (choice 5) |
 
-**Reuses** `client/viewer/store.js` whole (open, `create`, `evictOne`, the records) and the packed file's measured
+**Reuses** `client/view/store-worker.js` whole (open, `create`, `evictOne`, the records) and the packed file's measured
 rules (M1 reopen ≤ 0.028 × a fetch, M3 eviction on both engines after the Gecko fix, M4). **Changes** two things. (1)
 The store worker writes from the ring's slot, not from a copy: C's view-thread copy, 9.1–14.4 ms on Chromium and
 32.6–47.6 ms on Firefox at S2–S3 (*measured*), was there only because a fresh `SharedArrayBuffer` per frame was never

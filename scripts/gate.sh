@@ -101,7 +101,7 @@ run 1 node client/decode/wasm-glue.test.mjs
 run 1 node client/decode/xxh3.test.mjs
 run 1 node client/transport/downloader.test.mjs
 run 1 node client/transport/consumer.test.mjs
-run 1 node client/viewer/store.test.mjs
+run 1 node client/view/store-worker.test.mjs
 run 2 node client/decode/av1.test.mjs
 run 1 python3 server/dev-server.test.py
 run 1 bash server/scripts/gen_dev_cert_test.sh
@@ -115,7 +115,7 @@ run 1 node client/view/depth-cut.test.mjs
 run 1 node client/view/view.test.mjs
 run 1 node client/view/view-worker.test.mjs
 run 1 node client/view/cache.test.mjs
-run 1 node client/viewer/store.test.mjs
+run 1 node client/view/store-worker.test.mjs
 run 1 node client/view/clock.test.mjs
 run 1 node lab/frame-clock/arms.test.mjs
 run 1 node lab/frame-clock/measure.test.mjs

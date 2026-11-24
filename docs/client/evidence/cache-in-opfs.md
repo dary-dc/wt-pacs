@@ -92,8 +92,8 @@ measured cost says otherwise); checks stay on, the cache read's re-check include
 frame is never decoded twice; the final image lossless and bit-exact. Sources fetched for this section are added to
 [`frame-path-sources.txt`](sources.txt) under 2026-10-20; the rest are §9's.
 
-**Built.** The store worker is `client/viewer/store.js`, started by the viewer; both clients run under it unchanged.
-`client/viewer/store.test.mjs` holds each rule below against an OPFS in memory. Where the build reads the text:
+**Built.** The store worker is `client/view/store-worker.js`, started by the viewer; both clients run under it unchanged.
+`client/view/store-worker.test.mjs` holds each rule below against an OPFS in memory. Where the build reads the text:
 
 * The key is the session URL: the page knows no bundle name, and a server serves one series.
 * The file is sized at the first frame checked `true`, not at open: the metadata need not carry the frame's shape.

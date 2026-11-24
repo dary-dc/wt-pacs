@@ -133,9 +133,11 @@ A read of the product code `claude/core-fold-2026-11-02` (#289) carries over `ma
   product's own setting is unmeasured. For the owner: a `settle` row in the table, whose default is either `main`'s
   `read` (which waits on a busy page in Firefox, §7, *The pixel read under a busy page*) or the unsettled paint
   recorded as decided. Before either, the unsettled paint as a sixth arm of that section's cine cell. No code changed.
-* **Proposed, names:** `client/view/store.js` is the frame store and `client/viewer/store.js` the store worker, two
+* **Proposed, names:** `client/view/store.js` is the frame store and `client/viewer/store.js` (in git, moved) the store worker, two
   concepts under one file name. The server's `media::frame_store::FrameStore`, the series bundle's reader, shares the
   client frame store's name, and the glossary defines only the client's. Renames are structural, so not done.
+  *Done 2026-11-22 for the client's two (UNIFIED-SIMPLIFY, P9): the store worker is `client/view/store-worker.js`;
+  the server's name is unchanged.*
 * **Proposed: the native ALPN in the product server.** `wt-pacs/1` is always on ([`../WIRE.md`](../../WIRE.md) §The raw
   QUIC mapping) while the native client is an experiment. Whether a deployment offers it is the owner's call.
 * Noted, not fixed: the memory window's budget is bytes in its design (§Proposed, choice 2) and frames in

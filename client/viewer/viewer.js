@@ -2,6 +2,7 @@
 import { DownloaderClient } from "/client/transport/consumer.js";
 import { built } from "/client/decode/wasm-glue.js";
 import { Painter } from "/client/paint/painter.js";
+import { now } from "/client/view/clock.js";
 import { asPainted, Controller, FIT, wantFrom } from "/client/view/controller.js";
 import { View, ViewWorker } from "/client/view/view.js";
 import { checkPair, pairOf } from "/client/viewer/pair.js";
@@ -18,7 +19,6 @@ const overlayEl = document.getElementById("overlay");
 const barEl = document.getElementById("bar");
 const sliceEl = document.getElementById("slice");
 statusEl.onclick = qualityEl.onclick = (e) => unfoldOnTap(barEl, e);
-const at = () => performance.timeOrigin + performance.now();
 
 const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport])
   .then(([levers, transport]) => ({ ...levers, pinned: Boolean(levers.transport), transport }), (e) => ({ refused: e.message }));
@@ -37,7 +37,7 @@ if (lab.refused) {
 const booted = where === "worker" && lab.opts.viewWorkerFirst ? ViewWorker.boot() : undefined;
 const meta = await globalThis.viewerMetadata;
 /** Epoch ms of the page's start, for the lab's ledger: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
-const boot = { metadata: at() };
+const boot = { metadata: now() };
 const n = meta.frameCount;
 // An optimal-quality series is shown at optimal quality, each frame exact on request from its exact series.
 const pair = await (async () => {
@@ -98,10 +98,10 @@ let controller = null;
 let worker = null;
 if (where === "page") {
   const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`), lab: { settle: lab.settle } });
-  painter.renderer.then((r) => ((boot.gl = at()), emit("renderer", { renderer: r })), (e) => emit("renderer", { error: e.message }));
+  painter.renderer.then((r) => ((boot.gl = now()), emit("renderer", { renderer: r })), (e) => emit("renderer", { error: e.message }));
   controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
 } else {
-  boot.viewWorker = at();
+  boot.viewWorker = now();
   worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit,
     lab: { watch: hooks?.watch, settle: lab.settle, check: hooks?.check, booted, glAfterDial: Boolean(lab.opts.glAfterDial) } });
 }
@@ -142,7 +142,7 @@ const groups = meta.lossy?.g > 1 ? { groupLength: meta.lossy.g, frameCount: n } 
 const all = [...Array(n).keys()];
 // A lab harness slows the CPU from here: lab/viewer/levers.js.
 await lab.started?.();
-issuedAt = at();
+issuedAt = now();
 boot.connect = issuedAt;
 const connectOpts = {
   transport: transport.module,
@@ -266,4 +266,4 @@ canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 addEventListener("resize", () => view.resize(size()));
 
 await hooks?.run({ n, fillMode, view, worker, controller, progress: () => progress, errors, shown: () => shown, show, toggleCine, cineFps,
-  rendererName: () => rendererName, boot, issuedAt, at });
+  rendererName: () => rendererName, boot, issuedAt });

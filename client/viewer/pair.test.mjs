@@ -1,6 +1,7 @@
 // node client/viewer/pair.test.mjs — an optimal-quality series paired with its exact series, and every malformed pair refused by name.
 import assert from "node:assert/strict";
-import { checkPair, cutShift, pairOf } from "./pair.js";
+import { cutShift } from "../decode/depth-cut.js";
+import { checkPair, pairOf } from "./pair.js";
 
 const source = { frameCount: 3, width: 4, height: 2, bitsStored: 10, signed: false, sourceFingerprint: "00000000f00df00d" };
 const optimal = { ...source, codec: "av1", lossy: { q: 30, g: 8, depth: 10 }, exactSeries: "1.2.840.5" };
