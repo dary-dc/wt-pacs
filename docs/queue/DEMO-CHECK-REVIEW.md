@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-24T06:26Z
-heartbeat: 2026-11-24T06:28Z
+heartbeat: 2026-11-24T06:33Z
 by: MdHdiu8t
 outputs: findings in PRs 418 and 419's bodies
 ## Resume
@@ -11,4 +11,6 @@ wasm32-unknown-unknown; cargo install wasm-pack 0.15.0; npm i -g playwright@1.56
 ts/build.sh; server/scripts/gen_dev_cert.sh; cargo build --release -p series-server; scripts/demo-series.sh, or
 only dbts_a1's series), then demo-check on each branch, both views, with 418's B1 mutant and 419's wait removed,
 and on the merged form (418 then 419's wait); write findings into both PR bodies.
+Build in progress (ingest/tools.sh). Variant check files and mutants (B1: show() also asks (want+8)%n on a miss;
+A: wantFrom on demand [c, c+8]) are rebuilt from the PR heads in a minute; Playwright: NODE_PATH=/opt/node-tools/node_modules.
 ## Result
