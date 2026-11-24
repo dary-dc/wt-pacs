@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 2026-11-24, DEFAULTS-TABLE 2026-11-24 (`docs/defaults.md`: every default with what chose it; `final-state` condition 3's table).
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 2026-11-24, DEFAULTS-TABLE 2026-11-24 (`docs/defaults.md`: every default with what chose it; `final-state` condition 3's table), DEFAULTS-TABLE-FIX 2026-11-24 (each unmeasured default says why it stands).
 
 ## Goal
 
