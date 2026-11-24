@@ -1,12 +1,16 @@
 // Firefox's endings by raw WebDriver BiDi (report-plan.md §7.6), the same calls as cdp.mjs. Hide is a second tab
 // activated; close keeps that tab open; crash is a SIGKILL of the content processes (levers.mjs); no freeze.
 import { spawn } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { killMatching } from "./levers.mjs";
 
-export const FIREFOX = process.env.FIREFOX_PATH ?? "/tmp/claude-0/ff/firefox/firefox";
+/** FIREFOX_PATH, required: a scratch default once ran a stale build unseen (docs/reviews/report-arms.md). */
+export function firefoxPath(env = process.env) {
+  if (!env.FIREFOX_PATH) throw new Error("FIREFOX_PATH is required for --engine firefox");
+  return env.FIREFOX_PATH;
+}
 
 /** A BiDi remote value as plain JSON. */
 export function plain(v) {
@@ -20,8 +24,8 @@ export function plain(v) {
   }
 }
 
-class Bidi {
-  #ws; #id = 0; #pending = new Map();
+export class Bidi {
+  #ws; #id = 0; #pending = new Map(); #closed = null;
   constructor(ws) {
     this.#ws = ws;
     ws.onmessage = (m) => {
@@ -29,8 +33,14 @@ class Bidi {
       const p = this.#pending.get(msg.id);
       if (p) this.#pending.delete(msg.id), msg.type === "error" ? p.fail(new Error(`${msg.error}: ${msg.message}`)) : p.ok(msg.result);
     };
+    ws.onclose = () => {
+      this.#closed = new Error("BiDi socket closed");
+      for (const p of this.#pending.values()) p.fail(this.#closed);
+      this.#pending.clear();
+    };
   }
   send(method, params = {}) {
+    if (this.#closed) return Promise.reject(this.#closed);
     const id = ++this.#id;
     this.#ws.send(JSON.stringify({ id, method, params }));
     return new Promise((ok, fail) => this.#pending.set(id, { ok, fail }));
@@ -38,7 +48,7 @@ class Bidi {
 }
 
 /** `secure`: an http origin list Firefox must treat as secure (the --tun address). */
-export async function launch({ firefox = FIREFOX, secure = [] } = {}) {
+export async function launch({ firefox = firefoxPath(), secure = [] } = {}) {
   const profile = mkdtempSync(join(tmpdir(), "report-arms-ff-"));
   const hosts = secure.map((o) => new URL(o).hostname);
   writeFileSync(join(profile, "user.js"), [`user_pref("browser.shell.checkDefaultBrowser", false);`,
@@ -49,12 +59,21 @@ export async function launch({ firefox = FIREFOX, secure = [] } = {}) {
     let err = "";
     proc.stderr.on("data", (b) => { err += b; const m = err.match(/WebDriver BiDi listening on (ws:\S+)/); if (m) ok(m[1]); });
     proc.on("exit", (code) => fail(new Error(`firefox exited ${code}: ${err}`)));
-  });
+  }).catch((e) => { rmSync(profile, { recursive: true, force: true }); throw e; });
   const ws = new WebSocket(`${url}/session`);
   await new Promise((ok, fail) => { ws.onopen = ok; ws.onerror = fail; });
   const bidi = new Bidi(ws);
   await bidi.send("session.new", { capabilities: {} });
-  return { bidi, proc, pid: proc.pid, close: () => { ws.close(); proc.kill("SIGKILL"); } };
+  return { bidi, proc, pid: proc.pid, profile, close: () => closeBrowser(ws, proc, profile) };
+}
+
+/** The browser killed and its profile (~108 MB) removed once it has exited, so a long cell cannot fill the disk. */
+export function closeBrowser(ws, proc, profile) {
+  ws.close();
+  const gone = proc.exitCode !== null || proc.signalCode !== null ? Promise.resolve()
+    : new Promise((ok) => proc.once("exit", ok));
+  proc.kill("SIGKILL");
+  return gone.then(() => rmSync(profile, { recursive: true, force: true }));
 }
 
 export async function openPage(b, url) {

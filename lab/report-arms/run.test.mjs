@@ -1,7 +1,7 @@
 // node lab/report-arms/run.test.mjs — the driver's rules (report-plan.md §7.2, §7.3): the wait runs before the
 // browser's close; a server without `telemetry` is refused; a cell is whole rounds in Williams order, every row with
-// its round and predecessor, `off'` its own unit loading as `off`, and its balance reported.
-import { drive, plan, balance, unit, serverBanner, killAfterFault, relayNetns, secureOrigins } from "./run.mjs";
+// its round and predecessor, `off'` its own unit loading as `off`, and its balance reported; a load whose driver never answers is cut at its limit and VOID.
+import { drive, plan, balance, unit, serverBanner, killAfterFault, relayNetns, secureOrigins, DRIVER_VOID } from "./run.mjs";
 
 let failed = 0;
 const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
@@ -17,6 +17,13 @@ const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
   let closed = false;
   const error = await drive(async () => ({ close: () => { closed = true; } }), async () => { throw new Error("gone"); }, 10);
   check(error === "gone" && closed, "drive: an ending that throws is recorded, and the browser still closed after the wait");
+}
+{
+  let closed = false;
+  const t0 = Date.now();
+  const error = await drive(async () => ({ close: () => { closed = true; } }), () => new Promise(() => {}), 5000, 50);
+  check(error === DRIVER_VOID && closed && Date.now() - t0 < 1000,
+    `drive: steps that never return are cut at the limit, the browser killed and the row VOID (${error}, ${Date.now() - t0} ms)`);
 }
 {
   const ok = "wt_url=https://127.0.0.1:1/\ncert_sha256=ab12\ntransport=x\ntelemetry=compile-time\n";

@@ -81,19 +81,27 @@ export function serverBanner(text) {
   return { hash: /cert_sha256=(\S+)/.exec(text)[1] };
 }
 
+/** A load whose steps outlive `limitMs` (a driver that never answers): the browser killed, the row VOID. */
+export const DRIVER_VOID = "VOID: driver";
+
 /** The load's steps and its ending, then the wait with the browser still alive (§7.3), then the close. */
-export async function drive(launch, steps, waitMs) {
+export async function drive(launch, steps, waitMs, limitMs = Infinity) {
   const b = await launch();
-  let error = null;
+  let error = null, timer;
+  const limit = new Promise((ok) => { if (limitMs < Infinity) timer = setTimeout(() => ok(DRIVER_VOID), limitMs); });
   try {
-    await steps(b);
+    error = await Promise.race([steps(b).then(() => null), limit]);
   } catch (e) {
     error = String(e?.message ?? e);
   }
-  await pause(waitMs);
-  b.close();
+  clearTimeout(timer);
+  if (error !== DRIVER_VOID) await pause(waitMs);
+  await b.close();
   return error;
 }
+
+/** Firefox's per-load bound (report-plan.md §7.9's driver hang); Chromium's driver never hung, so it has none. */
+export const LOAD_LIMIT_MS = { firefox: 120_000, chromium: Infinity };
 
 function series() {
   const d = join(WORK, "series");
@@ -216,7 +224,7 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
     if (!ending.startsWith("D5")) row.fillMs = await cdp.evaluate(b, p, "rig.fillMs ?? null");
     if (/^(L|C)/.test(ending)) row.floors = await cdp.evaluate(b, p, "rig.floors ?? null");
     await ENDINGS[ending](b, p, { other, row, control: at.control, engine });
-  }, wait * 1000);
+  }, wait * 1000, LOAD_LIMIT_MS[engine]);
   const files = readdirSync(out).filter((f) => /^(load|safety)-.*\.jsonl$/.test(f) || f === "report-fallback.log");
   const lines = ["load.jsonl", "safety.jsonl", "link.jsonl", "server-load.jsonl", "server-safety.jsonl"]
     .filter((f) => existsSync(join(out, f))).concat(files)
