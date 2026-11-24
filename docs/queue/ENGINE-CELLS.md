@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-24T19:27Z
-heartbeat: 2026-11-24T19:40Z
+heartbeat: 2026-11-24T19:47Z
 by: Zz3Kihvk
 outputs: claude/engines 7048b6534 (trace), cc2b4c22d (3a rows); claude/page-runs e59c6e9d1 (page-runs.md §3 Results, 3a)
 ## Resume
@@ -12,4 +12,9 @@ client/decode/wasm/built copied from claude/engines (sha256sum -c ../build/manif
 -p pack-series -p series-server; bash ingest/tools.sh; .venv; client/transport/ts/build.sh. Then under Xvfb:
 `NODE_PATH=$(npm root -g) PYTHON=.venv/bin/python FIREFOX_PATH=/tmp/claude-0/ff/160.0.1/firefox/firefox DISPLAY=:99 node lab/opfs-cache/run.mjs --cell m5 --rounds 12 --engine firefox --out <claude/engines>/docs/decode/engine-cells/3b/m5-ff160-amended.jsonl`
 (12 rounds per §3b's text; the command block's `--rounds 7` is stale, §Review m4). Resume a cut run with --first-round N.
+2026-11-24T19:47Z: rig built (all of the above done in this container), one uncounted smoke round clean (claude/engines 789308e51,
+3b/smoke-uncounted.jsonl: 80/80 exact every arm). The 12 counted rounds started 2026-11-24T19:47Z, rows to
+claude/engines:docs/decode/engine-cells/3b/m5-firefox.jsonl, pushed every ~8 min. If cut: count whole rounds in the
+file, rerun with --first-round <next> (same --out); then `python3 lab/opfs-cache/summary.py docs/decode/engine-cells/3b`
+(reads m5-firefox.jsonl) and write §3b in page-runs.md §3 Results against the table.
 ## Result
