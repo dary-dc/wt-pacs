@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-23 (the engines' path fix; the memory a navigation leaves), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-23 (the engines' path fix; the memory a navigation leaves; the view's default memory bound, its second fix and its re-review), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -13,6 +13,19 @@ exact frame bit for bit, and only checked claims on screen.
 
 ## In flight
 
+* **The view's memory bound** (VIEW-MEMORY-BOUND, 2026-11-23, `claude/view-memory-bound`, a draft into
+  `claude/unified`): the view holds 256 MiB of decoded frames a tab by default, in the series' frames, farthest first
+  ([`../client/evidence/what-a-view-asks-for.md`](../client/evidence/what-a-view-asks-for.md) *M, the budget*); the
+  size per device class is phase 2's; on V8 the bound is on what the store keeps, not on resident memory (not measured).
+  Reviewed 2026-11-23 (PR 435 §VIEW-MEMORY-BOUND-REVIEW): one blocker, the want not cut to the window, so a series
+  over the budget is fetched whole and, under the worker view, re-asked outside the window on each step. Fixed 2026-11-23 (VIEW-MEMORY-BOUND-FIX): with no cache the want and the
+  page view's fill stop at the window, a test per view; `W_min` not built, said; re-reviewed 2026-11-23 (PR 435
+  §Re-review): round one closed, one new blocker: the page view's window never follows the reader, so past the first
+  window each step waits for its frame (unit probe). Fixed 2026-11-23 (VIEW-MEMORY-BOUND-FIX-2): past the window with
+  no cache the page view's store asks each step's misses as the worker view's does, and the fill's progress counts the
+  window's frames held; a test each, mutated. Re-reviewed 2026-11-23 (PR 435 §Re-review 2): every
+  finding closed or argued, no blocker open; three minors (a progress test with a cache, `viewer.js` untested, a step
+  during the page view's fill now ends the fill's run as the worker view's does).
 * **The unified branch** `claude/unified-client` (the client, optimal-quality and native lines): the demo tip with the
   cleaning and the renames merged; one `info.path` left in `lab/faultbench/index.html` (now `info.route`), a finding in
   #382. Reaches `main` through #367 then #250, on the owner's word ([`coordination.md`](coordination.md)).
