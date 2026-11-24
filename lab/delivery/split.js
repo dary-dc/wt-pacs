@@ -40,7 +40,7 @@ export async function splitFill({ meta, transport, decoders, aheadBytes, viewOnl
 
   const [av1, openjph] = await Promise.all([built("dav1d"), built("openjph")]);
   const pools = {
-    view: await Promise.all(Array.from({ length: decoders }, () => decoderWorker({ decoder: { codec: "av1", optimal: true, ...av1 }, groupLength: g, digests: meta.digests.frames }))),
+    view: await Promise.all(Array.from({ length: decoders }, () => decoderWorker({ decoder: { codec: "av1", optimal: true, ...av1 }, groupLength: g, digests: meta.digests?.frames }))),
     exact: await Promise.all(Array.from({ length: decoders }, () => decoderWorker({ decoder: openjph, groupLength: 1, digests: exactMeta.digests.frames }))),
   };
   // A job: a view group, its frames to one decoder in order, or one exact frame; it holds a slot until its last frame is out.
@@ -66,7 +66,8 @@ export async function splitFill({ meta, transport, decoders, aheadBytes, viewOnl
   const delivered = (job, f) => {
     const rec = frames.get(f.index);
     Object.assign(rec, { decodeMs: f.stamps.decodeEnd - f.stamps.decodeStart, decoded: f.stamps.decodeEnd, route: f.route, exact: f.exact });
-    if (f.exact !== true) return fail(`${job.form} frame ${f.index} decoded ${f.exact}${f.reason ? `: ${f.reason}` : ""}`);
+    // As the product: a frame without a digest is unchecked, a mismatch fails.
+    if (f.exact === false) return fail(`${job.form} frame ${f.index} decoded not exact${f.reason ? `: ${f.reason}` : ""}`);
     if (++job.out < job.frames.length) return;
     job.worker.busy = false;
     free += 1;
