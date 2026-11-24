@@ -1,16 +1,17 @@
 state: started
 started: 2026-11-24T18:27Z
-heartbeat: 2026-11-24T18:34Z
+heartbeat: 2026-11-24T19:03Z
 by: G2bMnvtP
 outputs: claude/session-cost (rows; session-cost.md §Results); the rig on claude/session-cost-rig
 ## Resume
-Rig pushed: claude/session-cost-rig 9c42f3d22 = origin/claude/session-cost (b059388b6 + the protocol) with, as files
-(no merge): claude/delivery's lab/delivery, claude/phone-run-2's lab/devices, lab/viewer, head.js, dev-server.py,
-claude/delivery's client/paint window read-back; new lab/delivery/session-page.js and --session in run.mjs/plan.mjs.
-client/view and client/transport are b059388b6's, so §3's T1 holds unchanged.
-Next: setup (scratchpad setup.sh: iproute2, dockerd, meson, venv, cargo release, ingest/tools.sh), then
-`lab/delivery/series.sh S` (+ usb_cine HTJ2K), smoke one session per arm on CLEAN, the three mutants
-(--mutate sampler-relay|skip-step|tally-dropped), §9 amendment (server pair per session, not per form) pushed to
-claude/session-cost before counted rows; then `node lab/delivery/run.mjs --session --cell CLEAN --series S --rounds 8`
-and `--cell CR --rounds 4`, rows to lab/delivery/rows/session-<CELL>.jsonl, copied to claude/session-cost.
+Rig: claude/session-cost-rig c16863cb2 (tree = b059388b6's client/view, client/transport; T1). Amendment pushed before
+any counted row: claude/session-cost d073a7a57, session-cost.md §9 "2026-11-24, SESSION-COST-RUN" (server pair a
+session; the guard recorded, VOIDs nothing; FIT W 15; mutants flagged; smoke).
+Running since 19:10 (job.sh in this session's scratchpad): usb_cine B x3 CLEAN; CLEAN --warmup --rounds 8 (96);
+CR --warmup --rounds 4 (48); rows to claude/session-cost-rig lab/delivery/rows/session-{CLEAN-usb_cine,CLEAN,CR}.jsonl,
+pushed every 10 min. If this session ends: on claude/session-cost-rig, rebuild (README Prerequisites; ingest/tools.sh;
+cargo build --release -p series-server -p pack-series; lab/delivery/series.sh S plus usb_cine as §9 says), then rerun
+only the missing rounds of the cell (--rounds N runs rounds 0..N-1; skip the steps already in the rows file by
+starting a new --out and joining), then `node lab/delivery/session-summary.mjs <rows>` and write §Results on
+claude/session-cost.
 ## Result
