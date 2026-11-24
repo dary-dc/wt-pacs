@@ -42,14 +42,15 @@ def d5a_busy(name="chromium-D5a-busy"):
     for u, xs in by.items():
         valid = [r for r in xs if r["reached"] == "mismatch" and r.get("kill")]
         delivered = sum(1 for r in valid if r["safety"] >= 1)
-        expected = len(valid) - sum(0.5 * (1 - r["killDelay"]["ms"] / 50) for r in valid)
+        expected = len(valid) - sum(0.5 * (1 - min(r["kill"]["atKill"], 50) / 50) for r in valid)
+        drawn = len(valid) - sum(0.5 * (1 - r["killDelay"]["ms"] / 50) for r in valid)
         late = sum(1 for r in valid if r["kill"]["late"])
         learned = [r["kill"]["learned"] for r in valid]
         at_kill = [r["kill"]["atKill"] for r in valid]
         fill = sum(1 for r in xs if r["fill"])
         spread = (line or {}).get("spread", {}).get(u)
         print(f"  {u:12} valid {len(valid):2}/{len(xs)} safety {delivered:2} fill {fill:2} | page-thread model "
-              f"expected {expected:5.2f} band {expected - 3.5:5.2f}-{expected + 3.5:5.2f} | late {late} learned p50 "
+              f"expected {expected:5.2f} band {expected - 3.5:5.2f}-{expected + 3.5:5.2f} (drawn {drawn:5.2f}) | late {late} learned p50 "
               f"{q(learned, .5):.1f} max {max(learned):.1f} atKill p50 {q(at_kill, .5):.1f} | spread "
               f"{spread and round(spread['span'], 1)} void={spread and spread['void']} errors "
               f"{sum(1 for r in xs if r['error'])}")
