@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review, its fix and re-review 2026-11-23; the order to decide in 2026-11-23; phase 2's queue (`claude/work-ledger:docs/queue-2026-11-24.md`, PHASE2-PLAN) 2026-11-24, its review (three blockers, the fix loop opened) 2026-11-24. The carry to ultrasound and DBT (`docs/decisions/us-dbt-carry.md`, US-DBT-CARRY) 2026-11-24. The one PCS note (`docs/decisions/pcs-note.md`, PCS-NOTE) 2026-11-24. The phone's reading carried (PHONE-CARRY) 2026-11-24, its review (one blocker, the fix loop opened) 2026-11-24, its fix 2026-11-24.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review, its fix and re-review 2026-11-23; the order to decide in 2026-11-23; phase 2's queue (`claude/work-ledger:docs/queue-2026-11-24.md`, PHASE2-PLAN) 2026-11-24, its review (three blockers, the fix loop opened) 2026-11-24. The carry to ultrasound and DBT (`docs/decisions/us-dbt-carry.md`, US-DBT-CARRY) 2026-11-24. The one PCS note (`docs/decisions/pcs-note.md`, PCS-NOTE) 2026-11-24. The phone's reading carried (PHONE-CARRY) 2026-11-24, its review (one blocker, the fix loop opened) 2026-11-24, its fix 2026-11-24, its re-review (no blocker open) 2026-11-24.
 
 ## Goal
 
@@ -73,7 +73,7 @@ small enough that every open item has an owner and a next step.
   open item's PHONE-ROUND-2 cell; the round's memory bound breaks the 11-22 fill (theory). Reviewed 2026-11-24
   (PHONE-CARRY-REVIEW): B1, M17 and M5 are not in PHONE-ROUND-2 (`round-2.md` §5); fixed 2026-11-24
   (PHONE-CARRY-FIX): both pages say what the round carries and lifts; the two builds and the exact frame's cell go to
-  BRIEF-WEEKEND's list; PHONE-CARRY-FIX-REVIEW owed.
+  BRIEF-WEEKEND's list. Re-reviewed 2026-11-24 (PHONE-CARRY-FIX-REVIEW): no blocker open; r-m1, item 7's yes asked as the two builds in the next queue.
   `lab/`'s list re-read 2026-11-24 (LAB-REMOVAL-LIST, [`lab-list.md`](../decisions/lab-list.md) §Re-read): against
   every owed run, 11 of the 47 kept (six an owed run names, five read by kept code), 36 for LAB-REMOVAL.
 

@@ -275,3 +275,26 @@ build quoted; §2 item 7's *a yes changes* corrected in place; both builds named
 paragraph says the round lifts the bound (`?budget`, `313ad1b55`) and keeps the theory label and §6's untested window.
 m2: the 216.5 ms named for BRIEF-WEEKEND's list with the cell that would ask it. m3: §8.1 moved after §8's *Rows:* and
 *Files:*. n1: PR 435's merge `96b61668f`. n2: the round's cells are 3 and M.
+
+## Re-review (PHONE-CARRY-FIX-REVIEW, 2026-11-24)
+
+By a session that wrote none of PHONE-CARRY, its review or its fix. Read: the fix `f6f9e9886` (`git diff` touches this
+page, `view-target.md`, their index lines and `docs/lines/coordination.md` only); `claude/phone-run-2` at its tip
+`21c8102b0`, `docs/phone-rows/round-2.md` §0, §2, §5, §6; `313ad1b55`, `96b61668f`, `b059388b6` by `git log`. Nothing
+run but git reads and `scripts/check_links.py` (17 unresolved before the fix and after).
+
+* **B1 closed.** §8.1's cells for items 6, 7, 9 and 10 read "not in PHONE-ROUND-2" and quote `round-2.md` §5's *what it
+  needs* verbatim (checked line by line: M17's "the 16 `dbts_b1` frames at Δ 16 (`ojph_compress`), a bench arm,
+  interleaved", M5's "a unit at the frame's size from a real `dbts_b1` frame, or the decode's size limit raised", and
+  "Each needs a build first; none is improvised on the evening"); §2 item 7's *a yes changes* is corrected in place
+  with the old text kept; both builds go to BRIEF-WEEKEND's list.
+* **m1 closed.** The bound paragraph names `?budget` (`313ad1b55`, "cell 3 holding its whole series (?budget)"), cell M
+  at *w* and 2*w* (`round-2.md` §2), keeps **theory** and quotes §6's untested window verbatim.
+* **m2 closed.** The 216.5 ms is on BRIEF-WEEKEND's list with a proposed stage-timed cell, labelled a proposal.
+* **m3, n1, n2 closed.** §8.1 follows *Rows:* and *Files:*; `96b61668f` is PR 435's merge (UNIFIED-SYNC-1124) and
+  `b059388b6`, unified's tip, is in `claude/phone-run-2`; the round's cells are 3 and M (§0).
+* **r-m1 (minor, for BRIEF-WEEKEND).** §2 item 7 still asks a yes to M17 and M5 "go into PHONE-ROUND-2", which the
+  corrected cell says cannot happen; its line in BRIEF-WEEKEND's table should ask the yes as "both builds, then their
+  phone cells, in the next queue". Left in place: the brief owns the wording, and the cell states the correction.
+
+Verdict: no blocker open. The page's yes lines in BRIEF-WEEKEND no longer wait on the fix loop.

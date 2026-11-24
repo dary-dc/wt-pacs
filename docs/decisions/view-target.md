@@ -191,3 +191,12 @@ No blocker here; the fix row's m1 edits both pages together.
 **Fix** (PHONE-CARRY-FIX, 2026-11-24, by a session that wrote none of PHONE-CARRY or this review). m1 and n1: §6's
 bullet says the round lifts the bound for cell 3 (`?budget`, `313ad1b55`), that `fillFailure` fails only at the
 default window, and that the default stays untested at `dbts_b1`'s size; §5.1's merge commit is PR 435's, `96b61668f`.
+
+## Re-review (PHONE-CARRY-FIX-REVIEW, 2026-11-24)
+
+By a session that wrote none of PHONE-CARRY, its review or its fix; read as `phone-decode-route.md` §Re-review says.
+**m1 and n1 closed**: §6's bullet says each cell-3 load sets `budget=` its series' frames (`313ad1b55`, lab only), quotes
+"as on 2026-11-22" and §6's untested window verbatim from `round-2.md`, and limits `fillFailure`'s failure to the
+default window; §5.1 names PR 435's merge `96b61668f`. **r-n1**: "`fillFailure` does not fail it" is `round-2.md` §2's
+reading of the code, not a run (the dry run's synthetic pair fits either way, §6): **theory** until cell 3 runs; not
+changed here. Verdict: no blocker open.
