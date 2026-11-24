@@ -17,6 +17,8 @@ view frames shown unchecked with the mark describing the view).
 2026-11-24: the phase 2 file reviewed (three blockers) and fixed in place by PHASE2-PLAN-FIX: staging merges
 into `claude/phone-run` for the next phone round, DEFAULTS-TABLE and US-END-TO-END into `claude/unified`, S5 held;
 its re-review is PHASE2-PLAN-FIX-REVIEW.
+2026-11-24: PHASE2-PLAN-FIX-REVIEW: B2, B3, m1–m4 closed; B1 open in part (PR 436's base is `claude/phone-run`,
+so the staging merge would mark it merged): PHASE2-PLAN-FIX-2 moves the round's code to `claude/phone-run-2`.
 
 **The routines** (claude.ai routines; their prompts switch from the program to phase 2 on 11-24 00:00 and close
 after 11-27 23:59): queue workers (Opus) A `trig_01Y6vNmyv6K54Uqcs8RXV1Gu` at :45, B `trig_014L1Sgp7h8TW8qnzWMZ1HEQ`
