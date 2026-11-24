@@ -23,6 +23,9 @@ so the staging merge would mark it merged): PHASE2-PLAN-FIX-2 moves the round's 
 `origin/claude/phone-run`), PR 436 untouched; n1 closed; its re-review is PHASE2-PLAN-FIX-2-REVIEW.
 2026-11-24: PHASE2-PLAN-FIX-2-REVIEW: R-B1 and n1 closed, no blocker open (§Re-review 2); the staging merges conflict in
 `lab/devices/README.md`, `client/view/controller.js`, its test and `server/dev-server.py` (r2-m1); PHONE-ROUND-2-PREP may run.
+2026-11-24: IMPROVE-1: `docs/queue/IMPROVE-1/candidates.md`, nine candidates ranked; three build rows and their measuring
+rows appended (WINDOW-WHOLE-GROUPS, DECODE-OVERLAP, DIAL-BEFORE-PAIR). A model finds the 15-frame window re-fetching
+8-frame groups on every step of `dbts_b1` (398 frames for 50); not run in the product. Its review is IMPROVE-1-REVIEW.
 
 **The routines** (claude.ai routines; their prompts switch from the program to phase 2 on 11-24 00:00 and close
 after 11-27 23:59): queue workers (Opus) A `trig_01Y6vNmyv6K54Uqcs8RXV1Gu` at :45, B `trig_014L1Sgp7h8TW8qnzWMZ1HEQ`
