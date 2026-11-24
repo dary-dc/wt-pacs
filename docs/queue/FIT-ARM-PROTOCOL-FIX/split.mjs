@@ -1,5 +1,5 @@
-// FIT-ARM-PROTOCOL-FIX: SPLIT's fill against A's, fluid and with A's makespan factor. Run from a claude/delivery checkout with this file copied into it:
-//   node split.mjs lab/delivery/inputs.json
+// FIT-ARM-PROTOCOL-FIX: SPLIT's fill against A's, fluid and with A's makespan factor. Placed at this same path in a
+// claude/delivery checkout, from its root: node docs/queue/FIT-ARM-PROTOCOL-FIX/split.mjs lab/delivery/inputs.json
 import { readFileSync } from "node:fs";
 import { fill, wire, decodeFloor, unitsOf } from "../../../lab/delivery/predict.mjs";
 const inputs = JSON.parse(readFileSync(process.argv[2] ?? "lab/delivery/inputs.json"));

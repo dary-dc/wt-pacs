@@ -1,7 +1,7 @@
 """FIT-ARM-PROTOCOL-FIX's retrodiction: A2.4's wire curve, built from the 2026-11-23 counted B loads, applied to that
 run's A, A' and C1 fills of the same (form, volume). A reading aid, not a test.
 
-    python3 curve_retro.py lab/delivery
+    python3 curve_retro.py lab/delivery    (from a claude/delivery checkout's root)
 """
 import json, statistics, sys
 sys.path.insert(0, sys.argv[1] + "/rows/judged")
