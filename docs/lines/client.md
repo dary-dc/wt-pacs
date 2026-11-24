@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-23 (the engines' path fix), 2026-11-22 (the README's *Frames*), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-23 (the engines' path fix), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -92,6 +92,19 @@ exact frame bit for bit, and only checked claims on screen.
   against amendment 22 (§6, fault-bench cell 12). Re-reviewed 2026-11-22 (PR 429 body §Re-review): every finding closed,
   no blocker, two nits; next the `frame-integrity` decision page; six calls
   for the owner in its §9, twelve fault-bench cells in its §8.
+* **What a view asks for, a model**, theory only, 2026-11-22 ([`../client/evidence/ask-model.md`](../client/evidence/ask-model.md),
+  `claude/ask-model`): one key, a frame's need time, orders the want, the store's letting go and the transport's
+  commitment; with no slice skipped each side is asked nearest-first whatever the reader does; `waitAhead` stays
+  off for DBT (k is the frames committed, not 8), `span` and `holdEveryOther` have no state to act on. Reviewed
+  2026-11-22 (PR 430 body §ASK-MODEL-REVIEW): two blockers, P1's legs fit the window so its arms cannot differ, and
+  the window behind a back-and-forth reader not shown under the file's own model. Fixed 2026-11-22 (ASK-MODEL-FIX):
+  §5 redone as a simulation of the model (derived; `claude/work-ledger:docs/queue/ASK-MODEL-FIX/legs.py`): under
+  no skip a scroll's window at a turn is the leg just crossed whatever the split, so the behind split is struck;
+  the hold lets go behind first while the reader moves and stays centred while the reader dwells; P1 now has legs
+  longer than the window, P1b a dwell at each turn. Re-reviewed 2026-11-22 (PR 430 body §Re-review): no blocker
+  open; four minors for the page (P2's one-way order is a start-up transient, the cine gate needs μ, the closed
+  form's gap, item 3's optimum not simulated). Owed: the `asking` page; a protocol row for its §7 only on the
+  owner's yes.
 * **The load report** (#370, `claude/telemetry-client`): owed a review by a session that did not write it, then its
   cost and delivery runs. The safety report for exactness failures (the 2026-11-14 decision) is not built.
 * **The reports' options** (2026-11-14, theory and a plan,
