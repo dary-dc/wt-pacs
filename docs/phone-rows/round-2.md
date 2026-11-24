@@ -113,7 +113,22 @@ Each needs a build first; none is improvised on the evening.
 
 ## 6 · Results of the preparation
 
-*(filled in below as each check ran)*
+All in one 4-core cloud container, headless Chromium, no GPU, no phone; fixtures: the synthetic 10-bit pair (64 × 48,
+20 frames) and unit tests on synthetic metadata.
+
+* **The gate** at `f2de84d70`: `scripts/gate.sh`, full, **GATE OK in 1027 s**. Skipped, as it names them: the pair's
+  invariants (no writer), the native painter and window (no lavapipe, Xvfb), the viewer's cross-codec arm and Firefox
+  (no DICOM bundles, no GL display), the web host's check (no nginx). `round_headless.sh` (the default claims) ran
+  inside it and passed.
+* **The dry run**, `round_headless.sh --round2` at the tip: **every claim holds**, 12 loads (4 of cell 3, 8 of cell M)
+  in about 7 min 40 s; relaunches after loads 0–3 and none inside cell M. Two mutants killed (round.py relaunching
+  before a `sameRenderer` load; no `firstPicture` record).
+* **Unit tests:** `round.test.mjs` 8/8 (round 2's shape; five mutants killed: no start's fix, no cell-3 budget, cell M's
+  renderer flag shifted, its budgets swapped, `--cells` ignored); `round_test.py` 23 OK (the `sameRenderer` skip; its
+  mutant killed); `levers.test.mjs` ok (`?budget`; two mutants killed); `beacon.test.mjs` 11/11; `controller.test.mjs`
+  52/52 and `dev-server.test.py` 16 OK after the first merge.
+* **Not tried:** a phone, `adb` itself, Chrome's VIEW intent, DevTools over `adb forward`; the window's size on
+  `dbts_b1-q8-g8` (15 frames, *theory*) is not exercised by the synthetic pair, whose 20 frames all fit.
 
 ## Middle-band phone (cell 1, through a real-device cloud; the owner's account)
 

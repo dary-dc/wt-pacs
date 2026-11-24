@@ -56,7 +56,7 @@ export function memoryCell(series, w, n) {
 export function shapeLoads(loads, cells, metaOf, view) {
   const memory = cells?.includes("M") ? memoryCell(view, memoryWindow(metaOf(view)), metaOf(view).frameCount).map((l) => ({ ...l, url: pageOf(l) })) : [];
   const shaped = [...loads.filter((l) => !cells || cells.includes(l.cell)), ...memory]
-    .map((l) => (l.cell === "3" ? { ...l, budget: metaOf(l.series).frameCount } : l))
+    .map((l) => (l.cell === "3" ? { ...l, budget: metaOf(view).frameCount } : l))
     .map((l) => ({ ...l, url: `${l.url}${l.budget ? `&budget=${l.budget}` : ""}${l.cell === "3" && l.view === "worker" ? `&opts=${START_FIX}` : ""}` }));
   if (!shaped.length) throw new Error(`--cells ${cells} names no cell of the round`);
   return shaped;
