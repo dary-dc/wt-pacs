@@ -1,11 +1,11 @@
 state: started
 started: 2026-11-24T20:07Z
-heartbeat: 2026-11-24T23:24Z
+heartbeat: 2026-11-24T23:44Z
 by: CTgAp86M
 outputs: claude/ask-cells (lab builds 583f72d03..; rows lab/viewer/rows/ask/{main,p1b,p1c80}.jsonl); claude/page-runs 9c9743dce (page-runs.md §4 Amendment)
 ## Resume
 Resumed 2026-11-24T22:06Z by CTgAp86M (stalled: KncQVQUV heartbeat 21:02, last push 21:12, round 0 of main only). Rebuilt here 22:11 (tools, cargo, dbts_b1, view_frames, variants); running /tmp resume: P1b round 0, then FIRST=1 P80=1 job.sh. If this session ends: next = the round after the last in main.jsonl/p1b.jsonl (jq .round), as below.
-Running: main round 2 (at 2026-11-24T23:24Z)
+Running: P1b round 2 (at 2026-11-24T23:44Z)
 Done: builds (a)-(d) + summary on claude/ask-cells (mutants M1-M6 fail the unit tests; runtime mutants hold, legs,
 sample in lab/viewer/rows/ask/mutate-*.jsonl); §4 Amendment on claude/page-runs 9c9743dce before any counted row;
 pilot rows lab/viewer/rows/ask/pilot*.jsonl (not counted).
