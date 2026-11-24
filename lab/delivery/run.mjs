@@ -234,9 +234,9 @@ async function load(k, spec) {
   return row;
 }
 
-/** K2's loads: each volume's view and exact series benched on two decoders, the exact series on one too; three each. */
-const benchLoads = () => VOLS.flatMap((volume) => [0, 1, 2].flatMap((rep) => [["view", 2], ["exact", 2], ["exact", 1]].map(([series, decoders]) => {
-  const n = JSON.parse(fs.readFileSync(path.join(SERIES, `${series === "view" ? VIEWS[volume] : seriesIds(volume).exact}.metadata.json`), "utf8")).frameCount;
+/** K2's loads: each volume's view and exact series benched on two decoders, the exact series on one too, FIT's level prefixes on two where it has a level (A2.7); three each. */
+const benchLoads = () => VOLS.flatMap((volume) => [0, 1, 2].flatMap((rep) => [["view", 2], ["exact", 2], ["exact", 1], ...(seriesIds(volume).fit !== seriesIds(volume).exact ? [["fit", 2]] : [])].map(([series, decoders]) => {
+  const n = JSON.parse(fs.readFileSync(path.join(SERIES, `${series === "view" ? VIEWS[volume] : seriesIds(volume)[series]}.metadata.json`), "utf8")).frameCount;
   return { volume, rep, series, arm: `${series}-${decoders}`, params: { decoders: String(decoders), bench: String(n) } };
 })));
 

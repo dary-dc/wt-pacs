@@ -2,6 +2,7 @@
 import { built } from "../../client/decode/wasm-glue.js";
 import { DownloaderClient } from "../../client/transport/consumer.js";
 import { pairOf } from "../../client/viewer/pair.js";
+import { fitDecoder } from "../delivery/fit-page.js";
 
 const epochMs = () => performance.timeOrigin + performance.now();
 
@@ -35,8 +36,10 @@ export async function bench({ meta, transport, count, decoders }) {
   const coded = new Map();
   await fill(transport.wt_url, transport.cert_sha256, { transport: transport.module, decode: false, ...groupOf(meta) }, indices, (f) => coded.set(f.frameIndex, f.bytes));
   const g = meta.lossy?.g ?? 1;
-  const decoder = await decoderOf(meta);
-  const workers = await Promise.all(Array.from({ length: decoders }, () => start({ decoder, groupLength: g, digests: digestsOf(meta) })));
+  // The delivery rig's FIT series: its level prefixes decoded at the level (lab/delivery/fit-page.js).
+  const fit = await fitDecoder(meta);
+  const decoder = fit?.decoder ?? (await decoderOf(meta));
+  const workers = await Promise.all(Array.from({ length: decoders }, () => start({ decoder, groupLength: g, digests: digestsOf(meta) }, fit?.worker)));
   try {
     return { codec: meta.codec ?? "htj2k", decoders, cores: navigator.hardwareConcurrency, ...(await timed(workers, indices, g, coded)) };
   } finally {
@@ -45,8 +48,8 @@ export async function bench({ meta, transport, count, decoders }) {
 }
 
 /** One product decoder worker, initialised as the downloader initialises its own. */
-function start(init) {
-  const worker = new Worker(new URL("../../client/decode/decoder.js", import.meta.url), { type: "module" });
+function start(init, url = new URL("../../client/decode/decoder.js", import.meta.url)) {
+  const worker = new Worker(url, { type: "module" });
   const ch = new MessageChannel();
   return new Promise((resolve, reject) => {
     worker.onmessage = ({ data }) => (data.kind === "ready" ? resolve({ worker, port: ch.port2 }) : reject(new Error(`a decoder did not start: ${data.reason}`)));
