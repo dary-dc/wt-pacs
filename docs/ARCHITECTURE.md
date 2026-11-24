@@ -128,7 +128,7 @@ so none needs a handshake:
 
 The one pattern that does lose messages — a `BroadcastChannel` a worker constructs and the page posts
 to at once — is used only by the contract fakes, which wait for `listening`. **Measured**
-([`../lab/early-messages/run.mjs`](../lab/early-messages/run.mjs), driverless Chromium 141, 5 × 1 000
+([`../lab/early-messages/run.mjs`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/early-messages/run.mjs), driverless Chromium 141, 5 × 1 000
 opens a variant, rotated): the downloader path lost **0 of 5 000**, the harness's worker **0 of 5 000**,
 the `BroadcastChannel` control **103 of 5 000**. Exposed on purpose, each site was caught: the pixel
 port on `addEventListener` lost 100 of 100, either worker's `onmessage` set 50 ms late 20 of 20.
@@ -199,7 +199,7 @@ any `MessagePort` object with it is destroyed every message stored under it is d
 the page were deleted: the page got a `messageerror` it has no handler for, the decoder had already posted `done`, and
 the frame never arrived, with no failure. The record now holds `port1` for the decoder's life;
 `downloader.test.mjs` collects garbage and finds 0 of 3 ports alive without the line, 3 of 3 with it. In Firefox
-157.0.1 headless ([`../lab/ffportgc`](../lab/ffportgc/README.md), a 1024² 16-bit HTJ2K series through the real server
+157.0.1 headless ([`../lab/ffportgc`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/ffportgc/README.md), a 1024² 16-bit HTJ2K series through the real server
 and decoders, visits alternating): with the decoders spawned as the queue grows (`followQueue`, since removed), **2 of 17 fills lost
 one frame each before (frames 24 and 28, of 240 and 1 200), 0 of 14 after**; with the whole pool spawned at the start,
 0 of 11 before, 0 of 8 after, since its ports are collected before any frame is in flight. Every delivered frame was
@@ -242,7 +242,7 @@ for a preview, or its `onmessageerror` removed → `consumer.test.mjs` fails. **
 engines × HTJ2K, dav1d-WASM, WebCodecs, 30 visits; [`../lab/faultbench`](../lab/faultbench/README.md)): every *hang*
 cell, frame 2 never arriving with no failure before, now **fails by name** after two deadlines ("decoder 0 answered
 nothing in 10000 ms (lost 2 times)"), and frame 5, queued behind it and lost with it before, **arrives exact**; the 24
-other cells read as before, controls 6/6 exact. **The ack costs no fill** ([`../lab/frameloss`](../lab/frameloss/README.md)): the
+other cells read as before, controls 6/6 exact. **The ack costs no fill** ([`../lab/frameloss`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/frameloss/README.md)): the
 240-frame 1024² 16-bit series of row FFPORTGC through the real server on loopback, `downloader.js` and `consumer.js`
 today against `dc1524d7^` and nothing else different (TS transport, 3 decoders at start, `perDecoder` 2, OpenJPH WASM,
 server `cubic-restart` at quinn's default window), 10 rounds interleaved: last frame **2 671 [2 276–2 871] ms with the
@@ -341,7 +341,7 @@ restart` is not measured.
 the downloader has them before it dials. Otherwise the page posts `fill` after `started`, and a main
 thread inside a long boot task cannot post it until the task ends.
 
-Measured ([`../lab/fill-at-start/`](../lab/fill-at-start/README.md), 8 cores, 20 frames of ~51 KB,
+Measured ([`../lab/fill-at-start/`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/fill-at-start/README.md), 8 cores, 20 frames of ~51 KB,
 decode off, one fresh page and session per variant, **12 rounds**, order reversed on odd rounds). Median
 [min … max] from `connect()`. Over a **50 ms round trip, the main thread held 300 ms from 25 ms in**
 — the worker alive and dialling, which is a viewer's ordering:
@@ -678,7 +678,7 @@ fails ends its worker too.
 
 Before, every closed client left its downloader running: **one renderer thread and 2.5 MB resident
 per client** — 40 clients took the renderer from 10 to 50 threads and 106 to 206 MB, three rounds
-identical ([`../lab/worker-leak/run.mjs`](../lab/worker-leak/run.mjs), Chromium 141 headless); after,
+identical ([`../lab/worker-leak/run.mjs`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/worker-leak/run.mjs), Chromium 141 headless); after,
 10–12 threads and 118–123 MB. **Terminating the decoders from the downloader as well strands it**:
 10–12 of 40 downloader workers stayed alive, script dead, thread and memory held — a race
 `client/contract/drive_page.cjs` checks for by counting leftover workers after every page.
@@ -875,7 +875,7 @@ Both variants were mutated and moved as they should: `shared` given a transfer l
 ### The downloader variant during a fill, against direct
 
 Does the downloader worker lengthen the per-frame interval during a fill, against a client on the
-page feeding the same decoders? [`../lab/decode-tail/`](../lab/decode-tail/run.mjs) `page.js`
+page feeding the same decoders? [`../lab/decode-tail/`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/decode-tail/run.mjs) `page.js`
 is the product path, `direct.js` the same TS transport on the page feeding the same `decoder.js`
 workers by the same rule, so the downloader worker is the only difference. Driverless Chromium,
 loopback, the 87-frame colour and 16-bit sets, 7 rounds interleaved, medians:
@@ -1357,7 +1357,7 @@ triggers are covered by clauses, not by this campaign.
 WebKit bug 319879 (Safari 26 on macOS): the server answers the CONNECT with 200 and `ready` never
 settles. **Not WebKit's alone**: `series-server --hold-sessions`, a lab flag, takes each CONNECT and never
 answers, and a bare `new WebTransport`, the TS and WASM clients and the downloader all stayed pending
-past 180 s in Chromium 141 ([`../lab/dial-deadline/`](../lab/dial-deadline/README.md)) — neither
+past 180 s in Chromium 141 ([`../lab/dial-deadline/`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/dial-deadline/README.md)) — neither
 Chromium nor QUIC's idle timeout ends it. An overloaded server that stalls a CONNECT does the same.
 
 **The deadline.** The TS and WebSocket clients take `dialMs`: a dial whose `ready` has not settled is
@@ -1443,7 +1443,7 @@ The frame path, the store and the planner are untouched; the wire mapping is [`W
   clauses and *a frame slow on its own stream holds no other* listed as not applicable; five race
   clauses (QUIC first, TCP first, QUIC refused, the opening fill when either wins); `run_wire.sh` runs refusals and an
   ask during a fill over the WebSocket, raw and through the downloader.
-* **The loopback smoke** ([`../lab/tcp-fallback/`](../lab/tcp-fallback/README.md)): every frame
+* **The loopback smoke** ([`../lab/tcp-fallback/`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/tcp-fallback/README.md)): every frame
   bit-exact over WebTransport, WebSocket and the race, 3 rounds interleaved. No performance claim
   ([`rig-limits.md`](rig-limits.md) §3). **On loopback the WebSocket wins the race**, 57–58 of 60 dials
   (headless Chromium, debug and release server, 200 ms apart): with the round trip near zero the
@@ -1454,7 +1454,7 @@ The frame path, the store and the planner are untouched; the wire mapping is [`W
   **−1.03 to −1.09 round trips to the first frame**, every paired round: −43.6 ms at 40 (7/7), −83.8
   at 80 (10/10), −164.3 at 160 (7/7), the fill's end the same. The opening ask taken from the upgrade, for
   every WebSocket client. On by default, like the opening ask; the race puts it on the WebSocket's URL alone
-  ([`../lab/tcp-fallback/`](../lab/tcp-fallback/README.md) §The opening ask in the upgrade's URL).
+  ([`../lab/tcp-fallback/`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/tcp-fallback/README.md) §The opening ask in the upgrade's URL).
 
 **Before it is enabled anywhere**: a device check of the iOS stall and of recycling. **What the shaped
 A/B on the workstation should measure**, variants interleaved: (1) a fill's wall time and per-frame

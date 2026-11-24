@@ -103,7 +103,7 @@ control cell (unshaped, 1 ms) runs with every block. **Decides:** each of row 19
 ### D4 — opening: the repeated Initial
 
 **Arms:** row 189's four — today, today again, `--reply-repeated-initial`, `--initial-rtt-ms 100`
-([`../lab/irtt/README.md`](../lab/irtt/README.md)). **Controlled:** the relay (`lab/scripts/link_impair.py`) on the
+([`../lab/irtt/README.md`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/irtt/README.md)). **Controlled:** the relay (`lab/scripts/link_impair.py`) on the
 local machine between the phone and the Oracle server, swallowing the first flight at 40/80/150 ms as row 189 does;
 the page dials, waits for `ready`, closes, repeats unattended (a dial a few seconds; n = 20 a cell needs minutes, not
 an evening). **Field:** the same loop on cellular, ≥ 1 000 opens per arm over several days, interleaved; a lost first

@@ -1,7 +1,7 @@
 # A basic guide: looking inside a container
 
 *Hands-on, 2026-10-14. Inspection only: sizes and structure, nothing timed. Reproduce with
-[`lab/containers/`](../../lab/containers/README.md); the run below is ffmpeg 6.1.1 (libaom 3.8.2, dav1d 1.4.1),
+[`lab/containers/`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/containers/README.md); the run below is ffmpeg 6.1.1 (libaom 3.8.2, dav1d 1.4.1),
 pydicom 3.0.2 and headless Chromium 141 with software decode.*
 
 The question every page in this folder asks of a container is the one our server asks of `.sbnd`: **given frame i,

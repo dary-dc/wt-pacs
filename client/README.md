@@ -292,7 +292,7 @@ before it is called not exact (`decoder.js` `checked`; [`docs/adr/exactness-in-p
   shows the same refusal on every frame after it.
 
 `DownloaderClient.connect(url, certHash, opts)` takes `opts.fill` — the first fill's indices, sent
-in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` prices it.
+in `start` so it does not wait for a round trip through the page. `lab/fill-at-start/` (removed; at `e0dd6d4fb`) prices it.
 
 **Only the dial needs the URL.** `url` and `certHash` may each be a promise: the worker, the
 decoders and the transport import start at once and the dial waits alone. The opening fill rides

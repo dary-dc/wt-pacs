@@ -371,7 +371,7 @@ guarantees and #165's 1 s lag rule. Extends §11 and #165's rig (`lab/study-inde
   on the frame host, Unix socket), `remote` (index + API on the second machine), `remote_tls`
   (`require_secure_transport=ON`, `VERIFY_IDENTITY`), and `none` (no index process) as the frame host's baseline.
   A/A: `colocated` twice. ≥ 12 rounds, arm order rotated.
-* **(a) CPU.** A fixed `lab/server-load/` fill at the concurrency where the frame server is below its own saturation,
+* **(a) CPU.** A fixed `lab/server-load/` (removed; at `e0dd6d4fb`) fill at the concurrency where the frame server is below its own saturation,
   with list load from #165's uniform mix at concurrency 0, 4, 8 and 16. Metric: the frame server's per-frame read
   latency p95, and the list `app` p95. Where the host saturates is stated; nothing claimed past it.
 * **(b) Memory.** The frame working set sized to the RAM left once the buffer pool is full, so the two compete.
@@ -509,7 +509,7 @@ without slowing the frame reads.
   twice. ≥ 12 rounds per size, with the cold buffer forced by restarting the engine, never by page-cache eviction.
 * **Metrics.** Query time and API request-to-last-byte time, as latency at a concurrency of 1, then the concurrency
   where p95 doubles; the host's saturation point stated, nothing claimed past it. With the API on the PACS host,
-  the frame-read p95 of a concurrent fill (`lab/server-load/`), with and without list load.
+  the frame-read p95 of a concurrent fill (`lab/server-load/` (removed; at `e0dd6d4fb`)), with and without list load.
 * **Correctness, mutated.** Every query's result set checked against a brute-force filter in the generator; a
   deliberately broken collation (`utf8mb4_bin`) must fail the accented-name check. A publisher test kills the
   receiver between steps 1–2 and 2–3 of §7 and must find the index at the study DB's revision after restart; an
@@ -518,17 +518,17 @@ without slowing the frame reads.
   ≤ 10 ms warm and the API's ≤ 50 ms, and the frame-read p95 under list load is within the A/A spread. If MySQL misses
   and another arm meets it, that arm is recommended instead. If the frame reads slow beyond the A/A spread, the index
   moves to its own server.
-* **Amended 2026-10-26, before running** ([`../../lab/study-index/README.md`](../../lab/study-index/README.md)
+* **Amended 2026-10-26, before running** ([`../../lab/study-index/README.md`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/study-index/README.md)
   §Pre-registration): MySQL 8.4 alone, at 10⁵ and 10⁶; arms across an emulated network hop and a tuned shape;
   the frame-read interference not run; sync lag, recovery and a correction added.
-* **Measured 2026-10-26** ([`../../lab/study-index/README.md`](../../lab/study-index/README.md) §Results). As
+* **Measured 2026-10-26** ([`../../lab/study-index/README.md`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/study-index/README.md) §Results). As
   designed, `date7_modality` misses the 10 ms query budget at 10⁶ (p95 14–19 ms). The tuned shape meets every one of §11's
   cells locally and across a 2 ms round trip, at p95 ≤ 5.0 ms query and ≤ 5.8 ms API (the added `name_family` @ 1000
   still misses the query budget, 17–20 ms): `newest` also covers the name and
   the modalities, `by_name` covers the date, the page is a deferred join, and the modality is matched on the study
   row. Sync lag p95 is 10–26 ms. The prototype says *revision* for §7's *generation*, which the glossary already
   uses, and keeps the outbox inside the study DB, so a restarted publisher scans every study DB (0.29 ms each).
-* **Engines measured 2026-10-26** ([`../../lab/study-index/README.md`](../../lab/study-index/README.md) §Engines):
+* **Engines measured 2026-10-26** ([`../../lab/study-index/README.md`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/study-index/README.md) §Engines):
   the amendment's "MySQL 8.4 alone" rested on a choice wrongly attributed to the owner (corrected there).
   PostgreSQL 18 and SQLite, on the same harness and data in the tuned shape, both meet §11 at 10⁶ beside MySQL:
   worst p95 query 3.4 ms MySQL, 2.9 ms PostgreSQL, 1.9 ms SQLite locally, 5.7 and 5.9 ms across 2 ms. Most cells tie

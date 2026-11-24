@@ -22,7 +22,7 @@ client's with `?ask=`. Rule: any failing stops step 2 until it is explained.
 
 * **The rig.** A 4-vCPU container; server on core 0, relay on core 1, clients on 2–3, nothing else running.
   One series, 24 frames of incompressible bytes at 500–630 kB (13.2 MB, the size of the tomosynthesis volume
-  `lab/server-load` serves; the transport sees bytes), from `run.py --make-series`. Server defaults:
+  `lab/server-load` (removed; at `e0dd6d4fb`) serves; the transport sees bytes), from `run.py --make-series`. Server defaults:
   `stream_mode=shared`, `cubic-restart`, opening ask on. Relay: `--delay-ms 40` (one way, 80 ms round trip),
   `--rate-kbit 20000` and `50000` both ways, its default 50-packet tail-drop queue, `--self-timing`. A fresh server
   for every visit, warmed by one unrecorded fill.

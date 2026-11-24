@@ -597,10 +597,10 @@ Estimated: step 1 ≈ 300 lines of client and CLI, ≈ 150 of tests.
   WebTransport client's with `?ask=` (§8.2). Rule: any of these failing stops step 2 until it is explained.
 
   *Run 2026-10-28, on `claude/native-core-2` at `4cd6cf88` (step 2's build, which carries step 1's review fixes),
-  release, without `decode`:* [`lab/native-step1/run.py`](../../lab/native-step1/run.py), rows in `rows.jsonl` there.
+  release, without `decode`:* [`lab/native-step1/run.py`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/native-step1/run.py), rows in `rows.jsonl` there.
   * **The rig.** A 4-vCPU container; server on core 0, relay on core 1, clients on 2–3, nothing else running.
     One series, 24 frames of incompressible bytes at 500–630 kB (13.2 MB, the size of the tomosynthesis volume
-    `lab/server-load` serves; the transport sees bytes), from `run.py --make-series`. Server defaults:
+    `lab/server-load` (removed; at `e0dd6d4fb`) serves; the transport sees bytes), from `run.py --make-series`. Server defaults:
     `stream_mode=shared`, `cubic-restart`, opening ask on. Relay: `--delay-ms 40` (one way, 80 ms round trip),
     `--rate-kbit 20000` and `50000` both ways, its default 50-packet tail-drop queue, `--self-timing`. A fresh server
     for every visit, warmed by one unrecorded fill.

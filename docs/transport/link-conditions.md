@@ -2,7 +2,7 @@
 
 *Queue row 162, LINKREAL, 2026-10-13. Research only: nothing here was timed on this repository's rig. The numbers are
 other people's measurements, read from pinned copies, plus two summaries of open datasets run here
-([`../../lab/link-conditions/`](../../lab/link-conditions/README.md)).*
+([`../../lab/link-conditions/`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/link-conditions/README.md)).*
 
 **The question.** The target's 5–50 Mbit/s and 30–150 ms ([`transport-conclusions.md`](transport-conclusions.md), The
 target; [`../native/quic.md`](../native/quic.md) §7) were set as an assumption. What do real links measure?
@@ -18,7 +18,7 @@ the common case. **The band is replaced** (§What it means).
 
 **How a number is sourced.** Each carries its source at its point of use; (D) marks arithmetic on sourced numbers, (M)
 a summary computed here from an open dataset by the named script. Every fetch is pinned by SHA-256 in
-[`SHA256SUMS`](../../lab/link-conditions/SHA256SUMS), its URL in [`sources.tsv`](../../lab/link-conditions/sources.tsv).
+[`SHA256SUMS`](https://github.com/dary-dc/wt-pacs/tree/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/link-conditions/SHA256SUMS), its URL in [`sources.tsv`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/link-conditions/sources.tsv).
 
 ---
 
@@ -46,14 +46,14 @@ Down/up are the client's download and upload. p10 · p50 · p90 unless marked; "
 * **Ookla open tiles** (2026 Q3, CC BY-NC-SA 4.0): app tests from GPS-located phones, averaged per ~610 m tile;
   "mobile" is a cellular connection, "fixed" a phone on Wi-Fi or Ethernet, so the second row is mostly **a phone on
   Wi-Fi** (the dataset's README, "Layers"). The summary is the test-weighted percentile of tile means
-  ([`ookla_tiles.py`](../../lab/link-conditions/ookla_tiles.py)), **narrower than the per-test spread**, which the
+  ([`ookla_tiles.py`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/link-conditions/ookla_tiles.py)), **narrower than the per-test spread**, which the
   dataset does not publish. Biases: tests are user-initiated (people test new or failing links), multi-connection to a
   nearby, often on-net server, so they read capacity, not one flow to a distant one; the loaded latency is Ookla's
   saturating test, a worst case for one flow; regions are latitude/longitude boxes; Ookla trimmed the regions it
   publishes on 2026-04-16 (the README's change log), so quarters before and after are not like for like.
 * **M-Lab NDT** (CC0): one TCP stream to an M-Lab server off the access network, from many integrations; it mixes
   fixed and mobile access. The statistics API's 2024 series stops on 2024-03-26 and has no loss; the summary is the
-  median over days of each day's quartiles ([`mlab_stats.py`](../../lab/link-conditions/mlab_stats.py)). Bias: one
+  median over days of each day's quartiles ([`mlab_stats.py`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/link-conditions/mlab_stats.py)). Bias: one
   stream reads lower than multi-stream tests, which is the direction of one session.
 * The regulators' reports (FCC MBA; Ofcom's home broadband reports were 403 to a scripted fetch and are not used)
   measure at the router, so they exclude Wi-Fi, and report idle latency by ISP, not distributions.
@@ -243,7 +243,7 @@ frame checked against the encoder's input, each arm's full settings printed and 
   **Measured (row 171, 2026-10-13): a trade-off, not adopted.** The ask is cut by up to two thirds wherever the credit
   is not what binds, and the fill is worse beyond its spread in 8 of 16 cells. The arm is
   `series-server --send-window-follows-cwnd` (lab only, off by default; M = 2 × 571 632 B), the rig
-  [`../../lab/ask-ahead/`](../../lab/ask-ahead/README.md) and the rows `rows-askahead.jsonl` there.
+  [`../../lab/ask-ahead/`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/ask-ahead/README.md) and the rows `rows-askahead.jsonl` there.
   Chromium 141.0.7390.37 through the product's downloader (decoding off), `dbt10_ea1141` as the served HTJ2K
   (24 frames, 13.6 MB, every frame's codestream matched with the one checked exact against the fetch's checksums).
   The arms differ in the flag alone: `cubic-restart`, quinn's defaults, shared stream, server `aad95192`. 16 cells,
@@ -276,7 +276,7 @@ frame checked against the encoder's input, each arm's full settings printed and 
   Medians of 10, paired changes as the median over rounds (strict: pairs with neither run `VOID`). The fill is in
   bold where it is worse beyond its spread: the two arms' ranges do not overlap. "MB ahead" is the fill frames that
   landed between the ask and its frame. RSS is the server's peak over its idle RSS, one session per process.
-  `lab/ask-ahead/summary.py` prints the ranges.
+  `lab/ask-ahead/summary.py` (removed; at `e0dd6d4fb`) prints the ranges.
   * *Today's ask ≈ 6 MiB ÷ R + RTT:* **held** at 103 Mbit/s and 46 ms (537 ms against 0.54 s), and at 18 Mbit/s on the
     short queues, +9 % (the asked frame's own 0.57 MB is 0.25 s there). It came out lower behind 800 ms at 18 Mbit/s
     (2.2 s) and at 103 Mbit/s and 92 ms (0.45 s): part of what was written ahead had already left.
@@ -350,7 +350,7 @@ frame checked against the encoder's input, each arm's full settings printed and 
     6. *`cubic` against `cubic-restart`:* the same W and W + B fills at 103/92 (quinn has no window restart after idle,
        and `cubic-restart` does not count an idle spell as an outage: [`transport-conclusions.md`](transport-conclusions.md)
        §Which default for which session shape).
-  * **Protocol.** Row 171's rig ([`../../lab/ask-ahead/`](../../lab/ask-ahead/README.md)): Chromium 141 through
+  * **Protocol.** Row 171's rig ([`../../lab/ask-ahead/`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/ask-ahead/README.md)): Chromium 141 through
     the product's downloader, decoding off, `dbt10_ea1141` HTJ2K, every frame's codestream checked against the
     fetch's checksums; `cubic-restart`, quinn's defaults, shared stream, one server build; the ask for the volume's
     largest frame (571 632 B), unreached, at 10 % and at 50 % of the fill. Arms T, T + B, W, W + B, each printing
@@ -386,7 +386,7 @@ frame checked against the encoder's input, each arm's full settings printed and 
   **The relay's ceiling**, fills with no ask at 2 ms: 17.7 Mbit/s delivered at 18, 100.1–100.5 at 103, 178–190 at
   200 with every visit `VOID`: **the host saturates between 103 and 200 Mbit/s**; nothing is claimed past 103.
   Rows `rows-refill.jsonl` and `rows-refill-ceiling.jsonl`, reading `refill.py`, in
-  [`../../lab/ask-ahead/`](../../lab/ask-ahead/README.md).
+  [`../../lab/ask-ahead/`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/ask-ahead/README.md).
 
   | fill at 10 %, T + B against T (median ratio, as ms of T) | strict | round-paired |
   |---|---|---|
@@ -414,7 +414,7 @@ frame checked against the encoder's input, each arm's full settings printed and 
   promising, kept as an experimental proposal, not merged). Row 181 made it `series-server`'s default; row 191 put the
   default back to quinn's 12 000, and `--initial-window-bytes 38400` runs the proposal. The fresh ask is **−26 to −38 %** in every cell
   outside the 10-packet queue, and nothing there is worse; behind 10 packets the 250 KB ask is worse, which is the
-  shallow-buffer price. Rig: `lab/scripts/first_ask_cells.sh iwdeep` ([`../../lab/iwdeep/`](../../lab/iwdeep/README.md),
+  shallow-buffer price. Rig: `lab/scripts/first_ask_cells.sh iwdeep` ([`../../lab/iwdeep/`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/iwdeep/README.md),
   `rows.jsonl`, `summary.py`), `first_ask` through `link_impair.py` under `chrt -f 50`, server `b54cb37a` (debug
   build), `cubic-restart`, quinn's defaults but the lever: each arm's banner is `congestion=cubic-restart`, plus
   `initial_window=38400` on the wide arm. Random 50 and 250 KB frames, every delivered frame compared with its
@@ -457,7 +457,7 @@ frame checked against the encoder's input, each arm's full settings printed and 
   **Measured (row 182, 2026-10-13): HTJ2K's fill stays the wire's through 218 Mbit/s even at 4×, AV1's is the
   decoders' from 50 at 4× and from 218 at 1×; the cap of 24 meets the rule (server CPU a MB ×0.79–0.86, fills and
   asks a tie) and waits on the owner's yes to become the build default.** Rig, commands and rows:
-  [`../../lab/fastclock/`](../../lab/fastclock/README.md). Run blind to row 167's reasoning; the protocol does not say
+  [`../../lab/fastclock/`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/fastclock/README.md). Run blind to row 167's reasoning; the protocol does not say
   what *decode-bound* means, so it was defined before the fill numbers: between two adjacent rates, a fill that shrinks
   by less than half of what its last byte shrinks is the decoders' from the higher rate.
 
@@ -494,9 +494,9 @@ frame checked against the encoder's input, each arm's full settings printed and 
 
   *GSO cells.* Today's build (crates.io quinn 0.11.11: 10 segments a `sendmsg`, 20 datagrams a poll) against `cap24`
   (`patches/quinn-0.11.11-mtu-gso.patch` with its ceiling at 24, so also 64 datagrams a poll, as row GS1's `cap24`);
-  the binaries differ in that alone, measured: 9.9 against 23.2 datagrams a `sendmsg` unshaped. `lab/server-load/run.py`,
+  the binaries differ in that alone, measured: 9.9 against 23.2 datagrams a `sendmsg` unshaped. `lab/server-load/run.py` (removed; at `e0dd6d4fb`),
   server on core 0, `fill_load` on 1–3, each session read-paced at 103 Mbit/s, the client sockets' buffer at 4 MB; and
-  an ask for the last frame once half the fill has landed (`lab/ask-ahead/cells.py`, Chromium 141, decoding off) at
+  an ask for the last frame once half the fill has landed (`lab/ask-ahead/cells.py` (removed; at `e0dd6d4fb`), Chromium 141, decoding off) at
   103 Mbit/s, 46 ms, behind a 20 ms and a 360 ms FIFO. 10 rounds each, Williams-ordered; 31 680 / 31 680 and 40 / 40
   exact; 3 of the 40 ask runs `VOID`.
 
@@ -534,7 +534,7 @@ frame checked against the encoder's input, each arm's full settings printed and 
 
 ## Sources
 
-Read 2026-10-13; SHA-256 of each fetch in [`SHA256SUMS`](../../lab/link-conditions/SHA256SUMS).
+Read 2026-10-13; SHA-256 of each fetch in [`SHA256SUMS`](https://github.com/dary-dc/wt-pacs/tree/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/link-conditions/SHA256SUMS).
 
 * Ookla, Speedtest Global Fixed and Mobile Network Performance Maps, 2026 Q3 parquet tiles (`ookla-open-data` on AWS),
   and its README at `teamookla/ookla-open-data` `71a1575a`.

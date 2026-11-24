@@ -6,7 +6,7 @@ earliest, ahead of that decoder's queued fill frames, cut the ask's wait for its
 *Folded 2026-11-14 from `claude/askjump-measure:docs/decode/README.md` §An ask behind the decoders, *Run as* and
 *Measured* (2026-10-22, `61a69b2c`; run command `0e3bcd51`; the flag `6896fc94`). The theory, the model's predictions
 and the protocol, fixed before the data, stay in [`../../decode/README.md`](../../decode/README.md) §An ask behind the
-decoders (2026-10-13; model [`../../../lab/ask-behind/sim.py`](../../../lab/ask-behind/sim.py)). The wait before the
+decoders (2026-10-13; model [`../../../lab/ask-behind/sim.py`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/ask-behind/sim.py)). The wait before the
 bytes are in hand, behind the fill already written to the transport, is [`ask-during-a-fill.md`](ask-during-a-fill.md).*
 
 **Variants:** A today (the frame goes to the decoder with the fewest outstanding, behind its queue); A′ today under
@@ -27,7 +27,7 @@ larger). The theory predicts B's wait R_min + T against A's R_min + 2T when ever
 
 **Rig and fixtures.** `dbt12_ea1141` (29 frames) coded twice by `lab/av1/tools/ingest_coded.py`: HTJ2K, and the
 product's AV1 (`--representation optimized --preset good:6`), each packed into a series bundle, each its own campaign.
-`lab/ask-ahead/cells.py` with decoding on, 100 Mbit/s, 23 ms one way, FIFO `--queue-ms 650`, Chromium's CPU throttle
+`lab/ask-ahead/cells.py` (removed; at `e0dd6d4fb`) with decoding on, 100 Mbit/s, 23 ms one way, FIFO `--queue-ms 650`, Chromium's CPU throttle
 at 1× and 4×; variants in `lab/scripts/order.py`'s order; 12 rounds, extended to 24 because each series had a cell not
 conclusive at 12. **Where the host saturates:** four cores, the relay alone on core 3 at `chrt -f 50`, browser, server and
 three decoders on 0–2; at 100 Mbit/s half the visits were `VOID`; at 300 Mbit/s every one. The throttle's own check read

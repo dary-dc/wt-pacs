@@ -933,7 +933,7 @@ with and without row 171's send window, at no cost to the fill?
   * Arm 3 slower than arm 1 confirms §9.4; arm 3 faster refutes the model, and the row says so.
 
 **Measured (row 180, STREAMSMEASURE, 2026-10-13): a trade-off for the owner; `shared` stays the default.** Run in a
-session given only the protocol and its rule; `lab/ask-ahead` (`cells.py`, read by `streams.py`; rows
+session given only the protocol and its rule; `lab/ask-ahead` (removed; at `e0dd6d4fb`) (`cells.py`, read by `streams.py`; rows
 `rows-streams.jsonl`). Arms: `shared`; `--send-window-follows-cwnd`; `--stream-mode per-frame`; `--stream-mode
 per-frame-asks-first`, built beside today's path for this row (lab only, [`../WIRE.md`](../WIRE.md) §Stream modes).
 Every arm Cubic (`cubic-restart`), quinn's initial window, the 10 MB send window except arm 2, the same release
@@ -1189,7 +1189,7 @@ remove. At 18 Mbit/s behind 800 ms its cwnd at the ask was 1.99 MB, under any 6 
 there, and asks-first already beat `shared` (1 817 against 2 268 ms). Row 180's ×1.97 in that cell was against the
 `window` arm (925 ms, cwnd 1.96 MB at the ask), which this model does not explain: equal windows should put asks-first
 ahead. The fill's +2.5 % there is `per-frame`'s too (+2.4 %), so it is no cap's to remove either. Rows:
-[`lab/ask-ahead/rows-streams.jsonl`](../../lab/ask-ahead/rows-streams.jsonl).
+[`lab/ask-ahead/rows-streams.jsonl`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/ask-ahead/rows-streams.jsonl).
 
 **Controllers.** Row 200 (which controllers fit) is not done; this part covers Cubic and quinn's BBR. Another
 controller enters only through what it keeps in flight: one that holds near the BDP makes the cap moot and asks-first
@@ -1227,7 +1227,7 @@ net without it.
   18/800 with equal cwnd at the ask, the RTT at the ask is reported against both; the model has no term for it.
 
 **Measured (row 211, ASKFIRSTCAPMEASURE, 2026-10-14): a trade-off for the owner; `shared` stays the default.** Run in a
-session given only the protocol and its rule; `lab/ask-ahead` (`cells.py` with `ASK_AT=0.25`, read by `askcap.py`;
+session given only the protocol and its rule; `lab/ask-ahead` (removed; at `e0dd6d4fb`) (`cells.py` with `ASK_AT=0.25`, read by `askcap.py`;
 rows `rows-askcap.jsonl`, the check outside the protocol `rows-askcap-side.jsonl`). The five Cubic arms as the protocol names them (`cubic-restart`, quinn's initial window, the
 10 MB send window unless the arm sets one) and `shared`, asks first and asks first + 6 MiB under `--congestion bbr` in
 the 18 and 103 Mbit/s cells; the same release build, Chromium 141.0.7390.37 through the product's downloader with
