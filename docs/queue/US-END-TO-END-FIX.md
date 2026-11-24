@@ -1,14 +1,18 @@
-state: started
+state: done
 started: 2026-11-24T23:26Z
-heartbeat: 2026-11-24T23:47Z
+heartbeat: 2026-11-24T23:53Z
 by: LmKctNiQ
-outputs: claude/us-end-to-end (PR 445)
+outputs: claude/us-end-to-end cf09b9d38 (e1f6b817e, 653ebb6d2), PR 445 (body updated); claude/work-ledger docs/queue/US-END-TO-END-REVIEW/findings.md §Fix
 ## Resume
-Pushed on claude/us-end-to-end: e1f6b817e (m1: `same` reads the served .sbnd's own metadata), 653ebb6d2 (B1:
-gate.yml caches lab/av1/data's three sets, fetches on a miss, ffmpeg in apt; m2: FIXTURES.md limit). Fetched, built; the step passes (usb_cine 64, usb_cine_rgb 64, dbts_a1 56, page and worker) and the swap mutant
-fails at `same`. Gate run 1 failed only at the decoders' docker rebuild (no daemon; `dockerd &` started), every step before it
-passed, the new step included; run 2 running. cf09b9d38: the line doc. Then findings.md §Fix, PR 445 body. Was: wait for
-`OUT=lab/av1/data lab/av1/fetch_data.sh usb_cine usb_cine_rgb dbts_a1` and `ingest/tools.sh`, then
-`PYTHON=python3 scripts/stacks_end_to_end.sh`, the swap mutant (usb_cine's bundle as usb_cine_rgb's) must fail, then
-`scripts/gate.sh`; findings.md §Fix; PR 445 body.
+Done. US-END-TO-END-FIX-REVIEW is owed by another session.
 ## Result
+B1 fixed: gate.yml caches lab/av1/data's three sets (~0.5 GB, keyed on data.json), fetches on a miss, ffmpeg 6.1.1
+in apt; no allowed skip added. Not shown on a runner (unified's workflow runs on PRs into it only once PR 442 lands).
+m1 fixed: `same` reads the served .sbnd's own metadata; the same-length swap mutant now fails (measured).
+m2 fixed: FIXTURES.md and the PR body limit the US path to an uncompressed 8-bit object. Nit left to the sync row.
+Step re-run: usb_cine 64/64, usb_cine_rgb 64/64, dbts_a1 56/56 exact in page and worker (measured).
+Gate: green to the decoders' docker rebuild, which the container could not run (Docker Hub 429); the three absence
+checks after it OK by hand.
+Fixtures and limits: clips lossy-sourced (function check), dbts_a1 sound; 4-core cloud host, no GPU, headless
+Chromium/SwiftShader, loopback, HTJ2K, ts client.
+Owner: none.

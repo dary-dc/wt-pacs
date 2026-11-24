@@ -74,3 +74,7 @@ US-END-TO-END-FIX, 2026-11-24 23:30–, by a session that wrote neither PR 445 n
 
 Run (**measured**, 4-core cloud host, no GPU, headless Chromium/SwiftShader, loopback, HTJ2K, ts client): the step
 alone, exit 0, usb_cine 64/64, usb_cine_rgb 64/64, dbts_a1 56/56 exact in page and worker.
+Gate on `cf09b9d38`: every step passed up to the decoders' docker rebuild, which the container could not run (no
+daemon, then Docker Hub `429 Too Many Requests` on `debian:bookworm-slim`; nothing under `client/decode/` changed);
+the three absence checks after it run by hand, each OK. PR 445's body updated (the review's copy there is this file's
+pointer).
