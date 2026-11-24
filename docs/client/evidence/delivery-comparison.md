@@ -239,6 +239,8 @@ counted row (the judge refuses: its XXH3 differs from the rows').
 
 ## 11 · Amendments
 
+*Amendment 2 (FIT-ARM-PROTOCOL, 2026-11-24), for the next run, is below §Verdict review.*
+
 Written 2026-11-22 by DELIVERY-RUN (a session that wrote neither this protocol nor its build), on its host, before any
 counted row. Host: one 4-core container (Intel Xeon @ 2.10 GHz, 15 GB), full Chromium 153.0.8010.12 for the cells,
 the headless shell 157.0.8103.78 for K3 (`claude/transport-arms` `9fad9d9b`'s runner). Rows:
@@ -457,6 +459,242 @@ sits below the premium row on `dbts_b1`.
 band's low end is above it, so the line is extrapolated there (*theory*). It holds on links without loss: on LTE and
 LOSS one goodput did not predict a fill, so no lossy link gets a *G*★ from this run. The view's effective times are
 DEVICE-THEORY's ranges, tested on one phone; the rest (0.25–0.45 s on the phone) is left out of both arms.
+
+## Amendment 2 (2026-11-24, FIT-ARM-PROTOCOL): the fit arm, a lossy-link curve, the split
+
+*Pre-registered by FIT-ARM-PROTOCOL (`claude/work-ledger:docs/queue-2026-11-24.md`), a session that will build and run
+none of it, for DELIVERY-RUN-2. It covers `claude/reviews-2026-11-28:docs/decisions/delivery-per-link.md` item 4 and
+`phone-decode-route.md` item 3. Nothing here is measured. Every number is **source** (quoted from the file named),
+**theory**, **derived** (arithmetic on rows named), or **retrodiction** (the new model applied to the 2026-11-23 rows
+it was shaped after: a sanity check, never a test). §1–§10 bind as written except where this section says otherwise;
+§11 A1–A5 were that run's and do not carry.*
+
+### A2.1 · What changes, in one table
+
+| | 2026-11-23 run | DELIVERY-RUN-2 |
+| --- | --- | --- |
+| arms | A, A′, B, C1, C2 | **A, A′, B, C1, FIT, SPLIT** (C2 dropped: `delivery-per-link.md` item 3 answered it) |
+| order | Williams square, 5 arms, 10 rounds | Williams square, 6 arms (even *n*: a period is 6 rounds), **12 rounds** (two periods) |
+| lossy forms' wire | one start and one goodput (A2) | **a curve**: wire time as a function of bytes, from calibration loads of arm B (A2.4) |
+| C1 | press → painted | press → painted **and ask → last byte** (§5 asked it; the rows lacked it) |
+| the relay | pinned to core 0 | pinned, every browser process's affinity checked per load, two escalations registered in advance (A2.6) |
+| a view load's record | fill, frames | also the switch's reading: *G* of its first group, *d*_V, the pick (A2.5) |
+
+### A2.2 · FIT, and how it differs from S★
+
+**The arm.** HTJ2K only. Each frame is first sent as the smallest exact prefix of today's codestream at the resolution
+level that fits the viewport, decoded at that level and clamped to [0, 2^B − 1]
+([`../../adr/resolution-fitting-for-large-frames.md`](../../adr/resolution-fitting-for-large-frames.md) §7 and §8.2;
+RESLEVEL, row 59 of [`../../av1/queue.md`](../../av1/queue.md)); the rest of a frame is sent only on a zoom past the
+fit. No tiles, no strips, no change to the codestream. The viewport is a phone held upright, 1080 × 2100 device pixels
+(the browser's bars off a 1080 × 2400 screen, the *assumption* of [`../../htj2k-tiles.md`](../../htj2k-tiles.md)
+§Screen resolution), set as the page's viewport at DPR 1 so that CSS and device pixels agree (device pixels decided
+2026-10-11, ADR §8.2). The fit is that file's table (*derived*): **level 1 on `dbts_b1` (2560 × 3328), level 0 on
+`dbts_a1` (1142 × 1785) and `dbts_c1` (976 × 2513)**.
+
+**So on two of the three volumes FIT is B.** A frame that fits at level 0 is sent whole: FIT there is the exact fill,
+checked by the frame digest from its first picture. Those loads are the build's control (FIT ÷ B predicted ×1.00, A2.7).
+Only `dbts_b1` has a level to gain, and of the 19 DBT volumes 1 reaches level 1 upright
+(`claude/mobile-decode:docs/decode/mobile/route-policy.md` §4.6, *source*).
+
+**Against S★** (`lab/htj2k-tiles/improve/stage3/`; [`../../htj2k-tiles.md`](../../htj2k-tiles.md) §Improve and
+§Verdict). S★ is the screen-level fill with four changes, I1–I4: a re-encoded profile (tile-parts at resolutions, TLM, a
+sixth decomposition on `dbts_b1`), three strips a frame as separate codestreams, band-major entries (Layout 1, a store
+change), and level pictures and coded bands kept in OPFS. FIT has none of them: it is that file's **S** (§Screen
+resolution, "Today's HTJ2K codestream, nothing re-encoded … two store entries a frame, prefixes first"), the layout RESLEVEL
+measured on the lab's links (prefixes first, two entries a frame). Where the fit is level 0 the two differ only in S★'s strips, which split a frame's decode
+in three and change no byte of the fill. S★ was measured on its own lab page against the OQ view at G 1 and G 16, on
+`r5000` (the one link-bound cell its host left), and was withdrawn for the scroll (its R5: `dbts_a1` every slice ×14
+later, `dbts_c1` ×11, `dbts_b1` ×1.23, *measured* there). FIT is measured here on the product's viewer, against A at G 8,
+on five forms, and judged by the fill model, so its result carries by the model (§8), not by S★'s ratios.
+
+**Window and level on a fitted picture** (*theory*). A window maps each painted sample to a grey value. At level 0 the
+painted samples are the frame's own, at its stored depth (12 bits on `dbts_a1`, `dbts_c1`). At level 1 they are the
+clamped reversible 5/3 low band at the stored depth (10 bits on `dbts_b1`): every one exact against the codestream, but
+not the frame resampled (they differ by more than one code from the area-resampled frame on most in-window samples,
+[`../../htj2k-tiles.md`](../../htj2k-tiles.md) §What *Lossless* means in each, *measured* there). So a window or level change
+on a fitted picture needs no byte and no exact frame: it windows the full depth of what is on screen. **Only a zoom past
+the fit needs the rest**, because the screen then shows more samples than the level holds. On the AV1 view a window
+does need the exact frame: the view's samples are lossy at Q 8 and cut to 10 bits on `dbts_a1` and `dbts_c1`, so a
+narrow window magnifies the coding error and cannot reach the stored 12 bits; and the round's phone returned its
+10-bit hardware frames as 8-bit `RGBA` (`phone-decode-route.md` §3, cell 4, *measured*), so a hardware view windows 8
+bits a sample. The run checks the theory's premise, not a reader's view: each FIT load, after its fill, sets a narrow
+window (centre and width of the series' own default, width ÷ 8) and reads back the canvas; it must equal the window
+applied to the level picture's truth. Nothing about what a reader sees is claimed.
+
+**What each arm is, beside speed and bytes** (the owner, 2026-11-23 ~02:00):
+
+| arm | the first picture | checked | on a phone with hardware AV1 |
+| --- | --- | --- | --- |
+| A | the lossy view (Q 8; `dbts_a1`, `dbts_c1` at 10 of 12 bits) | in software, by its reconstruction digest | **unchecked**: no browser reads a hardware frame back at full precision |
+| C1 | as A, then one exact frame on request | the exact frame, bit for bit | the view unchecked, the exact frame checked |
+| B | the exact frame | every frame, bit for bit | unchanged (HTJ2K is decoded in WASM) |
+| FIT | the exact frame (level 0), or the exact level-1 picture | every frame (level 0), every level picture against its truth, the whole frame on zoom | unchanged |
+| SPLIT | either, per group | as A for view groups, as B for exact groups | view groups unchecked |
+
+### A2.3 · SPLIT, and the switch
+
+**SPLIT** is `route-policy.md` §4.6's split fill: each group of 8 frames is asked as the view or as 8 exact frames,
+by which resource is idle. "Bytes waiting for a decoder mean the link is ahead, so the next group is asked as exact
+frames; decoders waiting for bytes mean the cores are ahead, so the next group is asked as the view" (*source*, §4.6).
+Two decode jobs at most at a time, of either form (`decoders=2` holds for the load as a whole); both sessions dialed at
+load. Its prediction (*theory*, §4.6's formula, assumption A of that section: decode times add) per frame, with *b* a
+frame's bits and *d* its decode at two decoders ÷ 2, from this host's K1–K2:
+
+```
+t = (b_E d_V − b_V d_E) ÷ (G (d_V − d_E) + (b_E − b_V))        for G_A = b_V ÷ d_V < G < G_B = b_E ÷ d_E
+x = (d_V − t) ÷ (d_V − d_E)                                      the share of exact groups
+SPLIT's fill = W(b₁) + n t, b₁ the first group's view bytes; below G_A, SPLIT is A (x = 0)
+```
+
+With the 2026-11-23 inputs (`lab/delivery/inputs.json`, *derived*): *G*_A is 25, 36 and 25 Mbit/s (`dbts_a1`, `b1`, `c1`),
+*G*_B 740–1 210. On CLEAN and PUB (*G* ≈ 87) SPLIT ÷ A ×0.89, ×0.80, ×0.86 with *x* 0.15, 0.26, 0.19; on CR (A wire-bound: its wire 8.7–13.4 s against a decode floor
+of 1.7–5.4 s) and on LTE and LOSS (wire-bound) SPLIT is A, *x* ≤ 0.05 (*theory*: decoders wait
+for bytes, so every group is asked as the view). *Risk, named:* LTE's first megabytes arrive at about the link's rate
+(below), so its first groups may be asked as exact frames before the link slows; then SPLIT lands above A's band. The
+groups' forms are recorded per load.
+
+**The switch** (`route-policy.md` §4.5: switch to the exact series when *G* > *m* × *b*_E ÷ *d*_V) **cannot fire on this
+host** (*derived*): *b*_E ÷ *d*_V is 368, 166 and 285 Mbit/s on `dbts_a1`, `b1`, `c1`, every one above the TUN's 90
+Mbit/s ceiling (at one decoder *d*_V's lone time on this host was not measured; §4.3's 99.4 ms on `dbts_b1`
+would put it at 173). So the run tests only its reading: every view load (A, A′, C1's fill,
+SPLIT's view groups) records *G* of its first group (its bytes ÷ its first byte to its last byte), *d*_V (its decode
+times ÷ the decoders) and the pick at *m* = 1. Predicted (*theory*): the pick is the view in every load; *d*_V within the
+fill band of K2's; *G* at or under the form's (a floor under the credits, §4.5) on CLEAN, PUB and CR. A load that picks the
+exact series is reported by name. What would fire it: a host past *G*★ or a slower decode, neither here (§A2.9).
+
+### A2.4 · The lossy forms: a wire curve instead of one goodput
+
+**Why.** On LTE and LOSS the line through K3's two prefixes gave a negative start (A2), and one goodput missed every
+fill shorter than the second prefix (§Results). The rows say why (*measured*, `rows/LTE.jsonl`, arm B, `dbts_b1`, the
+median over 10 loads of each frame's last byte from the dial): frames 1–4 (8.6 MB) by 2.0 s, ~34 Mbit/s; frames 13–16
+(another 8.7 MB) in 7.2 s more, ~9.6 Mbit/s. The first megabytes go near the link's rate before loss shrinks the window. And
+K3's tool is not the arms' client: on LOSS its first `dbts_b1` frame landed at 3.4–3.6 s (`rows/K3-LOSS.jsonl`, the
+transport runner on the headless shell 157), arm B's at 1.2 s (the viewer on Chromium 153).
+
+**The model** (*theory*: the wire time depends on the bytes asked, whatever their codec). For LTE and LOSS, *W*(*b*) is
+the piecewise-linear curve through the points (Σ bytes of frames 0..*i*, the median over loads of frame *i*'s last byte
+from the dial), per (form, volume), from **K3′**: calibration loads of arm B, 4 a (form, volume), interleaved, not
+counted, run after K2 and before the pilot, by the arms' own client. Below the first point the curve is the line from (0,
+3 RTT + 20 ms) to it; past the last it continues the last segment. Everything else in §4.1 stands: fill =
+max(*W*(*B*) + *d*₁, *W*(*b*₁) + *D*), with *W* this curve. CLEAN, PUB and CR keep K3's line, which held there.
+
+**Retrodiction** (the curve from the 2026-11-23 counted B loads, applied to that run's A, A′ and C1 fills of the same
+form and volume, not a test): LTE ×1.01–1.06 on A against the 23rd's ×0.47–0.66; LOSS ×0.87 (`dbts_b1`) and ×0.93
+(`dbts_c1`), and ×0.56 on `dbts_a1`, whose 0.66 MB lies below the curve's first point (1.26 MB). Wire times alone:
+×0.94–1.32 on LTE, ×0.69–1.32 on LOSS. So the curve is predicted to hold where a fill spans at least one exact frame's
+bytes, and to stay below its band on LOSS `dbts_a1` (*theory*: a fill under the first point is extrapolated through the
+start). Bands as §8.
+
+**C1 on every form.** Ask → last byte is predicted RTT + *T*ₛₛ(*f*) on CLEAN, PUB and CR (§4.1), and *W*(*f*) − (3 RTT +
+20 ms) + RTT on LTE and LOSS (the curve's first frame, less its dial, plus the ask). Press → painted is ask → last byte +
+*h*₁ + 17 ms, as §4.1. *Theory, stated before any row:* the short-round-trip excess of the 23rd (+43 to +117 ms,
+Verdict review m2) lies in ask → last byte, so on CLEAN and PUB ask → last byte lands **above** its band and the rest
+(press → painted less ask → last byte) **in** its band against *h*₁ + 17 ms. If the excess is in the rest, the window's
+growth is cleared and the page says so.
+
+### A2.5 · Clocks and records added to §5
+
+* **FIT**: fill (dial → the last frame's first picture, level or whole, checked); and **zoom latency**, 1 s after the
+  fill ends, a zoom past the fit on the frame on screen (frame 0, as C1's, §Results' build note), from the zoom to the
+  whole frame painted with *✓ Lossless*, with its ask → last byte. On a level-0 volume the frame is already whole: the
+  zoom asks nothing and its latency is one paint.
+* **SPLIT**: fill; each group's form; *x* (exact groups ÷ groups).
+* **C1**: ask → last byte.
+* **Every view load**: *G* of the first group, *d*_V, the pick at *m* = 1 (A2.3).
+* **Every load**: each browser process's `Cpus_allowed_list` and the per-core softirq counts before and after
+  (`/proc/softirqs`), the relay's involuntary context switches (A2.6).
+
+### A2.6 · The relay, the guard kept
+
+The guard's 52 `VOID` loads fell 51 on decoding view arms with the relay already on core 0 (Verdict review m5; RESULTS-BRIEF
+§1.12, `claude/reviews-2026-11-28:docs/reviews/results-2026-11-22.md`). The guard stands as §6 wrote it (p99 ≤ 1 ms). The
+cause is not known; this host shows no SMT siblings (`lscpu`: one thread a core, as the guest sees it), so the two
+candidates the rig can see are a browser process outside cores 2–3 and the receive path's softirqs landing on core 0.
+Per load: a browser process allowed outside 2–3 is `VOID` (`escaped`); softirqs and context switches are recorded, not
+judged. **Registered in advance, in order, each only if the pilot's guard `VOID` share on view arms exceeds 10 %, each an
+amendment before the first counted row:** (i) the relay at `SCHED_FIFO` (`chrt -f 50`) if the namespace permits it,
+else said so; (ii) the relay alone on cores 0–1, the two series' servers and the page server with the browser on 2–3,
+their CPU recorded. A container of the relay's own is used if the
+host offers one; this one does not. If the guard still voids over 25 % of a cell's loads, the cell is read strict and
+round-paired (§6) and the host is named as saturating the relay.
+
+### A2.7 · The predictions, for scale
+
+The run's predictions come from its own K1, K2, K3 (clean forms) and K3′ (lossy forms), in `predictions.json`, pushed
+before the first counted row as §4.2 says. K1 adds each `dbts_b1` frame's level-1 prefix bytes (RESLEVEL: 25.8–29.0 % of
+a frame; 26.9–27.3 % on `dbts_b1`, *source*); K2 adds *d*₁ at level 1 by the bench lever on the prefixes (RESLEVEL: ×0.27–0.31
+of the whole frame's decode, Chromium 141, *source*). Below, the 2026-11-23 inputs with the prefix at 0.271 and the level's
+decode at 0.29 of the whole, LTE and LOSS through the curve from that run's B loads (*derived*, seconds):
+
+| cell | `dbts_b1` A | B | FIT | FIT ÷ A | FIT ÷ B | FIT zoom | `dbts_a1`, `dbts_c1`: FIT ÷ A |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| CLEAN | 5.75 | 9.97 | 2.72 | ×0.47 | ×0.27 | 0.20 | ×3.55, ×2.96 (FIT is B) |
+| PUB | 5.85 | 10.08 | 2.83 | ×0.48 | ×0.28 | 0.22 | ×3.41, ×2.86 |
+| CR | 13.80 | 35.07 | 14.96 | ×1.08 | ×0.43 | 1.25 | ×2.67, ×2.62 |
+| LTE (16) | 2.66 | 23.40 | 2.47 | ×0.93 | ×0.11 | 0.49 | ×14.6, ×9.9 |
+| LOSS (8) | 5.00 | 24.35 | 4.63 | ×0.93 | ×0.19 | 0.88 | ×10.3, ×9.2 |
+
+What it says (*derived*): **FIT is wire-bound on every form** (its level decode floor ~0.34 s against ≥ 2.5 s of wire on
+`dbts_b1`); on this host it fills `dbts_b1` faster than A where A is decode-bound (CLEAN, PUB, ×0.47) and about as fast
+where both are wire-bound (×0.93–1.08), at ×1.25 A's bytes over the whole series (0.271 ÷ 0.2161) and ×1.28–1.29 over LTE's and LOSS's prefixes (7.2 and
+3.6 MB against 9.3 and 4.6). On `dbts_a1` and `dbts_c1` FIT is
+B and loses to A by 2.6–15× on every form. The zoom costs the rest at the fill's window (*assumption*: a session that
+just filled keeps its window over 1 s idle), not slow start: 0.20 s on CLEAN, 1.25 s at 800 ms. On a phone, where A's
+decode is slower (DEVICE-THEORY), FIT's lead on clean links grows; this host cannot measure that (§9).
+
+### A2.8 · Rounds, the rule, mutants
+
+* **What FIT-ARM-BUILD builds** (lab only, behind the viewer's lab gate, `scripts/check_lab_absent.sh` green): the FIT
+  series of `dbts_b1` (two entries a frame, every level-1 prefix first, as RESLEVEL's lab carried them, with each level
+  picture's truth), the `fit` lever (prefixes asked, decoded at the level and clamped, painted scaled to the viewport),
+  the zoom press, the `split` lever, K3′ in `inputs.mjs` and the curve in `predict.mjs`, and A2.5's records.
+* **Rounds**: 12 a cell (two Williams periods of 6 arms), 216 loads; at the 23rd's pace ~52 (CLEAN), ~53 (PUB), ~98
+  (CR), ~69 (LTE), ~71 (LOSS) minutes (*derived*). Order of cells as §6. CR and any cell past 2 h run detached (A5).
+* **The rule** (§8, its bands unchanged): a (cell, volume, arm, clock) **holds** when its median ratio is in its band and
+  at least 10 of its 12 rounds are; under 10 counted rounds it is `CANNOT HOLD`. Clocks judged: every fill (the fill
+  band), C1's press → painted and ask → last byte, FIT's zoom (the latency band). *x*, the switch's reading and the
+  window read-back are reported against their predictions, not judged. Regime as §8. A/A as §7. FIT ÷ A and SPLIT ÷ A
+  per cell are reported, measured, beside their predictions; **nothing ranks the arms or is adopted** (§8).
+* **Stops** (the run stops, never voided): a frame not exact; a FIT level picture unequal to its truth (RESLEVEL's
+  witness, `lab/av1/decode/resolution-level/ll.py`, computed per frame at the build); a FIT zoom painted without the
+  frame digest matching; a window read-back unequal to the window of the truth.
+* **Each new check fails once with its code broken**, at the build (FIT-ARM-BUILD), the mutant named in its review: one
+  sample flipped in a level-1 prefix (stop); the FIT lever ignored, every frame asked whole on `dbts_b1` (the judge
+  refuses: the load's bytes are not the prefixes'); the clamp removed (stop: 15 of 35 RESLEVEL frames were not exact
+  without it, *source*); SPLIT asking only the view (the pilot refuses: no exact group on CLEAN `dbts_b1`, where *x* =
+  0.26 is predicted); K3′ built from A loads (the predictor refuses: its rows must be B's); a browser process allowed
+  on core 0 (`VOID` `escaped`).
+* **Pilot**: as §6, two rounds a cell; it also checks that every FIT `dbts_b1` load asked only prefixes until its zoom and
+  that SPLIT asked at least one group of each form on CLEAN.
+
+### A2.9 · What this run cannot decide, beyond §9
+
+* **The switch firing**: no form here passes *G*★ (A2.3). The phone, or a host past ~170 Mbit/s with the same decode,
+  decides it.
+* **FIT on volumes that fit at level 0 on a phone** is B; its gain is only on frames larger than the viewport
+  (`dbts_b1` here, 1 of 19 upright), and whether an exact level picture may be shown before the frame, and in what
+  words, is the owner's (`htj2k-tiles.md` §Verdict, *For the owner*).
+* **The split's assumption A** on a phone, where an HTJ2K decoder may run on cores the view leaves idle
+  (`route-policy.md` §4.6): this host's two cores are shared by both forms, so A is the host's case, not a phone's.
+* **A hardware view**: everything here decodes the view in software and checks it; A's unchecked hardware view is a
+  property named in A2.2's table, not measured.
+
+**Where the host saturates**: the TUN at 100 Mbit/s (nothing claimed above 90); the browser's two cores in every
+decode-bound load (A, A′, C1's fill and SPLIT on CLEAN and PUB), this host's decode, not a phone's; the relay's guard on
+decoding loads (A2.6). FIT is wire-bound everywhere, so its loads test the wire side only.
+
+**Where the link, not the decode, binds** (amendment 28 item 3.7): B and FIT on every form; A on CR, LTE and LOSS; C1's
+exact frame and FIT's zoom on every form.
+
+**How it serves the value statement** (amendment 27 item 7): FIT is the one arm whose every picture is exact and checked
+on every phone, against a view that is unchecked in hardware; the run prices it in fill seconds and bytes on each form.
+
+**Fixtures and limits**: three DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`; 56, 50, 69 frames), only
+`dbts_b1` with a level to gain on the assumed viewport; the view at Q 8 G 8; no breast ultrasound in any arm (`usb_cine`
+is lossy-sourced, [`../../FIXTURES.md`](../../FIXTURES.md); its 512 × 512 frames fit the viewport at level 0, so FIT
+would be B there, *derived*); one 4-core cloud container without a GPU, software decode, headless Chromium; a userspace TUN relay at ≤ 90
+Mbit/s, its forms scaled and assumed, none a radio; the viewport an assumption, not a phone's measured one.
 
 ## Fixtures and limits
 
