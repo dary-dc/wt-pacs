@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 2026-11-24.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 and PAGE-RUNS-PROTOCOL 2026-11-24.
 
 ## Goal
 
@@ -130,6 +130,10 @@ small enough that every open item has an owner and a next step.
    message names its conflicts); `scripts/gate.sh` full on the merged tree, OK in 722 s. Each PR commented and closed.
    Skipped, with why: 420 (commits after its last review), 413, 418, 419 (review owed), 438 (blocker open), 439
    (review owed then), 411, 412, 424 (structural, the owner's item 1), 406, 408 (rigs), 404, 405, 409 (do not merge).
+   PAGE-RUNS-PROTOCOL (2026-11-24, `claude/page-runs`, no PR): [`../reviews/page-runs.md`](../reviews/page-runs.md)
+   pre-registers the pages' cloud runs (transport flags, report reruns, engine cells, asking, the cache, four as time
+   allows); each run's lab build is named first; `repository` item 4's two-host check `blocked`, its commands given.
+   Owed: PAGE-RUNS-PROTOCOL-REVIEW.
 
 ## Unification (the owner, 2026-11-09)
 
