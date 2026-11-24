@@ -67,11 +67,12 @@ const ended = new Set();
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function fail(index, reason) {
+/** `lost`: the session went and its re-dials failed, so the view may ask it once more (docs/client/design.md §Decided). */
+function fail(index, reason, lost = false) {
   records.delete(index);
   wanted.delete(index);
   order.delete(index);
-  toConsumer({ kind: "failed", index, gen: generation, reason });
+  toConsumer({ kind: "failed", index, gen: generation, reason, lost });
   serveWant();
 }
 
@@ -448,8 +449,8 @@ async function resume() {
   }
   redials = 0;
   const reason = "the session was lost and could not be re-dialled";
-  for (const i of [...wanted]) fail(i, reason);
-  for (const [i, rec] of [...records]) if (rec.state === "wire") fail(i, reason);
+  for (const i of [...wanted]) fail(i, reason, true);
+  for (const [i, rec] of [...records]) if (rec.state === "wire") fail(i, reason, true);
 }
 
 function onDone(d) {

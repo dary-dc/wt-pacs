@@ -207,7 +207,7 @@ export function start(offscreen, onLost) {
 }
 
 /**
- * One paint: upload if the frame is new, window if the frame or the window changed, place always. A lab's `settle`
+ * One paint, a null `frame` the cleared canvas: upload if the frame is new, window if the frame or the window changed, place always. A lab's `settle`
  * returns once drawn: `fence`, or `read`, which waits on a busy page in Firefox. README §When a paint has executed
  */
 export async function paint({ frame, same, display, width, height, dpr, read, settle }) {
@@ -216,6 +216,12 @@ export async function paint({ frame, same, display, width, height, dpr, read, se
   if (canvas.width !== width || canvas.height !== height) {
     canvas.width = width;
     canvas.height = height;
+  }
+  if (!frame) {
+    gl.viewport(0, 0, width, height);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    return { ms: performance.now() - t0, uploaded: false, pixels: read ? readback(width, height) : null, drawn: performance.timeOrigin + performance.now() };
   }
   const f = format(frame);
   const fresh = upload(frame, f, same);

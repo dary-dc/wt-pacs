@@ -83,7 +83,7 @@ export class ViewWorker {
   }
 
   /**
-   * `emit(type, event)` hears renderer, progress, shown and failed `{scope: frame | series | cache | worker, reason}`.
+   * `emit(type, event)` hears renderer, progress, shown, withheld `{i, reason}` and failed `{scope: frame | series | cache | worker, reason}`.
    * `lab`, none in the product: lab/viewer/levers.js names its fields.
    */
   constructor(canvas, { meta, fillMode, size, emit, lab = {} }) {

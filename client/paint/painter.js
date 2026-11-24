@@ -38,7 +38,7 @@ export class Painter {
     this.#worker.postMessage({ kind: "start", canvas: offscreen }, [offscreen]);
   }
 
-  /** At the canvas's CSS size × devicePixelRatio; `read` returns the RGBA, rows top-down. README §The contract */
+  /** At the canvas's CSS size × devicePixelRatio, a null `frame` as the cleared canvas; `read` returns the RGBA, rows top-down. README §The contract */
   paint(frame, display, { read = false } = {}) {
     if (this.#lost) return Promise.reject(new Error(this.#lost));
     const dpr = self.devicePixelRatio || 1;
@@ -47,7 +47,7 @@ export class Painter {
     const id = this.#next++;
     // A SharedArrayBuffer arrives in the worker as a new object each time, so sameness is decided here.
     const l = this.#last;
-    const same = l !== null && l.pixels === frame.pixels && l.width === frame.width && l.height === frame.height &&
+    const same = l !== null && frame !== null && l.pixels === frame.pixels && l.width === frame.width && l.height === frame.height &&
       l.bits === frame.bits && l.signed === frame.signed && l.components === frame.components && l.byteOffset === frame.byteOffset;
     this.#last = frame;
     return new Promise((resolve, reject) => {

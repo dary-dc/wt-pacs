@@ -45,7 +45,7 @@ function paint(frame, display, { read = false } = {}) {
   const same = frame === lastPainted;
   lastPainted = frame;
   const { width, height, dpr } = controller.size;
-  const draw = () => painter.paint({ frame: asPainted(frame.info), same, display, width: Math.round(width * dpr), height: Math.round(height * dpr), dpr, read, settle });
+  const draw = () => painter.paint({ frame: frame && asPainted(frame.info), same, display, width: Math.round(width * dpr), height: Math.round(height * dpr), dpr, read, settle });
   return gl.ready ? draw() : gl.promise.then(draw);
 }
 
@@ -97,7 +97,7 @@ async function connect({ port, url, certHash, opts: { writer, holdEveryOther, ..
     dialled,
     cache: writer === "decoders" && store.cache ? { key: url } : undefined,
     onFrame: (f) => controller.take(f),
-    onError: ({ frameIndex, reason }) => controller.refused(frameIndex, reason),
+    onError: ({ frameIndex, reason, lost }) => controller.refused(frameIndex, reason, lost),
   });
   // A task later, so the dial has been posted: connect posts it after a microtask.
   if (gl.canvas) setTimeout(() => startPainter(gl.canvas));

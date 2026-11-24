@@ -204,18 +204,84 @@ test("each failure is said with its scope", async () => {
   const wants = [];
   const { c, events } = rig({ held: [0], fillMode: false, wants, paint: () => Promise.reject(new Error("context lost")) });
   c.show(3);
-  c.refused(3, "refused by the server");
+  c.refused(2, "refused by the server");
   c.refused(-1, "no decoder");
   await c.repaint();
   const failures = events.filter(([t]) => t === "failed").map(([, e]) => e);
   assert.deepEqual(failures, [
-    { scope: "frame", i: 3, reason: "refused by the server" },
+    { scope: "frame", i: 2, reason: "refused by the server" },
     { scope: "series", reason: "no decoder" },
     { scope: "worker", reason: "paint: context lost" },
   ]);
-  // A refused frame is no longer owed: the same want sends it again.
+});
+
+/** A refused frame is withheld: no later want of the worker view's store names it again, and a step onto it waits for nothing. */
+test("a refused frame stays out of every later want", async () => {
+  const wants = [];
+  const { c } = rig({ held: [0], wants });
+  c.show(0);
+  c.refused(2, "refused by the server");
+  c.show(1);
   c.show(3);
-  assert.deepEqual(wants, ["3", "3"]);
+  assert.deepEqual(wants, ["1,2,3", "3,1"]);
+  const step = await Promise.race([c.show(2).then(() => "painted"), new Promise((r) => setTimeout(r, 50, "waiting"))]);
+  assert.equal(step, "painted", "a step onto it waits for no arrival");
+});
+
+/** A step of the page view onto a refused frame asks nothing, and so does a step onto a frame whose ask failed. */
+test("the page view never asks a withheld frame again", async () => {
+  const { c, calls } = rig({ held: [0] });
+  c.refused(2, "refused by the server");
+  c.client.requestFrame = (i) => (calls.push(`ask ${i}`), Promise.reject(new Error(`frame ${i} unavailable: refused`)));
+  await c.show(3);
+  await c.show(2);
+  await c.show(3);
+  assert.deepEqual(calls, ["ask 3"]);
+});
+
+/** A lost ask whose re-dials ran out is asked once more, not withheld; lost a second time, it is withheld. docs/client/design.md §Decided */
+test("worker view: a lost fill frame is wanted once more, then withheld", async () => {
+  const wants = [];
+  const { c, events } = rig({ held: [0], wants });
+  c.show(0);
+  const reason = "the session was lost and could not be re-dialled";
+  c.refused(2, reason, true);
+  assert.equal(c.store.withheld.has(2), false, "not withheld after one loss");
+  assert.deepEqual(wants, ["1,2,3", "1,2,3"], "asked once more at once");
+  c.refused(2, reason, true);
+  assert.equal(c.store.withheld.get(2), reason, "withheld after the second loss");
+  c.show(1);
+  assert.ok(wants.slice(2).every((w) => !w.split(",").includes("2")), `no later want names it (${wants})`);
+  assert.deepEqual(c.store.want(c.want()), [1, 3], "the misses leave it out");
+  assert.equal(events.filter(([t]) => t === "failed").length, 2);
+});
+
+/** In the page view a lost ask on the current frame is asked once more; lost again, the step asks nothing more. */
+test("page view: a lost ask is asked once more, then withheld", async () => {
+  const { c, calls } = rig({ held: [0] });
+  const lost = (i) => Promise.reject(Object.assign(new Error(`frame ${i} unavailable: the session was lost and could not be re-dialled`), { lost: true }));
+  c.client.requestFrame = (i) => (calls.push(`ask ${i}`), i === 2 ? lost(i) : Promise.resolve(frame(i)));
+  await c.show(2);
+  for (let n = 0; n < 5; n++) await Promise.resolve();
+  assert.deepEqual(calls, ["ask 2", "ask 2"]);
+  assert.equal(c.store.withheld.has(2), true);
+  await c.show(3);
+  await c.show(2);
+  assert.deepEqual(calls, ["ask 2", "ask 2", "ask 3"]);
+});
+
+/** The current frame withheld clears the view: the previous slice's picture is never left under the new slice. */
+test("a withheld current frame paints nothing in its place", async () => {
+  const { c, painted, events } = rig({ held: [0], fillMode: false });
+  await c.repaint();
+  c.client.requestFrame = () => new Promise(() => {});
+  c.show(1);
+  c.refused(1, "a depth cut's frame decoded at 16 bits");
+  assert.equal(painted.at(-1).f, null);
+  await c.repaint();
+  assert.deepEqual(events.filter(([t]) => t === "withheld").at(-1)[1], { i: 1, reason: "a depth cut's frame decoded at 16 bits" });
+  await c.show(1);
+  assert.equal(painted.at(-1).f, null, "a step back onto it clears again");
 });
 
 /** The ledger hands a lab harness the fill's time once every frame is here and none before, and each frame's reads and decode end. */

@@ -82,6 +82,33 @@ async function aDeliveredFrameIsNotFailed() {
 }
 await aDeliveredFrameIsNotFailed();
 
+/** A frame the downloader failed as lost says so, to a fill's onError and to an ask's rejection alike. */
+async function aLostFrameSaysSo() {
+  let worker;
+  globalThis.Worker = class {
+    constructor() {
+      worker = this;
+    }
+    postMessage(m) {
+      if (m.kind === "dial") queueMicrotask(() => this.onmessage({ data: { kind: "started" } }));
+    }
+    terminate() {}
+  };
+  globalThis.crossOriginIsolated = true;
+  const failures = [];
+  const client = await DownloaderClient.connect("https://x.invalid/", "ab", { onError: (f) => failures.push(f) });
+  const reason = "the session was lost and could not be re-dialled";
+  worker.onmessage({ data: { kind: "failed", index: 2, gen: 0, reason, lost: true } });
+  worker.onmessage({ data: { kind: "failed", index: 4, gen: 0, reason: "refused" } });
+  check(failures.map((f) => `${f.frameIndex}:${f.lost}`).join() === "2:true,4:false", `onError carries lost (${failures.map((f) => `${f.frameIndex}:${f.lost}`)})`);
+  const asked = client.requestFrame(5).catch((e) => e);
+  worker.onmessage({ data: { kind: "failed", index: 5, gen: 0, reason, lost: true } });
+  const e = await asked;
+  check(e?.lost === true, `an ask's rejection carries lost (${e?.lost})`);
+  client.close();
+}
+await aLostFrameSaysSo();
+
 /** A frame's bytes are a Uint8Array over its pixels, whether they came shared or transferred. */
 async function bytesOverEitherBuffer() {
   let worker;
