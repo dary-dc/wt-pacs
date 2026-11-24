@@ -15,7 +15,10 @@ export const inject = (decode) => async (bytes, unit, preview, avoid) => {
   const r = await decode(bytes, unit, preview, avoid);
   if (fault === "sample-always" || (fault === "sample" && avoid == null)) {
     new Uint8Array(r.sab)[0] ^= 1;
-    found.postMessage({ index: at, at: performance.timeOrigin + performance.now() });
+    const t = performance.timeOrigin + performance.now();
+    found.postMessage({ index: at, at: t });
+    // report-arms' D5a-busy: told from this thread, the driver's kill never waits for a busy page thread.
+    if (q.get("ping")) fetch("/fault", { method: "POST", body: JSON.stringify({ load: q.get("load"), at: t }) }).catch(() => {});
   }
   return r;
 };

@@ -1,7 +1,10 @@
 // node lab/report-arms/run.test.mjs — the driver's rules (report-plan.md §7.2, §7.3): the wait runs before the
 // browser's close; a server without `telemetry` is refused; a cell is whole rounds in Williams order, every row with
-// its round and predecessor, `off'` its own unit loading as `off`, and its balance reported; a load whose driver never answers is cut at its limit and VOID.
-import { drive, plan, balance, unit, serverBanner, killAfterFault, relayNetns, secureOrigins, DRIVER_VOID } from "./run.mjs";
+// its round and predecessor, `off'` its own unit loading as `off`, and its balance reported; a load whose driver never answers is cut at its limit and VOID;
+// D5a-busy's kill delay is drawn per load on 0–50 ms from its seed, and a fixed delay fails the spread check; its kill
+// is timed from the worker's fault report and sent at the delay, with no call through the page.
+import { drive, plan, balance, unit, serverBanner, killAfterFault, relayNetns, secureOrigins, DRIVER_VOID, killDelay,
+  delaySpread, killOnFault } from "./run.mjs";
 
 let failed = 0;
 const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
@@ -24,6 +27,29 @@ const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
   const error = await drive(async () => ({ close: () => { closed = true; } }), () => new Promise(() => {}), 5000, 50);
   check(error === DRIVER_VOID && closed && Date.now() - t0 < 1000,
     `drive: steps that never return are cut at the limit, the browser killed and the row VOID (${error}, ${Date.now() - t0} ms)`);
+}
+{
+  const units = ["off", "beacon:H", "beacon:Y", "keepalive:H", "keepalive:Y", "session:1", "session:Y", "session:H", "off'"];
+  const rows = plan(units, 18).map((r) => ({ ...r, killDelay: killDelay(r.round, units.indexOf(r.unit)) }));
+  const all = rows.map((r) => r.killDelay.ms);
+  check(all.every((d) => d >= 0 && d < 50) && killDelay(3, 4).seed === 304 && killDelay(3, 4).ms === killDelay(3, 4).ms,
+    "killDelay: on 0–50 ms, seed round × 100 + index, the same draw for the same seed");
+  check(new Set(all).size === all.length, "killDelay: every load its own draw");
+  const spread = delaySpread(rows);
+  check(Object.values(spread).every((s) => !s.void), `delaySpread: the run's 18 draws per arm span ≥ 30 ms (${JSON.stringify(spread)})`);
+  const fixed = delaySpread(rows.map((r) => ({ ...r, killDelay: { seed: 0, ms: 50 } })));
+  check(Object.values(fixed).every((s) => s.void), "delaySpread: a fixed 50 ms delay makes every cell VOID");
+}
+{
+  const t0 = performance.timeOrigin + performance.now();
+  let crashedAt = null;
+  const r = await killOnFault({ heard: () => t0, pause: (ms) => new Promise((ok) => setTimeout(ok, ms)),
+    crash: async () => { crashedAt = performance.timeOrigin + performance.now() - t0; } }, 40);
+  check(r.reached === "mismatch" && crashedAt >= 39 && crashedAt < 60 && r.kill.atKill >= 39,
+    `killOnFault: the crash sent the drawn delay after the worker's fault (${crashedAt?.toFixed(1)} ms)`);
+  const none = await killOnFault({ heard: () => null, pause: (ms) => new Promise((ok) => setTimeout(ok, ms)),
+    crash: async () => { throw new Error("no crash without a fault"); }, timeoutMs: 30 }, 40);
+  check(none.reached === "no mismatch" && none.kill === null, "killOnFault: no fault heard, no kill");
 }
 {
   const ok = "wt_url=https://127.0.0.1:1/\ncert_sha256=ab12\ntransport=x\ntelemetry=compile-time\n";

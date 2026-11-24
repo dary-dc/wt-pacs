@@ -42,7 +42,8 @@ try {
   }
 
   // The floor beside L and C (§7.2): the arm's bare call, five times 200 ms apart, before the fill.
-  const floorOf = { off: "beacon", stub: "beacon", beacon: "beacon", keepalive: "keepalive" }[q.get("arm")];
+  const floorOf = { off: "beacon", stub: "beacon", beacon: "beacon", keepalive: "keepalive",
+                   "keepalive-offdecoder": "keepalive" }[q.get("arm")];
   if (q.get("floor") && floorOf) {
     const { floor } = await import(`./${floorOf}/floor.js`);
     const stand = new Load(ctx);
@@ -61,7 +62,7 @@ try {
   // An arm whose worker sends (KEEPALIVE's) takes §7.1's init constants in its worker's query.
   const workerQuery = new URLSearchParams({ fault: q.get("fault") ?? "none", at: q.get("at") ?? -1, base: ctx.base,
     load: ctx.load, session: ctx.session, build: ctx.build, codec: ctx.codec, ...(ctx.source ? { source: ctx.source } : {}),
-    ...(mutant ? { mutant } : {}) });
+    ...(mutant ? { mutant } : {}), ...(q.get("ping") ? { ping: "1" } : {}) });
   const decoderWorker = `${arm.worker ?? "/lab/faultbench/decode/decoder.js"}?${workerQuery}`;
   // An arm whose downloader sends (SESSION's) takes the same query.
   const worker = arm.downloader && `${arm.downloader}?${workerQuery}`;

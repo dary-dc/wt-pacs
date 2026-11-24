@@ -19,7 +19,7 @@ export function counters() {
            refused: { notObject: 0, tooLarge: 0, path: 0 } };
 }
 
-export async function startSink({ dir, port = 8790, statics = null, mutant = null, host = "127.0.0.1" }) {
+export async function startSink({ dir, port = 8790, statics = null, mutant = null, host = "127.0.0.1", onFault = null }) {
   const c = counters();
   const seen = new Set();
   const isolated = { "Cross-Origin-Opener-Policy": "same-origin", "Cross-Origin-Embedder-Policy": "require-corp",
@@ -57,6 +57,10 @@ export async function startSink({ dir, port = 8790, statics = null, mutant = nul
 
   const server = createServer((req, res) => {
     const path = new URL(req.url, "http://x").pathname;
+    if (path === "/fault" && onFault && req.method === "POST") {
+      let body = "";
+      return req.on("data", (b) => { body += b; }).on("end", () => { onFault(JSON.parse(body)); answer(res, 204); });
+    }
     if (path === "/report/counters") return answer(res, 200, { "Content-Type": "application/json" }, JSON.stringify(c));
     const kind = path.startsWith("/report/") ? path.slice(8) : null;
     if (kind !== null && req.method !== "POST") return answer(res, 405);

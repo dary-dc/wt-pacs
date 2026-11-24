@@ -53,6 +53,14 @@ each in its own directory. Nothing here is a result: the rows these arms leave a
   row's ending at the fill's end + 6 s (D5 at 50 or 500 ms after the mismatch), the wait with the browser alive, its
   close, and one row of what the read tool finds for that load, with its `round`, `predecessor` and mutants. Each cell
   ends with a line `{cell, rounds, balanced}`, `balanced()` per unit.
+* **D5a-busy** (`docs/reviews/page-runs.md` §2(b) on `claude/page-runs`): Lbusy's page, the renderer killed a delay
+  drawn per load on 0–50 ms (`killDelay`, seed round × 100 + the unit's index) after the fault. The decoder worker
+  posts `{load, at}` to the sink's `/fault` and the driver sends `Page.crash` at the delay: any call through the busy
+  page thread (CDP's, a dedicated worker's DevTools session included) waits for its long task, so the kill would
+  always fall after the hand-off. The cell's line carries `spread` (an arm's delays span ≥ 30 ms, else `VOID`).
+* **KEEPALIVE-Y°** is the unit `keepalive-offdecoder:Y`: KEEPALIVE's carrier with `off`'s decoder.
+* **Firefox** needs `FIREFOX_PATH`; a load whose driver does not return in 120 s is killed and recorded
+  `VOID: driver`; each load's profile is removed when its browser exits.
 
 ## The seam
 

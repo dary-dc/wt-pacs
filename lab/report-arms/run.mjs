@@ -151,6 +151,39 @@ export async function killAfterFault({ since, pause }, ms) {
   return { learned, atKill, late: learned > ms };
 }
 
+/** `{load, at}` the decoder worker posts to the sink at its fault (D5a-busy), `at` epoch ms; one load at a time. */
+const faults = [];
+const nowMs = () => performance.timeOrigin + performance.now();
+
+/** D5a-busy: the kill timed from the worker's own report of the fault and sent at once; every call through the busy
+ * page thread waited for its long task, so the kill always fell after the hand-off (page-runs.md §2). */
+export async function killOnFault({ heard, crash, pause, timeoutMs = 30000 }, ms) {
+  const end = Date.now() + timeoutMs;
+  while (heard() === null && Date.now() < end) await pause(1);
+  if (heard() === null) return { reached: "no mismatch", kill: null };
+  const kill = await killAfterFault({ since: async () => nowMs() - heard(), pause }, ms);
+  await crash();
+  return { reached: "mismatch", kill: { ...kill, safetyHanded: null } };
+}
+
+/** D5a-busy's kill delay, ms: uniform on 0–50, from seed = round × 100 + the unit's index (page-runs.md §2(b)). */
+export function killDelay(round, index) {
+  let x = (round * 100 + index + 0x6d2b79f5) | 0;
+  x = Math.imul(x ^ (x >>> 15), x | 1);
+  x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+  return { seed: round * 100 + index, ms: (((x ^ (x >>> 14)) >>> 0) / 2 ** 32) * 50 };
+}
+
+/** The spread check run on each D5a-busy cell before it is read: an arm's drawn delays span at least 30 ms. */
+export function delaySpread(rows) {
+  const by = Map.groupBy(rows.filter((r) => r.killDelay), (r) => r.unit);
+  return Object.fromEntries([...by].map(([u, rs]) => {
+    const ms = rs.map((r) => r.killDelay.ms);
+    const span = Math.max(...ms) - Math.min(...ms);
+    return [u, { span, void: span < 30 }];
+  }));
+}
+
 /** Each ending of §7.3, from the fill's end + 6 s (D5: from the mismatch). */
 const ENDINGS = {
   D1: (b, p, o) => cdp.navigate(b, p, o.other),
@@ -195,9 +228,10 @@ async function front(receiver, out, sink, sinkMutant, at) {
   return { port, counters, close: async () => { rec?.kill(); await n.close(); } };
 }
 
-async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir, out, via, at, engine }) {
+async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir, out, via, at, engine, round, index }) {
   const { arm, timing } = unit(u);
   const row = { unit: u, arm, timing, ending, mutant: mutant ?? null, sinkMutant: sinkMutant ?? null, engine };
+  if (ending === "D5a-busy") row.killDelay = killDelay(round, index);
   if (ending === "D6" && !at.control) throw new Error("D6 needs --tun");
   const origins = [via.port, sink.port].map((port) => `http://${at.host}:${port}`);
   const launch = engine === "firefox" ? () => cdp.launch({ secure: at.ns.length ? origins : [] })
@@ -206,11 +240,19 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
     await cdp.openPage(b, "about:blank");
     const q = new URLSearchParams({ arm, timing, dir: `/${relative(ROOT, dir)}`, fault: "sample", at: AT,
       wt: srv?.wt ?? "https://127.0.0.1:9/", hash: srv?.hash ?? "00", ...(mutant ? { mutant } : {}),
-      ...(ending === "D8" ? { forced: "page" } : {}), ...(ending === "Lbusy" ? { busy: "1" } : {}),
-      ...(ending.startsWith("L") ? { floor: "safety" } : ending === "C" ? { floor: "load" } : {}) });
-    const p = await cdp.openPage(b, `http://${at.host}:${via.port}/lab/report-arms/index.html?${q}`);
-    row.load = await cdp.evaluate(b, p, "new Promise((r) => { const t = setInterval(() => rig.load && (clearInterval(t), r(rig.load)), 10); })");
+      ...(ending === "D8" ? { forced: "page" } : {}), ...(ending === "Lbusy" || ending === "D5a-busy" ? { busy: "1" } : {}),
+      ...(ending.startsWith("L") ? { floor: "safety" } : ending === "C" ? { floor: "load" } : {}),
+      ...(ending === "D5a-busy" ? { ping: "1" } : {}) });
+    faults.length = 0;
+    const opening = cdp.openPage(b, `http://${at.host}:${via.port}/lab/report-arms/index.html?${q}`);
+    const killing = ending === "D5a-busy" && killOnFault({ heard: () => faults[0]?.at ?? null, pause,
+      crash: async () => cdp.crash(b, await opening) }, row.killDelay.ms).then((k) => Object.assign(row, k));
+    const p = await opening;
+    // D5a-busy's page may be killed before any call through its thread returns; the worker's report names the load.
+    row.load = killing ? (await killing, faults[0]?.load ?? null)
+      : await cdp.evaluate(b, p, "new Promise((r) => { const t = setInterval(() => rig.load && (clearInterval(t), r(rig.load)), 10); })");
     const other = `http://${at.ns.length ? at.host : "localhost"}:${sink.port}/lab/report-arms/probe.html?id=away`;
+    if (killing) return;
     if (ending.startsWith("D5")) {
       row.reached = await waitFor(b, p, "rig.faultAt !== null", 30000, 1) ? "mismatch" : "no mismatch";
       row.kill = await killAfterFault({ since: () => cdp.evaluate(b, p, "rig.sinceFault()"), pause }, ending === "D5a" ? 50 : 500);
@@ -259,20 +301,23 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const out = join(WORK, `sink-${Date.now()}`);
   mkdirSync(out, { recursive: true });
   const dir = series();
-  const sink = await sinkAt(at, { dir: out, port: 0, statics: ROOT, mutant: o["sink-mutant"] });
+  const sink = await sinkAt(at, { dir: out, port: 0, statics: ROOT, mutant: o["sink-mutant"], onFault: (t) => faults.push(t) });
   const via = { name: o.receiver, ...await front(o.receiver, out, sink, o["sink-mutant"], at) };
   const servers = {};
   try {
     for (const ending of o.endings.split(",")) {
       const rows = plan(units, Number(o.rounds));
+      const done = [];
       for (const { round, unit: u, predecessor } of rows) {
         const srv = ending === "D8" ? null : (servers.up ??= await server(dir, out, at));
         const row = { round, predecessor, ...await load({ unit: u, ending, mutant: o.mutant, sinkMutant: o["sink-mutant"],
-          wait: Number(o.wait), sink, srv, dir, out, via, at, engine: o.engine }) };
+          wait: Number(o.wait), sink, srv, dir, out, via, at, engine: o.engine, round, index: units.indexOf(u) }) };
         appendFileSync(o.out, JSON.stringify(row) + "\n");
         console.log(JSON.stringify(row));
+        done.push(row);
       }
-      const line = { cell: ending, rounds: Number(o.rounds), balanced: balance(rows, units) };
+      const line = { cell: ending, rounds: Number(o.rounds), balanced: balance(rows, units),
+                     ...(ending === "D5a-busy" ? { spread: delaySpread(done) } : {}) };
       appendFileSync(o.out, JSON.stringify(line) + "\n");
       console.log(JSON.stringify(line));
     }

@@ -2,10 +2,12 @@
 // keepalive POST inside the call; a send while visible retried once after 1 s, a hide send never; past OpenTelemetry's
 // budget the frames dropped, then keepalive off; the worker sends each failed check at once and tells the page on its
 // 204; the page sends every safety report not yet acknowledged at each hide; the floor sends the same bytes, to their
-// kind's path.
+// kind's path; KEEPALIVE-Y°'s arm is the same carrier on `off`'s decoder (no worker of its own).
 import keepalive, { post } from "./keepalive.js";
 import { reporter, failed } from "./worker.js";
 import { floor } from "./floor.js";
+import * as wrapped from "../arms/keepalive.js";
+import * as plainDecoder from "../arms/keepalive-offdecoder.js";
 
 let failures = 0;
 const check = (ok, what) => ok || (failures++, console.error(`FAIL ${what}`));
@@ -202,6 +204,10 @@ check(failed(rescued) && failed({ kind: "frame", exact: false }) && !failed({ ki
   floor({ base: "/report", load: "11111111-1111-4111-8111-111111111111", body,
           send: (url, b, keep) => (calls.push({ url, b, keep }), Promise.resolve(true)) });
   check(calls[0]?.url === "/report/safety", `floor: a safety body to the arm's safety path (${calls[0]?.url})`);
+}
+{
+  check(plainDecoder.default === wrapped.default && wrapped.worker && plainDecoder.worker === undefined,
+    "KEEPALIVE-Y°: KEEPALIVE's carrier, and no decoder worker but off's");
 }
 
 if (failures) process.exit(1);
