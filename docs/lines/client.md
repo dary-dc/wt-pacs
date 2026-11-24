@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-23 (the engines' path fix), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-23 (the engines' path fix; the memory a navigation leaves), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -69,6 +69,18 @@ exact frame bit for bit, and only checked claims on screen.
 * **Two failures from the phone run**, each owed theory, a simulated reproduction, a failing test and its fix as a
   draft PR, then a review: a failed Lossless not retried after a lossy fill; a hidden page losing its AV1 decoder
   mid-group.
+* **The memory a navigation leaves** (MEMORY-LEAK-TRACE, 2026-11-23,
+  [`../client/evidence/navigation-memory.md`](../client/evidence/navigation-memory.md); findings, no fix): the page view's
+  frames are `SharedArrayBuffer`s held on the page's thread, which V8 does not count toward collection, so after a
+  navigation they stay resident: one renderer 1.6 → 4.1 GiB over four `dbts_b1` loads in headless Chromium 153, the
+  view worker flat in the cloud; not the back/forward cache. The cause is established for the cloud page view only:
+  on the phone the loads after its two worker-view loads grew +1 452 and +1 528 MiB, where the same order in the
+  cloud (`dbts_b1-q8-g8`) adds +7 and −43, so the phone's growth there is unexplained (the URL's view not proof of
+  what ran, hardware decode; PHONE-READ-CODE-CHECK open). The releases in reach are the view worker (VIEW-PAGE's
+  call) or transferred buffers on the page view (a copy each paint, and an unrun experiment's to adopt).
+  Reviewed 2026-11-23 (PR 434 §MEMORY-LEAK-TRACE-REVIEW, one blocker); fixed the same day (MEMORY-LEAK-TRACE-FIX); re-reviewed (§Re-review): B1 open only in the
+  row's status Result, so round two (MEMORY-LEAK-TRACE-FIX-2): that Result corrected in place, and the cloud rig's URL
+  (no `overlay=1`, no `beacon=`) and unrecorded series stated in the evidence. Re-reviewed again the same day (§Re-review 2): no blocker open.
 * **D0's hardware-decode probe** on `claude/hw-probe` (`lab/devices/`, row HW-PROBE-PAGE): built, headless test
   green in Chromium 153 on software paths only (2026-11-14); draft PR #393, reviewed 2026-11-15 (its body §Review):
   every RGB copy and WebGL2 read there fits studio-range expansion even where the frame says `fullRange: true`, so
