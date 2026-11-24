@@ -14,6 +14,9 @@ evaluation release**, written by PHASE2-PLAN on 11-23 into `docs/queue-2026-11-2
 evening, quoted: transport stays a main investment, the HTJ2K fit control arm, the cache as which store, budgets as
 ranges, limitations with how found, improvement rounds, the view's memory bound, the device kit kept, hardware-decoded
 view frames shown unchecked with the mark describing the view).
+2026-11-24: the phase 2 file reviewed (three blockers) and fixed in place by PHASE2-PLAN-FIX: staging merges
+into `claude/phone-run` for the next phone round, DEFAULTS-TABLE and US-END-TO-END into `claude/unified`, S5 held;
+its re-review is PHASE2-PLAN-FIX-REVIEW.
 
 **The routines** (claude.ai routines; their prompts switch from the program to phase 2 on 11-24 00:00 and close
 after 11-27 23:59): queue workers (Opus) A `trig_01Y6vNmyv6K54Uqcs8RXV1Gu` at :45, B `trig_014L1Sgp7h8TW8qnzWMZ1HEQ`
