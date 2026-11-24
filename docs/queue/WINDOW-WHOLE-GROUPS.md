@@ -1,14 +1,14 @@
 state: started
 started: 2026-11-24T12:27Z
-heartbeat: 2026-11-24T12:32Z
+heartbeat: 2026-11-24T12:34Z
 by: VuNcjzKy
-outputs: claude/window-whole-groups 5353ae8de (the failing test)
+outputs: claude/window-whole-groups e8a52cfe4 (test 5353ae8de, change a9524505b, docs e8a52cfe4); PR not yet open
 ## Resume
-Done: 5353ae8de on claude/window-whole-groups (from origin/claude/unified b059388b6): client/view/window.test.mjs, the
-real downloader behind a stand-in transport and decoders, a Controller with budget 15 on 50 frames G = 8. On the tip it
-FAILS: forward 268 frames on the wire for 50 steps, backward 280 (candidates.md's model said 398 and 234); a sawtooth
-23|24 refetches groups 2 and 3 on every turn. So §2 holds in the product. Next: the change in client/view/controller.js
-(wantFrom takes the group length: the k >= 2 whole groups nearest the frame) and client/view/store.js (frames outside
-the want let go first); then mutate, gate, PR into claude/unified.
-Commands: cd wt-pacs; git checkout claude/window-whole-groups; node client/view/window.test.mjs; scripts/gate.sh
+Done: the failing test 5353ae8de (tip: 268 forward, 280 back); the change a9524505b (controller.js wantFrom's group
+length, nearestGroups; store.js lets go outside the want first; viewer.js firstWant passes meta.lossy.g); the window
+test passes (34 forward, 40 back), controller 47/47; mutants M1-M6 each fail a test (M1 store, M3 neighbour ahead, M4 no
+group, M5 store budget: window.test; M2 one group, M6 tie: controller.test); docs e8a52cfe4.
+Next: scripts/gate.sh on claude/window-whole-groups (running now), then the draft PR into claude/unified with
+mcp__github__create_pull_request, body: prediction beside the test, memory added, mutants, fixtures and limits.
+Commands: cd wt-pacs; git checkout claude/window-whole-groups; scripts/gate.sh 2>&1 | tee /tmp/gate.log
 ## Result
