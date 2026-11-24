@@ -1,0 +1,4 @@
+pair (htj2k), client ts, view worker: 56/56 received, 56 exact, routes {"htj2k":56}, renderer llvmpipe, or similar, fill 1062 ms, first exact on screen 344 ms, readbacks 0:0 28:0 55:0 55:0, page heard 21 messages, 0 with pixels, cache: undefined on disk, asked [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55], 0 writes on the view thread
+FAIL: series (av1): refused: /series/dbts_a1/metadata answered 404
+FAIL: the two codecs painted different readbacks:  against 3a08adb9e577e7251607f9a32f0cb226d28c29cb3fa8886915219cc65fc39197,7288e8f9145024c2a0317099368d93303f128f975620255138b2367e4090ce50,3df608eb220ff6fa5aae891e1a8bee23d29df8bab44e86cc86a6ed45ca51a7c9,1375daf81c8b939d69ab879e713a6c4bafc41478646364c63f8db86066b55b15
+viewer check: 2 failing (firefox, ts, view worker, writer none)
