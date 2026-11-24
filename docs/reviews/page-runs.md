@@ -361,6 +361,46 @@ NODE_PATH=$(npm root -g) PYTHON=.venv/bin/python FIREFOX_PATH=<160.0.1> \
 python3 lab/opfs-cache/summary.py rows/
 ```
 
+### Results (ENGINE-CELLS, 2026-11-24, a session that wrote none of this protocol)
+
+**3a, measured.** Six counted runs, 19:37 UTC, in the pre-registered order (159.0.1, 160.0.1, 160.0.1, 159.0.1,
+159.0.1, 160.0.1), each a fresh profile; Firefox fetched from `archive.mozilla.org`, both tarballs matching their
+`SHA256SUMS`. Rig `claude/engines` `7048b6534` (`client/contract/webcodecs-trace.js`, clause
+`aGroupTracedThroughWebCodecs`, run only when named); its mutant (`drop=instance`) fails the completeness check. Raw
+logs, a summary and a node read of the units' layouts: `claude/engines:docs/decode/engine-cells/3a/`.
+
+* **Complete:** 6 of 6, none `VOID`. The failure set is the logs' on every run (frames 1–7, 9–15, 17–19), so the
+  clause is deterministic on both builds.
+* **Routing:** every frame of every run was submitted to its keyframe's decoder worker (20 of 20, six times).
+  Keyframes 0, 8 and 16 went to the stream's `VideoDecoder`, came back with the chunk's own timestamp, and were exact.
+* **Inter frames never reach a `VideoDecoder`** (0 chunks in six runs). `av1.js` `route()` chooses per payload from
+  `av1-payload.js` `layouts()` (lines 168–174), which reads the layout from the unit's own sequence header. A delta
+  unit has none, so an 8-bit inter frame is probed as `g8` (Main, 4:0:0), while its keyframe (profile 1) is probed
+  as `c8`. Firefox refuses the `g8` probe at configure (`av01.0.00M.08.1.110.02.02.02.0`: "The given encoding is not
+  supported.", every run), so the frame goes to dav1d-WASM. dav1d never decoded the keyframe, and `continues()`
+  fails the frame: "frame N−1 was not decoded before it here".
+* **"Elsewhere" is a reading of missing frames.** `dispatch-rig.ts:1228` compares the decoder of a frame that never
+  arrived (`undefined`) with its keyframe's. Every "elsewhere" frame is a failed frame, not a misrouted one.
+* **Against the prediction:** *the dispatch is ours* **held as to whose fault it is**: the client's, not Gecko's.
+  **Its mechanism missed**: the cause is not the downloader's dispatch and not callback timing in
+  `av1-webcodecs.js`, but the layout chosen for a unit with no sequence header. The refutation condition did not
+  arise: no wrong samples came back from Firefox's `VideoDecoder`, because it was never handed an inter frame. So
+  how the engine decodes inter frames is **not shown** by this cell, right or wrong.
+* **Derived, not run:** Chromium passes because it accepts the `g8` probe, so its inter frames stay on the stream
+  that holds the keyframe. On Firefox, an 8-bit AV1 series in groups whose keyframe layout passes (`c8`, `g8f`)
+  fails every inter frame by name. An ultrasound colour view coded AV1 at G > 1 would be one such series. The grey
+  DBT view is not affected, because Firefox also refuses its keyframe's `g8`, so the whole group goes to dav1d
+  (`engines` row 1). Frames fail by name and never come back wrong.
+* **A bug with no trade-off, not built here** (a run row): the fix is for an inter frame to take its group's layout
+  from its keyframe. It is named for BRIEF-WEEKEND's list. `engines` item 3 now reads: the client's layout choice,
+  not the engine.
+
+Fixtures and limits: `client/contract/av1/g8x20` only, the rig's synthetic 8-bit 4:4:4 set of 20 frames in groups
+of 8, not DBT, not ultrasound; one 4-vCPU cloud container without a GPU, headless Firefox 159.0.1 and 160.0.1 on
+Linux x86-64, software decode; no timing claimed. Decode only, no link, so the transport line does not apply. How it
+serves the value statement: the Firefox reader of a colour stack in groups gets a view that fails by name; the fix
+restores that view, and every frame stays exact.
+
 ## 4 · Asking (`asking` §6: P1, P1b, P1c, the corrected P2) → ASK-CELLS
 
 **The question.** Which frames does the store let go first when a reader scrolls back and forth past its window?
