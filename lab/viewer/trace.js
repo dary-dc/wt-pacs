@@ -35,11 +35,7 @@ export function waits(steps, held) {
   };
 }
 
-/**
- * `asking` §6's trace from frame 0: steps up to `lo` (leg 0, the approach), then `count` legs of `leg` frames between
- * `lo` and `lo + leg`, the last step of each a turn; `oneWay`, frames 1 … n − 1 as one leg. `short`, the mutant: legs
- * one frame short.
- */
+/** Leg 0 climbs to `lo`, then `count` legs between `lo` and `lo + leg`, each ending in a turn: docs/reviews/page-runs.md §4 */
 export function legPath({ lo = 0, leg, count, oneWay = false, short = false }, n) {
   if (oneWay) return Array.from({ length: n - 1 }, (_, k) => ({ i: k + 1, turn: false, leg: 1 }));
   const len = short ? leg - 1 : leg;
@@ -53,11 +49,7 @@ export function legPath({ lo = 0, leg, count, oneWay = false, short = false }, n
   return path;
 }
 
-/**
- * Seconds a leg waited, each step's frame held at `heldMs` against its `dueMs`: legs from `from` on (the first pass,
- * and under `skip` the first steps, not counted); `live`, the share of their steps whose frame was not held when due;
- * `received`, frames that arrived after them began.
- */
+/** Seconds each counted leg (from `from`) waited; `live`, its steps' share not held when due; `received`, frames that came. */
 export function legWaits(steps, { from = 2, skip = 0 } = {}) {
   const counted = steps.filter((x) => x.leg >= from).slice(skip);
   const legs = [...new Set(counted.map((x) => x.leg))];

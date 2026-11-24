@@ -4,7 +4,7 @@ import { legPath, STEP_MS } from "./trace.js";
 
 /** Which frame the store lets go first, as `docs/client/evidence/ask-model.md` §5 simulates it; `centred` is the product's own. */
 export const HOLDS = ["behind", "ahead34", "struck", "rule", "centred"];
-/** Past either end of any series, and small enough that the store's ranks stay exact. */
+// Past either end of any series, and small enough that the store's ranks stay exact.
 const FAR = 1e6;
 
 /** The rank of a frame `delta` from the display, positive ahead in the reader's direction: the highest goes first. */
@@ -24,11 +24,7 @@ export function windowOf(hold, { s, dir, moving, rho, w, n }) {
   return Array.from({ length: n }, (_, i) => i).sort((a, b) => rank(a) - rank(b) || a - b).slice(0, w);
 }
 
-/**
- * The lab hold on a page view's controller: its want becomes the hold's window and, past the budget, the store lets go
- * the frame the hold ranks last. The store's own rule lets go the farthest from `near`; a victim at either end of what
- * is held is made the farthest by moving `near` past the other end for that one put. Returns the state the driver sets.
- */
+/** The hold on a page view's controller: its want, and past the budget the victim made the store's farthest from `near`. */
 export function install(controller, hold, { rho, w, n }) {
   const state = { dir: 1, moving: true, interior: 0 };
   if (hold === "centred") return state;
@@ -55,11 +51,7 @@ export function install(controller, hold, { rho, w, n }) {
   return state;
 }
 
-/**
- * The reader of a leg trace on a display that never skips: each step's frame is shown once held, the next step due one
- * step after it, a dwell at each turn. `aim` tells the hold the reader's direction and whether it moves; the input names
- * the next frame before the display reaches it, so the hold is told at the step's due time.
- */
+/** A leg trace on a display that never skips: each step shown once held, the next due a step later; the hold told when due. */
 export async function drive({ spec, n, controller, show, errors, hold }) {
   const path = legPath(spec, n);
   const state = hold.state;
