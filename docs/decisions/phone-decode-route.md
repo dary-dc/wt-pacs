@@ -9,10 +9,12 @@ of this question's rows, from pushed results only; nothing run. Inputs at: `clau
 fixed and re-reviewed, no blocker open); `claude/reviews-2026-11-18:docs/reviews-2026-11-18.md` §2–§3 (B1).
 PHONE-READ-CODE-CHECK (whether each load of the 2026-11-22 round ran the run commit's client) was done 2026-11-23
 07:34 (`claude/phone-run` `2b242245`): every load carries fields only the newer code writes, no load set apart, no
-result corrected; 18 of 29 changed modules leave no field, so that much is not established. Read again 2026-11-23
-by row DECISION-PAGES-FIX under the owner's word of 2026-11-23 ~02:00 (the program, amendment 28: "for the next
-demo, we will accept hardware decoding and not checking"; `docs/decisions/README.md` §Review B1): items 6 and 9
-changed, §7 names the reopen.
+result corrected; 18 of 29 changed modules leave no field, so that much is not established. Read again 2026-11-23 by
+row DECISION-PAGES-FIX under the owner's word of 2026-11-23 ~02:00 (the program, amendment 28: "for the next demo, we
+will accept hardware decoding and not checking"; `docs/decisions/README.md` §Review B1): items 6 and 9 changed, §7
+names the reopen. Read again 2026-11-24 by row PHONE-CARRY (`claude/work-ledger:docs/queue-2026-11-24.md`): no mark
+**provisional**; PHONE-READ, -FIX, -CODE-CHECK, PHONE-READ-3D and its review are carried as they stand, and §8.1
+names the PHONE-ROUND-2 cell each open item waits for.
 
 Labels: **source** (quoted in the file named), **theory**, **derived**, **measured**; **(A)** an assumption named so
 that a measurement can replace it. *The view* is the optimal-quality AV1 series, *the exact series* its HTJ2K pair
@@ -184,6 +186,27 @@ ranges: 4.1 is §5's view column, 4.2 the exact column, 4.4 the better of them p
 4.5 the view's, 4.6 and 4.7 have no number. m4, PHONE-READ-CODE-CHECK open (above). m5, the HTJ2K fill factor ×1.36
 may be the receive path, not decode; it moves only *G*_B's lower ends and the exact column's upper ends. (m4 is
 closed: PHONE-READ-CODE-CHECK done 2026-11-23, no load set apart.)
+
+### 8.1 · What still waits for a phone (PHONE-CARRY, 2026-11-24)
+
+Each item against the cells PHONE-ROUND-2-PREP's brief carries (`docs/phone-rows/round-2.md` on `claude/phone-run-2`,
+not yet written); the round is the owner's local session.
+
+| item | waits for | cell |
+| --- | --- | --- |
+| 6, 9 (the hardware view, unchecked) | M5 at a volume's size, the depth it reaches the painter | PHONE-ROUND-2, item 7's M5 |
+| 7 (M17, M5) | the two asks themselves | PHONE-ROUND-2, item 7's M17 and M5 |
+| 5 (decoders per form), 8, the class table's *d*_V | cell 1 on a second phone | §Middle-band phone (MIDDLE-PHONE-RUN, the owner's account), not PHONE-ROUND-2 |
+| 10 (the byte cells held) | a second phone's M4 and item 7's M5 | §Middle-band phone and PHONE-ROUND-2's M5 |
+| the exact frame's 216.5 ms against 80–130 predicted (§4) | a cause | **no cell asks it** in PHONE-ROUND-2-PREP's brief: named for that row |
+
+**The round's code bounds the view's memory** (PR 435, on `claude/unified` since UNIFIED-SYNC-1124 `b7cc007f7`, which
+`claude/phone-run-2` merges). **Theory, from the code, not run:** `memoryWindow` gives 15 frames on `dbts_b1` (2560 ×
+3328 at two bytes), and with no cache the fill asks no more than the window; the round page's `fillFailure`
+(`lab/devices/round.mjs`) fails a load that "received" fewer than the series' `frameCount`. So a viewer fill (cells 2
+and 3; cell 1 is the bench) of `dbts_b1` on that code fails as written, and a fill that passes is not the 11-22 fill
+this page's 3.68 s and 1.74 s measured. PHONE-ROUND-2-PREP's dry run decides it; the bound's size at two values (its
+brief) needs a lab setting `claude/unified` does not have (`viewer.js` passes no budget).
 
 Rows: DEVICE-THEORY, -REVIEW, -FIX, -FIX-REVIEW (PR 414); PHONE-ROUND (the owner's local session), PHONE-READ,
 -REVIEW, -FIX, -FIX-REVIEW, MOBILE-DECODE-REJUDGE (client queue); ROUTE-POLICY, ROUTE-POLICY-REVIEW (PR 397); earlier,
