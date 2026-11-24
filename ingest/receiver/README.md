@@ -17,7 +17,8 @@ cargo test -p pacs-receiver                       # every step, refusal and cras
 `src/test/receive.rs` holds a test per step and per refusal; `src/test/addition.rs` the merge of an addition (a late
 instance in the middle and at the end, a resend, each refusal, the read-back from the device); `src/test/crash.rs` kills
 a child process (the test binary itself, re-run on `crash_child`) after each of the eight points between steps, in four
-cases, and restarts. The metadata's bound is 8 MiB under test (1 GiB built), so the zstd bomb test stays small. The read-back
+cases, and restarts; `src/test/signed.rs` runs case 1 of [`docs/av1/payload-format.md`](../../docs/av1/payload-format.md)
+§5 (P4's signed sources) through a series package and an addition. The metadata's bound is 8 MiB under test (1 GiB built), so the zstd bomb test stays small. The read-back
 tests read `/proc/thread-self/io` and so need Linux; the `EXDEV` test needs `/dev/shm` on another filesystem than the
 build, and prints `SKIPPED` without it.
 
@@ -69,6 +70,11 @@ A mutation is the named check removed or inverted unless the row says otherwise.
 | `study_db.rs` | restore keeps written rows | `a_study_db_reading_back_wrong_is_undone` |
 | `study_db.rs` | restore keeps the audit record | `a_study_db_reading_back_wrong_is_undone` |
 | `study_db.rs` | study DB pages not dropped | `the_study_db_is_verified_from_the_device` |
+| `merge.rs` | merged range cast to `i8` | `an_addition_with_another_offset_merges_to_the_signed_union` (2026-11-21) |
+| `merge.rs` | merged range read as unsigned | `an_addition_with_another_offset_merges_to_the_signed_union` (2026-11-21) |
+| `merge.rs` | min and max picks swapped | `an_addition_is_merged_into_the_series_bundle_in_display_order, an_addition_with_another_offset_merges_to_the_signed_union` (2026-11-21) |
+| `merge.rs` | a merged frame's payload offset zeroed | 3 tests, among them `an_addition_with_another_offset_merges_to_the_signed_union` (2026-11-21) |
+| `lib.rs` | `check_frames` refuses a negative `min` | 4 tests, among them `signed_sources_are_served_as_sent` (2026-11-21) |
 | `lib.rs` | two filesystems accepted | `incoming_on_another_filesystem_is_refused` |
 | `lib.rs` | no lock | `a_second_receiver_on_one_incoming_is_refused` |
 | `lib.rs` | recovery keeps work dirs | `a_crash_between_any_two_steps_leaves_the_serving_tree_whole` |
