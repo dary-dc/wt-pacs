@@ -576,24 +576,46 @@ exact series is reported by name. What would fire it: a host past *G*★ or a sl
 
 **Why.** On LTE and LOSS the line through K3's two prefixes gave a negative start (§11 A2), and one goodput missed every
 fill shorter than the second prefix (§Results). The rows say why (*measured*, `rows/LTE.jsonl`, arm B, `dbts_b1`, the
-median over 10 loads of each frame's last byte from the dial): frames 1–4 (8.6 MB) by 2.0 s, ~34 Mbit/s; frames 13–16
+median over 10 loads of each frame's last byte from the dial): frames 1–4 (8.47 MB) by 2.0 s, ~34 Mbit/s; frames 13–16
 (another 8.7 MB) in 7.2 s more, ~9.6 Mbit/s. The first megabytes go near the link's rate before loss shrinks the window. And
 K3's tool is not the arms' client: on LOSS its first `dbts_b1` frame landed at 3.4–3.6 s (`rows/K3-LOSS.jsonl`, the
 transport runner on the headless shell 157), arm B's at 1.2 s (the viewer on Chromium 153).
 
 **The model** (*theory*: the wire time depends on the bytes asked, whatever their codec). For LTE and LOSS, *W*(*b*) is
 the piecewise-linear curve through the points (Σ bytes of frames 0..*i*, the median over loads of frame *i*'s last byte
-from the dial), per (form, volume), from **K3′**: calibration loads of arm B, 4 a (form, volume), interleaved, not
-counted, run after K2 and before the pilot, by the arms' own client. Below the first point the curve is the line from (0,
+from the dial), per (form, volume), from **K3′**: calibration loads of arm B, 8 a (form, volume), interleaved, not
+counted, run after K2 and before the pilot, by the arms' own client (8, not 4: one LOSS B load is much its own draw,
+its first `dbts_b1` frame 1.08–4.54 s over 10 loads, and the curve that retrodicts below used 9–10; review m5; ~48 loads,
+~20 min at the 23rd's B pace). *Departure from the brief, named* (review m7): the brief asks the lossy forms' goodput
+"from K3"; K3′ replaces K3 on LTE and LOSS because K3's line gave a negative start there and its tool is not the arms'
+client (above). Below the first point the curve is the line from (0,
 3 RTT + 20 ms) to it; past the last it continues the last segment. Everything else in §4.1 stands: fill =
 max(*W*(*B*) + *d*₁, *W*(*b*₁) + *D*), with *W* this curve. CLEAN, PUB and CR keep K3's line, which held there.
 
-**Retrodiction** (the curve from the 2026-11-23 counted B loads, applied to that run's A, A′ and C1 fills of the same
-form and volume, not a test): LTE ×1.01–1.06 on A against the 23rd's ×0.47–0.66; LOSS ×0.87 (`dbts_b1`) and ×0.93
-(`dbts_c1`), and ×0.56 on `dbts_a1`, whose 0.66 MB lies below the curve's first point (1.26 MB). Wire times alone:
-×0.94–1.32 on LTE, ×0.69–1.32 on LOSS. So the curve is predicted to hold where a fill spans at least one exact frame's
-bytes, and to stay below its band on LOSS `dbts_a1` (*theory*: a fill under the first point is extrapolated through the
-start). Bands as §8.
+**Per (form, volume), where the view fill lies on the curve, and the direction predicted** (review B2). The view fill is
+the form's prefix of the view (LTE 16 frames, LOSS 8); the curve's first point is the first exact frame's bytes. A fill
+over the first point is interpolated between B's own points; one under it is extrapolated along the line from the start
+(3 RTT + 20 ms) to the first point, which carries the first exact frame's own delivery, one 1.1–1.3 MB object behind
+loss, that a view's ~80 KB frames do not wait for (*theory*). So: **over → holds; under → misses low** (measured ÷
+predicted under the band's 0.75), on every view arm (A, A′, C1's fill). The retrodiction (the curve from the 2026-11-23
+counted B loads, 9–10 a volume, applied to that run's counted A, A′ and C1 fills of the same form and volume: a sanity
+check, not a test; *derived*, `claude/work-ledger:docs/queue/FIT-ARM-PROTOCOL-FIX/curve_retro.py`, `VOID` by
+`rows/judged/recount.py`'s rule):
+
+| form, volume | view fill | first point | where | predicted | retrodiction, fill: A, A′, C1 | wire: A, A′, C1 |
+| --- | --- | --- | --- | --- | --- | --- |
+| LTE `dbts_a1` | 1.36 MB | 1.26 MB | over, by 8 % | holds (at risk: one frame's worth over) | ×1.04, ×1.02, ×1.06 | ×0.95, ×0.94, ×0.97 |
+| LTE `dbts_b1` | 7.38 | 2.11 | over | holds | ×1.01, ×1.06, ×1.02 | ×1.06, ×1.11, ×1.32 |
+| LTE `dbts_c1` | 1.50 | 1.09 | over | holds | ×1.06, ×1.11, ×1.06 | ×1.00, ×1.22, ×1.00 |
+| LOSS `dbts_a1` | 0.67 | 1.26 | under | **misses low** | ×0.56, ×0.74, ×0.59 | ×0.72, ×0.69, ×0.69 |
+| LOSS `dbts_b1` | 3.66 | 2.11 | over | holds (C1 at the band's edge) | ×0.87, ×0.91, ×0.76 | ×1.27, ×1.32, ×1.10 |
+| LOSS `dbts_c1` | 0.75 | 1.09 | under | **misses low** | ×0.93, ×0.67, ×0.70 | ×1.06, ×0.88, ×0.90 |
+
+On the 23rd's rows the direction held in five of six under-point cells and A on LOSS `dbts_c1` sat in band at ×0.93: the
+direction is predicted, not its size. A miss low where "under" predicts it is the curve's stated limit, reported as
+such; a miss in a cell predicted to hold, or a miss high anywhere, is the model's. B and FIT fill the exact frames whose
+points the curve is (FIT's `dbts_b1` prefixes 4.6 and 9.3 MB, over the first point), so they read the curve where it is
+interpolated. Bands as §8.
 
 **C1 on every form.** Ask → last byte is predicted RTT + *T*ₛₛ(*f*) on CLEAN, PUB and CR (§4.1), and *W*(*f*) − (3 RTT +
 20 ms) + RTT on LTE and LOSS (the curve's first frame, less its dial, plus the ask). Press → painted is ask → last byte +
