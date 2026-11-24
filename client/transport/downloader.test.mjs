@@ -84,7 +84,8 @@ async function aRedialThatFailsIsLost() {
       };
     },
   };
-  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport;`;
+  // Its own URL: a data: module is cached by URL, and the one above binds the transport that answers.
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // redial-fails`;
   posted.length = 0;
   await import("./downloader.js?redial-fails");
   await onmessage({ data: { kind: "start", config: { decode: false, decoders: 0, transport, survival: { stallMs: 60_000, redialMs: 1, tries: 2 } } } });

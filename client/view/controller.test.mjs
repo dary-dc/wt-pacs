@@ -251,7 +251,8 @@ test("worker view: a lost fill frame is wanted once more, then withheld", async 
   c.refused(2, reason, true);
   assert.equal(c.store.withheld.get(2), reason, "withheld after the second loss");
   c.show(1);
-  assert.deepEqual(wants.at(-1), "3", "no later want names it");
+  assert.ok(wants.slice(2).every((w) => !w.split(",").includes("2")), `no later want names it (${wants})`);
+  assert.deepEqual(c.store.want(c.want()), [1, 3], "the misses leave it out");
   assert.equal(events.filter(([t]) => t === "failed").length, 2);
 });
 
@@ -259,7 +260,7 @@ test("worker view: a lost fill frame is wanted once more, then withheld", async 
 test("page view: a lost ask is asked once more, then withheld", async () => {
   const { c, calls } = rig({ held: [0] });
   const lost = (i) => Promise.reject(Object.assign(new Error(`frame ${i} unavailable: the session was lost and could not be re-dialled`), { lost: true }));
-  c.client.requestFrame = (i) => (calls.push(`ask ${i}`), lost(i));
+  c.client.requestFrame = (i) => (calls.push(`ask ${i}`), i === 2 ? lost(i) : Promise.resolve(frame(i)));
   await c.show(2);
   for (let n = 0; n < 5; n++) await Promise.resolve();
   assert.deepEqual(calls, ["ask 2", "ask 2"]);
