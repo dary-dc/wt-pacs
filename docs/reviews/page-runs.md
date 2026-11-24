@@ -288,6 +288,40 @@ Found in the run row's smoke (rows not counted), each a lab change on `claude/re
 * **Hosts:** headless Chromium is 158.0.8127.36 here (REPORT-RUN-2's was 153.0.8010.12); Firefox 160.0.1; nginx 1.31.8.
 * **Cell order:** D5a-busy, Lbusy, C on Chromium; then Firefox D5a, D1, L, D6 (`--tun`), as time allows.
 
+### §2 Results (REPORT-RERUNS)
+
+Fixtures and limits: the grey-16 frame × 32 (not `dbts_c1`), the fault bench's forced mismatch at frame 10; one 4-core
+cloud container, no GPU; headless Chromium 158.0.8127.36; loopback, RECEIVER behind nginx 1.31.8; host CPU ≤ 15 %
+throughout (no round over 90 %). Rows `claude/report-arms:lab/report-arms/rows/r3-*.jsonl`; reading
+`claude/work-ledger:docs/queue/REPORT-RERUNS/read.py`.
+
+**D5a busy** (`r3-chromium-D5a-busy.jsonl`, 18 rounds × 9 units, Williams-balanced, every arm's delays spanning
+39–50 ms, 162 of 162 reached the mismatch, no error). Safety report delivered, **measured**, against §2(b):
+
+| arm | delivered | predicted | |
+| --- | ---: | --- | --- |
+| `off`, `off′` | 6, 8 of 18 | (as BEACON-*: the page's `sendBeacon`) | below the band |
+| BEACON-H, BEACON-Y | 9, 9 of 18 | 10–17 (expected 13.6, 13.2 from the delays sent) | **miss**, below |
+| KEEPALIVE-H, KEEPALIVE-Y | 18, 18 of 18 | 18/18 | hit |
+| SESSION-1, SESSION-Y, SESSION-H | 16, 16, 15 of 18 | 18/18 | **miss** |
+| fill record, Y arms | BEACON-Y 6, KEEPALIVE-Y 9, SESSION-1 9, SESSION-Y 7 | 18/18 | **miss** |
+| fill record, H arms | 0 each | 0/18 | hit |
+
+* **The race (b) asks for exists** by its rule: BEACON-* ≤ 16 and KEEPALIVE-Y 18/18. BEACON-* and `off` pooled lose
+  32 of 72; KEEPALIVE-* lose 0 of 36 (Fisher's exact p 4 × 10⁻⁷ for BEACON-* against KEEPALIVE-*, **derived**).
+* **The model under-predicts the loss.** 9 of 18 has P ≈ 0.02 under Binomial(18, 0.75) (**derived**): the page-thread
+  carriers lose about half, not a quarter. Not established why; a candidate (**theory**, untested): the page hands the
+  report off only after it handles the decoder's failed-frame message, which queues behind the task too, so the wait
+  is longer than the task's remainder alone.
+* **SESSION's 2–3 losses** were not predicted: its safety report also left before the kill in idle D5a; under the busy
+  page it does not always. Not traced here.
+* **The fill record** (sent at the fill's end) is lost when the kill falls before the fill ends (~135 ms, the fault at
+  frame 10): the idle cell's 18/18 was for a kill always 50 ms after the fault; not a carrier property.
+* **The A/A by the letter:** §2's VOID rule reads "D's A/A `off` = `off′`", written for idle cells where every arm was
+  18/18. Here `off` 6 and `off′` 8 differ (Fisher's p 0.73, **derived**): VOID by the letter, a tie under the race's
+  noise. Left to PAGE-RUNS-VERDICT; both readings stand above.
+* The driver learned of each fault 5–8 ms after it (p50; max 21 ms), so 1–5 delays an arm were sent late (§2 Amendment).
+
 ## 3 · Engines (`engines` items 3 and 4) → ENGINE-CELLS
 
 **Firefox builds.** No script installs a pinned Firefox: `scripts/wtcompat.py --fetch` takes only the latest release
