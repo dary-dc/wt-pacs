@@ -2,7 +2,7 @@
  * A frame decoded at a resolution level through the shipped OpenJPH package, made exact: the package leaves the 5/3
  * low band unclamped above the declared depth, where OpenJPEG and the standard's range stop. lab/av1/decode/resolution-level/README.md
  */
-export function decodeLevel(dec, bytes, level) {
+export function decodeLevel(dec, bytes, level, { clamp = true } = {}) {
   dec.getEncodedBuffer(bytes.length).set(bytes);
   dec.readHeader();
   const info = dec.getFrameInfo();
@@ -12,6 +12,6 @@ export function decodeLevel(dec, bytes, level) {
   const px = new Uint16Array(out.buffer, out.byteOffset, out.length >> 1);
   const top = (1 << info.bitsPerSample) - 1;
   let clamped = 0;
-  for (let i = 0; i < px.length; i++) if (px[i] > top) { px[i] = top; clamped++; }
+  for (let i = 0; clamp && i < px.length; i++) if (px[i] > top) { px[i] = top; clamped++; }
   return { info, out, clamped };
 }

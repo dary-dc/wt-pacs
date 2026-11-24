@@ -187,6 +187,16 @@ function readback(width, height) {
   return rows;
 }
 
+/** The window pass's picture at the frame's size, one texel a sample, in sample order: a lab's read, never flipped. */
+function readPicture() {
+  const { width, height } = cached.frame;
+  const out = new Uint8Array(width * height * 4);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, out);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return out;
+}
+
 /** The renderer's name, or a throw saying why nothing can be painted; `onLost` hears of a context lost later. */
 export function start(offscreen, onLost) {
   canvas = offscreen;
@@ -210,7 +220,7 @@ export function start(offscreen, onLost) {
  * One paint: upload if the frame is new, window if the frame or the window changed, place always. A lab's `settle`
  * returns once drawn: `fence`, or `read`, which waits on a busy page in Firefox. README §When a paint has executed
  */
-export async function paint({ frame, same, display, width, height, dpr, read, settle }) {
+export async function paint({ frame, same, display, width, height, dpr, read, picture, settle }) {
   if (lost) throw new Error(lost);
   const t0 = performance.now();
   if (canvas.width !== width || canvas.height !== height) {
@@ -225,7 +235,7 @@ export async function paint({ frame, same, display, width, height, dpr, read, se
     cached.table = key;
   }
   placePass(display, width, height, dpr);
-  const pixels = read ? readback(width, height) : null;
+  const pixels = read ? readback(width, height) : picture ? readPicture() : null;
   if (!read && settle === "fence") await settled(gl);
   if (!read && settle === "read") gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
   // `drawn`: ms since the epoch, so a thread that waits for the reply can still time the draw; unsettled, its issue.

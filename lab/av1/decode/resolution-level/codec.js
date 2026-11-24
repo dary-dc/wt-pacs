@@ -15,8 +15,8 @@ export async function init(d) {
 export const decodeWhole = product.decodeFrame;
 
 /** As the product's `decodeFrame` leaves a frame: in a SharedArrayBuffer, its range taken. */
-export function decodePreview(bytes, level) {
-  const { info, out } = decodeLevel(dec, bytes, level);
+export function decodePreview(bytes, level, opts) {
+  const { info, out } = decodeLevel(dec, bytes, level, opts);
   const sab = new SharedArrayBuffer(out.length);
   new Uint8Array(sab).set(out);
   const range = product.finish(new Uint16Array(sab), info.bitsPerSample, false);

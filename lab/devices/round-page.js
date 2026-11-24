@@ -3,6 +3,7 @@ import { Cine, now } from "../../client/view/clock.js";
 import { beaconHooks } from "./beacon.js";
 import { bench, exactFill } from "./bench.js";
 import { TICK_MS, fillFailure, largestGap, losslessFailure, verdict } from "./round.mjs";
+import { fitFailure, recordAskLastByte } from "../delivery/fit-page.js";
 
 const epochMs = () => performance.timeOrigin + performance.now();
 
@@ -42,6 +43,7 @@ export function roundHooks(q) {
     } }),
     async finished(ledger, page) {
       clearTimeout(late);
+      const filledAt = epochMs();
       const afterS = Number(q.get("afterS") ?? 300);
       setTimeout(() => leave(`no end ${afterS} s after the fill`), afterS * 1000);
       let failure;
@@ -56,7 +58,11 @@ export function roundHooks(q) {
           recorder.record("exactFill", r);
           failure = r.failure;
         }
-        if (!failure && q.get("press") === "lossless") failure = await losslessFailure(quality, lossless, { pressAfterMs: Number(q.get("pressAfter") ?? 0) });
+        if (!failure && q.get("fit") === "1") failure = await fitFailure(q, recorder.record, page, await globalThis.viewerMetadata, filledAt);
+        if (!failure && q.get("press") === "lossless") {
+          if (page.controller) recordAskLastByte(page.controller, recorder.record);
+          failure = await losslessFailure(quality, lossless, { pressAfterMs: Number(q.get("pressAfter") ?? 0) });
+        }
         if (!failure && q.get("seq") === "view") failure = await viewSequence(q, recorder, { ...page, n: ledger.frames.length }, quality, lossless);
       } catch (e) {
         failure = `after the fill: ${e?.message ?? e}`;

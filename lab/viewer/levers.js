@@ -3,6 +3,7 @@ import { Cine, now } from "../../client/view/clock.js";
 import { busyPage } from "../frame-clock/busy.js";
 import { beaconHooks } from "../devices/beacon.js";
 import { roundHooks } from "../devices/round-page.js";
+import { fitLevers } from "../delivery/fit-page.js";
 import { pageHooks } from "./hooks.js";
 import { sawtooth, STEP_MS, waits } from "./trace.js";
 
@@ -23,7 +24,7 @@ export function levers(q) {
   if (writer === "decoders" && opts.pixels === "transfer") throw new Error("refused: writer decoders with pixels transfer — the decoder would write a frame it has transferred");
   for (const k of ["settle", "after"]) if (q.has(k) && !q.get("post")) throw new Error(`refused: ?${k} without ?post — the rig's`);
   if (q.get("post") && (q.has("beacon") || q.has("round"))) throw new Error("refused: post with beacon or round — one harness reads the fill's end");
-  for (const k of ["bench", "exactFill"]) if (q.has(k) && !q.has("round")) throw new Error(`refused: ?${k} without ?round — a round's cell records it`);
+  for (const k of ["bench", "exactFill", "fit", "split"]) if (q.has(k) && !q.has("round")) throw new Error(`refused: ?${k} without ?round — a round's cell records it`);
   if (q.has("bench") && !(Number.isInteger(Number(q.get("bench"))) && Number(q.get("bench")) > 0)) throw new Error(`refused: bench ${JSON.stringify(q.get("bench"))} — a frame count`);
   if (q.has("bench") && !q.has("decoders")) throw new Error("refused: bench without decoders — cell 1's arm names its count");
   if (q.has("round") && !q.get("beacon")) throw new Error("refused: round without beacon — a round's loads name their controller");
@@ -43,7 +44,8 @@ export function levers(q) {
     ...(q.get("beacon") && (q.has("round") ? roundHooks(q) : beaconHooks(q))),
     ...(q.get("trace") && { trace: { steps: sawtooth, everyMs: STEP_MS } }),
   };
-  return { ...lab, hooks: pageHooks(q, lab) };
+  const out = { ...lab, hooks: pageHooks(q, lab) };
+  return q.get("fit") === "1" ? fitLevers(out, q) : out;
 }
 
 /** `?decoders=`, the fill's decoder count: next-round.md §4 cell 1. */

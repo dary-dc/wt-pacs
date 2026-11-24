@@ -38,8 +38,8 @@ export class Painter {
     this.#worker.postMessage({ kind: "start", canvas: offscreen }, [offscreen]);
   }
 
-  /** At the canvas's CSS size × devicePixelRatio; `read` returns the RGBA, rows top-down. README §The contract */
-  paint(frame, display, { read = false } = {}) {
+  /** At the canvas's CSS size × devicePixelRatio; `read` returns the RGBA, rows top-down; `picture`, a lab's, the windowed frame at its size. README §The contract */
+  paint(frame, display, { read = false, picture = false } = {}) {
     if (this.#lost) return Promise.reject(new Error(this.#lost));
     const dpr = self.devicePixelRatio || 1;
     const width = Math.round(this.#canvas.clientWidth * dpr);
@@ -52,7 +52,7 @@ export class Painter {
     this.#last = frame;
     return new Promise((resolve, reject) => {
       this.#pending.set(id, { resolve, reject });
-      this.#worker.postMessage({ kind: "paint", id, frame, same, display, width, height, dpr, read, settle: this.#settle });
+      this.#worker.postMessage({ kind: "paint", id, frame, same, display, width, height, dpr, read, picture, settle: this.#settle });
     });
   }
 
