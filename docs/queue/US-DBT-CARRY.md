@@ -2,7 +2,7 @@ state: done
 started: 2026-11-24T06:21Z
 heartbeat: 2026-11-24T06:30Z
 by: kjkkMVh3
-outputs: `claude/reviews-2026-11-28` `7e224f2d2` (`docs/decisions/us-dbt-carry.md`; the index line of `docs/decisions/README.md`; `docs/lines/coordination.md`); draft PR 405 ("do not merge: decision pages"), no new PR
+outputs: `claude/reviews-2026-11-28` `2413ed211` (`docs/decisions/us-dbt-carry.md`; the index line of `docs/decisions/README.md`; `docs/lines/coordination.md`); draft PR 405 ("do not merge: decision pages"), no new PR
 ## Resume
 Done. Nothing to continue. Read at `origin/claude/unified` `b7cc007f7` and the pages at `8f396eb74`; nothing run.
 Sources fetched 2026-11-24 and pinned in the page's §8 (four, each with URL, section, revision and sha256; a fifth
