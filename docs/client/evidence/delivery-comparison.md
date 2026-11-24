@@ -842,6 +842,46 @@ place; the numbers recomputed from `lab/delivery/inputs.json` and the 2026-11-23
 | m8 | A2.2's table and A2.9's value line: a level picture is checked in the lab only. |
 | n1 | A2.5: frame 0 cites `inputs.json`'s `shown: 0` and the rig README's build note. |
 
+### Amendment 2 re-review (2026-11-24, FIT-ARM-PROTOCOL-FIX-REVIEW)
+
+*A session that wrote none of the protocol, §Amendment 2, its review or its fix, and will build and run none of it.
+Read: the fix's commits `3ca4c84ae`, `aab27813e`, `88896196a` (`git diff 8f3f5f7bd 88896196a`: this file and
+`docs/lines/client.md`'s dated line only, every hunk under a finding of §Amendment 2 review); `client/paint/paint-worker.js`
+and `client/paint/voi.js` on this branch; the fix's two reading aids in `claude/work-ledger:docs/queue/FIT-ARM-PROTOCOL-FIX/`,
+each rerun here against `lab/delivery/inputs.json` and the 2026-11-23 rows; `lab/delivery/README.md`. Nothing measured; the
+gate not run (docs only); `scripts/check_links.py` 0 unresolved. **No blocker open.***
+
+* **B1: closed.** A2.2 now reads back the window pass's own output, and the code agrees that it is one texel a sample:
+  `windowPass` binds `picture` (`texture(gl.RGBA8, frame.width, frame.height, …)`) to `fbo`, sets
+  `gl.viewport(0, 0, frame.width, frame.height)`, and the shader reads `texelFetch(samples, ivec2(gl_FragCoord.xy), 0)` and
+  writes `table[s + offset] ÷ 255`, the table being `windowTable(frame, display)` and the offset `tableShape(frame)`'s, as
+  A2.2 states. A byte *k* written as *k* ÷ 255 to an RGBA8 target reads back as *k*, so "no tolerance" holds (*theory*,
+  WebGL2's unsigned-normalized conversion). `placePass` alone uses `gl.LINEAR`; the scales ×0.84 (`dbts_b1` level 1,
+  1 280 × 1 664 into 1 080 × 2 100) and ×0.95 (`dbts_a1`) recomputed. A2.8's stop and its placed-canvas mutant say the same.
+* **B2: closed.** A2.4's table reproduced to the printed digit by `curve_retro.py` (B loads 9–10 a volume; the view fill,
+  the first point, over or under, and fill and wire for A, A′, C1 in all six (form, volume)s). "Five of six under-point
+  cells" checked: LOSS `dbts_a1` ×0.56, ×0.74, ×0.59 and LOSS `dbts_c1` A′ ×0.67, C1 ×0.70 under 0.75; A there ×0.93. A2.7's
+  note on LOSS's level-0 FIT ÷ A points the right way (A measured low makes the ratio larger).
+* **m1: closed.** `split.mjs` (run from a `claude/delivery` checkout at the path its header names) gives *k* ×1.14, ×1.04,
+  ×1.07, *x* 0.15, 0.26, 0.19 and SPLIT ÷ A ×0.90, ×0.81, ×0.87 (CLEAN), ×0.90, ×0.82, ×0.87 (PUB), as A2.3 prints.
+  **m2: closed** (9.29 ÷ 7.38 and 4.61 ÷ 3.66 MB are ×1.26; the whole series ×1.25). **m3: closed.** **m4: closed** (A2.5,
+  A2.8). **m5: closed** (6 lossy (form, volume)s × 8 = 48 loads). **m6: closed**: each pass's `at`, first row to last,
+  44.8, 46.3, 124.9, 48.2, 54.8 min for 150 loads, × 216 ÷ 150 = 64.6, 66.7, 179.9, 69.4, 78.9, as A2.8 rounds them.
+  **m7: closed** (both departures named with their reason; (ii) argued as an escalation). **m8: closed** (A2.2's table,
+  A2.9's value line). **n1: closed** (`inputs.json`'s `shown: 0` and the README's §What the build found exist).
+
+**Minors, for FIT-ARM-BUILD (no fix row).**
+
+* **r-m1 · The read-back's row order.** The window pass renders sample row *y* to framebuffer row *y*, so `readPixels`
+  on `fbo` returns the picture in sample order; `readback` flips rows because the placed canvas is bottom-up to the
+  page. A lab read that reuses `readback`'s flip compares mirrored rows and stops a correct build. The build reads `fbo`
+  with no flip (or flips both sides), and its placed-canvas mutant is the only mutant that should stop.
+* **r-m2 · An under-point cell in band.** A2.4 defines "misses low" as measured ÷ predicted under 0.75, then calls A on
+  LOSS `dbts_c1` at ×0.93 consistent ("the direction is predicted, not its size"). Say what such a cell reports: in band
+  under a "misses low" prediction is the direction **not shown**, neither the curve's stated limit nor the model's miss.
+
+**Verdict.** Every finding of §Amendment 2 review closed; no blocker open. FIT-ARM-BUILD may start.
+
 ## Fixtures and limits
 
 Three DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`; 56, 50, 69 frames), the view at Q 8 G 8 only, no
