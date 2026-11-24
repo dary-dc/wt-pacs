@@ -1,0 +1,10 @@
+rounds 12; arms per round [6]; every row 80/80 exact on disk: True
+disk growth median 526 MiB (predicted 420-580)
+ring growth median 764 MiB (predicted 680-880)
+ring - disk: difference of medians 237; median of per-round differences 226 (predicted 250-310)
+bar = median disk + 320 = 846; rounds with ring <= bar: 12 of 12 (predicted 12 of 12); least room 15 MiB
+ring fill / today per round: median 1.241 [1.130-1.430] (predicted 0.80-0.95; bar 1.10)
+ring2 vs ring: median |growth diff| 47 MiB, median fill ratio 0.980 (VOID if > 64 or outside 0.90-1.10)
+today diskMs median 6260; ring diskMs median 8269
+cpuBusy median 0.71 [0.62-0.92]; ring offRing all 0: True
+stoppedBy any: []

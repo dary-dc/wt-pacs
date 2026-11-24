@@ -1,0 +1,10 @@
+M5 firefox: A/A |ring'-ring| median 46.71875 MiB, ring'/ring fill 0.9800343307881181; memory bar 846.38427734375 MiB
+M5 firefox ring: growth median 764 MiB [691–831], n 12; complete 12/12; fill/today 1.2411261286495492; in hand median, ask 0.02001953125 ms, step 0.02001953125 ms; memory bar and checks missed, time bar met
+M5 firefox ring2: growth median 731 MiB [663–824], n 12; complete 12/12; fill/today 1.2830580068376456; in hand median, ask 0.02001953125 ms, step 0.0400390625 ms; reported, not ruled
+M5 firefox transfer: growth median 1015 MiB [897–1204], n 12; complete 12/12; fill/today 1.4687751346813265; in hand median, ask 0.02001953125 ms, step 0.0 ms; memory bar and checks missed, time bar met
+M5 firefox transfer-k: growth median 965 MiB [859–1093], n 12; complete 12/12; fill/today 1.4862728483621108; in hand median, ask 0.02001953125 ms, step 0.0 ms; memory bar and checks missed, time bar met
+M5 firefox disk: growth median 526 MiB [477–594], n 12; complete 12/12; fill/today 1.229520025352739; in hand median, ask 29.6800537109375 ms, step 16.389892578125 ms; memory bar and checks missed, time bar missed
+M5 firefox today: growth median 1900 MiB [1713–2069], n 12; complete 12/12; fill/today 1.0; in hand median, ask None ms, step None ms; reported, not ruled
+M5 firefox: none qualifies: lever 2 returns to the owner
+M5 rule: one engine's rows only; the rule wants both
+M5 rule: none on every engine: lever 2 returns to the owner
