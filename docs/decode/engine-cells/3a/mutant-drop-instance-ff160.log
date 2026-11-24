@@ -1,0 +1,117 @@
+dispatch
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991598.74,"ev":"submit","index":0,"decoder":0,"key":true,"unit":3065623410}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991599.04,"ev":"submit","index":1,"decoder":0,"key":false,"unit":1871189809}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991612.5598,"ev":"create"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991612.92,"ev":"configure","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991613.5798,"ev":"decode","timestamp":1,"type":"key","unit":2106679191,"queue":0}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991620.74,"ev":"output","timestamp":1,"format":"BGRX"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991621.14,"ev":"flush"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991621.5598,"ev":"flushed"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991621.8,"ev":"create"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991621.94,"ev":"configure","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991622.3198,"ev":"decode","timestamp":1,"type":"key","unit":3065623410,"queue":0}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991624.44,"ev":"output","timestamp":1,"format":"BGRX"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991625.4,"ev":"done","index":0}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991625.5999,"ev":"configure","codec":"av01.0.00M.08.1.110.02.02.02.0"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991626.04,"ev":"decode","timestamp":2,"type":"key","unit":3269717552,"queue":0}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991626.52,"ev":"submit","index":2,"decoder":0,"key":false,"unit":917252847}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991626.96,"ev":"error","message":"The given encoding is not supported."}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991627.0798,"ev":"create"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991641.9,"ev":"submit","index":8,"decoder":1,"key":true,"unit":286793435}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991642.16,"ev":"create"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991642.6199,"ev":"configure","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991644.3198,"ev":"failed","index":1,"reason":"undecodable: frame 0 was not decoded before it here"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991644.44,"ev":"decode","timestamp":1,"type":"key","unit":2106679191,"queue":0}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991644.48,"ev":"failed","index":2,"reason":"undecodable: frame 1 was not decoded before it here"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991644.68,"ev":"submit","index":3,"decoder":0,"key":false,"unit":607904878}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991644.8,"ev":"failed","index":3,"reason":"undecodable: frame 2 was not decoded before it here"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991645.0598,"ev":"submit","index":4,"decoder":0,"key":false,"unit":2298544288}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991645.18,"ev":"failed","index":4,"reason":"undecodable: frame 3 was not decoded before it here"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991645.22,"ev":"submit","index":5,"decoder":0,"key":false,"unit":749237556}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991645.3,"ev":"failed","index":5,"reason":"undecodable: frame 4 was not decoded before it here"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991646.2,"ev":"submit","index":6,"decoder":0,"key":false,"unit":2757150523}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991646.3398,"ev":"failed","index":6,"reason":"undecodable: frame 5 was not decoded before it here"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991646.5,"ev":"submit","index":7,"decoder":0,"key":false,"unit":2429629099}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991646.5798,"ev":"failed","index":7,"reason":"undecodable: frame 6 was not decoded before it here"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991647.56,"ev":"output","timestamp":1,"format":"BGRX"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991648.1199,"ev":"flush"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991648.66,"ev":"flushed"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991649.4,"ev":"create"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991649.66,"ev":"configure","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991650.3,"ev":"decode","timestamp":1,"type":"key","unit":286793435,"queue":0}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991650.52,"ev":"submit","index":9,"decoder":1,"key":false,"unit":1220023103}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991652.22,"ev":"output","timestamp":1,"format":"BGRX"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991653.0798,"ev":"done","index":8}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991653.28,"ev":"configure","codec":"av01.0.00M.08.1.110.02.02.02.0"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991654.26,"ev":"decode","timestamp":2,"type":"key","unit":3269717552,"queue":0}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991654.68,"ev":"error","message":"The given encoding is not supported."}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991654.74,"ev":"create"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991660.4,"ev":"submit","index":10,"decoder":1,"key":false,"unit":824019967}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991685.3599,"ev":"failed","index":9,"reason":"undecodable: frame 8 was not decoded before it here"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991686.3,"ev":"failed","index":10,"reason":"undecodable: frame 9 was not decoded before it here"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991686.42,"ev":"submit","index":11,"decoder":1,"key":false,"unit":1565603559}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991686.56,"ev":"failed","index":11,"reason":"undecodable: frame 10 was not decoded before it here"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991687.06,"ev":"submit","index":12,"decoder":1,"key":false,"unit":3171991671}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991687.3,"ev":"failed","index":12,"reason":"undecodable: frame 11 was not decoded before it here"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991689.0999,"ev":"submit","index":13,"decoder":1,"key":false,"unit":1339827215}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991689.46,"ev":"failed","index":13,"reason":"undecodable: frame 12 was not decoded before it here"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991697.3398,"ev":"submit","index":14,"decoder":1,"key":false,"unit":3375414009}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991697.48,"ev":"failed","index":14,"reason":"undecodable: frame 13 was not decoded before it here"}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991704.68,"ev":"submit","index":15,"decoder":1,"key":false,"unit":182321541}
+TRACE-EVENT {"worker":"13lgdg0v","t":1795548991704.78,"ev":"failed","index":15,"reason":"undecodable: frame 14 was not decoded before it here"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991709.94,"ev":"submit","index":16,"decoder":0,"key":true,"unit":3912714441}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991710.2,"ev":"flush"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991714.8198,"ev":"flushed"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991715,"ev":"decode","timestamp":2,"type":"key","unit":3912714441,"queue":0}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991715.8,"ev":"output","timestamp":2,"format":"BGRX"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991717.54,"ev":"done","index":16}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991720.28,"ev":"submit","index":17,"decoder":0,"key":false,"unit":1919760289}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991720.48,"ev":"failed","index":17,"reason":"undecodable: frame 16 was not decoded before it here"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991732.76,"ev":"submit","index":18,"decoder":0,"key":false,"unit":1485620577}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991732.94,"ev":"failed","index":18,"reason":"undecodable: frame 17 was not decoded before it here"}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991746.92,"ev":"submit","index":19,"decoder":0,"key":false,"unit":3127815731}
+TRACE-EVENT {"worker":"zrlc24rg","t":1795548991747.02,"ev":"failed","index":19,"reason":"undecodable: frame 18 was not decoded before it here"}
+  FAIL: trace: every frame has a submit naming its decoder and an outcome, every VideoDecoder event its instance (incomplete: none; unnamed events: 32)
+TRACE-FRAME {"index":0,"worker":"zrlc24rg","decoder":0,"keyWorker":"zrlc24rg","keyDecoder":0,"chunks":[{"timestamp":1,"type":"key","queue":0}],"outputs":[{"timestamp":1,"format":"BGRX"},{"timestamp":1,"format":"BGRX"},{"timestamp":1,"format":"BGRX"},{"timestamp":1,"format":"BGRX"}],"route":"av1-webcodecs","exactToSource":true,"pageDecoder":0}
+TRACE-FRAME {"index":1,"worker":"zrlc24rg","decoder":0,"keyWorker":"zrlc24rg","keyDecoder":0,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 0 was not decoded before it here"}
+TRACE-FRAME {"index":2,"worker":"zrlc24rg","decoder":0,"keyWorker":"zrlc24rg","keyDecoder":0,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 1 was not decoded before it here"}
+TRACE-FRAME {"index":3,"worker":"zrlc24rg","decoder":0,"keyWorker":"zrlc24rg","keyDecoder":0,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 2 was not decoded before it here"}
+TRACE-FRAME {"index":4,"worker":"zrlc24rg","decoder":0,"keyWorker":"zrlc24rg","keyDecoder":0,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 3 was not decoded before it here"}
+TRACE-FRAME {"index":5,"worker":"zrlc24rg","decoder":0,"keyWorker":"zrlc24rg","keyDecoder":0,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 4 was not decoded before it here"}
+TRACE-FRAME {"index":6,"worker":"zrlc24rg","decoder":0,"keyWorker":"zrlc24rg","keyDecoder":0,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 5 was not decoded before it here"}
+TRACE-FRAME {"index":7,"worker":"zrlc24rg","decoder":0,"keyWorker":"zrlc24rg","keyDecoder":0,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 6 was not decoded before it here"}
+TRACE-FRAME {"index":8,"worker":"13lgdg0v","decoder":1,"keyWorker":"13lgdg0v","keyDecoder":1,"chunks":[{"timestamp":1,"type":"key","queue":0}],"outputs":[{"timestamp":1,"format":"BGRX"},{"timestamp":1,"format":"BGRX"},{"timestamp":1,"format":"BGRX"},{"timestamp":1,"format":"BGRX"}],"route":"av1-webcodecs","exactToSource":true,"pageDecoder":1}
+TRACE-FRAME {"index":9,"worker":"13lgdg0v","decoder":1,"keyWorker":"13lgdg0v","keyDecoder":1,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 8 was not decoded before it here"}
+TRACE-FRAME {"index":10,"worker":"13lgdg0v","decoder":1,"keyWorker":"13lgdg0v","keyDecoder":1,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 9 was not decoded before it here"}
+TRACE-FRAME {"index":11,"worker":"13lgdg0v","decoder":1,"keyWorker":"13lgdg0v","keyDecoder":1,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 10 was not decoded before it here"}
+TRACE-FRAME {"index":12,"worker":"13lgdg0v","decoder":1,"keyWorker":"13lgdg0v","keyDecoder":1,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 11 was not decoded before it here"}
+TRACE-FRAME {"index":13,"worker":"13lgdg0v","decoder":1,"keyWorker":"13lgdg0v","keyDecoder":1,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 12 was not decoded before it here"}
+TRACE-FRAME {"index":14,"worker":"13lgdg0v","decoder":1,"keyWorker":"13lgdg0v","keyDecoder":1,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 13 was not decoded before it here"}
+TRACE-FRAME {"index":15,"worker":"13lgdg0v","decoder":1,"keyWorker":"13lgdg0v","keyDecoder":1,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 14 was not decoded before it here"}
+TRACE-FRAME {"index":16,"worker":"zrlc24rg","decoder":0,"keyWorker":"zrlc24rg","keyDecoder":0,"chunks":[{"timestamp":2,"type":"key","queue":0}],"outputs":[{"timestamp":2,"format":"BGRX"}],"route":"av1-webcodecs","exactToSource":true,"pageDecoder":0}
+TRACE-FRAME {"index":17,"worker":"zrlc24rg","decoder":0,"keyWorker":"zrlc24rg","keyDecoder":0,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 16 was not decoded before it here"}
+TRACE-FRAME {"index":18,"worker":"zrlc24rg","decoder":0,"keyWorker":"zrlc24rg","keyDecoder":0,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 17 was not decoded before it here"}
+TRACE-FRAME {"index":19,"worker":"zrlc24rg","decoder":0,"keyWorker":"zrlc24rg","keyDecoder":0,"chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 18 was not decoded before it here"}
+TRACE-INSTANCE {"worker":"zrlc24rg","t":1795548991612.5598,"ev":"create"}
+TRACE-INSTANCE {"worker":"zrlc24rg","t":1795548991612.92,"ev":"configure","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-INSTANCE {"worker":"zrlc24rg","t":1795548991621.14,"ev":"flush"}
+TRACE-INSTANCE {"worker":"zrlc24rg","t":1795548991621.5598,"ev":"flushed"}
+TRACE-INSTANCE {"worker":"zrlc24rg","t":1795548991621.8,"ev":"create"}
+TRACE-INSTANCE {"worker":"zrlc24rg","t":1795548991621.94,"ev":"configure","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-INSTANCE {"worker":"zrlc24rg","t":1795548991625.5999,"ev":"configure","codec":"av01.0.00M.08.1.110.02.02.02.0"}
+TRACE-INSTANCE {"worker":"zrlc24rg","t":1795548991626.96,"ev":"error","message":"The given encoding is not supported."}
+TRACE-INSTANCE {"worker":"zrlc24rg","t":1795548991627.0798,"ev":"create"}
+TRACE-INSTANCE {"worker":"13lgdg0v","t":1795548991642.16,"ev":"create"}
+TRACE-INSTANCE {"worker":"13lgdg0v","t":1795548991642.6199,"ev":"configure","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-INSTANCE {"worker":"13lgdg0v","t":1795548991648.1199,"ev":"flush"}
+TRACE-INSTANCE {"worker":"13lgdg0v","t":1795548991648.66,"ev":"flushed"}
+TRACE-INSTANCE {"worker":"13lgdg0v","t":1795548991649.4,"ev":"create"}
+TRACE-INSTANCE {"worker":"13lgdg0v","t":1795548991649.66,"ev":"configure","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-INSTANCE {"worker":"13lgdg0v","t":1795548991653.28,"ev":"configure","codec":"av01.0.00M.08.1.110.02.02.02.0"}
+TRACE-INSTANCE {"worker":"13lgdg0v","t":1795548991654.68,"ev":"error","message":"The given encoding is not supported."}
+TRACE-INSTANCE {"worker":"13lgdg0v","t":1795548991654.74,"ev":"create"}
+TRACE-INSTANCE {"worker":"zrlc24rg","t":1795548991710.2,"ev":"flush"}
+TRACE-INSTANCE {"worker":"zrlc24rg","t":1795548991714.8198,"ev":"flushed"}
+
+dispatch over ts: 0/1 checks passed through the downloader
+

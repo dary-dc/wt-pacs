@@ -1231,6 +1231,65 @@ async function aGroupDecodesOnOneDecoderInOrder(
   }
 }
 
+type TraceEvent = { worker: string; t: number; ev: string; reason?: string; instance?: string; index?: number; decoder?: number; key?: boolean; unit?: number; timestamp?: number; type?: string; queue?: number; threw?: string; message?: string; codec?: string; format?: string };
+
+/**
+ * Lab trace, run only when named: the G = 8 series of aGroupDecodesOnOneDecoderInOrder with every VideoDecoder
+ * call and callback recorded, one TRACE-FRAME line a frame. Complete when every frame has a submit naming its
+ * decoder and an outcome, and every VideoDecoder event names its instance. docs/reviews/page-runs.md §3a
+ */
+async function aGroupTracedThroughWebCodecs(DownloaderClient: DownloaderCtor, check: (c: boolean, w: string) => void, log: (line: string) => void) {
+  if (!(await served(AV1.glue))) return void log(`  SKIPPED: the trace — no ${AV1_DIR}`);
+  const drop = new URLSearchParams(location.search).get("drop");
+  const ch = `wtpacs-trace-${++world}`;
+  const events: TraceEvent[] = [];
+  const bc = new BroadcastChannel(ch);
+  bc.onmessage = (e) => void events.push(e.data);
+  const got: Frame[] = [];
+  const failures: Fail[] = [];
+  const { c, fake } = await open(DownloaderClient, {
+    decoders: 3, perDecoder: 2, delayMs: 0, realDecoder: AV1, groupLength: 8, frameCount: 20,
+    decoderWorker: `/client/contract/webcodecs-trace.js?ch=${ch}${drop ? `&drop=${drop}` : ""}`,
+    onFrame: (f) => got.push(f), onError: (f) => failures.push(f),
+  });
+  c.fill(range(0, 19));
+  for (const i of range(0, 19)) await fake.pushFrame(i, await unit(G8, i));
+  await until(() => got.length + failures.length >= 20, 30000);
+  c.close();
+  await settle(200);
+  bc.close();
+  events.sort((a, b) => a.t - b.t);
+  for (const e of events) log(`TRACE-EVENT ${JSON.stringify(e)}`);
+  const submits = events.filter((e) => e.ev === "submit");
+  const submitOf = (i: number) => submits.find((e) => e.index === i);
+  const complete = range(0, 19).filter((i) => {
+    const s = submitOf(i);
+    const out = got.some((f) => f.frameIndex === i) || failures.some((f) => f.frameIndex === i);
+    return !s || s.decoder === undefined || !s.worker || !out;
+  });
+  const unnamed = events.filter((e) => !["submit", "done", "failed"].includes(e.ev) && !e.instance).length;
+  check(complete.length === 0 && unnamed === 0,
+    `trace: every frame has a submit naming its decoder and an outcome, every VideoDecoder event its instance (incomplete: ${complete.join() || "none"}; unnamed events: ${unnamed})`);
+  const chunkOf = (i: number) => events.filter((e) => e.ev === "decode" && e.unit === submitOf(i)?.unit);
+  for (const i of range(0, 19)) {
+    const s = submitOf(i);
+    const k = submitOf(i - (i % 8));
+    const chunks = chunkOf(i).map(({ instance, timestamp, type, queue, threw }) => ({ instance, timestamp, type, queue, threw }));
+    const outputs = chunks.flatMap((ck) => events.filter((e) => e.ev === "output" && e.instance === ck.instance && e.timestamp === ck.timestamp).map((e) => ({ instance: e.instance, timestamp: e.timestamp, format: e.format })));
+    const keyInstance = chunkOf(i - (i % 8))[0]?.instance;
+    const f = got.find((g) => g.frameIndex === i);
+    const exact = f ? (await sha256(f.bytes)) === (await source(G8, i)) : null;
+    const failed = failures.find((g) => g.frameIndex === i)?.reason;
+    log(`TRACE-FRAME ${JSON.stringify({
+      index: i, worker: s?.worker, decoder: s?.decoder, keyWorker: k?.worker, keyDecoder: k?.decoder, keyInstance, chunks, outputs,
+      route: f?.info.route, exactToSource: exact, failed, pageDecoder: f?.info.stamps?.decoder,
+    })}`);
+  }
+  for (const e of events.filter((e) => ["create", "configure", "flush", "flushed", "reset", "close", "error"].includes(e.ev))) {
+    log(`TRACE-INSTANCE ${JSON.stringify(e)}`);
+  }
+}
+
 /**
  * A group decodes through WebCodecs as through dav1d-WASM: an 8-bit G = 8 series reaches WebCodecs
  * unit by unit, every frame its source's; a unit mid-group that gives neither a frame nor an error
@@ -2407,7 +2466,8 @@ export async function run(DownloaderClient: DownloaderCtor, log: Log, only?: str
   const clauses = client === "ts" ? [...transport, ...rest] : transport;
   const name = client === "ts" ? "dispatch" : `dispatch-${client}`;
   await tally(log, name, `dispatch over ${client}`, async (check) => {
-    for (const clause of clauses.filter((c) => !only || only.includes(c.name))) {
+    // The lab trace runs only when named: docs/reviews/page-runs.md §3a
+    for (const clause of [...clauses, aGroupTracedThroughWebCodecs].filter((c) => (only ? only.includes(c.name) : c !== aGroupTracedThroughWebCodecs))) {
       try {
         await clause(DownloaderClient, check, log);
       } catch (e) {
