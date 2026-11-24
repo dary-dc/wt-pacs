@@ -286,12 +286,97 @@ Corrected in place: §5's former "lowest server CPU … on `dbts_b1` for FIT (×
 * **`usb_cine`** is coded by `lab/av1/tools/ingest_coded.py --codec htj2k` beside `series.sh`'s output, which does not
   code it; B only, three sessions on CLEAN, as §6.
 
+## Results
+
+SESSION-COST-RUN, 2026-11-24 19:01–21:28 UTC, by a session that wrote none of this protocol, its review or its fix,
+as amended in §9 before any counted row. **Measured** unless labelled. Rig `claude/session-cost-rig` `8dcc345f5`
+(`client/view/`, `client/transport/` = `b059388b6`'s, so **T1**); raw rows there, `lab/delivery/rows/session-CLEAN.jsonl`
+(97: the warm-up and 96), `session-CR.jsonl` and `session-CR-rest.jsonl` (31 and 18: the first job stopped at its 2 h
+limit after step 30, `--skip 31` ran the rest without a second warm-up), `session-CLEAN-usb_cine.jsonl` (3); the
+smoke and the mutants beside them. 147 counted, 0 `VOID`, 0 flagged; Chromium 158.0.8127.36; the servers' core at
+most 46 % busy, so the host did not saturate on any cell. `claude/session-cost-rig:lab/delivery/session-summary.mjs` reads the table below off
+the rows. Medians; asks are frames off the wire (§9's correction), MB server → client UDP, CPU both series servers'
+schedstat, RSS the larger server's peak over its value before the load. Predictions in brackets (§3, §4, T1).
+
+| form | volume | arm | n | guard late | asks | MB | CPU s | peak RSS MB | §7 |
+| --- | --- | --- | --: | --: | --- | --- | --- | --: | --- |
+| CLEAN | `dbts_a1` | A+C1 | 8 | 8 | 59 (59) | 8.54 (8.53) | 0.060 (0.045–0.062) | 5.24 | MISS rss |
+| CLEAN | `dbts_a1` | A | 8 | 4 | 56 (56) | 4.83 (4.83) | 0.034 (0.028–0.043) | 5.30 | MISS rss |
+| CLEAN | `dbts_a1` | B | 8 | 1 | 56 (56) | 70.34 (70.32) | 0.410 (0.330–0.370) | 10.37 | MISS cpu, rss |
+| CLEAN | `dbts_a1` | FIT | 8 | 0 | 56 (56) | 70.34 (70.32) | 0.398 (0.330–0.370) | 10.49 | MISS cpu, rss |
+| CLEAN | `dbts_b1` | A+C1 | 8 | 8 | 307.5 (799) | 158.10 (392) | 0.836 (2.080–2.500) | 7.70 | MISS asks, bytes, cpu, rss |
+| CLEAN | `dbts_b1` | A | 8 | 8 | 305.5 (796) | 149.68 (385.4) | 0.817 (2.040–2.460) | 7.87 | MISS asks, bytes, cpu, rss |
+| CLEAN | `dbts_b1` | B | 8 | 8 | 130.5 (132) | 291.87 (295.2) | 1.544 (1.370–1.520) | 11.32 | MISS cpu, rss |
+| CLEAN | `dbts_b1` | FIT/15 | 8 | 8 | 135 (135) | 84.98 (84.85) | 0.481 (0.400–0.450) | 9.83 | MISS cpu, rss |
+| CLEAN | `dbts_c1` | A+C1 | 8 | 8 | 121 (180) | 14.11 (19.14) | 0.095 (0.100–0.130) | 6.24 | MISS asks, bytes, cpu, rss |
+| CLEAN | `dbts_c1` | A | 8 | 8 | 119 (177) | 11.12 (16.02) | 0.072 (0.088–0.115) | 6.21 | MISS asks, bytes, cpu, rss |
+| CLEAN | `dbts_c1` | B | 8 | 8 | 84 (84) | 90.37 (90.34) | 0.516 (0.420–0.480) | 10.36 | MISS cpu, rss |
+| CLEAN | `dbts_c1` | FIT | 8 | 8 | 84 (84) | 90.37 (90.34) | 0.523 (0.420–0.480) | 10.26 | MISS cpu, rss |
+| CLEAN | `usb_cine` | B | 3 | 2 | 64 (64) | 5.19 (5.17) | 0.034 (0.027–0.040) | 5.66 | MISS rss |
+| CR | `dbts_a1` | A+C1 | 4 | 0 | 59 (59) | 8.54 (8.53) | 0.111 (0.063–0.102) | 5.40 | MISS cpu, rss |
+| CR | `dbts_a1` | A | 4 | 0 | 56 (56) | 4.83 (4.83) | 0.060 (0.036–0.059) | 5.42 | MISS cpu, rss |
+| CR | `dbts_a1` | B | 4 | 0 | 56 (56) | 70.35 (70.32) | 0.419 (0.431–0.698) | 11.02 | MISS cpu, rss |
+| CR | `dbts_a1` | FIT | 4 | 0 | 56 (56) | 70.35 (70.32) | 0.425 (0.418–0.676) | 11.06 | MISS rss |
+| CR | `dbts_b1` | A+C1 | 4 | 4 | 219 (799) | 115.17 (392) | 0.723 (0.877–1.420) | 8.43 | MISS asks, bytes, cpu, rss |
+| CR | `dbts_b1` | A | 4 | 4 | 215.5 (796) | 108.74 (385.4) | 0.679 (0.858–1.389) | 8.32 | MISS asks, bytes, cpu, rss |
+| CR | `dbts_b1` | B | 4 | 4 | 105 (132) | 252.84 (295.2) | 1.234 (1.621–2.624) | 12.04 | MISS asks, bytes, cpu, rss |
+| CR | `dbts_b1` | FIT/15 | 4 | 4 | 114 (135) | 72.27 (84.85) | 0.500 (0.506–0.819) | 10.66 | MISS asks, bytes, cpu, rss |
+| CR | `dbts_c1` | A+C1 | 4 | 0 | 97 (180) | 11.97 (19.14) | 0.152 (0.100–0.162) | 6.36 | MISS asks, bytes, rss |
+| CR | `dbts_c1` | A | 4 | 0 | 94 (177) | 8.85 (16.02) | 0.104 (0.076–0.123) | 6.36 | MISS asks, bytes, rss |
+| CR | `dbts_c1` | B | 4 | 2 | 84 (84) | 90.38 (90.34) | 0.518 (0.542–0.878) | 10.83 | MISS cpu, rss |
+| CR | `dbts_c1` | FIT | 4 | 1 | 84 (84) | 90.38 (90.34) | 0.533 (0.549–0.888) | 10.76 | MISS cpu, rss |
+
+**What held and what missed** (§7, every cell, misses named):
+
+* **Asks, the model's first** (§7: read before bytes or CPU). Held on every B and FIT cell on CLEAN, on every
+  `dbts_a1` cell on both forms, and on `usb_cine`. **Missed on the view where the window is under the series:**
+  `dbts_b1` A asks 305.5 frames on CLEAN and 215.5 on CR, not 796 (−62 %, −73 %); `dbts_c1` A 119 and 94, not 177;
+  A+C1 the same plus its three. The view does re-ask (`dbts_b1`: 6.1 asks a frame of the series on CLEAN), but a
+  third of T1's thrash: §3's caveat ("a slower decode leaves misses pending when the window moves on") is the
+  likely cause, *not checked*. On CR the exact series miss too (`dbts_b1` B 105 for 132, FIT 114 for 135): the round
+  trip leaves fewer frames asked ahead to be let go.
+* **Bytes follow the asks**: within ±0.1 % of the table wherever the asks held (`dbts_a1` 4.83, 8.54, 70.34;
+  `dbts_c1` B 90.37; `dbts_b1` FIT 84.98, B 291.87 at −1.1 %; `usb_cine` 5.19), so wire ÷ payload stood at 1.037–1.04;
+  a miss in asks is a miss in bytes by the same share. CR's bytes equal CLEAN's (±2 %) only where the asks did.
+* **Server CPU, exact frames: missed high on CLEAN**, 5.3–5.8 ms a wire MB against 4.6–5.1 (§4's 4.8–5.3 a MB
+  asked): `dbts_a1` B 0.410 s (0.33–0.37), `dbts_b1` B 1.544 (1.37–1.52), FIT 0.481 (0.40–0.45), `dbts_c1` 0.516–0.523
+  (0.42–0.48). The view's held on `dbts_a1` (A 0.034, A+C1 0.060) and, at its measured bytes, sits at 5.3–7.1 ms a
+  MB (§4: 5.5–6.6). **CR's ×1.05–1.7 missed for the exact series** (×0.80–1.07 of CLEAN), held for the view on
+  `dbts_c1`, high on `dbts_a1` (A ×1.76, A+C1 ×1.85).
+* **Peak memory: missed on every cell**, 5.0–12.1 MB against 0–5. It is bounded, not growing with bytes (*derived*):
+  the exact series' sessions sit at 10.3–12.1 MB whether they move 70 or 292 MB, the view's at 5.1–8.7. That is
+  §4's own theory, quinn's 10 MB send window, with its number taken from the other host's 1–4.8 MB rows.
+* **The guard** tripped in 98 of 147 sessions (§9); no byte cell whose asks held moved past ±1.1 %, so no
+  retransmission it caused shows in the bytes.
+
+**Lowest** (§7: below every other measured arm in its form and volume, bytes and CPU alike, *measured*): on
+`dbts_a1` **A** (4.83 MB, ×14.6 under B; CPU 0.034 s CLEAN, 0.060 CR); on `dbts_b1` **FIT** (84.98 MB CLEAN, ×3.4
+under B; 72.27 CR, ×3.5; CPU 0.481 and 0.500); on `dbts_c1` **A** (11.12 MB CLEAN, ×8.1 under B; 8.85 CR, ×10.2).
+**T1's `dbts_b1` conclusion does not hold**: A and A+C1 are not the dearest there; **B is the dearest arm on every
+volume and form**, A ×1.9–2.3 under it on `dbts_b1`. The order on `dbts_b1` is FIT, A, A+C1, B on both forms.
+Against the frame retrieve (§5, *theory*, its bytes B's within 1 %): "lowest bytes a session" holds for each lowest
+arm above. "Lowest server CPU" needs the bytes saved to outweigh WebTransport's CPU a MB over HTTP/2's 0.84; at the
+rates measured here (view 6.5–7.1, exact 5.3–5.8 ms a MB, ×6.3–8.5) only **`dbts_a1`'s A** clears it (×14.6 against
+×8.5); `dbts_c1`'s A on CLEAN is a tie within the rates' spread (×8.1 against ×7.7–8.5), on CR not met (×10.2
+against ×14); `dbts_b1`'s FIT does not (×3.4 against ×6.7). Nothing is claimed against rendered frames.
+
+**Not recorded as §6 asked** (each found by this run): client → server bytes (the relay's tally counts that
+direction's packets, 1.5–24 k a session, not its bytes by flow); the host's softirq is recorded per core
+(`softirqJiffies`, 1.0–3.5 s a session over all four cores) but includes the relay's TUN and the browser, so it
+does not bound HTTP/2's seventh (§5) either way. The session's length is not a result (§6 *Forms*).
+
+**How it serves the value statement.** The first measured row behind "the lowest server and network cost per reading
+session": on this trace and these three volumes the view (A) is cheapest where its window holds the series or most
+of it, FIT where it does not (`dbts_b1`), and the exact series alone (B) is dearest everywhere; against a DICOMweb
+frame retrieve, lower server CPU is shown (by theory) on `dbts_a1` only. The link, not the decode, bound none of
+these cells' costs: bytes and CPU are link-independent where the asks are (§6), and CR moved the asks, not the rates.
+
 ## Fixtures and limits
 
 Three timed DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`, as `claude/delivery:lab/delivery/series.sh` codes them);
 `usb_cine`, 64 frames, **lossy-sourced** (`docs/FIXTURES.md`): a function check, its bytes and CPU not results. One
 4-core cloud host without a GPU, headless Chromium, software WebCodecs; a userspace relay, not a radio; one session at a
 time. Every input above is from those rows and fixtures, the `transport-conclusions.md` §4 figures from another host.
-Limits found: the thrash on `dbts_b1` by the product's code under the stand-in harness (§3, PR 441's review), not yet
-by a row; T2's cure by the same harness on PR 446; HTTP/2's CPU a MB by
+Limits found: the thrash on `dbts_b1` by the product's code under the stand-in harness (§3, PR 441's review), measured
+by SESSION-COST-RUN at a third of its size (§Results); T2's cure by the same harness on PR 446; HTTP/2's CPU a MB by
 `claude/transport-arms`' CLEAN rows, process time only.

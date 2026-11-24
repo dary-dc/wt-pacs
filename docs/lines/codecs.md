@@ -68,7 +68,10 @@ measured, and every result names its fixtures.
   Reviewed 2026-11-24 (PR 441's body): four blockers, among them §3's ask counts against the product's own code and
   PR 446's reversal on `dbts_b1`. Fixed in place 2026-11-24 (§9): counts from the product's code, two tables (the
   tip's and PR 446's), FIT's *W* both ways, claims against the frame retrieve only. Re-reviewed 2026-11-24 (PR 441's §Re-review): no
-  blocker open, the counts reproduced at both commits; r-m1 (CR's CPU multiplier per form) for the run. SESSION-COST-RUN next.
+  blocker open, the counts reproduced at both commits; r-m1 (CR's CPU multiplier per form) for the run. Run 2026-11-24
+  (SESSION-COST-RUN, §9's amendment and §Results; rows on `claude/session-cost-rig`): 147 sessions; the view's
+  asks on `dbts_b1` and `dbts_c1` a third to two thirds of T1's, so B is the dearest arm everywhere; lowest bytes A
+  on `dbts_a1` and `dbts_c1`, FIT on `dbts_b1`; exact-frame CPU and every peak RSS above their bands. SESSION-COST-VERDICT next.
 * **G at equal quality** (`claude/av1-groups`): shard 2 (`dbts_a1`, `dbts_c1`, TRUS; about 4.3 h on one 4-core host)
   and the collect without `--partial`; the settings shard S2 (A, C cut); a structure-only source with no coding error
   of its own; a finer ladder at Q 8–12. Decode time in order matters more than jumps. No G is decided for DBT.
