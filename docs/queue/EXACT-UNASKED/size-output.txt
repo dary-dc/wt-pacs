@@ -33,16 +33,16 @@
   LOSS  dbts_c1  cloud   680  entry   700-  715  middle   682-  698  premium   678-  686
 
 3. Dwell start -> painted exact (s): dwell trigger + the class range across the three volumes
-  CLEAN dwell 0.20  entry 0.41-0.64  middle 0.39-0.59  premium 0.38-0.56
-  CLEAN dwell 0.54  entry 0.75-0.98  middle 0.73-0.93  premium 0.72-0.90
-  PUB   dwell 0.20  entry 0.50-0.76  middle 0.48-0.71  premium 0.48-0.67
-  PUB   dwell 0.54  entry 0.84-1.10  middle 0.82-1.05  premium 0.82-1.01
-  CR    dwell 0.20  entry 6.44-7.44  middle 6.42-7.39  premium 6.42-7.36
-  CR    dwell 0.54  entry 6.78-7.78  middle 6.76-7.73  premium 6.76-7.70
-  LTE   dwell 0.20  entry 0.68-0.99  middle 0.66-0.94  premium 0.66-0.91
-  LTE   dwell 0.54  entry 1.02-1.33  middle 1.00-1.28  premium 1.00-1.25
-  LOSS  dwell 0.20  entry 0.90-1.47  middle 0.88-1.42  premium 0.88-1.38
-  LOSS  dwell 0.54  entry 1.24-1.81  middle 1.22-1.76  premium 1.22-1.72
+  CLEAN dwell 1.00  entry 1.21-1.44  middle 1.19-1.39  premium 1.18-1.36
+  CLEAN dwell 2.00  entry 2.21-2.44  middle 2.19-2.39  premium 2.18-2.36
+  PUB   dwell 1.00  entry 1.30-1.56  middle 1.28-1.51  premium 1.28-1.47
+  PUB   dwell 2.00  entry 2.30-2.56  middle 2.28-2.51  premium 2.28-2.47
+  CR    dwell 1.00  entry 7.24-8.24  middle 7.22-8.19  premium 7.22-8.16
+  CR    dwell 2.00  entry 8.24-9.24  middle 8.22-9.19  premium 8.22-9.16
+  LTE   dwell 1.00  entry 1.48-1.79  middle 1.46-1.74  premium 1.46-1.71
+  LTE   dwell 2.00  entry 2.48-2.79  middle 2.46-2.74  premium 2.46-2.71
+  LOSS  dwell 1.00  entry 1.70-2.27  middle 1.68-2.22  premium 1.68-2.18
+  LOSS  dwell 2.00  entry 2.70-3.27  middle 2.68-3.22  premium 2.68-3.18
 
 4. The window +-1 (three frames, centre first, one idle session): the neighbours' extra wait, model, ms
   CLEAN dbts_a1 +  261  dbts_b1 +  473  dbts_c1 +  231
@@ -55,3 +55,14 @@
   dbts_a1 view 0.0684  d 0.05: 0.118  d 0.10: 0.168  d 0.25: 0.318  d 0.50: 0.568  break-even d = 0.932  a frame 1.26 MB = 15.2 view frames
   dbts_b1 view 0.2161  d 0.05: 0.266  d 0.10: 0.316  d 0.25: 0.466  d 0.50: 0.716  break-even d = 0.784  a frame 2.11 MB = 4.6 view frames
   dbts_c1 view 0.0883  d 0.05: 0.138  d 0.10: 0.188  d 0.25: 0.338  d 0.50: 0.588  break-even d = 0.912  a frame 1.09 MB = 12.1 view frames
+
+6. The window +-1: each neighbour's arrival after the trigger, centre measured per class + model increment, s
+  CLEAN first neighbour 0.30-0.68  second 0.42-0.91
+  PUB   first neighbour 0.39-0.79  second 0.51-1.03
+  CR    first neighbour 7.12-8.23  second 7.82-8.83
+  LTE   first neighbour 1.26-2.36  second 2.07-3.93
+  LOSS  first neighbour 2.54-4.89  second 4.41-8.50
+
+7. An ultrasound exact frame of 0.10-0.26 MB (an assumption) on the CR form: round trips and wait
+  0.10 MB  4.0 round trips (the ask's 1 + slow start)  3.20 s
+  0.26 MB  5.0 round trips (the ask's 1 + slow start)  4.02 s

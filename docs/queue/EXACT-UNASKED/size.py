@@ -29,7 +29,8 @@ C1_MEASURED_MS = {  # judged/<CELL>.txt: predicted ms, median ratio
     ("LOSS", "dbts_a1"): (2218, 0.346), ("LOSS", "dbts_b1"): (3695, 0.316), ("LOSS", "dbts_c1"): (1943, 0.350),
 }
 CLASS_B1_MS = {"entry": (100, 143), "middle": (46, 94), "premium": (37, 59)}
-DWELL_S = (0.2, 0.54)
+STEP_PACE_S = 0.54  # Beard 1994: adjacent eye movement (+/- 1 image), the per-step pace; not a dwell
+DWELL_S = (1.0, 2.0)  # theory: above the step pace; no source gives a dwell threshold
 DWELL_SHARES = (0.05, 0.10, 0.25, 0.50)
 
 
@@ -105,6 +106,26 @@ def main():
         cells = "  ".join(f"d {d:.2f}: {ra + d:.3f}" for d in DWELL_SHARES)
         print(f"  {vol} view {ra:.4f}  {cells}  break-even d = {1 - ra:.3f}  a frame {f / 1e6:.2f} MB"
               f" = {f / (ra * sum_bytes(vol) / frames_of(vol)):.1f} view frames")
+
+    print("\n6. The window +-1: each neighbour's arrival after the trigger, centre measured per class + model increment, s")
+    for form in FORMS:
+        first, second = [], []
+        for vol in VOLUMES:
+            m = measured_ms(form, vol) - VOLUMES[vol][1]
+            step = model_ms(form, vol, 2) - model_ms(form, vol, 1)
+            both = model_ms(form, vol, 3) - model_ms(form, vol, 1)
+            for cls in CLASS_B1_MS:
+                for h in class_h1(vol, cls):
+                    first.append(m + h + step)
+                    second.append(m + h + both)
+        print(f"  {form:5} first neighbour {min(first) / 1000:4.2f}-{max(first) / 1000:4.2f}"
+              f"  second {min(second) / 1000:4.2f}-{max(second) / 1000:4.2f}")
+
+    print("\n7. An ultrasound exact frame of 0.10-0.26 MB (an assumption) on the CR form: round trips and wait")
+    rtt, g = FORMS["CR"]
+    for nbytes in (100_000, 260_000):
+        t = rtt + slow_start_ms(nbytes, rtt, g)
+        print(f"  {nbytes / 1e6:.2f} MB  {t / rtt:.1f} round trips (the ask's 1 + slow start)  {t / 1000:.2f} s")
 
 
 FRAMES = {"dbts_a1": (56, 67_812_443), "dbts_b1": (50, 107_407_602), "dbts_c1": (69, 70_664_924)}
