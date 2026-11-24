@@ -587,7 +587,7 @@ its fix and will run none of it (`by:` in `claude/work-ledger:docs/queue/PAGE-RU
 fix's commits `b630a3738`, `131198c9d`, `4d263a209` (`git diff 9c752355f..4d263a209`: this file and
 `docs/lines/coordination.md` only, every hunk under B1, B2 or m1–m7); at `origin/claude/transport-arms`
 `stream_mode.rs`, `link.rs:205-232,255-270`, `tuning.rs:55-61,100-112`, `run.mjs:43-70`, `lab/order.mjs`; at
-`origin/claude/report-arms` `lab/report-arms/run.mjs:138-209`; at `origin/claude/av1-unified-mainbase`
+`origin/claude/report-arms` its rig's `run.mjs:138-209`; at `origin/claude/av1-unified-mainbase`
 `quic-compared.md` §9.7 (its theory table and *Measured*); `av1/queue.md` rows 180, 207, 211 on `claude/unified`.
 Nothing run but `git` reads, `scripts/check_links.py` (9 unresolved, as before the fix) and the fix's sums, recomputed:
 Binomial(18, 0.75) gives P(10–17) 0.975, P(18) 0.0056, P(≤ 16) 0.961; the range of 18 uniform draws on 0–50 ms is
