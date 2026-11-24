@@ -1,15 +1,24 @@
 /**
- * One series' frames through client/decode/av1.js on WebCodecs, in order, one at a time, as decoder.js takes them;
- * each frame's send, frame-out, return and digest check stamped. run.mjs
+ * One series' frames through client/decode/av1.js on WebCodecs in order, each frame's send, frame-out, return and
+ * digest stamped; `overlap=1` starts the next frame when the codec says, as decoder.js does. run.mjs
  */
 const q = new URLSearchParams(location.search);
 const G = Number(q.get("g"));
-let frameOut = 0;
-// The stamp sits on the browser's output callback, so client/decode/ is run unchanged.
+const overlap = q.get("overlap") === "1";
+// Each decoder's frame-outs by the timestamp av1-webcodecs.js sent the unit with; client/decode/ is run unchanged.
+const outs = [];
 const Native = globalThis.VideoDecoder;
 globalThis.VideoDecoder = class extends Native {
   constructor(init) {
-    super({ ...init, output: (f) => ((frameOut = performance.now()), init.output(f)) });
+    const mine = new Map();
+    const sent = new Map();
+    outs.push({ out: mine, sent });
+    super({ ...init, output: (f) => (mine.set(f.timestamp, performance.now()), init.output(f)) });
+    this.sent = sent;
+  }
+  decode(chunk) {
+    this.sent.set(chunk.timestamp, performance.now());
+    return super.decode(chunk);
   }
 };
 
@@ -24,19 +33,31 @@ try {
   const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : null;
   await new Promise((r) => (globalThis.__go = r));
   const rows = [];
+  let queue = Promise.resolve();
+  const t = performance.now();
   for (let i = 0; i < n; i++) {
     const at = 16 + 12 * i;
     const off = Number(dv.getBigUint64(at, true));
     const bytes = sbnd.slice(off, off + dv.getUint32(at + 8, true));
-    frameOut = 0;
-    const t0 = performance.now();
-    const r = await av1.decodeFrame(bytes, { key: i % G === 0, index: i, gen: 0 });
-    const t1 = performance.now();
-    const exact = xxh3.init().update(new Uint8Array(r.sab)).digest("hex") === digests?.[i];
-    const t2 = performance.now();
-    rows.push({ i, route: r.route, exact, toOut: frameOut - t0, outToReturn: t1 - frameOut, check: t2 - t1, total: t2 - t0 });
+    queue = queue.then(() => new Promise((next) => {
+      const row = { i, t0: performance.now() };
+      rows.push(row);
+      av1.decodeFrame(bytes, { key: i % G === 0, index: i, gen: 0 }, undefined, undefined, overlap ? next : undefined).then((r) => {
+        row.t1 = performance.now();
+        row.sum = xxh3.init().update(new Uint8Array(r.sab)).digest("hex");
+        Object.assign(row, { route: r.route, exact: row.sum === digests?.[i], t2: performance.now() });
+      }, (e) => (row.error = String(e?.message ?? e))).finally(next);
+    }));
   }
-  globalThis.__result = { rows, digested: Boolean(digests) };
+  await queue;
+  await new Promise((r) => setTimeout(r, 100));
+  const wall = Math.max(...rows.map((x) => x.t2 ?? 0)) - t;
+  const top = outs.at(-1);
+  for (const x of rows) {
+    const [out, sent] = [top.out.get(x.i + 1), top.sent.get(x.i + 1)];
+    Object.assign(x, { sentAfter: sent - x.t0, decodeMs: out - sent, toOut: out - x.t0, outToReturn: x.t1 - out, check: x.t2 - x.t1, total: x.t2 - x.t0 });
+  }
+  globalThis.__result = { rows, wall, decoders: outs.length, digested: Boolean(digests) };
 } catch (e) {
   globalThis.__result = { error: String(e?.stack ?? e) };
 }

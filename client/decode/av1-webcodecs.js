@@ -131,6 +131,8 @@ function decoder(length) {
             last = { gen: unit.gen, index: unit.index };
             free();
             out?.();
+            // The next unit's send is queued behind this frame's read unless the read waits a task for it.
+            await new Promise((r) => setTimeout(r, 0));
           }
           const pic = await readFrame(frame, seq);
           if (!mid) {
