@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 and PAGE-RUNS-PROTOCOL 2026-11-24.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124, PAGE-RUNS-PROTOCOL and its review 2026-11-24.
 
 ## Goal
 
@@ -133,7 +133,9 @@ small enough that every open item has an owner and a next step.
    PAGE-RUNS-PROTOCOL (2026-11-24, `claude/page-runs`, no PR): [`../reviews/page-runs.md`](../reviews/page-runs.md)
    pre-registers the pages' cloud runs (transport flags, report reruns, engine cells, asking, the cache, four as time
    allows); each run's lab build is named first; `repository` item 4's two-host check `blocked`, its commands given.
-   Owed: PAGE-RUNS-PROTOCOL-REVIEW.
+   PAGE-RUNS-PROTOCOL-REVIEW (2026-11-24, the same file's §Review): two blockers, B1 (§1 claims #39 and #96 with
+   neither lever an arm) and B2 (§2(b)'s busy D5a not built, its band not derived), m1–m7. Owed:
+   PAGE-RUNS-PROTOCOL-FIX, its re-review; the five run rows wait as §Review's verdict says.
 
 ## Unification (the owner, 2026-11-09)
 

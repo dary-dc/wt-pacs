@@ -413,4 +413,81 @@ check, not a local one, and counts only if the two CPU lines differ.
 
 ## Review
 
-(PAGE-RUNS-PROTOCOL-REVIEW writes here.)
+PAGE-RUNS-PROTOCOL-REVIEW, 2026-11-24 13:47–14:10 UTC, by a session that wrote none of this file and will run none of
+it (`by:` in `claude/work-ledger:docs/queue/PAGE-RUNS-PROTOCOL-REVIEW.md`). Read: this file at `f85b2b5e4`; its brief
+(`claude/work-ledger:docs/queue-2026-11-24.md`); each rig and source it cites, at the branches its header names
+(`transport-arms` `run.mjs`, `judge.mjs`, `server/src/transport/{lab_levers,stream_mode,link,server}.rs`,
+`server/README.md`; `report-arms` `run.mjs`, `bidi.mjs`; `report-plan.md` §7.9 and §Results 2; `engines` `engines.md`,
+`run_firefox.sh`; `core-m5b` `lab/opfs-cache/{run,browser}.mjs`; `unified` `ask-model.md` §6–§7, `av1/queue.md` rows 180,
+207, 211, `main.rs`; `docs-client` `ask-during-a-fill.md`; `cache-plan.md` §10.4; `cache-arms` `lab/`; the pages
+`transport-stack`, `reports`, `cache`). Nothing run but `git` reads and one binomial sum; the gate not run (docs only).
+CACHE-DESIGN-1124 still has no output (`git log --all --since=2026-11-24T00:00Z`, 13:58), so §5's fallback stands.
+
+**Coverage.** Every section the brief names is here (Transport, Reports with the Firefox defect first, Engines items 3
+and 4, Asking P1/P1b/P1c/P2, Cache items 1, 3, 4 with item 3's VOID line, the four as-time-allows runs, `repository`
+item 4 `blocked` with its commands). Arms, cells, predictions, VOID rules, order and ceiling are given for §1, §2,
+§3b, §4 and §5. Checked and holding: §1's arms, cells and build line (`run.mjs:41-52,54-68,113`), the flag only under
+`lab-levers` (`lab_levers.rs:23-27`), TW's window (`server.rs:148-150`), PUB's and LTE's queues (2 000 and 3 300 × 1 500 B
+= 3.0 and 5.0 MB), the 6 MiB credit's ~63 Mbit/s over 0.8 s; §2's Firefox causes (`bidi.mjs:23-37`, `report-plan.md`
+§Firefox's counted cells) and every *measured* C and Lbusy anchor; §4's W = 15 (17.04 MB a frame, 256 MiB / 17.04 MB
+= 15.75), ρ = 20 ÷ (3.71 × 25) = 0.216 and every simulated value (`ask-model.md:320-325`), P2 corrected to a tie as n1
+asks; §5 is §10.4 narrowed as `cache` items 1–3 say. Williams periods: §1's 12 rounds = two of six, §2's 28 = two
+mirrored of seven and 18 = one mirrored of nine, §4 P1's 10 = one mirrored of five, §5's 12 = three of four.
+**IDB's exclusion (§5) holds:** `cache` item 2's reason (both stores already lose cells to their API's floor, so no item
+left can change which store passes, **derived**) covers IDB as built as well as `value=buffer`.
+
+**Blockers.**
+
+* **B1. §1 says its rows answer #39 and #96, but neither PR's lever is an arm.** `transport-stack` §3: "#39 | asks
+  first under a 6 MiB send window | hold for item 2's run | a trade-off: the ask ×0.18–0.31, the fill +2 to +44 % (row
+  211)"; row 211 measured `--stream-mode per-frame-asks-first` with a 6 MiB send window (`av1/queue.md:310`). "#96 |
+  the one queue as product code, no flag": the one queue is `--fill-resumes-after-asks`
+  (`ask-during-a-fill.md:21`), which this file itself says is "absent from the rig's server" and not an arm. Yet §1:
+  "#39 and #96 … are answered **only** by these rows' AD ask and CR fill together". As written the run would close two
+  held PRs on arms that measure neither. `per-frame-asks-first` is already in the rig's `lab-levers` build
+  (`stream_mode.rs:13-15`), so an arm WT-AF (`--stream-mode per-frame-asks-first`, the default 6 MiB window) costs one
+  argument list, not product code. Fix: add WT-AF with its prediction (row 211's ×0.18–0.31 behind 20 ms queues is
+  *measured* on another rig and fixture: say what carries) and say WT-AF decides #39; and say #96 stays held, untested
+  here, unless `--fill-resumes-after-asks` is ported to the rig's server as lab code (or the arms run on
+  `claude/unified`'s server), named either way.
+* **B2. §2(b)'s decisive cell, D5a on a busy page, is not built and its band does not follow from its mechanism.** The
+  rig kills the renderer a fixed 50 ms after the fault (`report-arms/run.mjs:208`: `ending === "D5a" ? 50 : 500`) and
+  sets `busy` only for Lbusy (`:201`); §2's built-first list has the clock, the Firefox fixes and KEEPALIVE-Y° but not
+  this, and the command's "then `--endings D5a` with the busy page" names no option. The band: with Lbusy's measured
+  shape (p50 ≈ 2 ms, p99 ≈ 51 ms for BEACON-*, `report-plan.md` §Results 2: the page is in its 50 ms task about half
+  the time, the wait then ~uniform on 0–50 ms) and a kill uniform on 0–50 ms, a page-thread report is killed first with
+  probability ≈ 0.5 × 0.5 = 0.25, so ~13.5 of 18 delivered (**derived**; binomial, 18 at 0.75: 10–17 holds 94 %), not
+  "about half"; the band 4–14 would call a theory-consistent 15–18 a miss 31 % of the time. With the rig's fixed 50 ms
+  kill nearly every report beats the kill (~18/18), so the race (b) exists to find is not placed. Fix: name the build
+  (D5a with Lbusy's long task, the kill delay drawn per load on 0–50 ms by a seeded rule and recorded in the row; a
+  mutant: a fixed delay must fail a spread check), state the delay's distribution, re-derive the band from it; the
+  race rule (BEACON-* ≤ 16/18, KEEPALIVE-Y 18/18) then reads against that band.
+
+**Minor.**
+
+* **m1.** WT-PF on AD: "quinn's scheduling of equal-priority streams not read". The streams are not equal: per-frame
+  gives each a rank strictly below every earlier ask (`link.rs:214-225`; test `:262-266`), so the asked frame ranks below
+  every open fill stream (**source**), and row 180 measured `per-frame` tying `shared` at ×0.96–1.03 (Chromium 141,
+  another rig). Restate the basis; the band can narrow.
+* **m2.** §1's cell order "AD-PUB, CR, AD-LTE" cannot be run: `--cell AD` runs both forms (`run.mjs:63`). Say AD, then
+  CR, or name the option the run row adds.
+* **m3.** WT-TW's band reaches ×0.80, the very threshold that decides the page, but its own theory predicts a tie: it
+  gains only while cwnd < 2.0 MB, and Cubic fills 3.0–5.0 MB queues (row 207: "cwnd + M is no cap … Cubic grows into the
+  queue"; row 211: cwnd at the ask ≤ 4.1 MB). State the tie as the prediction, with the band from the A/A, so a ×0.80
+  reads as a refutation, not a hit.
+* **m4.** §3b: 7 rounds of six arms is one Williams period and one round over (a period of six is six rounds), so
+  `balanced()` holds only for six or twelve; and `ring` − `disk` is predicted 250–310 but "refuted" only above 320, so a
+  median of 311–320 or under 250 is outside the prediction and named no miss. The bar is per round ("every round's
+  growth ≤ median `disk` + 320"): predict the rounds, not only the median.
+* **m5.** §4 P1b has four arms; 10 rounds is not a whole period of four (8 or 12).
+* **m6.** §5's "S1 and S2 within 20 MiB of each other" is this file's number, not §10.4's ("does not scale with the
+  frame"); label it (**assumed** or derived, with why 20).
+* **m7.** §3a gives no VOID rule and no order for its 2 versions × 3 runs: say both (e.g. alternate versions; a run whose
+  trace fails its completeness check is `VOID` and rerun).
+
+**Verdict.** Two blockers (B1, B2), both in sections whose run rows they stop: TRANSPORT-FLAGS-RUN and REPORT-RERUNS wait
+on PAGE-RUNS-PROTOCOL-FIX-REVIEW with no blocker open; ENGINE-CELLS, ASK-CELLS and CACHE-CELLS wait only on
+PAGE-RUNS-PROTOCOL-FIX (m4–m7 fixed in place by a session that runs none of it). Rows appended to
+`claude/work-ledger:docs/queue-2026-11-24.md`. How it serves the value statement: the transport and report runs are
+what "a fast full fill, and low latency on every jump" and the checked frame's safety report rest on, so their
+predictions must be able to miss.
