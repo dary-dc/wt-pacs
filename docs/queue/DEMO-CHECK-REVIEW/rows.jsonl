@@ -1,0 +1,8 @@
+{"at":"2026-11-24T06:36:19Z","check":"merged","controller":"orig","series":"dbts_a1-q8-g8-cut","view":"page","tag":"smoke","exit":0,"s":39,"fail":[],"last":"demo check: dbts_a1-q8-g8-cut passed"}
+{"at":"2026-11-24T06:37:26Z","check":"418","controller":"orig","series":"dbts_a1-q8-g8-cut","view":"page","tag":"r1","exit":0,"s":38,"fail":[],"last":"demo check: dbts_a1-q8-g8-cut passed"}
+{"at":"2026-11-24T06:38:04Z","check":"419","controller":"orig","series":"dbts_a1-q8-g8-cut","view":"page","tag":"r1","exit":0,"s":39,"fail":[],"last":"demo check: dbts_a1-q8-g8-cut passed"}
+{"at":"2026-11-24T06:38:43Z","check":"merged","controller":"orig","series":"dbts_a1-q8-g8-cut","view":"page","tag":"r1","exit":0,"s":39,"fail":[],"last":"demo check: dbts_a1-q8-g8-cut passed"}
+{"at":"2026-11-24T06:39:22Z","check":"418","controller":"orig","series":"dbts_a1-q8-g8-cut","view":"worker","tag":"r1","exit":0,"s":38,"fail":[],"last":"demo check: dbts_a1-q8-g8-cut passed"}
+{"at":"2026-11-24T06:40:00Z","check":"419","controller":"orig","series":"dbts_a1-q8-g8-cut","view":"worker","tag":"r1","exit":0,"s":38,"fail":[],"last":"demo check: dbts_a1-q8-g8-cut passed"}
+{"at":"2026-11-24T06:40:38Z","check":"merged","controller":"orig","series":"dbts_a1-q8-g8-cut","view":"worker","tag":"r1","exit":0,"s":38,"fail":[],"last":"demo check: dbts_a1-q8-g8-cut passed"}
+{"at":"2026-11-24T06:41:16Z","check":"418","controller":"B1","series":"dbts_a1-q8-g8-cut","view":"page","tag":"r1","exit":1,"s":40,"fail":["FAIL &fill=0: on demand, frames arrived from a group no step had reached: 9 frames after frames 1 to 5; 11 frames after frames 1 to 6; 13 frames after frames 1 to 7; 15 frames after frames 1 to 8"],"last":"demo check: 1 failed"}
