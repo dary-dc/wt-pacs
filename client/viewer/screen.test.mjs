@@ -8,7 +8,7 @@ const about = { route: "htj2k", wireBytes: 2048, decodeMs: 3 };
 /** A frame of a series without a label is marked by its check: none when exact, NOT EXACT, or unchecked. */
 assert.deepEqual(markOf({ exact: true, quality: null }), { className: "", text: "" });
 assert.deepEqual(markOf({ exact: false, reason: "digest", quality: null }), { className: "inexact", text: "NOT EXACT — digest" });
-assert.deepEqual(markOf({ exact: "unchecked", quality: null }), { className: "unchecked", text: "unchecked" });
+assert.deepEqual(markOf({ exact: "unchecked", quality: null }), { className: "unchecked", text: "no digest" });
 
 /** An optimal-quality frame carries no digest: its label says what it is, and no `unchecked` mark beside it reads as a failure (REVIEW-BLIND C1). */
 assert.deepEqual(markOf({ exact: "unchecked", quality: "optimal" }), { className: "", text: "" });

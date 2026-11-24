@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it).
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it).
 
 ## Goal
 
@@ -116,6 +116,10 @@ small enough that every open item has an owner and a next step.
    pairs in `Sessions::new` become one `lab-levers` line, `LabLevers::onto`; not the audit's one `LabLevers` field,
    which the gate refused (`check_telemetry_absent.sh`: a lever's flag in the default binary). Default build's
    served bytes unchanged; the `--advise-tile-names` path has no test, before and after. Owed: UNIFIED-BUILDS-REVIEW.
+   UNIFIED-NAMES (2026-11-22, `claude/names-unified`): NAMES-1's leftovers, one commit each: `exactSource` →
+   `exactClient`; `requestExactFrame` and `info.path` where four lab pages still read them (`r3_arm.test.mjs` failed on
+   the base); the mark and the status line say *no digest*; the product's *lossy stream* in
+   `rules-for-showing-lossy-pictures.md`. Owed: UNIFIED-SIMPLIFY-REVIEW.
 
 ## Unification (the owner, 2026-11-09)
 

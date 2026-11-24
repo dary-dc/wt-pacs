@@ -53,7 +53,7 @@ export class Controller {
   #asks = new Map();
   #steps = 0;
   /** Under an optimal-quality series, the client of its exact series; `#exact`, the one frame asked exact, `{ i, frame?, failed? }`. */
-  exactSource = null;
+  exactClient = null;
   #exact = null;
   #exactAsks = new Map();
   #cutShift;
@@ -191,10 +191,10 @@ export class Controller {
   /** The current frame from the exact series, painted in its place once checked; it stays until the reader leaves it. */
   async showExact() {
     const i = this.current;
-    if (!this.exactSource || (this.#exact?.i === i && !this.#exact.failed)) return;
+    if (!this.exactClient || (this.#exact?.i === i && !this.#exact.failed)) return;
     const e = (this.#exact = { i });
     this.repaint();
-    if (!this.#exactAsks.has(i)) this.#exactAsks.set(i, this.exactSource.requestFrame(i).finally(() => this.#exactAsks.delete(i)));
+    if (!this.#exactAsks.has(i)) this.#exactAsks.set(i, this.exactClient.requestFrame(i).finally(() => this.#exactAsks.delete(i)));
     try {
       const { info } = await this.#exactAsks.get(i);
       if (info.exact === true) e.frame = { info, arrived: now() };

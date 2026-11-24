@@ -373,7 +373,7 @@ browser honors it. Not checked: the phone, its Chrome's flags page, the tether, 
   (the encoder's quantizer: higher, more error), G (frames per keyframe) and depth (*depth cut of 12*: 10-bit codes of a
   12-bit series).
 * **The status line**: the frame shown of the series; the transport client (`ts`); where frames are held (`page`);
-  frames received, of which exact, not exact and unchecked (an optimal-quality frame is unchecked; the exact frame does
+  frames received, of which exact, not exact and *no digest* (every optimal-quality frame; the exact frame does
   not count here); frames per decode route; the codec; the GPU renderer, *(software)* when it is not a GPU; the fill's
   time from the connect to the last frame received, or *on demand* under `?fill=0`; the last error. On a phone the line is cut at
   the screen's width: a tap on the label or the status line shows it whole, wrapped, and another tap folds it.

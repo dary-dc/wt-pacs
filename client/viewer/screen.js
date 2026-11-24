@@ -4,7 +4,7 @@
 export const markOf = (s) =>
   s.exact === true || (s.quality && s.exact !== false) ? { className: "", text: "" }
   : s.exact === false ? { className: "inexact", text: `NOT EXACT — ${s.reason ?? ""}` }
-  : { className: "unchecked", text: "unchecked" };
+  : { className: "unchecked", text: "no digest" };
 
 /** The overlay's line: the route, the wire bytes and the decode time of `about`, then, on its own frames, the optimal-quality series `lossy`'s parameters. */
 export function overlayText(about, quality, lossy) {
