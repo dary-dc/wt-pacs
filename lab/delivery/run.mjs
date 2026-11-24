@@ -303,7 +303,10 @@ const plan = (BENCH ? benchLoads() : K3P ? k3Prime() : SESSION ? [...(flag("--wa
 console.log(`${BENCH ? "K2" : CELL}: ${plan.length} loads; rows to ${path.relative(ROOT, OUT)}; series ${SERIES}${predictionsXxh3 ? `; predictions ${predictionsXxh3}` : ""}`);
 const rows = [];
 let stopped = null;
+// A resumed cell: its first N loads are in an earlier rows file.
+const SKIP = Number(arg("--skip", 0));
 for (const [k, spec] of plan.entries()) {
+  if (k < SKIP) continue;
   const row = await load(k, spec);
   const v = SESSION ? sessionVoid(row) : voidOf(row, { pilotMedian: pilotMedians[`${spec.cell}/${spec.volume}/${spec.arm}`] });
   Object.assign(row, v.why.length && { void: v.why });
