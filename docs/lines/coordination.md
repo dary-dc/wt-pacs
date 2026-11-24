@@ -152,6 +152,11 @@ small enough that every open item has an owner and a next step.
    no sequence header (`av1-payload.js` `layouts()`), not Gecko's decoder: a bug with no trade-off, for
    BRIEF-WEEKEND's list. 3b, M5 at 12 rounds on 160.0.1: memory held, `ring` fill ÷ `today` 1.24, so the bar flips
    and `ring` does not qualify. PAGE-RUNS-VERDICT reads both.
+   ASK-CELLS (2026-11-24, `page-runs.md` §4 Amendment, before the first counted row; builds and rows on
+   `claude/ask-cells`): the hold key, the leg trace and a display that never skips, as lab levers on the page view,
+   each mutant killed. The cell as served is the exact HTJ2K series (16.9 Mbit a frame, not the view's 3.71) and the
+   software paint sets the pace (~200 ms a step), so each cell reads its own ρ (0.21–0.28 on `r20000rtt40`, ~1.2 on
+   `r80000rtt40`, measured); on 50 frames P1b cannot decide (the bounded model meets its refutation line). Running.
 
 ## Unification (the owner, 2026-11-09)
 
