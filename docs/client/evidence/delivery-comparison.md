@@ -553,11 +553,19 @@ frame's bits and *d* its decode at two decoders ÷ 2, from this host's K1–K2:
 ```
 t = (b_E d_V − b_V d_E) ÷ (G (d_V − d_E) + (b_E − b_V))        for G_A = b_V ÷ d_V < G < G_B = b_E ÷ d_E
 x = (d_V − t) ÷ (d_V − d_E)                                      the share of exact groups
-SPLIT's fill = W(b₁) + n t, b₁ the first group's view bytes; below G_A, SPLIT is A (x = 0)
+SPLIT's fill = W(b₁) + k n t, b₁ the first group's view bytes; below G_A, SPLIT is A (x = 0)
+k = decodeFloor(A's groups) ÷ (n d_V)                            A's in-order makespan over the fluid n d_V
 ```
 
+*k* (×1.14 `dbts_a1`, ×1.04 `dbts_b1`, ×1.07 `dbts_c1`, *derived*) gives SPLIT the granularity A's §4.1 prediction
+already pays, so the two are judged by one model (review m1: without it SPLIT ÷ A would credit SPLIT with A's group
+rounding). It is an *assumption* that SPLIT's mix rounds as A's 8-frame groups do; its exact groups are eight one-frame
+jobs, finer, so *k* errs toward predicting SPLIT slow.
+
 With the 2026-11-23 inputs (`lab/delivery/inputs.json`, *derived*): *G*_A is 25, 36 and 25 Mbit/s (`dbts_a1`, `b1`, `c1`),
-*G*_B 740–1 210. On CLEAN and PUB (*G* ≈ 87) SPLIT ÷ A ×0.89, ×0.80, ×0.86 with *x* 0.15, 0.26, 0.19; on CR (A wire-bound: its wire 8.7–13.4 s against a decode floor
+*G*_B 740–1 210. On CLEAN and PUB (*G* ≈ 87) SPLIT's fill ÷ A's fill, the ratio the run compares with, is ×0.90, ×0.81, ×0.87 on
+CLEAN and ×0.90, ×0.82, ×0.87 on PUB (`dbts_a1`, `b1`, `c1`; *t* ÷ *d*_V is ×0.89, ×0.80, ×0.86), with *x* 0.15, 0.26,
+0.19 (`claude/work-ledger:docs/queue/FIT-ARM-PROTOCOL-FIX/split.mjs`); on CR (A wire-bound: its wire 8.7–13.4 s against a decode floor
 of 1.7–5.4 s) and on LTE and LOSS (wire-bound) SPLIT is A, *x* ≤ 0.05 (*theory*: decoders wait
 for bytes, so every group is asked as the view). *Risk, named:* LTE's first megabytes arrive at about the link's rate
 (below), so its first groups may be asked as exact frames before the link slows; then SPLIT lands above A's band. The
@@ -627,9 +635,11 @@ growth is cleared and the page says so.
 ### A2.5 · Clocks and records added to §5
 
 * **FIT**: fill (dial → the last frame's first picture, level or whole, checked); and **zoom latency**, 1 s after the
-  fill ends, a zoom past the fit on the frame on screen (frame 0, as C1's, §Results' build note), from the zoom to the
-  whole frame painted with *✓ Lossless*, with its ask → last byte. On a level-0 volume the frame is already whole: the
-  zoom asks nothing and its latency is one paint.
+  fill ends, a zoom past the fit on the frame on screen (frame 0, as C1's: `inputs.json`'s `shown: 0`,
+  [`lab/delivery/README.md`](../../../lab/delivery/README.md) §What the build found), from the zoom to the whole frame
+  painted with *✓ Lossless*, with its ask → last byte. On a level-0 volume the frame is already whole: the zoom asks
+  nothing and its latency is one paint, recorded and **reported, not judged** (review m4: its 17 ms prediction moves by up
+  to 16.7 ms with the display's frame alignment alone).
 * **SPLIT**: fill; each group's form; *x* (exact groups ÷ groups).
 * **C1**: ask → last byte.
 * **Every view load**: *G* of the first group, *d*_V, the pick at *m* = 1 (A2.3).
@@ -647,7 +657,10 @@ judged. **Registered in advance, in order, each only if the pilot's guard `VOID`
 amendment before the first counted row:** (i) the relay at `SCHED_FIFO` (`chrt -f 50`) if the namespace permits it,
 else said so; (ii) the relay alone on cores 0–1, the two series' servers and the page server with the browser on 2–3,
 their CPU recorded. A container of the relay's own is used if the
-host offers one; this one does not. If the guard still voids over 25 % of a cell's loads, the cell is read strict and
+host offers one; this one does not. *Departure from the brief, named* (review m7): the brief asks the relay "on cores or
+a container of its own (pinned)"; by default it keeps one core of its own, core 0, pinned, and cores 0–1 are escalation
+(ii), because moving the servers to 2–3 puts them on the browser's two decode cores in every decode-bound load, which
+changes A's fill, the clock judged. If the guard still voids over 25 % of a cell's loads, the cell is read strict and
 round-paired (§6) and the host is named as saturating the relay.
 
 ### A2.7 · The predictions, for scale
@@ -668,9 +681,10 @@ decode at 0.29 of the whole, LTE and LOSS through the curve from that run's B lo
 
 What it says (*derived*): **FIT is wire-bound on every form** (its level decode floor ~0.34 s against ≥ 2.5 s of wire on
 `dbts_b1`); on this host it fills `dbts_b1` faster than A where A is decode-bound (CLEAN, PUB, ×0.47) and about as fast
-where both are wire-bound (×0.93–1.08), at ×1.25 A's bytes over the whole series (0.271 ÷ 0.2161) and ×1.28–1.29 over LTE's and LOSS's prefixes (7.2 and
-3.6 MB against 9.3 and 4.6). On `dbts_a1` and `dbts_c1` FIT is
-B and loses to A by 2.6–15× on every form. The zoom costs the rest at the fill's window (*assumption*: a session that
+where both are wire-bound (×0.93–1.08), at ×1.25 A's bytes over the whole series (0.271 ÷ 0.2161) and ×1.26 over LTE's and LOSS's prefixes (7.4 and
+3.7 MB against 9.3 and 4.6). On `dbts_a1` and `dbts_c1` FIT is
+B and loses to A by 2.6–15× on every form; on LOSS there A's fill lies under the curve's first point and is predicted to
+miss low (A2.4), so the ×10.3 and ×9.2 understate FIT ÷ A by about A's miss. The zoom costs the rest at the fill's window (*assumption*: a session that
 just filled keeps its window over 1 s idle), not slow start: 0.20 s on CLEAN, 1.25 s at 800 ms. On a phone, where A's
 decode is slower (DEVICE-THEORY), FIT's lead on clean links grows; this host cannot measure that (§9).
 
@@ -680,22 +694,27 @@ decode is slower (DEVICE-THEORY), FIT's lead on clean links grows; this host can
   series of `dbts_b1` (two entries a frame, every level-1 prefix first, as RESLEVEL's lab carried them, with each level
   picture's truth), the `fit` lever (prefixes asked, decoded at the level and clamped, painted scaled to the viewport),
   the zoom press, the `split` lever, K3′ in `inputs.mjs` and the curve in `predict.mjs`, and A2.5's records.
-* **Rounds**: 12 a cell (two Williams periods of 6 arms), 216 loads; at the 23rd's pace ~52 (CLEAN), ~53 (PUB), ~98
-  (CR), ~69 (LTE), ~71 (LOSS) minutes (*derived*). Order of cells as §6. CR and any cell past 2 h run detached (§11 A5).
+* **Rounds**: 12 a cell (two Williams periods of 6 arms), 216 loads; at the 23rd's **measured** pace (each counted pass's
+  wall time, first row to last, × 216 ÷ 150) ~65 (CLEAN), ~67 (PUB), ~180 (CR), ~69 (LTE), ~79 (LOSS) minutes (*derived*,
+  `rows/<CELL>.jsonl`'s `at`; review m6). That counts C2, the longest load, which FIT and SPLIT replace: with FIT paced as
+  B and SPLIT as A, ~56, ~59, ~158, ~60, ~67. Order of cells as §6. CR, past 2 h either way, runs detached (§11 A5).
 * **The rule** (§8, its bands unchanged): a (cell, volume, arm, clock) **holds** when its median ratio is in its band and
   at least 10 of its 12 rounds are; under 10 counted rounds it is `CANNOT HOLD`. Clocks judged: every fill (the fill
-  band), C1's press → painted and ask → last byte, FIT's zoom (the latency band). *x*, the switch's reading and the
+  band), C1's press → painted and ask → last byte, FIT's zoom on `dbts_b1` (the latency band;
+  on `dbts_a1` and `dbts_c1` reported, A2.5). *x*, the switch's reading and the
   window read-back are reported against their predictions, not judged. Regime as §8. A/A as §7. FIT ÷ A and SPLIT ÷ A
   per cell are reported, measured, beside their predictions; **nothing ranks the arms or is adopted** (§8).
 * **Stops** (the run stops, never voided): a frame not exact; a FIT level picture unequal to its truth (RESLEVEL's
   witness, `lab/av1/decode/resolution-level/ll.py`, computed per frame at the build); a FIT zoom painted without the
-  frame digest matching; a window read-back unequal to the window of the truth.
+  frame digest matching; a window read-back (the windowed picture at its own size, A2.2) unequal byte for byte to
+  `voi.js`'s table looked up on the truth's samples.
 * **Each new check fails once with its code broken**, at the build (FIT-ARM-BUILD), the mutant named in its review: one
   sample flipped in a level-1 prefix (stop); the FIT lever ignored, every frame asked whole on `dbts_b1` (the judge
   refuses: the load's bytes are not the prefixes'); the clamp removed (stop: 15 of 35 RESLEVEL frames were not exact
   without it, *source*); SPLIT asking only the view (the pilot refuses: no exact group on CLEAN `dbts_b1`, where *x* =
   0.26 is predicted); K3′ built from A loads (the predictor refuses: its rows must be B's); a browser process allowed
-  on core 0 (`VOID` `escaped`).
+  on core 0 (`VOID` `escaped`); the read-back taken from the placed canvas instead of the window pass's texture (stop,
+  on `dbts_b1`'s first FIT load: the resampled canvas is unequal to the window).
 * **Pilot**: as §6, two rounds a cell; it also checks that every FIT `dbts_b1` load asked only prefixes until its zoom and
   that SPLIT asked at least one group of each form on CLEAN.
 
@@ -718,8 +737,10 @@ decoding loads (A2.6). FIT is wire-bound everywhere, so its loads test the wire 
 **Where the link, not the decode, binds** (amendment 28 item 3.7): B and FIT on every form; A on CR, LTE and LOSS; C1's
 exact frame and FIT's zoom on every form.
 
-**How it serves the value statement** (amendment 27 item 7): FIT is the one arm whose every picture is exact and checked
-on every phone, against a view that is unchecked in hardware; the run prices it in fill seconds and bytes on each form.
+**How it serves the value statement** (amendment 27 item 7): FIT is the one arm whose every picture is exact on every phone,
+against a view that is unchecked in hardware: a whole frame checked by its digest, a level picture checked in the lab
+only (in the product only with a per-level digest, not built; review m8); the run prices it in fill seconds and bytes
+on each form.
 
 **Fixtures and limits**: three DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`; 56, 50, 69 frames), only
 `dbts_b1` with a level to gain on the assumed viewport; the view at Q 8 G 8; no breast ultrasound in any arm (`usb_cine`
@@ -799,6 +820,27 @@ the split, the unchecked hardware view in A2.2's table, where the host saturates
 
 **The fix loop** (amendment 17): FIT-ARM-PROTOCOL-FIX and FIT-ARM-PROTOCOL-FIX-REVIEW are appended to
 `claude/work-ledger:docs/queue-2026-11-24.md`; FIT-ARM-BUILD waits on the re-review.
+
+### Amendment 2 fix (2026-11-24, FIT-ARM-PROTOCOL-FIX)
+
+*A session that wrote neither §Amendment 2 nor its review, and will build and run none of it. Each finding fixed in
+place; the numbers recomputed from `lab/delivery/inputs.json` and the 2026-11-23 rows by the two reading aids in
+`claude/work-ledger:docs/queue/FIT-ARM-PROTOCOL-FIX/`, and they agree with the review's to the printed digit but PUB
+`dbts_a1`'s fluid ratio (×0.80 here, ×0.81 there; the fluid ratio is no longer printed). Docs only; nothing run.*
+
+| finding | where, and what |
+| --- | --- |
+| B1 | A2.2: the read-back is the window pass's texture at the picture's own size, before `placePass`; compared with `voi.js`'s `windowTable` and `tableShape` offset looked up on the truth's samples, byte for byte, no tolerance. A2.8: the stop says so; a mutant reads the placed canvas and must stop. |
+| B2 | A2.4: a table per (form, volume): the view fill's bytes against the curve's first point, the direction (over → holds, under → misses low), the retrodiction for A, A′ and C1, fill and wire. LOSS `dbts_a1` and `dbts_c1` are predicted to miss low; LTE `dbts_a1` holds, at risk. A2.7: FIT ÷ A on LOSS's level-0 volumes understated by that miss. |
+| m1 | A2.3: SPLIT's fill carries A's makespan factor *k*; the ratio compared is fill ÷ fill (CLEAN ×0.90, ×0.81, ×0.87; PUB ×0.90, ×0.82, ×0.87), *t* ÷ *d*_V named as what it is. |
+| m2 | A2.7: ×1.26 over the prefixes, 7.4 and 3.7 MB. |
+| m3 | A2.4: 8.47 MB. |
+| m4 | A2.5 and A2.8: FIT's zoom judged on `dbts_b1` only, reported on the level-0 volumes. |
+| m5 | A2.4: K3′ at 8 loads a (form, volume). |
+| m6 | A2.8: the measured pace, × 216 ÷ 150, with and without C2's share. |
+| m7 | A2.4 (K3′ for K3) and A2.6 (one core of its own, cores 0–1 as escalation), each a named departure with its reason. *Argued, not moved:* (ii) stays an escalation. |
+| m8 | A2.2's table and A2.9's value line: a level picture is checked in the lab only. |
+| n1 | A2.5: frame 0 cites `inputs.json`'s `shown: 0` and the rig README's build note. |
 
 ## Fixtures and limits
 
