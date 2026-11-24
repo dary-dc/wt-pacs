@@ -22,6 +22,8 @@ exact frame bit for bit, and only checked claims on screen.
   2026-11-24, FAILED-FRAME-WITHHELD-FIX: a lost ask (re-dials run out, `failed` marked `lost`) is asked once more,
   then withheld (the review's B1; `downloader`, `consumer` and `controller` tests, eight mutants killed); the
   browser side of a withheld frame is still untested (m1). FAILED-FRAME-WITHHELD-FIX-REVIEW next.
+  2026-11-24, FAILED-FRAME-WITHHELD-FIX-REVIEW: B1 open in part: a command's own re-dial (`live()`) that fails still
+  fails its frames as not lost, so they are withheld at once (PR 438 §Re-review); FAILED-FRAME-WITHHELD-FIX-2 next.
 * **The unified branch** `claude/unified-client` (the client, optimal-quality and native lines): the demo tip with the
   cleaning and the renames merged; one `info.path` left in `lab/faultbench/index.html` (now `info.route`), a finding in
   #382. Reaches `main` through #367 then #250, on the owner's word ([`coordination.md`](coordination.md)).
