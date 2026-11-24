@@ -36,7 +36,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const BENCH = flag("--bench");
 const K3P = flag("--k3-prime");
 /** The mutants the page itself carries out: lab/delivery/fit-decoder.js, fit-page.js. */
-const PAGE_MUTANTS = ["flip-level", "no-clamp", "canvas-readback", "split-view-only"];
+const PAGE_MUTANTS = ["flip-level", "no-clamp", "canvas-readback", "split-view-only", "skip-step"];
 /** A2.2: a phone held upright, its browser's bars off, at DPR 1. */
 const VIEWPORT = { width: 1080, height: 2100 };
 const CELL = arg("--cell");
@@ -280,13 +280,14 @@ function armRefusal(rows) {
 function sessionVoid(row) {
   const why = [];
   if (row.crash || !row.verdict) why.push(`crash: ${row.error ?? "no verdict"}`);
-  if (row.relayTally?.late) why.push("guard: the relay's p99 over 1 ms");
+  // session-cost.md §9 (SESSION-COST-RUN): the guard guards a time, which is no result here; recorded, VOIDs nothing.
+  if (row.relayTally?.late) row.guardLate = true;
   if (row.cpus?.some((c) => c.allowed !== "2,3" && c.allowed !== "2-3")) why.push("escaped: a browser process outside cores 2-3");
   if (row.busy?.[1] > 0.95) why.push(`saturated: the servers' core ${(100 * row.busy[1]).toFixed(0)} % busy`);
   if (row.session?.lengthMs > 300_000 || /^no end \d+ s after the fill/.test(row.verdict?.why ?? "")) why.push("over 300 s");
   if (row.verdict?.void) why.push(`${row.verdict.void}: ${row.verdict.why}`);
   const flags = [];
-  if (row.serverCost?.some((c) => c.comm !== "series-server" || !(c.cpuNs > 0))) flags.push("sampler: not a series server, or CPU zero");
+  if (row.serverCost && (row.serverCost.some((c) => c.comm !== "series-server") || !(row.serverCost.reduce((a, c) => a + c.cpuNs, 0) > 0))) flags.push("sampler: not a series server, or CPU zero");
   if (!(row.relayTally?.flows?.some((f) => f.bytes > 0))) flags.push("tally: no bytes");
   if (row.session && row.session.steps !== row.session.stepsExpected) flags.push(`trace: ${row.session.steps} steps, §1 says ${row.session.stepsExpected}`);
   if (flags.length) row.flags = flags;
@@ -296,8 +297,9 @@ function sessionVoid(row) {
 
 const pilotMedians = JSON.parse(arg("--pilot-medians") ? fs.readFileSync(arg("--pilot-medians"), "utf8") : "{}");
 const k3Prime = () => k3PrimeLoads(CELL).map((l) => (MUTATE === "k3-from-a" ? { ...l, arm: "A", series: "view" } : l));
-const plan = (BENCH ? benchLoads() : K3P ? k3Prime() : SESSION ? sessionLoads(CELL, { rounds: Number(arg("--rounds", 1)), volumes: VOLS }) : cellLoads(CELL, { rounds: Number(arg("--rounds", PILOT ? 2 : ROUNDS)), fixedOrder: MUTATE === "fixed-order" }))
-  .filter((l) => VOLS.includes(l.volume) && (!ARMS_RUN || ARMS_RUN.includes(l.arm)));
+const plan = (BENCH ? benchLoads() : K3P ? k3Prime() : SESSION ? [...(flag("--warmup") ? sessionLoads(CELL, { rounds: 1, volumes: ["dbts_b1"] }).filter((l) => l.arm === "B").map((l) => ({ ...l, warmup: true })) : []),
+  ...sessionLoads(CELL, { rounds: Number(arg("--rounds", 1)), volumes: VOLS })] : cellLoads(CELL, { rounds: Number(arg("--rounds", PILOT ? 2 : ROUNDS)), fixedOrder: MUTATE === "fixed-order" }))
+  .filter((l) => (l.warmup || VOLS.includes(l.volume)) && (!ARMS_RUN || ARMS_RUN.includes(l.arm)));
 console.log(`${BENCH ? "K2" : CELL}: ${plan.length} loads; rows to ${path.relative(ROOT, OUT)}; series ${SERIES}${predictionsXxh3 ? `; predictions ${predictionsXxh3}` : ""}`);
 const rows = [];
 let stopped = null;

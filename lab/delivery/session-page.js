@@ -30,7 +30,8 @@ export async function sessionFailure(q, record, { controller, shown }, meta, win
   const n = meta.frameCount;
   const full = sessionTrace(n);
   // The mutant of §6: a trace one step short, which the step count must flag.
-  const trace = q.get("mutate") === "skip-step" ? full.filter((_, k) => k !== 1) : full;
+  const lastPass = full.findIndex((a) => a.dwell) - 1;
+  const trace = q.get("mutate") === "skip-step" ? full.filter((_, k) => k !== lastPass) : full;
   const atFill = controller.received;
   const arrivals = [];
   const put = controller.store.put.bind(controller.store);
