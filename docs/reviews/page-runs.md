@@ -205,7 +205,7 @@ whole-millisecond clock, 1 ms on a ~1.2 ms floor). Arms: all nine (`off`, the se
 Williams order, Chromium. Lbusy: a 50 ms long task every 100 ms (the rig's). D5a busy: Lbusy's long task, the
 renderer killed 0–50 ms after the fault (`report-plan.md:1703-1705`).
 
-**D5a busy is built first** (lab code, `lab/report-arms/run.mjs`; it is not there today: the kill is a fixed 50 ms
+**D5a busy is built first** (lab code in the report rig's `run.mjs` on `claude/report-arms`; it is not there today: the kill is a fixed 50 ms
 after the fault for D5a, `ending === "D5a" ? 50 : 500`, and `busy` is set only for Lbusy). An ending `D5a-busy`: the
 page as for Lbusy (`busy: "1"`), then D5a's fault and kill, the kill delay *d* drawn per load uniformly on 0–50 ms
 by a seeded rule (seed = round × 100 + the unit's index, printed), passed to `killAfterFault` and recorded in the row
@@ -283,6 +283,11 @@ instance id must fail its own completeness check (every frame has a submit and a
   coming back from it: then the engine's `VideoDecoder` is at fault, and the page's item 3 reads so.
 * Command: `FIREFOX_PATH=<159.0.1 or 160.0.1> client/contract/run_firefox.sh dispatch` with the trace on; 3 runs a
   version (the clause is deterministic in its failure set, `engines-smoke/c2-dispatch-firefox159.log` and `…160.log`).
+* **Order and VOID** (§Review m7): the six runs alternate versions in the order 159, 160, 160, 159, 159, 160, a fresh
+  profile each. A run whose trace fails its completeness check (a frame with no submit, or with neither an output
+  nor an error) is `VOID` and rerun once at the end; a version with fewer than 2 complete runs is not read. A
+  complete run whose failure set differs from the logs' (frames 1–7, 9–15, 17–19) is reported beside them, never
+  dropped: the clause is then not deterministic on that build, and the prediction is read on each run.
 
 **3b. M5 under the amended bar on 160.0.1 (item 4).** The rig is `claude/frame-memory-m5-run@1a90eb9` with
 `claude/core-m5b`'s `lab/opfs-cache/` (`run.mjs`, `summary.py` and the arm files are not on `claude/unified`),
@@ -297,18 +302,24 @@ growth = the browser tree's peak PSS, sampled each second, minus the value befor
 **The amended bar** (2026-11-02, before data; FMO:199-216, 490-523): every round's growth ≤ median `disk` growth +
 320 MiB; median ask and step ≤ `ring`'s + 16.7 ms; median fill ≤ 1.10 × `today`'s, fill time = navigation to the
 last frame written to disk, read the same way in every arm; fewer than 80 frames on disk is incomplete; the stamp
-check 0–500 ms. 7 rounds, Firefox 160.0.1 alone (the page's cell; Chromium was measured under this bar already).
+check 0–500 ms. **12 rounds**, two whole Williams periods of six arms (`lab/order.mjs`; a period of six is six
+rounds, so the page's 7 would leave one round over and `balanced()` false), Firefox 160.0.1 alone (the page's cell;
+Chromium was measured under this bar already). The page's "7 rounds" is met by 12; if the host's time runs short the
+cell stops only at a whole period, and 6 rounds is named as under the page's 7 (§Review m4).
 
 | measure (MiB, median) | predicted, 160.0.1 | anchors (measured) |
 | --- | --- | --- |
 | `disk` growth | 420–580 | 440 on 155.0; 542 on 159.0 |
 | `ring` growth | 680–880 | 702 on 155.0; 828 on 159.0 |
 | `ring` − `disk` | **250–310**, so `ring` qualifies on memory | 262 (155.0), 286 (159.0, struck bar) |
+| rounds with `ring`'s growth ≤ median `disk` + 320 (the bar is per round) | **12 of 12** (low confidence) | room under the bar in the largest round: 50 MiB on 155.0, 12 on 159.0 (`engines` §3) |
 | `ring` fill ÷ `today` (amended reading) | **0.80–0.95** | 0.85 on 155.0; 159.0's 1.30 was under the struck reading, which read 155.0 at 1.23 |
 | `ring2` vs `ring` | within 64 MiB and 0.90–1.10 in fill | A/A 22–30 MiB |
 
 **Theory** (`engines` §5): the ring's memory is fixed by its design, so a new Firefox moves only the floor; the bar is
-not expected to flip. Refuted: `ring` − `disk` over 320 (the bar flips), or the fill ratio over 1.10.
+not expected to flip. **Refuted** (each a miss, named): the `ring` − `disk` median outside 250–310; any round of
+`ring` over median `disk` + 320; the fill ratio outside 0.80–0.95. **The bar flips** (the decision, apart from the
+misses) when any round is over `disk` + 320 or the fill ratio is over 1.10: then `ring` does not qualify on 160.0.1.
 
 **VOID** (FMO:112-119, unchanged by the amendment): median |`ring2` − `ring`| over 64 MiB, or median `ring2`/`ring`
 fill outside 0.90–1.10; a `VOID` cell decides nothing. A fill that drops the host under 1 536 MiB available stops as
@@ -366,8 +377,9 @@ there is not a null (P1c legs 12 is expected dead by design and is read as the c
 **Decision** (page:119–121): P1 refuted, the hold is dropped and the store stays centred; P1b says whether the rule
 earns its two states over centred alone.
 
-**Rounds and order.** 10 rounds a cell (one mirrored Williams period of five arms), cells in a Williams order each
-round (`run.mjs:7,518-521`). `--mutate sample` before round 0 must turn every arm's exactness to 0.
+**Rounds and order.** 10 rounds a cell of five arms (one mirrored Williams period of five); P1b's four arms run 12
+rounds (three whole periods of four: a period of four is four rounds, so 10 is not whole, §Review m5); cells in a
+Williams order each round (`run.mjs:7,518-521`). `--mutate sample` before round 0 must turn every arm's exactness to 0.
 **VOID:** a visit whose relay prints `VOID` (p99 lateness over 1 ms), or that fails or fills short, is re-run at the
 round's end (the re-run breaks the interleave for that visit: said in the rows); a cell left with under 8 counted
 visits an arm is saturated and claims nothing. **Host:** relay on core 3 at `chrt -f 50`, browser and server on 0–2
@@ -401,7 +413,7 @@ the PSS A/A rule; `verify`'s per-index record; OPFS-ASYNC's one sync handle a gr
 
 | cell | what | predicted | refuted when |
 | --- | --- | --- | --- |
-| L, S1 1× and S2 1×, 12 rounds, both engines (item 1) | PSS growth by process | OPFS-SYNC's ~100 MiB over `none` on Chromium (measured 125 / 123 against 25) sits in **one** process and does not scale with the frame: S1 and S2 within 20 MiB of each other; in the storage or utility process it is a constant per origin, in the renderer it is the rig's (CP:905-910) | the growth spread over processes, or differing by more than 20 MiB between S1 and S2 |
+| L, S1 1× and S2 1×, 12 rounds, both engines (item 1) | PSS growth by process | OPFS-SYNC's ~100 MiB over `none` on Chromium (measured 125 / 123 against 25) sits in **one** process and does not scale with the frame: S1 and S2 within 20 MiB of each other (**assumed**: this file's number, not §10.4's, which says only "does not scale with the frame"; 20 sits above the 2 MiB between the measured 125 and 123 and under the 32 MiB A/A line, item 1); in the storage or utility process it is a constant per origin, in the renderer it is the rig's (CP:905-910) | the growth spread over processes, or differing by more than 20 MiB between S1 and S2 |
 | T, Chromium, OPFS-SYNC, 12 rounds (item 3) | per index: `hit`, `why`, XXH3, SHA-256 | every non-exact index is a failed re-read (`hit` false); none a SHA-256 mismatch after a passing XXH3 (CP:915-918; last run `verify.notOk` 2, 0, 1, 0 over 4 rounds; a probe on Chromium 157 read 343 of 343 exact) | one SHA-256 mismatch after a passing XXH3: "a correctness defect: it blocks OPFS-SYNC until it is traced" |
 | O, S1 and S3, both engines (item 4) | OPFS-ASYNC reopen, ms a frame | Firefox S1 from 4.6 to **under 1 ms** a frame, passing its 3.0 ms bar; S3 (G = 1) unchanged (916 / 1 036 ms warm / cold) (CP:919-921) | Firefox S1 ≥ 1 ms a frame, or S3 moved by more than ×1.10 |
 
@@ -552,3 +564,18 @@ PAGE-RUNS-PROTOCOL-FIX (m4–m7 fixed in place by a session that runs none of it
 `claude/work-ledger:docs/queue-2026-11-24.md`. How it serves the value statement: the transport and report runs are
 what "a fast full fill, and low latency on every jump" and the checked frame's safety report rest on, so their
 predictions must be able to miss.
+
+**Fix** (PAGE-RUNS-PROTOCOL-FIX, 2026-11-24, by a session that wrote neither this file nor its review and will run
+none of it; this file and `docs/lines/coordination.md` only; nothing run but `git` reads and two binomial sums).
+B1: arm **WT-AF** (`--stream-mode per-frame-asks-first --send-window-bytes 6291456`, row 211's arm; the review's "the
+default 6 MiB window" is quinn's 10 MB unless set, `tuning.rs:58-61`, so it is set) with its mutant and predictions,
+what carries from row 211 and what does not; WT-AF decides #39; **#96 stays held**, its lever absent from the rig's
+server, named for BRIEF-WEEKEND; §1 now 7 arms, 14 rounds (one mirrored period). B2: D5a on a busy page is a build
+(`D5a-busy`: Lbusy's page, the kill delay drawn per load on 0–50 ms by a seeded rule, recorded; its mutant fails a
+spread check); the band re-derived, 10–17 of 18 (expected 13.5), read against the recorded delays; 18 of 18 refutes
+the race as modelled. m1: WT-PF's basis restated (ranks, row 180's tie), its AD band ×0.95–1.45. m2: AD, then CR
+(`--cell AD` runs both forms). m3: **argued in part**: AD-PUB's prediction is a tie at the A/A's ×0.95–1.05, so a ×0.80
+refutes; on AD-LTE the 0.1 % loss holds cwnd near 0.06 MB, under the 2 MB TW needs, so TW gains, ×0.70–0.88 (≈ ×0.78
+derived), and a median of ×0.75–0.85 there alone is named as not deciding. m4: §3b 12 rounds (two whole periods),
+the ring − disk band a miss either side, the per-round bar predicted 12 of 12. m5: P1b 12 rounds. m6: 20 MiB labelled
+**assumed**, with why. m7: §3a's order (alternating versions) and VOID rule (an incomplete trace, rerun once).
