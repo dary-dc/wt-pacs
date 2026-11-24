@@ -29,7 +29,7 @@ The ultrasound fixtures are lossy-sourced (`docs/FIXTURES.md`), so no row below 
 | `--cert-pem`, `--key-pem` | `server/dev-cert/{cert,key}.pem`, relative to the working directory | `server.rs:44`, `:46` | the dev certificate; the container always passes its own (`deploy/server-start.sh:22–23`) | none |
 | `--stream-mode` | `shared` | `server.rs:49` | `docs/adr/stream-shape.md` §Decision: "**One shared uni stream per session is the default** (`--stream-mode shared`)." | measured |
 | `--opening-ask` | on | `server.rs:58` | `docs/ARCHITECTURE.md` §The opening ask: "**On by default** since 2026-10-02 (a measured win with no cell against it)" | measured |
-| `--websocket` | off | `server.rs:61` | `docs/WIRE.md` §The WebSocket mapping: "Off by default"; no measurement chose off | none |
+| `--websocket` | off | `server.rs:61` | `docs/WIRE.md` §The WebSocket mapping: "Off by default"; **harmless**: QUIC is the product's link and "one process serves both", so off only leaves the TCP port closed until a deploy asks for it; no measurement chose off | none |
 | `--congestion` | `cubic-restart` | `server/src/transport/tuning.rs:17–18` | `docs/transport/transport-conclusions.md` §3 *The restart sized*: "**The restart keeps its whole win under loss and costs nothing without a blink**" | measured |
 | `--send-window-bytes` | quinn's default | `tuning.rs:60–61` | `transport-conclusions.md` §3 *Flow-control windows*: "Windows stay at quinn's defaults." | measured |
 | stream receive windows | quinn's default (not set in `server/`) | — | `docs/adr/transport-quic-stream-receive-window-defaults.md`: "**Ship and measure with quinn / wtransport stack defaults for stream flow control.**" | measured |
@@ -54,18 +54,18 @@ The ultrasound fixtures are lossy-sourced (`docs/FIXTURES.md`), so no row below 
 | `TILE_SLOTS` (reads at once, ring depth) | 4 | `read_path.rs:26` | `disk-access.md`: "Depth 2 → 4 was +37 % on the sandbox host"; 4 → 8 not swept, and "unmeasured on a throttled link" | measured (2 against 4 only) |
 | `FILL_WINDOW` | 4 MiB of `WILLNEED` past the named frame | `read_path.rs:28` | `disk-access.md` §9 *the fill window stays 4 MiB*: "**Verdict: not adopted.**" (the 2 × frame arm) | measured |
 | io_uring setup | `COOP_TASKRUN`, no SQPOLL, no registered buffers | `server/src/media/uring_reader.rs:34` | `disk-access.md` §9 *Finding 9*: "**Verdict: closed; `COOP_TASKRUN` stays.**" | measured |
-| `POOL_CAP` | 64 frame buffers a process | `server/src/media/frame_pool.rs:10` | stated in `transport-conclusions.md`; nothing chose 64 | none |
-| `ASKS_AHEAD` | 8 asks planned | `server/src/transport/planner.rs:7` | described in `docs/adr/frame-framing-and-loop-shape.md`; **code**: "A tile reader takes what fits (`slots − 1`)", so with `TILE_SLOTS` 4 reads take 3 and 8 only bounds the queue above them; **untested**: 8 was never swept (a `disk-access.md` cell against 4 and 16 would) | none |
+| `POOL_CAP` | 64 frame buffers a process | `server/src/media/frame_pool.rs:10` | stated in `transport-conclusions.md`; **code**: past it a returned buffer is freed (`frame_pool.rs:63`), so 64 bounds the frame-sized spares the process keeps, about 32 MB at 499 kB and 307 MB at 4.8 MB (*derived*), not what sessions hold (`disk-access.md` finding 3); **untested**: nothing chose 64 against the buffers concurrent sessions give back | none |
+| `ASKS_AHEAD` | 8 asks planned | `server/src/transport/planner.rs:7` | described in `docs/adr/frame-framing-and-loop-shape.md`; **code**: "A tile reader takes what fits (`slots − 1`)", so with `TILE_SLOTS` 4 reads take 3 and 8 only bounds the queue above them; **untested**: 8 was never swept (a `disk-access.md` cell against 4 and 16 would); measured beside it, row 259 (`disk-access.md:902`, finding 7), advising the names past the slots: "**measured 2026-10-16: not adopted** — misses fall, the wall ties" | none |
 | `SILENCE_RTTS` (the restart) | 4 round trips | `server/src/transport/restart.rs:15` | the code's reason, two probe timeouts at quinn's RTT variance; the controller is measured, this threshold was not swept | theory |
 | `bbr-bound`'s constants (opt-in) | loss 0.02, β 0.7, headroom 0.85, 10 rounds, 4 packets | `server/src/transport/loss_bound.rs:12–19` | BBRv3's values (`transport-conclusions.md` §1) | theory |
 | shutdown drain | 250 ms | `server.rs:132` | `deploy/README.md`: "the bound stays at 250 ms" (row 270, 500 → 250) | measured |
 | per-frame finish grace | 2 s | `server/src/transport/link.rs:137` | stated in `docs/WIRE.md`; **code**: only `--stream-mode per-frame` (not the default) waits for its streams' acks at a session's end, and the bound keeps a dead peer from holding the task; **untested** | none |
 | connection migration | on | `server.rs:262` | `ARCHITECTURE.md`: "at 40 ms the session survived **16 of 16**" | measured |
 | WebSocket chunk | 64 KiB a message | `server/src/transport/websocket.rs:34` | `WIRE.md`: "the grain at which a browser, which hands a message over only whole, sees a frame's bytes move" | theory |
-| WebSocket handshake bound | 10 s | `websocket.rs:37` | no document; **code**: "a peer silent past this holds a task and a descriptor for nothing"; off with `--websocket` (the default); **untested**: 10 s against a slow link's TLS handshake | none |
+| WebSocket handshake bound | 10 s | `websocket.rs:37` | no document; **code**: "a peer silent past this holds a task and a descriptor for nothing"; applies only with `--websocket`, off by default (`transport/server.rs:61–62`, `:84`); **untested**: 10 s against a slow link's TLS handshake | none |
 | WebSocket TCP keepalive | 20 s idle, 5 s interval, 4 probes | `websocket.rs:40–43` | `WIRE.md` §The WebSocket mapping; "the kernel's expiry is not observed" | theory |
 | WebSocket accept retry | 100 ms | `websocket.rs:46` | `WIRE.md` (row 272): a pause against none; only 100 ms tried | measured (pause against none) |
-| WebSocket `TCP_NODELAY` | on | `websocket.rs:123` | stated in `WIRE.md`; no measurement | none |
+| WebSocket `TCP_NODELAY` | on | `websocket.rs:123` | stated in `WIRE.md`; **derived**: with Nagle on, a write's last short segment waits for the peer's ACK, which delayed ACK may hold back (RFC 1122 §4.2.3.2: "the delay MUST be less than 0.5 seconds"), so a frame's tail or a refusal could wait; QUIC, the default link, has no such hold; not measured | none |
 | quinn GSO cap (crate patch) | 24 segments | `patches/quinn-0.11.11-mtu-gso.patch:25` | `docs/levers.md`: "**adopted, 24** (the default build since 2026-10-14, row 192)" | measured |
 
 Wire limits, not tunables: `MAX_FOD_LEN` 64 KiB (`common/fod/src/lib.rs:33`; `WIRE.md`: "A client's longest message
@@ -147,7 +147,7 @@ slowest's bytes").
 | codec when the metadata names none | HTJ2K | `lib.rs:474` | **code**: the client's rule too (`client/transport/consumer.js`: "absent is HTJ2K", `docs/av1/adr-unit.md` §1), so a bundle without `codec` reads the same on both sides | none |
 | frame alignment | none, frames back to back | `common/series-bundle/src/writer.rs:51–56` | `docs/disk-layout/README.md`: "nothing pads a frame to a sector or a page" | none |
 | writer buffer | 8 KiB | `writer.rs:37` | `disk-layout/README.md`: "(b) is a tie. `pack-series` keeps its 8 KiB `BufWriter`." | measured (a tie) |
-| `pack-series`'s writer: `fsync` | none | `writer.rs:32–35` | `disk-layout/README.md`: "There is still no `fsync`" | none |
+| `pack-series`'s writer: `fsync` | none | `writer.rs:32–35` | `disk-layout/README.md`: "There is still no `fsync`"; **untested**: it stands only because nothing tested it; a crash mid-pack leaves only a `.partial`, but "a power loss after the pack can leave the full length with blocks never written, which nothing detects"; the receiver, the product's path into the serving tree, does `fsync` (next row) | none |
 | the receiver: `fsync` | every staged file, and each directory a rename changes | `ingest/receiver/src/disk.rs:9–13`, `:36–42`; `package.rs:453–454`; `lib.rs:382–398` | `pacs-receiver.md` §0, *durability*: "`fsync` of every staged file and of each directory a rename changes; "stored" only after" (Decided 10-25); its limit, §8: "**Not testable here, and so not claimed:** that the `fsync`s make a placement survive a power cut" | theory |
 
 The receiver has no port or AE title: it takes two directories (`ingest/receiver/src/main.rs:8`).
@@ -167,7 +167,7 @@ The receiver has no port or AE title: it takes two directories (`ingest/receiver
 | cine period | the series' frame time, else 100 ms | `viewer.js:206` | `docs/ingest/metadata-draft.md`: "100 ms a frame when both absent"; **harmless**: it applies only to a series that carries no timing, and sets playback speed, not what is fetched | none |
 | zoom and window-drag steps | ×1.25 and ×0.8 by key, ×1.1 by wheel; window `width/256` a pixel | `viewer.js:225`, `:241`, `:258` | **harmless**: input steps no fetch or decode depends on; ×0.8 undoes ×1.25, and a 256-pixel drag moves the window by its own width; **untested** with readers | none |
 | `decoders` | `min(3, hardwareConcurrency)` | `client/transport/downloader.js:23` | `docs/ARCHITECTURE.md`: "a third in 7 of 7 on four cores and in 2 and 1 of 7 on two"; "The default is measured at two and four cores only." No phone | measured (2 and 4 cores) |
-| `perDecoder` | 2 | `downloader.js:23` | `docs/levers.md`: the first-free policy measured, "**never**" the value 2 | none (the value) |
+| `perDecoder` | 2 | `downloader.js:23` | `docs/levers.md`: the first-free policy measured, "**never**" the value 2; **derived**: 2 is the smallest that keeps a frame queued while one decodes, and `decode/README.md` §An ask behind the decoders: "`perDecoder` is not the lever: it keeps decoders from idling on the hop"; "At 1 it would cost the fill"; above 2 an ask waits behind more frames (`levers.md` ASKBEHIND: "behind `perDecoder − 1` frames"); **untested**: 2 against 3 | none (the value) |
 | `askDepth` | 4 | `downloader.js:23` | `docs/client/evidence/frame-store-owner.md` (its link to `client-window-depth.md` dropped): "**`askDepth` is 4, a constant**, inside the 2–5 that client-window-depth.md measured as `D_min` on its grid; it is not derived from the link." | theory (inside a measured range) |
 | `refill` | `head` | `downloader.js:23` | `docs/client/evidence/re-asking-the-fill-after-an-ask.md`: "the head re-ask became the downloader's default (`refill: "head"`)" | measured |
 | `survival` | on | `downloader.js:23` | `ARCHITECTURE.md`: "nothing runs when nothing dies"; no measurement chose on | none |
@@ -177,7 +177,7 @@ The receiver has no port or AE title: it takes two directories (`ingest/receiver
 | `dialMs` | 5 000 ms | `downloader.js:26` | `ARCHITECTURE.md`: "two lost handshake flights, derived, not measured" | theory |
 | `decodeMs` | 10 000 ms | `downloader.js:26` | `ARCHITECTURE.md`: the slowest decode measured "is 355 ms a frame … ~28× under it; a phone's is not measured" | theory |
 | `frozenMs` | 1 000 ms | `downloader.js:26` | `docs/reviews/hidden-page-decode.md`: a timer never a second late "is assumed, not measured" | none |
-| `ATTEMPTS` | 2 | `downloader.js:28` | `ARCHITECTURE.md`: "Lost twice, a frame fails by name"; no reason for 2 | none |
+| `ATTEMPTS` | 2 | `downloader.js:28` | `ARCHITECTURE.md`: "Lost twice, a frame fails by name"; **derived**: one re-ask separates a decoder lost by chance (another decodes the frame) from a frame that takes down each decoder it reaches, and a third try would cost a third decoder for a frame lost twice; **untested**: no loss rate was measured that 2 would fail | none |
 | `waitAhead` | 1 | `downloader.js:255` | `docs/adr/asking-policy.md`: "**k\* = 8, adopt k = 8**", left to the owner, so 1 ships | measured, not adopted |
 | `startOnNeed`, `readMin`, `recycleAtBytes`, `shortRuns` | off | `downloader.js:151`, `:569`, `:219`, `:266` | `docs/levers.md` and `ARCHITECTURE.md`: each measured or proposed, none adopted | measured, not adopted |
 | `wireBuffers` | `decoders × perDecoder + 2` | `downloader.js:567` | `docs/decode/README.md` §The wire buffer ring: "**The size stays `decoders × perDecoder + 2`.** 2, 8 and 16 on both shapes, n = 5: **peak does not move with the size**"; desktop Chrome 148, loopback, an 87-frame series | measured |
@@ -189,7 +189,7 @@ The receiver has no port or AE title: it takes two directories (`ingest/receiver
 | AV1 route | WebCodecs first at ≤ 10 bits; dav1d after a refusal or above 10 bits | `client/decode/av1.js:47–52` | the owner, 2026-11-11 (`design.md` §Decided) | owner |
 | `hardwareAcceleration` | `prefer-software` | `client/decode/av1-webcodecs.js:80` | `docs/decode/hardware.md`: "**No reason is recorded: a documentation finding.**"; its sources still support it, as no hardware path returns the view's samples | theory |
 | `optimizeForLatency` | on | `av1-webcodecs.js:80` | `docs/av1/README.md` (WCLAT): "7–28 % faster a frame" | measured |
-| WebCodecs stall | 2 000 ms | `av1-webcodecs.js:47` | `docs/decode/README.md`: "after 2 s the unit is flushed and fails by name"; no reason for 2 s | none |
+| WebCodecs stall | 2 000 ms | `av1-webcodecs.js:47` | `docs/decode/README.md`: "after 2 s the unit is flushed and fails by name"; **derived**: under `decodeMs` (10 s), so a stalled unit fails by name in the worker before the downloader replaces its whole decoder, and about 15× the slowest WebCodecs frame measured here ("118–135 to 66–70 ms at 4×", §WebCodecs without a flush); **untested** on a phone's hardware decoder | none |
 | dav1d threads | 1 | `client/decode/av1-dav1d.js:17` | **derived**: dav1d is the fallback decoder, one per decoder worker, and `decoders` sets the parallelism | none |
 | rescale, VOI, photometric | slope 1, intercept 0; the series' first window, else the frame's decoded range; MONOCHROME2 unless three components | `client/paint/voi.js:6–11`, `:65`; `controller.js:112–122` | DICOM PS3.3 C.11.1 and `docs/display.md`; a standard, not a choice | — |
 | WebGL2 painter | `alpha`, `antialias`, `depth`, `stencil`, `preserveDrawingBuffer` all off | `client/paint/paint-worker.js:198` | `docs/levers.md`: "gl against 2d \| paint-floor: 0.34 against 7.55 ms" (the route only) | measured (the route) |
@@ -202,10 +202,11 @@ bound, an *assumption* (`docs/phone-rows/next-round.md`).
 ## What this table finds
 
 **Counts** (120 rows, by the kind column's first word): 47 `none`, 44 `measured` (41 plain, 3 measured and not
-adopted), 21 `theory`, 5 `owner`, 3 `—`. Every `none` row says why its value stands; none is left without a reason. The
+adopted), 21 `theory`, 5 `owner`, 3 `—`. Every `none` row says why its value stands, in its source's words or by the key's labels; none is left without a reason. The
 ones that stand only because nothing measured them (**untested**) are the owner's list for the next queue: `ASKS_AHEAD`,
 the per-frame grace, the WebSocket handshake bound, the healthchecks, the colour transform, the receiver's group cap,
-the zoom and drag steps, `redialMs` and `tries`, the close deadline, `MAX_FRAME_LEN`.
+the zoom and drag steps, `redialMs` and `tries`, the close deadline, `MAX_FRAME_LEN`, `POOL_CAP`, `ATTEMPTS`, `perDecoder`'s
+2, the WebCodecs stall on a phone, `pack-series`'s missing `fsync`.
 
 **Open.** The `none` rows are condition 3's work. Those a page or record already owns: G 8 (`ingest-optimal-quality`
 §7), Q 8 (`visually-lossless` item 5), the view's 256 MiB (`view-target`; phase 2's per-device size), the decoder
