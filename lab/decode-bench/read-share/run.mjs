@@ -50,16 +50,21 @@ for (let r = 0; r < ROUNDS; r++) {
     if (res.error) throw new Error(res.error);
     // Frame 0 carries the decoder's configure; a group's last frame carries its flush after the read.
     const steady = res.rows.filter((x) => x.i > 0 && (x.i + 1) % G);
-    const after = (x) => x.outToReturn + x.check;
-    const share = steady.reduce((a, x) => a + after(x), 0) / steady.reduce((a, x) => a + x.total, 0);
+    // decoder.js hashes only a frame its series has a digest for; a view series has none, so the hash is apart.
+    const sum = (f) => steady.reduce((a, x) => a + f(x), 0);
+    const share = sum((x) => x.outToReturn) / sum((x) => x.toOut + x.outToReturn);
+    const shareChecked = sum((x) => x.outToReturn + x.check) / sum((x) => x.total);
     const exact = res.rows.filter((x) => x.exact).length;
-    bad += res.rows.length - exact;
+    if (res.digested) bad += res.rows.length - exact;
     const row = { series: SERIES.split("/").pop(), g: G, round: r, throttle, at: new Date().toISOString(), frames: res.rows.length, exact,
-      routes: [...new Set(res.rows.map((x) => x.route))], share, medianTotalMs: median(steady.map((x) => x.total)),
-      medianToOutMs: median(steady.map((x) => x.toOut)), medianAfterOutMs: median(steady.map(after)), rows: res.rows };
+      routes: [...new Set(res.rows.map((x) => x.route))], digested: res.digested, share, shareChecked,
+      medianFrameMs: median(steady.map((x) => x.toOut + x.outToReturn)), medianToOutMs: median(steady.map((x) => x.toOut)),
+      medianOutToReturnMs: median(steady.map((x) => x.outToReturn)), medianCheckMs: median(steady.map((x) => x.check)), rows: res.rows };
     if (OUT) appendFileSync(OUT, JSON.stringify(row) + "\n");
-    console.log(`round ${r} ×${throttle}: share ${(100 * share).toFixed(1)} %, frame ${row.medianTotalMs.toFixed(1)} ms ` +
-      `(to out ${row.medianToOutMs.toFixed(1)}, after ${row.medianAfterOutMs.toFixed(1)}), ${exact}/${res.rows.length} exact, ${row.routes}`);
+    const pct = (x) => `${(100 * x).toFixed(1)} %`;
+    console.log(`round ${r} ×${throttle}: share ${pct(share)} (${pct(shareChecked)} with the hash), frame ${row.medianFrameMs.toFixed(1)} ms ` +
+      `(to out ${row.medianToOutMs.toFixed(1)}, out to return ${row.medianOutToReturnMs.toFixed(1)}, hash ${row.medianCheckMs.toFixed(1)}), ` +
+      `${res.digested ? `${exact}/${res.rows.length} exact` : "no digests"}, ${row.routes}`);
   }
 }
 await browser.close();

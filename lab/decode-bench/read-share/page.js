@@ -36,7 +36,7 @@ try {
     const t2 = performance.now();
     rows.push({ i, route: r.route, exact, toOut: frameOut - t0, outToReturn: t1 - frameOut, check: t2 - t1, total: t2 - t0 });
   }
-  globalThis.__result = { rows };
+  globalThis.__result = { rows, digested: Boolean(digests) };
 } catch (e) {
   globalThis.__result = { error: String(e?.stack ?? e) };
 }
