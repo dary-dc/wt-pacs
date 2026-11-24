@@ -43,7 +43,7 @@ async function world(tag, { n, g, budget }) {
   };
   globalThis.postMessage = (m) => m.kind === "failed" && console.error("downloader:", m);
   await import(`../transport/downloader.js?${tag}`);
-  c = new Controller({ meta: { frameCount: n, width: 1, height: 1 }, fillMode: true, size: { width: 1, height: 1, dpr: 1 }, emit() {}, paint: async () => ({}), budget });
+  c = new Controller({ meta: { frameCount: n, width: 1, height: 1, lossy: { g } }, fillMode: true, size: { width: 1, height: 1, dpr: 1 }, emit() {}, paint: async () => ({}), budget });
   const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // ${tag}`;
   const sent = c.want();
   await downloader({ kind: "start", config: { transport, decoderWorker: "x", survival: false, groupLength: g, frameCount: n, want: sent } });

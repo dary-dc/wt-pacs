@@ -1,6 +1,6 @@
 // node client/view/controller.test.mjs — the controller and the frame store, with a recording paint and a fake downloader client.
 import assert from "node:assert/strict";
-import { asPainted, Controller } from "./controller.js";
+import { asPainted, Controller, wantFrom } from "./controller.js";
 import { windowTable } from "../paint/voi.js";
 
 const tests = [];
@@ -216,6 +216,16 @@ test("the fill of a series over the window ends with the window", () => {
   c.take(frame(3));
   assert.notEqual(c.fillMs, null);
   assert.deepEqual(events.filter(([t]) => t === "progress").at(-1)[1].total, 4);
+});
+
+/** In groups past the window, the want is whole groups, at least two: the frame's own and the neighbour on the side it is nearer, nearest first; keyframe-only series keep the frame window. */
+test("in groups, the window is the frame's group and its nearer neighbour", () => {
+  const groups = (c) => [...new Set(wantFrom(c, 50, true, false, 15, 8).map((i) => i >> 3))].sort((a, b) => a - b).join();
+  assert.deepEqual([3, 4, 0, 49].map(groups), ["0,1", "0,1", "0,1", "5,6"]);
+  assert.deepEqual([19, 20].map(groups), ["1,2", "2,3"]);
+  assert.deepEqual(wantFrom(20, 50, true, false, 15, 8).slice(0, 3), [20, 21, 19]);
+  assert.equal(wantFrom(20, 50, true, false, 40, 8).length, 40);
+  assert.deepEqual(wantFrom(20, 50, true, false, 4, 1), [20, 21, 19, 22]);
 });
 
 /** With a cache the whole series is still wanted past the window: a frame let go is on disk, not asked again. */

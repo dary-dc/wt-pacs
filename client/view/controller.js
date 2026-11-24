@@ -18,13 +18,23 @@ export function samplesOf(info) {
   return new View(info.pixels);
 }
 
-/** What frame `c` of `n` wants, `c` first, at most `w`: docs/client/evidence/what-a-view-asks-for.md, *M, the budget* */
-export function wantFrom(c, n, fillMode, ascending, w = n) {
+/** What frame `c` of `n` wants, `c` first, at most `w`; in groups of `g`, whole groups: docs/client/evidence/what-a-view-asks-for.md, *M, the budget* */
+export function wantFrom(c, n, fillMode, ascending, w = n, g = 1) {
   if (!fillMode) return [c];
+  if (g > 1 && w < n) {
+    const kept = new Set(nearestGroups(c, n, w, g).flatMap((j) => Array.from({ length: g }, (_, k) => j * g + k)));
+    return wantFrom(c, n, true, ascending).filter((i) => kept.has(i));
+  }
   if (ascending && w >= n) return Array.from({ length: n }, (_, d) => (c + d) % n);
   const order = [c];
   for (let d = 1; order.length < Math.min(n, w); d++) for (const i of [c + d, c - d]) if (i >= 0 && i < n && order.length < w) order.push(i);
   return ascending ? [...order.filter((i) => i >= c).sort((a, b) => a - b), ...order.filter((i) => i < c)] : order;
+}
+
+/** The groups of `g` frames nearest frame `c`, as many as `w` frames hold and at least two; at equal distance the later. */
+function nearestGroups(c, n, w, g) {
+  const gap = (j) => Math.max(j * g - c, c - (j * g + g - 1), 0);
+  return [...Array(Math.ceil(n / g)).keys()].sort((a, b) => gap(a) - gap(b) || b - a).slice(0, Math.max(2, Math.floor(w / g)));
 }
 
 /** The memory window a view holds by default, in frames: the series' whole decoded frames that fit in 256 MiB; a sample is one byte at 8 bits or in colour, else two. */
@@ -52,6 +62,8 @@ export class Controller {
   #n;
   /** The frames the store keeps; with no cache, the fill asks no more. */
   #window;
+  /** Frames per group: a series in groups is held and let go a whole group at a time. */
+  #group;
   #fillMode;
   #emit;
   #voi = null;
@@ -73,7 +85,8 @@ export class Controller {
   /** `paint(frame, display, { read })` draws a held frame; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR; `budget` in frames. */
   constructor({ meta, fillMode, paint, emit, size, budget = memoryWindow(meta) }) {
     this.#window = budget;
-    this.store = new FrameStore({ arrived: (i, frame) => this.#arrived(i, frame), budget });
+    this.#group = meta.lossy?.g > 1 ? meta.lossy.g : 1;
+    this.store = new FrameStore({ arrived: (i, frame) => this.#arrived(i, frame), budget: this.#group > 1 ? Math.max(budget, 2 * this.#group) : budget });
     this.store.painted = () => this.#painting;
     this.#meta = meta;
     this.#n = meta.frameCount;
@@ -183,7 +196,7 @@ export class Controller {
 
   /** A frame let go with no cache would be asked again, so the want stops at the window; with one, the whole series fills. */
   want() {
-    return wantFrom(this.current, this.#n, this.#fillMode, this.ascending, this.#fillSize());
+    return wantFrom(this.current, this.#n, this.#fillMode, this.ascending, this.store.cache ? this.#n : this.#window, this.#group);
   }
 
   /** The page view's downloader; past the window with no cache, each step's misses go through the store, as under the worker view. */
@@ -200,7 +213,7 @@ export class Controller {
   }
 
   #fillSize() {
-    return this.store.cache ? this.#n : Math.min(this.#n, this.#window);
+    return this.store.cache ? this.#n : wantFrom(this.current, this.#n, true, this.ascending, this.#window, this.#group).length;
   }
 
   /** The frame painted at `i`: its exact frame once that is here and checked, else the store's. */
