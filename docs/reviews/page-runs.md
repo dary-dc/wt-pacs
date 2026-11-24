@@ -494,6 +494,54 @@ node lab/av1/delivery/total-time/run.mjs --trace legs --legs 20,40 --dwell 0 --h
   --link r20000rtt40 --rounds 10 --rig-core 3 --out rows/ask-P1.jsonl        # flag names as (b)-(d) build them
 ```
 
+### §4 Amendment (ASK-CELLS, 2026-11-24, before the first counted row)
+
+Found in the run row's builds and smoke (rows not counted; `claude/ask-cells`, `lab/viewer/rows/ask/pilot*.jsonl`,
+`mutate-*.jsonl`), by a session that wrote none of this protocol. The predictions above are unchanged; what changes is
+what the cell is, and how its ρ is read.
+
+* **The series is the exact one, not the view.** `dbts_b1` goes through the product's ingest as HTJ2K
+  (`lab/viewer/view_frames.py`): an exact frame is 16.9 Mbit (**measured**, `000.htj2k`), not the 3.71 Mbit of the AV1
+  view that ρ = 0.216 was derived from (`ask-model.md:277`). The view is coded in groups of 8, under which the tip's
+  window asks whole groups again (`claude/work-ledger:docs/queue/IMPROVE-1/candidates.md` §2, WINDOW-WHOLE-GROUPS);
+  the hold the model ranks is a frame's, so the exact series is run. On `r20000rtt40` μ̂ is about 1.1 frames a second
+  (**measured**, pilot; below).
+* **The paint sets the pace.** The page view paints an 8.5-Mpixel frame through software WebGL in ~100–150 ms
+  (**measured**, smoke): the display cannot step at 25 a second on this host. The reader steps 40 ms after a frame is
+  painted; a step's wait is from its due time to its frame held (the paint is not a wait). Each visit reports μ̂ (the
+  window's first fill of W frames, no reader: (W − 1) over its time) and the step's pace without waits; ρ = μ̂ × the
+  step. The model's words already bind the values ("the order and the gaps are predicted, not the values"); the
+  order and the refutation rules are read as registered, at the cell's own ρ.
+* **The legs sit away from the series' edges**: 12 at 19–31, 20 at 15–35, 40 at 5–45 (approached from frame 0, the
+  approach and the first leg not counted). ASK-MODEL-FIX's `legs.py`, bounded to 50 frames
+  (`claude/work-ledger:docs/queue/ASK-CELLS/bounded.py`, **derived**): every no-dwell cell is edge-free (bounded =
+  unbounded to 0.01 s), but **P1b is not**: with a 3 s dwell at 45 and 5, the 4–5 frames past each turn fill during
+  the dwell and the bounded model gives 4.09, 4.19, 4.09 s (always, centred, the rule), so P1b's own refutation line
+  ("behind first always is not the longest") is met by the model itself on 50 frames. P1b runs as registered and is
+  read against both; it cannot decide `asking` §6's P1b on this series.
+* **Legs a visit**: 9 at 12 and 20 (8 counted), 5 at 40 (4 counted), for a visit's length.
+* **(e) is not built**: the product's default is W = 15 on `dbts_b1` (`memoryWindow`), every cell's W; each visit
+  reports the window it ran.
+* **The page view only**: the hold is installed on the page view's controller (`lab/viewer/hold.js`); the worker
+  view's store is the same class and is not driven. *Centred* and *centred′* are the product's own store, no lever.
+* **The struck split's ρ** is the cell's nominal (0.216; 0.862 on `r80000rtt40`), not its measured one.
+* **Mutants**: `--mutate hold` (no hold installed) and `--mutate legs` (legs one frame short, which the driver's
+  leg-length assert fails) run before round 0, with `--mutate sample`; unit mutants M1–M6 each fail `hold.test.mjs`
+  or `trace.test.mjs`.
+* **The pilot** (one round, not counted, `lab/viewer/rows/ask/pilot*.jsonl` at `claude/ask-cells`): on `r20000rtt40`
+  μ̂ 1.17–1.18 frames a second, a step of 178–239 ms without its waits, so ρ 0.21–0.28 (**measured**), near the
+  registered 0.216 by the paint's pace rather than by design. P1-20, one visit an arm: behind first 4.89, centred
+  5.33, the struck split 7.55 s a leg. `--mutate hold`: behind first 5.82, the struck split 5.61 s (each reads as
+  centred); `--mutate legs`: the visit fails "leg 1 took 11 steps, not 12"; `--mutate sample`: 0 of 15 exact in
+  every arm. On `r80000rtt40` μ̂ 5.29 a second against a step of 226 ms: ρ ≈ 1.2, the paint, not the link, sets the
+  pace, so P1c's second control is ρ > 1, not ρ ≈ 0.8. Its gate: the busiest core 0.79 at most (1 s samples of
+  `/proc/stat` over one visit), the relay's p99 0.43 ms: it runs. Also seen: P1c-12 received 20–21 frames after the
+  first pass in both arms piloted (the window follows the display past 19–31), where P1c predicts none; read in the
+  counted rows.
+* **The live guard** is read over every counted step, both directions (the legs are symmetric).
+* **Order**: per round, P1-20, P1-40, P1c-12 and P2 (five arms) in one Williams order, then P1b's round (four arms),
+  rounds 0–9 and P1b's 10–11; P1c-80 after. VOID visits are re-run after the last round.
+
 ## 5 · Cache (`cache` item 1's narrowed §10.4 run) → CACHE-CELLS
 
 **Runs only if CACHE-DESIGN-1124 keeps it** (contradiction 5 of `docs/decisions/README.md`): at the time of writing
