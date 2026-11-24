@@ -78,7 +78,7 @@ the levers themselves are CLEAN-FIND's inventory, not this review's.
 **S2. The demo's optimal-quality series are made by a lab tool.** `scripts/demo-series.sh:28` calls
 `lab/av1/tools/ingest_coded.py`; the product's ingest (`ingest/from-dicom`) has no `--lossy` route. The product
 therefore depends on `lab/` for the series it shows. *Smallest fix:* none before the demo; record it in
-`docs/lines/optimal-quality.md` §Open (at `b059388b6`) as the path from lab to product ingest.
+`docs/lines/optimal-quality.md` §Open (at `4c84013ed`) as the path from lab to product ingest.
 
 **S3. One name, two senses: `exact`.** `info.exact` is a frame's digest verdict (glossary *frame digest*); `exact
 series`, `exactSource`, `showExact`, `connectExact` are the HTJ2K series of a pair (glossary *exact series*). The two
