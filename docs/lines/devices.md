@@ -113,6 +113,15 @@ depth cut to 8 bits, theory and measured (`claude/depth8`); the 10-bit hardware 
 studio-range expansion even where the frame says full range, so the probe's RGB and paint "exact" counts measure
 range, not precision.
 
+**2026-11-24, PHONE-ROUND-2 prepared** (PHONE-ROUND-2-PREP, [`../phone-rows/round-2.md`](../phone-rows/round-2.md)):
+`claude/phone-run-2`, from `claude/phone-run` by `--no-ff` merges of `claude/unified` (PRs 434, 435, 437) and of
+`claude/beacon-loss` (PR 436, left open). The plan is cell 3's 48 loads under one condition: a fresh Chrome before
+each, the store holding the whole series, the worker with the start's fix, and a `firstPicture` field. Cell M is eight
+loads on one renderer, each view at the default window and twice it. Every load records the window, `deviceMemory` and
+`MAX_TEXTURE_SIZE`; every dev server runs `--revalidate`. Gate OK (full, 1027 s, skips named) and the headless dry run
+(`round_headless.sh --round2`) passes. Not carried, each needing a build: M17, M5 at a volume's size, P1 and P2, and
+the cache's cells (round-2.md §5). A review by another session is owed (PHONE-ROUND-2-PREP-REVIEW).
+
 ## Rules for a device run
 
 * One press at the start, nothing after; the screen kept on and the page visible; counted cells only where no hand
