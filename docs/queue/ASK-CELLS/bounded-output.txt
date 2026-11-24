@@ -1,0 +1,7 @@
+arms: allahead ahead34 centred rule scroll-ahead (allahead = behind first; rule = the struck split; scroll-ahead = behind first moving, centred dwelling)
+rho=0.216 leg=12 dwell=0 legs 19..31 of 50: unbounded 0.00  0.00  0.00  0.03  0.00 | bounded 0.00  0.00  0.00  0.03  0.00
+rho=0.216 leg=20 dwell=0 legs 15..35 of 50: unbounded 0.50  0.50  0.87  1.24  0.50 | bounded 0.50  0.50  0.87  1.24  0.50
+rho=0.216 leg=40 dwell=0 legs 5..45 of 50: unbounded 3.40  3.40  3.77  4.14  3.40 | bounded 3.40  3.40  3.77  4.14  3.40
+rho=0.216 leg=40 dwell=0 legs 0..40 of 50: unbounded 3.40  3.40  3.77  4.14  3.40 | bounded 3.33  3.39  3.65  3.94  3.33
+rho=0.216 leg=40 dwell=3.0 legs 5..45 of 50: unbounded 5.85  5.29  4.55  4.75  4.55 | bounded 4.09  4.09  4.19  4.39  4.09
+rho=0.86 leg=40 dwell=0 legs 5..45 of 50: unbounded 0.03  0.00  0.00  0.00  0.03 | bounded 0.00  0.00  0.00  0.00  0.00
