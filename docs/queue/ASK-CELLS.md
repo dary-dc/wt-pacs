@@ -1,10 +1,10 @@
 state: started
 started: 2026-11-24T20:07Z
-heartbeat: 2026-11-24T20:42Z
+heartbeat: 2026-11-24T21:02Z
 by: KncQVQUV
 outputs: claude/ask-cells (lab builds 583f72d03..; rows lab/viewer/rows/ask/{main,p1b,p1c80}.jsonl); claude/page-runs 9c9743dce (page-runs.md §4 Amendment)
 ## Resume
-Running: main round 0 (at 2026-11-24T20:42Z)
+Running: main round 0 (at 2026-11-24T21:02Z)
 Done: builds (a)-(d) + summary on claude/ask-cells (mutants M1-M6 fail the unit tests; runtime mutants hold, legs,
 sample in lab/viewer/rows/ask/mutate-*.jsonl); §4 Amendment on claude/page-runs 9c9743dce before any counted row;
 pilot rows lab/viewer/rows/ask/pilot*.jsonl (not counted).
