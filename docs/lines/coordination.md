@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 2026-11-24.
 
 ## Goal
 
@@ -125,6 +125,11 @@ small enough that every open item has an owner and a next step.
    decoder build unlabelled on SELinux hosts; rootless podman's run); restored, the gate OK. The same rule's other
    absent hunks (twelve commits, a line match) are listed in that PR's body, unjudged.
    Reviewed (SELINUX-BUILD-RESTORE-REVIEW, 2026-11-23, PR 433's body): no blocker; three minors.
+   UNIFIED-SYNC-1124 (2026-11-24, amendment 28 rule 1): 20 PRs merged `--no-ff` onto `4a2b4277f`, tip `b7cc007f7`
+   (415, 416, 428, 432, 423, 425, 426, 427, 433, 410, 407, 417, 422, 421, 429, 430, 431, 434, 435, 437; each merge
+   message names its conflicts); `scripts/gate.sh` full on the merged tree, OK in 722 s. Each PR commented and closed.
+   Skipped, with why: 420 (commits after its last review), 413, 418, 419 (review owed), 438 (blocker open), 439
+   (review owed then), 411, 412, 424 (structural, the owner's item 1), 406, 408 (rigs), 404, 405, 409 (do not merge).
 
 ## Unification (the owner, 2026-11-09)
 
