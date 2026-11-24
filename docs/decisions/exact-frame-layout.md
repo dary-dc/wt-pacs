@@ -131,16 +131,23 @@ DICOM frame is one codestream, so a series stored as strips is reassembled (deco
 
 ## 9 · The note to the PCS team (drafted, not sent)
 
-> We store and serve your HTJ2K frames for breast tomosynthesis and ultrasound. For the largest frames we are weighing
-> a layout that decodes faster on a reader's device. Could you tell us, for the HTJ2K you deliver:
+*Corrected 2026-11-24 (PCS-NOTE-FIX; `pcs-note.md` §Review B1):* the lead said "We store and serve your HTJ2K frames"
+and "the HTJ2K you deliver"; the PCS's code writes raw frames, which our ingest codes in HTJ2K
+([`../ingest/contract.md`](../ingest/contract.md) §What each name means and §What the ingest reads, on
+`origin/claude/unified`), and its README's `c/` and `mf.mxf` are planned. The note sent is `pcs-note.md` §9 part B.
+
+> Your parser's code writes raw frames, which our ingest codes in HTJ2K on your side; your README plans per-frame HTJ2K
+> under `<S>/c/`, gathered into `mf.mxf`. For the largest frames we are weighing a layout that decodes faster on a
+> reader's device, and whether it costs a re-encode depends on that planned HTJ2K, and on any HTJ2K object that
+> reaches you from a modality. For each, could you tell us:
 >
 > 1. The transfer syntax UID: 1.2.840.10008.1.2.4.201 (HTJ2K Lossless), .202 (HTJ2K Lossless RPCL) or .203?
 > 2. The progression order, the number of decomposition levels, and whether TLM markers and tile-parts per
 >    resolution are written.
 > 3. The number of tiles and the code-block size.
 > 4. The number of quality layers.
-> 5. Whether your encoder could write a large frame as three horizontal strips, each its own codestream, for a
->    second delivery beside the DICOM one, or whether we should re-encode on our side.
+> 5. Whether your planned encoder could write a large frame as three horizontal strips, each its own codestream, for
+>    a second delivery beside the DICOM one, or whether our ingest should code them.
 >
 > For reference, DICOM PS3.5 §10.18.1 asks of the RPCL syntax: "The progression order shall be RPCL (Resolution
 > Position Component Layer). This sequences the resolution blocks so that lower resolutions can be read first. The

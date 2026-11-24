@@ -19,13 +19,14 @@ Only the owner can send it.
 
 ## 2 · The recommendation, and the owner's yes or no
 
-**Send the note of §9, once, as it stands.** It serves the value statement's last line ("Its input is what the PCS
+**Send the note of §9, once, after US-DBT-CARRY-REVIEW leaves `us-dbt-carry` item 2 standing (or E is edited to
+match it), and after PCS-NOTE-FIX-REVIEW.** It serves the value statement's last line ("Its input is what the PCS
 delivers; the PCS itself is out of scope"): the note asks what the input is and changes nothing at the PCS that the
 PCS has not offered.
 
 | # | the owner's yes or no | recommended | a yes changes | a no leaves |
 | ---: | --- | --- | --- | --- |
-| 1 | **Send it**: §9 to the PCS team, by the owner, in place of the five pages' drafts | **yes** | one yes answers `pacs-sync` item 10, `ingest-optimal-quality` item 11 (both notes), `exact-frame-layout` item 6, `non-cine-series` item 3's three questions and `us-dbt-carry` item 2's four; each answer moves the items §3 names; a row then carries the answers into those pages | the items of §3 stay open "until the PCS team answers"; no lossless-sourced ultrasound clip, so no ultrasound number (premise 2) |
+| 1 | **Send it**: §9 to the PCS team, by the owner, in place of the five pages' drafts, once US-DBT-CARRY-REVIEW leaves `us-dbt-carry` item 2 standing (or E is edited) | **yes** | one yes answers `pacs-sync` item 10, `ingest-optimal-quality` item 11 (both notes), `exact-frame-layout` item 6, `non-cine-series` item 3's three questions and `us-dbt-carry` item 2's four; each answer moves the items §3 names; a row then carries the answers into those pages | the items of §3 stay open "until the PCS team answers"; no lossless-sourced breast ultrasound clip in the PCS's layout, so no breast ultrasound number (premise 2); the one sound public cine (`uscine_crc1`…`3`, grey liver clips) is in no result yet, which `us-dbt-carry` item 7 answers, not this note |
 
 ## 3 · The options, and what each question moves
 
@@ -35,16 +36,23 @@ Each question of §9, traced:
 
 | §9 | from (verbatim unless said) | its answer moves |
 | --- | --- | --- |
-| A1–A9, A10 | `pacs-sync` §9 items 1–9 and 10 | `pacs-sync` item 4 (A9 sizes the second writer), item 5 (A5, the hash bridge's gap), item 6 (A6, layout A or B), item 7's D14 (A6); the receive path's profile (A2), `incoming/` or a kept mirror (A1), the seam (A3), every shape's precondition (A4), completeness (A7) |
-| B1–B5 | `exact-frame-layout` §9 items 1–5, its DICOM PS3.5 quote kept | `exact-frame-layout` item 2 (whether the PCS's frames already follow RPCL, so Layout 1 costs no re-encode) and item 1's D+T3 (B5) |
-| C1–C4 | `noise-point.md` §Note, questions 1–4 (its computing and cost lines shortened to one sentence and a pointer) | `ingest-optimal-quality` item 9 (σ_min enters `code()` only if C1 is yes), item 4 (C2, who encodes), item 3 (C3, the lossy-source flag), §4's calibration (C4) |
-| C5–C6 | `ingest-optimal-quality` §9 questions 1–2 | `ingest-optimal-quality` item 3 (G from the trigger, or ours), the G for cine |
-| D1–D3 | written here from `non-cine-series` item 3 ("the ingest's three refusals (sizes that differ in one series, a clip among stills, a lossy source) go to the PCS team as questions") and `FIXTURES.md` §Refused | `non-cine-series` item 3; by its §6, "if its output never mixes geometries in a series or holds lossy stills, two refusals are moot" |
-| E1–E4 | `us-dbt-carry` §2 item 2's four questions, made into sentences | `us-dbt-carry` items 2, 3 (the label of a lossy-sourced exact frame) and 6 (colour clips), and U3 of its §3 (asked, not built) |
+| A1–A9, the last line | `pacs-sync` §9 items 1–9 and 10; A's parentheticals made plain clauses (PCS-NOTE-FIX) | `pacs-sync` item 4 (A9 sizes the second writer), item 5 (A5, the hash bridge's gap), item 6 (A6, layout A or B; D14); the receive path's profile (A2), `incoming/` or a kept mirror (A1), the seam (A3), every shape's precondition (A4), completeness (A7) |
+| A10–A13 | added by PCS-NOTE-FIX (PCS-NOTE-REVIEW m6): `docs/adr/metadata-updates.md` §13.6 Q-U3 with `docs/ingest/pacs-receive-design.md` §15's date-folder question (A10), Q-U4 (A11), Q-U6 (A12), Q-U7 (A13), on `origin/claude/unified` | the updates design (`metadata-updates.md` §13.6: A13 "decides how often A7 fires"); the disk layout (`pacs-receive-design.md` §16, A10) |
+| B1–B5 | `exact-frame-layout` §9 items 1–5, its DICOM PS3.5 quote kept; **the lead reworded** (PCS-NOTE-FIX, 2026-11-24, PCS-NOTE-REVIEW B1): the draft's "your HTJ2K frames" named an output the PCS's code does not write. Its parser writes raw frames (`<I>/G\|P\|R/%05d`); the per-frame HTJ2K in `<S>/c/`, gathered into `mf.mxf`, is "a later layout that the code does not write yet" (`docs/ingest/contract.md` §What each name means); the bundle's HTJ2K is coded by our ingest from the raw frames (contract.md §What the ingest reads; `docs/adr/pcs-transfer.md` §15.3: `mf.mxf` "replaced by the bundle"). So B asks of the planned HTJ2K and of any HTJ2K object received from a modality; B5 asks of the planned encoder | `exact-frame-layout` item 2: whether Layout 1 costs a re-encode, and its build cost if the PCS writes the strips (B5) |
+| C1–C4 | `noise-point.md` §Note, questions 1–4 (its computing and cost lines shortened to one sentence and a pointer to the reference code; "(§5.5)" dropped, a section of ours) | `ingest-optimal-quality` item 9 (σ_min enters `code()` only if C1 is yes), item 4 (C2, who encodes), item 3 (C3, the lossy-source flag), §4's calibration (C4) |
+| C5–C6 | `ingest-optimal-quality` §9 questions 1–2, its cost clause kept | `ingest-optimal-quality` item 3 (G from the trigger, or ours), the G for cine |
+| D1–D3, D4 | D1–D3 written here from `non-cine-series` item 3 ("the ingest's three refusals (sizes that differ in one series, a clip among stills, a lossy source) go to the PCS team as questions") and `FIXTURES.md` §Refused; D4 added by PCS-NOTE-FIX (PCS-NOTE-REVIEW m6) from `docs/decode/README.md`'s single-frame section ("The parser keeps no raw frame for a single-frame instance, only `sf.jxl` (asked of the PCS team)", and "the PCS's own `sf.jxl` setting (asked of the PCS team; e7 f0 if unknown)") | `non-cine-series` item 3; by its §6, "if its output never mixes geometries in a series or holds lossy stills, two refusals are moot"; D4: `decode/README.md`'s recommendation (c), HTJ2K from the raw frame, or (b), a JPEG XL decode in our ingest first |
+| E1–E4 | `us-dbt-carry` §2 item 2's four questions, made into sentences; E4's "and could it be delivered as it is?" is this row's addition, weighed in §7 | `us-dbt-carry` items 2, 3 (the label of a lossy-sourced exact frame) and 6 (colour clips), and U3 of its §3 (asked, not built) |
 | F | the G note's question 3, PROGRAM-CLOSE's premise 2, `us-dbt-carry` item 2's "one clip *as delivered* beside the lossless one", merged into one request | the ultrasound row of README's *Not answered* table; `ingest-optimal-quality` item 3's G default for cine; `us-dbt-carry` items 1 and 7; `us-dbt-carry` §6's first point |
 
+**Left out, each with why** (PCS-NOTE-REVIEW m6; on `origin/claude/unified`): `pacs-receive-design.md` §15's "the
+PACS receives `.sbnd`, not MXF/MP4/JXL. Agreed?", which A2 asks in its current form (the 10-28 meeting reopened
+rsync); its "Can the PCS run curl and a small script (resumable upload, mutual TLS, a certificate per site)?", which
+matters only if A2 answers "a package" and is asked then; `metadata-updates.md` §13.6 Q-U1, which is A4 ("Q-U1
+restated", its §13.6 close), Q-U2, "answered: fixed upstream at `e105214`", and Q-U5, which is A9.
+
 Merged, not dropped: C3 and E1 both ask about the lossy flag and stay two questions, since C3 asks whether the flag
-*reaches the ingest* and E1 how many clips *carry* it. A10 ("not needed from you") is kept as the note's last line.
+*reaches the ingest* and E1 how many clips *carry* it. `pacs-sync` §9 item 10 ("not needed from you") is kept as the note's last line.
 
 ## 4 · Where it holds
 
@@ -55,6 +63,8 @@ Merged, not dropped: C3 and E1 both ask about the lossy flag and stay two questi
 * The D questions are this row's wording of a page's line, not a page's text: the one place the note says what no
   page drafted. Found by: this row, reading `non-cine-series` item 3, which names the three refusals but drafts no
   question.
+* A10–A13 and D4 are PCS-NOTE-FIX's additions, each a question one of our documents already marks for the PCS team
+  (§3 names it), worded here as a sentence; found by PCS-NOTE-REVIEW m6.
 * E1–E4 come from a page whose review (US-DBT-CARRY-REVIEW) is owed; if that review changes item 2, E changes with it
   before the note is sent.
 * No private name, address or deployment appears in the note; it names the team by its role only.
@@ -80,7 +90,8 @@ U3 to the owner, which reopens *the exact HTJ2K frame* for lossy-sourced clips (
 
 ## 8 · Rows and links
 
-PCS-NOTE (this page), PCS-NOTE-REVIEW (owed: every question traced to its page, none lost). The drafts: `pacs-sync`
+PCS-NOTE (this page), PCS-NOTE-REVIEW (§Review: one blocker, m1–m6), PCS-NOTE-FIX (B1, m1–m6 and the nits, in
+place, 2026-11-24), PCS-NOTE-FIX-REVIEW (owed; the yes waits on it). The drafts: `pacs-sync`
 §9 (PACS-PAGE), `ingest-optimal-quality` §9 (INGEST-PAGE), `exact-frame-layout` §9 (EXACT-LAYOUT-PAGE),
 `claude/noise-ingest:docs/av1/noise-point.md` §Note to the PCS team (NOISE-INGEST-PROTOCOL, PR 413),
 `non-cine-series` item 3 (NON-CINE-PAGE), `us-dbt-carry` item 2 (US-DBT-CARRY). The refusals:
@@ -96,34 +107,48 @@ PCS-NOTE (this page), PCS-NOTE-REVIEW (owed: every question traced to its page, 
 >
 > **A. The tree and its delivery**
 >
-> 1. **Your exam tree:** is it kept as the record while updates can still come, does it always show the current
->    state, and can it be synced quiet or from a snapshot? (decides `incoming/` cleared or a kept mirror)
-> 2. **Delivery:** a package built by our sender at your side, or rsync of your tree? (the profile)
-> 3. **The trigger and the item list:** their form, and who writes the list, our sender or your process. (the seam)
+> 1. **Your exam tree:** is it kept as the record while updates can still come, does it always show the current state,
+>    and can it be synced quiet or from a snapshot? (it decides whether we clear what we received or keep a mirror of
+>    your tree)
+> 2. **Delivery:** a package built by our sender at your side, or rsync of your tree? (it decides which delivery path
+>    we build)
+> 3. **The trigger and the item list:** their form, and who writes the list, our sender or your process. (it decides
+>    where your process hands over to ours)
 > 4. **Corrections:** your parser writes a corrected group beside the old file and never deletes it; please replace
->    the file, or mark the current one. How is a withdrawal sent? (a precondition of every shape)
+>    the file, or mark the current one. How is a withdrawal sent? (every delivery we design assumes we can tell the
+>    current file)
 > 5. **Frame hashes:** your code writes raw frames as `<I>/G|P|R/%05d` with no hash in the name, so a frame damaged at
 >    rest on your disk reaches us undetected; your PDF names them `00001.blake3`. Will frame files carry their hash,
->    and when? (the hash bridge's gap)
+>    and when? (until they do, a frame is checked only from our side onward)
 > 6. **The layout below the series:** your code and your PDF differ; which will you ship, and are frames numbered
->    with 4 or 5 digits? (D14, and who builds the `.sbnd`)
+>    with 4 or 5 digits? (it decides which layout our reader follows, and who builds the bundle)
 > 7. **Completeness and late instances:** which heuristic decides a series is complete, and can you call our sender
 >    again for a late instance; does an addition carry the added frames only or the series again?
 > 8. **Your parser:** group 0002 still lands in the instance group at `e105214` (read, not run); converted enhanced
 >    objects, when?
 > 9. **Patient updates:** does any site feed patient updates (HL7 A08, A40) to you, and how often does the hospital
->    re-send a corrected object? (#220's two unknowns; they size the second-writer question)
+>    re-send a corrected object? (they decide whether corrections need a path of their own into our store)
+> 10. **The date folder:** a corrected study date writes a second tree under another `<D>/`. Is `<D>/` needed on your
+>     side, and who removes the old tree?
+> 11. **A SOP Instance UID you already hold:** does your Store SCP overwrite the file and run the parser again, or keep
+>     the first?
+> 12. **Key Object Selection:** does your Store SCP accept Key Object Selection documents, and does the parser write
+>     them as a series?
+> 13. **Differing exam attributes:** does any instance arrive with exam attributes that differ from its study's other
+>     instances in normal work (an old instance after a correction)? (it decides how often we must reconcile a study)
 >
-> **B. The HTJ2K frames you deliver.** For the largest frames we are weighing a layout that decodes faster on a
-> reader's device. Could you tell us:
+> **B. HTJ2K: what you plan to write.** Your parser's code writes raw frames (`<I>/G|P|R/%05d`), which our ingest
+> codes in HTJ2K on your side; your README plans per-frame HTJ2K under `<S>/c/`, gathered into `mf.mxf`. For the
+> largest frames we are weighing a layout that decodes faster on a reader's device, and whether it costs a re-encode
+> depends on that planned HTJ2K, and on any HTJ2K object that reaches you from a modality. For each, could you tell us:
 >
 > 1. The transfer syntax UID: 1.2.840.10008.1.2.4.201 (HTJ2K Lossless), .202 (HTJ2K Lossless RPCL) or .203?
 > 2. The progression order, the number of decomposition levels, and whether TLM markers and tile-parts per
 >    resolution are written.
 > 3. The number of tiles and the code-block size.
 > 4. The number of quality layers.
-> 5. Whether your encoder could write a large frame as three horizontal strips, each its own codestream, for a
->    second delivery beside the DICOM one, or whether we should re-encode on our side.
+> 5. Whether your planned encoder could write a large frame as three horizontal strips, each its own codestream, for
+>    a second delivery beside the DICOM one, or whether our ingest should code them.
 >
 > For reference, DICOM PS3.5 §10.18.1 asks of the RPCL syntax: "The progression order shall be RPCL (Resolution
 > Position Component Layer). This sequences the resolution blocks so that lower resolutions can be read first. The
@@ -134,11 +159,13 @@ PCS-NOTE (this page), PCS-NOTE-REVIEW (owed: every question traced to its page, 
 >
 > **C. The view: a per-series noise figure and the group length.** The optimal-quality view may take its quantizer
 > from each series' noise, σ_min, the lowest per-frame noise estimate over the series' frames (Immerkær's Laplacian
-> estimator, the steepest 10 % of samples left out, the integer-rounding share removed, only samples inside the
-> series' first window; measured at 0.002–0.003 CPU s a megapixel in Rust, seconds a series against minutes of AV1
-> encoding). Separately, our ingest codes the view with any Q from 1 to 63 and any group length G ≥ 1; on DBT at Q 8
-> a group of 8 saved at most 1.2 % of the view's bytes against G 1 on three volumes, and we have no measurement on
-> ultrasound clips.
+> estimator, the steepest 10 % of samples by Sobel gradient left out, the integer-rounding share removed, only samples
+> inside the series' first window; measured at 0.002–0.003 CPU s a megapixel in Rust, seconds a series against minutes
+> of AV1 encoding; the reference is `lab/av1/metrics/quality.py` `sigma` in our repository, and
+> `lab/noise-ingest/src/sigma.rs` (at `83f73e2bc`) equals it bit for bit on the three timed volumes; both on request). Separately, our
+> ingest codes the view with any Q from 1 to 63 and any group length G ≥ 1; on DBT at Q 8 a group of 8 saved at most
+> 1.2 % of the view's bytes against G 1 on three volumes (nothing on one), and on one volume longer groups saved 4–5 %
+> but decoded about 20 % slower; we have no measurement on ultrasound clips.
 >
 > 1. Will the parser's output carry the per-frame window? For enhanced multi-frame objects, it sits inside
 >    (5200,9229) or (5200,9230) → Frame VOI LUT Sequence (0028,9132). The ingest reads top-level keys today.
@@ -156,6 +183,8 @@ PCS-NOTE (this page), PCS-NOTE-REVIEW (owed: every question traced to its page, 
 > 1. Can one series hold images of different sizes (Rows, Columns) or photometric interpretations?
 > 2. Can a multi-frame object (a clip) arrive in the same series as single-frame stills?
 > 3. Do stills ever reach us in a lossy transfer syntax, or flagged Lossy Image Compression `01`?
+> 4. Does the parser keep a raw frame for a single-frame instance, or only `sf.jxl`; and if `sf.jxl`, is it lossless,
+>    at which effort?
 >
 > **E. Ultrasound clips as you deliver them.** In a public archive we read, 997 of 1 000 multi-frame ultrasound
 > objects were flagged lossy and 979 were colour-typed.
@@ -247,3 +276,28 @@ ask the page did not make (§7 does weigh it).
 **Verdict.** One blocker (B1). PCS-NOTE-FIX and PCS-NOTE-FIX-REVIEW are appended to the phase 2 queue
 (`claude/work-ledger:docs/queue-2026-11-24.md`); the page's yes waits on the re-review, and BRIEF-WEEKEND's line for
 it reads "after PCS-NOTE-FIX-REVIEW". Every other part of the note stands as traced.
+
+## Fix
+
+PCS-NOTE-FIX, 2026-11-24, by a session that wrote neither this page nor its review (`by:` in
+`claude/work-ledger:docs/queue/PCS-NOTE-FIX.md`). Read on `origin/claude/unified`: `docs/ingest/contract.md` §What
+each name means and §What the ingest reads, `docs/adr/pcs-transfer.md` §15.1 and §15.3,
+`docs/ingest/pacs-receive-design.md` §15, `docs/adr/metadata-updates.md` §13.6, `docs/decode/README.md`'s single-frame
+section, `docs/FIXTURES.md` (`uscine_crc*`); `83f73e2bc:docs/av1/noise-point.md` §Note. Nothing run but `git` and
+`scripts/check_links.py`; docs only, the gate not run.
+
+* **B1, fixed.** Part B's heading and lead now say what the PCS's tree holds: raw frames, which our ingest codes in
+  HTJ2K (contract.md line "frames are coded by the Rust ingest"), and the README's planned `c/` and `mf.mxf`; B1–B4
+  ask of that planned HTJ2K and of any HTJ2K object received from a modality, B5 of the planned encoder. §3's B row
+  says why. The same lead corrected in [`exact-frame-layout`](exact-frame-layout.md) §9, dated. The bundle's HTJ2K
+  is the ingest's (`ingest/from-parser`, run on the PCS's side), which the review called "our sender's"; the
+  wording here follows contract.md.
+* **m1, fixed.** A6 maps to `pacs-sync` item 6 (layout A or B; D14).
+* **m2, fixed.** B5 maps to `exact-frame-layout` item 2's build cost in §3, as §7 already said.
+* **m3, fixed.** "by Sobel gradient", the reference code's paths ("on request"), and the G note's cost clause are back.
+* **m4, fixed.** §2's no column names breast clips in the PCS's layout and the unused sound liver cine.
+* **m5, fixed.** The yes waits on US-DBT-CARRY-REVIEW leaving item 2 standing (or E edited), and on this fix's review.
+* **m6, fixed by carrying four and listing the rest.** Carried: A10 (Q-U3 with §15's date folder), A11 (Q-U4), A12
+  (Q-U6), A13 (Q-U7), D4 (`sf.jxl` only, and its setting). Left out with why in §3: the `.sbnd` "Agreed?" (A2 asks
+  it), curl and a script (only if A2 answers a package), Q-U1 (= A4), Q-U2 (answered), Q-U5 (= A9).
+* **Nits, fixed.** A's parentheticals are plain clauses; E4's added clause is named as this row's in §3.

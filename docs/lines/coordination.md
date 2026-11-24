@@ -66,7 +66,8 @@ small enough that every open item has an owner and a next step.
   premise 2 retired for ultrasound, eight yes or no lines, its review owed.
   One note to the PCS team 2026-11-24 (PCS-NOTE, [`pcs-note.md`](../decisions/pcs-note.md)): five drafts folded, one
   yes ("send it"); reviewed 2026-11-24 (PCS-NOTE-REVIEW): every question traced, one blocker (part B says the PCS
-  delivers HTJ2K; its code writes raw frames), PCS-NOTE-FIX queued.
+  delivers HTJ2K; its code writes raw frames), PCS-NOTE-FIX queued; fixed 2026-11-24 (PCS-NOTE-FIX): B1 and m1–m6
+  in place, `exact-frame-layout` §9's lead corrected; PCS-NOTE-FIX-REVIEW owed.
   The phone's reading carried 2026-11-24 (PHONE-CARRY): `phone-decode-route` §8.1 and `view-target` §6 name each
   open item's PHONE-ROUND-2 cell; the round's memory bound breaks the 11-22 fill (theory), its review owed.
   `lab/`'s list re-read 2026-11-24 (LAB-REMOVAL-LIST, [`lab-list.md`](../decisions/lab-list.md) §Re-read): against
