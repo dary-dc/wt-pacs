@@ -1,22 +1,21 @@
-state: started
+state: done
 started: 2026-11-24T19:27Z
-heartbeat: 2026-11-24T20:08Z
+heartbeat: 2026-11-24T20:23Z
 by: Zz3Kihvk
 outputs: claude/engines 7048b6534 (trace), cc2b4c22d (3a rows), 9881d90dd (3b rows); claude/page-runs 13a0c5eca (page-runs.md §3 Results, docs/lines/coordination.md)
 ## Resume
-Done: 3a whole. Six counted runs complete (claude/engines cc2b4c22d, docs/decode/engine-cells/3a/), result in
-page-runs.md §3 Results (claude/page-runs e59c6e9d1): the failure is the client's layout choice (av1-payload.js
-layouts() for a unit without a sequence header), not the engine.
-Now: 3b. Rig = claude/frame-memory-m5-run@1a90eb992 worktree with `git checkout origin/claude/core-m5b -- lab/opfs-cache`;
-client/decode/wasm/built copied from claude/engines (sha256sum -c ../build/manifest.sha256 OK); cargo build --release
--p pack-series -p series-server; bash ingest/tools.sh; .venv; client/transport/ts/build.sh. Then under Xvfb:
-`NODE_PATH=$(npm root -g) PYTHON=.venv/bin/python FIREFOX_PATH=/tmp/claude-0/ff/160.0.1/firefox/firefox DISPLAY=:99 node lab/opfs-cache/run.mjs --cell m5 --rounds 12 --engine firefox --out <claude/engines>/docs/decode/engine-cells/3b/m5-ff160-amended.jsonl`
-(12 rounds per §3b's text; the command block's `--rounds 7` is stale, §Review m4). Resume a cut run with --first-round N.
-2026-11-24T19:47Z: rig built (all of the above done in this container), one uncounted smoke round clean (claude/engines 789308e51,
-3b/smoke-uncounted.jsonl: 80/80 exact every arm). The 12 counted rounds started 2026-11-24T19:47Z, rows to
-claude/engines:docs/decode/engine-cells/3b/m5-firefox.jsonl, pushed every ~8 min. If cut: count whole rounds in the
-file, rerun with --first-round <next> (same --out); then `python3 lab/opfs-cache/summary.py docs/decode/engine-cells/3b`
-(reads m5-firefox.jsonl) and write §3b in page-runs.md §3 Results against the table.
-2026-11-24T20:08Z: 3b done (72 rows, claude/engines 9881d90dd), §3 Results 3b pushed (claude/page-runs 13a0c5eca). Gate
-(`scripts/gate.sh --quick`) running on claude/engines; then finish the status file.
+Done. Nothing owed by this row. PAGE-RUNS-VERDICT (a session that ran none of the runs) reads page-runs.md §3 Results.
 ## Result
+3a (measured, 6 of 6 traces complete, Firefox 159.0.1 and 160.0.1 alternating): the G = 8 inter frames never reach
+a VideoDecoder. av1-payload.js layouts() reads a delta unit's layout from a sequence header it lacks, so it probes
+g8, which Firefox refuses at configure. The frame goes to dav1d-WASM, which never had the keyframe. Every frame was
+routed to its keyframe's decoder; "elsewhere" counts missing frames. The prediction held on whose fault (the client's)
+and missed on the mechanism (not callback timing). The engine's inter decode is not shown, right or wrong.
+3b (measured, 12 rounds, 72 rows, every frame exact): disk 526 and ring 764 MiB held; ring - disk 237 missed (below
+250-310); 12 of 12 under the 846 MiB bar held; A/A 47 MiB, 0.98 (not VOID); ring fill / today 1.24 [1.13-1.43]
+missed 0.80-0.95. The bar flips: ring does not qualify on Firefox 160.0.1. CPU 0.71 busy, near the host's ceiling.
+Gate: scripts/gate.sh --quick on claude/engines at 9881d90dd, OK in 666 s (absence checks skipped by --quick).
+Fixtures and limits: 3a the rig's synthetic 8-bit 4:4:4 g8x20 set; 3b one synthetic 80-frame 3328x4096 series on
+loopback; neither DBT pixel data nor ultrasound. One 4-vCPU cloud container without a GPU, software decode.
+For BRIEF-WEEKEND's list: the layout bug (an inter frame takes its group's layout from its keyframe), a bug with no
+trade-off, not built here. No new owner decision; lever 2 stays with the owner, as before.
