@@ -1,6 +1,6 @@
 # Codecs and lab
 
-Last verified 2026-11-20 (PR state, branches, and the transport and HTJ2K rows of
+Last verified 2026-11-24 (owed runs: the session cost); 2026-11-20 (PR state, branches, and the transport and HTJ2K rows of
 `claude/work-ledger:docs/queue-2026-11-14.md` and `queue-client-2026-11-14.md`); the AV1 findings as of their dates.
 The optimal-quality view's measured state, the study branches, the harvest of 2026-11-10, the owner's questions and
 decisions: [`../av1/README.md`](../av1/README.md) §The optimal-quality view; HTJ2K at screen resolution:
@@ -62,6 +62,9 @@ measured, and every result names its fixtures.
 
 ## Owed runs
 
+* **The cost of a reading session** ([`../server/session-cost.md`](../server/session-cost.md), pre-registered
+  2026-11-24): server CPU, peak memory and wire bytes a session, arms A, A+C1, B, FIT on CLEAN and CR; its review,
+  then SESSION-COST-RUN and -VERDICT (`claude/work-ledger:docs/queue-2026-11-24.md`).
 * **G at equal quality** (`claude/av1-groups`): shard 2 (`dbts_a1`, `dbts_c1`, TRUS; about 4.3 h on one 4-core host)
   and the collect without `--partial`; the settings shard S2 (A, C cut); a structure-only source with no coding error
   of its own; a finer ladder at Q 8–12. Decode time in order matters more than jumps. No G is decided for DBT.
