@@ -44,7 +44,7 @@ PR 435, merged into `claude/unified`).
 
 FIT is B on `dbts_a1`, `dbts_c1` and `usb_cine` (the fit is level 0 there, §A2.2), so those cells are a control:
 predicted ×1.00 of B. FIT exists only once FIT-ARM-BUILD has merged into `claude/delivery`; until then the run has
-three arms and says so. `usb_cine` runs B only: the view is not coded for it by `lab/delivery/series.sh`.
+three arms and says so. `usb_cine` runs B only: the view is not coded for it by `claude/delivery:lab/delivery/series.sh`.
 
 ## 3 · What a session asks (theory)
 
@@ -133,7 +133,7 @@ for FIT (×3.5), not for B.
 
 ## 6 · Rig, records, order
 
-* **Rig**: `claude/delivery`'s `lab/delivery/run.mjs` as the comparison's §2 and §A2.6 (one 4-core container, the
+* **Rig**: `claude/delivery:lab/delivery/run.mjs` as the comparison's §2 and §A2.6 (one 4-core container, the
   relay's TUN in `unshare -rn`, its guard, the relay on core 0, the two series servers on core 1, the browser on 2–3),
   with one lever added, `--session`: after the load, the trace of §1 is driven by key presses; at each dwell the arm's
   action. One fresh browser profile a session, one session at a time, 10 s idle between.
@@ -175,7 +175,7 @@ None yet.
 
 ## Fixtures and limits
 
-Three timed DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`, as `lab/delivery/series.sh` codes them);
+Three timed DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`, as `claude/delivery:lab/delivery/series.sh` codes them);
 `usb_cine`, 64 frames, **lossy-sourced** (`docs/FIXTURES.md`): a function check, its bytes and CPU not results. One
 4-core cloud host without a GPU, headless Chromium, software WebCodecs; a userspace relay, not a radio; one session at a
 time. Every input above is from those rows and fixtures, the `transport-conclusions.md` §4 figures from another host.
