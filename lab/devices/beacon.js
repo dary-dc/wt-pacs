@@ -81,8 +81,12 @@ function install(q, fields) {
   document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && r.flush({ leaving: true }));
   const watch = () => {
     const quality = document.getElementById("quality");
-    new MutationObserver(() => r.record("label", { quality: quality.hidden ? null : quality.className, text: quality.textContent }))
-      .observe(quality, { attributes: true, attributeFilter: ["class", "hidden"] });
+    let first = true;
+    // firstPicture's ms is from the navigation's start: next-round-results.md §Cell 3, *Reductions*.
+    new MutationObserver(() => {
+      r.record("label", { quality: quality.hidden ? null : quality.className, text: quality.textContent });
+      if (first && !quality.hidden) (first = false), r.record("firstPicture", { ms: performance.now() });
+    }).observe(quality, { attributes: true, attributeFilter: ["class", "hidden"] });
     document.getElementById("lossless").addEventListener("click", (e) => r.record("lossless", { text: e.currentTarget.textContent }), { capture: true });
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", watch);

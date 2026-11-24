@@ -60,7 +60,7 @@ cannot tell those versions from later ones. *Derived* from the page's module gra
 `client/viewer/index.html` through every import and worker): 22 differ from `962226e8` and 7 are new. Of these 29,
 9 are covered above. `check-page.js` and `check-view.js` run only under `?check`, which the round did not use. The
 other 18 leave no field in the rows, so their version is **not established**: `viewer.js`, `head.js`, `screen.js`,
-`pair.js`, `client/viewer/store.js`, `view.js`, `view-worker.js`, `cache.js`, `painter.js`, `paint-worker.js`,
+`pair.js`, `client/viewer/store.js` (removed since, `1dd8e78b2`), `view.js`, `view-worker.js`, `cache.js`, `painter.js`, `paint-worker.js`,
 `voi.js`, `consumer.js`, `downloader.js`, `ts/dist/session.js`, `av1-webcodecs.js`, `av1-frame.js`, `av1-payload.js`
 and `lab/viewer/hooks.js`. `index.html` and the JSON files cannot be stale: the dev
 server sends `Cache-Control: no-cache` for `text/html` and `application/json` (`server/dev-server.py` at

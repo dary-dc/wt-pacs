@@ -12,13 +12,20 @@ const check = (ok, claim) => (console.log(`${ok ? "ok" : "FAIL"}: ${claim}`), ok
 const run = `${dir}/plan-run`;
 mkdirSync(`${run}/bin`, { recursive: true });
 const commit = execFileSync("git", ["-C", ROOT, "rev-parse", "HEAD"]).toString().trim();
-const plan = await roundPlan({ dir, run, dial: "127.0.0.1", views: ["synth-q8-g8", "synth-q8-g8"], quick: true, commit });
+const round2 = process.argv[3] === "round2";
+const views = ["synth-q8-g8", "synth-q8-g8"];
+const plan = round2
+  ? await roundPlan({ dir, run, dial: "127.0.0.1", views, counts: { pairs: 2 }, cells: ["3", "M"], commit })
+  : await roundPlan({ dir, run, dial: "127.0.0.1", views, quick: true, commit });
+// round-2.md's dry run: the round's 10 s cine, and the most steps 20 frames allow; a short gap.
+if (round2) Object.assign(plan, { gapS: 2 }).blocks[0].loads.forEach((l) => l.cell === "3" && Object.assign(l, { steps: 9, cineS: 10 }));
 writeFileSync(`${run}/plan.json`, JSON.stringify(plan));
 writeFileSync(`${run}/bin/adb`, `#!/bin/sh\necho "$*" >> ${run}/adb.log\n`);
 chmodSync(`${run}/bin/adb`, 0o755);
 const loads = plan.blocks[0].loads;
 
-const host = spawn("python3", ["lab/devices/round.py", `${run}/plan.json`, `${run}/out`, "--bind", "127.0.0.1", "--port", "8780"],
+const fresh = round2 ? ["--fresh-chrome", "--beacon", `${run}/beacon.jsonl`] : [];
+const host = spawn("python3", ["lab/devices/round.py", `${run}/plan.json`, `${run}/out`, "--bind", "127.0.0.1", "--port", "8780", ...fresh],
   { cwd: ROOT, env: { ...process.env, PATH: `${run}/bin:${process.env.PATH}` }, stdio: ["ignore", "pipe", "inherit"] });
 process.on("exit", () => host.kill("SIGTERM"));
 await new Promise((resolve, reject) => {
@@ -51,6 +58,15 @@ check(["A", "C1", "C2"].every((a) => byArm(a).every((r) => r?.lossy)), "arms A, 
 const arm = (a) => loads.flatMap((l, k) => (l.cell === "2" && l.arm === a ? [k] : []));
 check(arm("C2").every((k) => of(k, "exactFill")[0]?.frames.every((f) => f.exact === true)), "each C2 load fills the whole exact series, every frame exact");
 check(arm("C1").every((k) => of(k, "label").some((x) => x.quality === "lossless")), "each C1 press reaches the exact frame");
-check(loads.every((l, k) => l.cell !== "3" || (of(k, "frameChange")[0]?.steps.length === 6 && of(k, "cine").length === 2)), "each cell 3 load runs its steps and cine, idle and busy");
+if (round2) {
+  const relaunched = events().filter((e) => e.event === "relaunch" || e.event === "relaunch skipped").map((e) => e.after);
+  const expected = loads.flatMap((l, k) => (k + 1 < loads.length && !loads[k + 1].sameRenderer ? [k] : []));
+  check(JSON.stringify(relaunched) === JSON.stringify(expected), `a relaunch after loads ${expected} (each before a load not on the same renderer), got ${relaunched}`);
+  check(loads.every((l, k) => of(k, "memory")[0]?.window === 20 && of(k, "memory")[0]?.budget === l.budget && "maxTextureSize" in of(k, "memory")[0]), "each load records its window, budget and MAX_TEXTURE_SIZE");
+  check(loads.every((l, k) => of(k, "frameChange")[0]?.steps.length === 2 * l.steps && of(k, "cine").length === 2), "each load runs its steps and cine, idle and busy, at its size");
+  check(loads.every((l, k) => of(k, "drain").some((d) => d.path === "post")), "every load's last batch posted");
+  check(loads.every((l, k) => of(k, "firstPicture").length === 1 && of(k, "firstPicture")[0].ms > 0), "each load records one first picture, ms from its navigation");
+  check(loads.every((l, k) => (l.cell === "3" && l.view === "worker") === l.url.includes("&opts=")), "cell 3's worker loads, and only they, carry the start's fix");
+} else check(loads.every((l, k) => l.cell !== "3" || (of(k, "frameChange")[0]?.steps.length === 6 && of(k, "cine").length === 2)), "each cell 3 load runs its steps and cine, idle and busy");
 console.log(failed ? `round plan headless: ${failed} FAILED` : "round plan headless: every claim holds");
 process.exit(failed ? 1 : 0);
