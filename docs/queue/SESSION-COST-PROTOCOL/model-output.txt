@@ -1,0 +1,5 @@
+volume n W | arm frames-asked (of n) MB-asked | exact presses
+dbts_a1 n=56 W=56 | A 56 4.64 | A+C1 8.21 (C1 3.57) | B 56 67.81 | FIT = B | whole series once: view 4.64, exact 67.81
+dbts_b1 n=50 W=15 | A 764 355.69 | A+C1 362.12 (C1 6.43) | B 132 284.63 | FIT 77.13 + zoom 4.69 = 81.82 | whole series once: view 23.21, exact 107.41
+dbts_c1 n=69 W=54 | A 198 17.17 | A+C1 20.17 (C1 3.01) | B 99 100.66 | FIT = B | whole series once: view 6.24, exact 70.66
+usb_cine n=64 W=64 | B 64 4.99 (mean frame bytes, us-dbt-carry §3) | FIT = B
