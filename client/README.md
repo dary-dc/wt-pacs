@@ -372,8 +372,8 @@ every later want, a step onto it asks nothing, and in its place the canvas is cl
 picture (`view/controller.test.mjs`; RESULTS-BRIEF §8.1). A lost ask (the session gone and its re-dials failed, the
 downloader's `failed` message marked `lost`) is asked once more first: the worker view wants it again, the page view
 asks it again while it is the current frame; lost a second time, it is withheld. The browser side of a withheld frame
-(the painters' null frame, the page's `withheld` handler) has no browser test yet. The words for it on screen are the `frame-integrity`
-decision page's; until then the status line names the failure and the mark and label are blank.
+(the painters' null frame, the page's `withheld` handler) has no browser test yet. The words for it on screen are
+the `frame-integrity` decision page's; until then the status line names the failure and the mark and label are blank.
 `stats().exact` counts frames per route as `{ true, false, unchecked }`. The hasher is xxHash's XXH3 with SIMD128
 (`decode/xxh3.js`, built by `decode/wasm/build`), held to hash-wasm's digests by `decode/xxh3.test.mjs`; a
 worker given digests that cannot load it fails its start. What it costs
