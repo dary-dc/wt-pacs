@@ -51,7 +51,6 @@ for (let i = 0; i < F; i++) {
   const truth = new Uint8Array(readFileSync(path.join(TRUTH, `${n}.rawl`)));
   if (hash(decode(cs, 0)) !== meta.digests.frames[i]) throw new Error(`${ID} ${i}: the whole frame is not its digest`);
   if (!same(decode(cs, level), truth)) throw new Error(`${ID} ${i}: level ${level} of the whole codestream is not ll.py's`);
-  // Binary search, sound only where a longer prefix never loses the level: the boundary is checked after.
   let [lo, hi] = [1, cs.length];
   while (lo < hi) {
     const mid = (lo + hi) >> 1;

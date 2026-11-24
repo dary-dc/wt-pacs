@@ -20,12 +20,9 @@ export const ARMS = ["A", "A'", "B", "C1", "FIT", "SPLIT"];
 export const VOLUMES = ["dbts_a1", "dbts_b1", "dbts_c1"];
 /** §1: C1 asks its exact frame this long after its fill ends. */
 export const PRESS_AFTER_MS = 1000;
-/** A2.5: FIT zooms past the fit this long after its fill ends. */
 export const ZOOM_AFTER_MS = 1000;
 export const DECODERS = 2;
-/** A2.8: two Williams periods of six arms. */
 export const ROUNDS = 12;
-/** A2.4: K3′'s calibration loads of arm B a (lossy form, volume). */
 export const K3_PRIME_LOADS = 8;
 
 /** A uniform draw in [0, 1) fixed by `key` (FNV-1a). */
@@ -38,7 +35,6 @@ export function draw(key) {
 /** ms from the servers' start to a load's first blackout, the form's period after that; undefined where the form has none. */
 export const blackoutPhaseMs = (cell, key) => CELLS[cell].blackoutEveryMs && Math.floor(draw(`${cell}/${key}`) * CELLS[cell].blackoutEveryMs);
 
-/** bytes: a form's bandwidth-delay product, the wire SPLIT keeps full ahead of its decisions (A2.3). */
 export const bdpBytes = (cell) => (CELLS[cell].rttMs * Number(CELLS[cell].relay[CELLS[cell].relay.indexOf("--rate-kbit") + 1])) / 8;
 
 /** The URL parameters of one arm's load past the page's own. */
@@ -69,7 +65,6 @@ export function cellLoads(cell, { rounds = ROUNDS, fixedOrder = false, arms: arm
   return loads;
 }
 
-/** A2.4's K3′: arm B's loads of a lossy form, interleaved over the volumes, not counted. */
 export function k3PrimeLoads(cell) {
   if (!CELLS[cell]?.lossy) throw new Error(`K3′ ${cell}: only the lossy forms (${Object.keys(CELLS).filter((c) => CELLS[c].lossy).join(" ")})`);
   return Array.from({ length: K3_PRIME_LOADS }, (_, round) => VOLUMES.map((_, k) => VOLUMES[(k + round) % VOLUMES.length]).map((volume) => ({

@@ -1,8 +1,4 @@
-/**
- * The delivery rig's FIT arm in the viewer, behind the lab's levers: the fit worker where the metadata names a level,
- * then after the fill the window read-back and the zoom past the fit; and C1's ask → last byte.
- * docs/client/evidence/delivery-comparison.md A2.2, A2.4, A2.5, A2.8
- */
+/** The delivery rig's FIT arm in the viewer, and C1's ask → last byte: docs/client/evidence/delivery-comparison.md A2.2–A2.8 */
 import { FIT } from "../../client/view/controller.js";
 import { tableShape, windowTable } from "../../client/paint/voi.js";
 
@@ -30,10 +26,7 @@ const NARROW = 8;
 /** A2.5: the zoom past the fit. */
 const ZOOM = 2;
 
-/**
- * A2.2: the frame on screen under a narrow window, its window pass read back at the frame's own size, against voi.js's
- * table looked up on the frame's samples; `canvas` (a mutant) reads the placed canvas instead. Why not equal, or null.
- */
+/** A2.2: the window pass read back at the frame's size against voi.js's table on its samples; `canvas`, a mutant's read. Why unequal, or null. */
 export async function windowReadFailure(controller, record, { canvas = false } = {}) {
   const i = controller.current;
   const f = controller.store.get(i);
@@ -57,10 +50,7 @@ export async function windowReadFailure(controller, record, { canvas = false } =
   return `window read-back of frame ${i}: ${pixels.length === samples.length * 4 ? `sample ${unequal} unequal to voi.js's table` : `${pixels.length} bytes for ${samples.length} samples`}`;
 }
 
-/**
- * A2.5: `afterMs` past the fill, the frame on screen zoomed past the fit; where the fit is a level, its rest asked on
- * the fill's own session and the whole frame painted once its digest matched. The zoom's record, and why it failed.
- */
+/** A2.5: `afterMs` past the fill, a zoom past the fit; at a level, the rest asked on the fill's session and the whole frame painted once checked. */
 export async function zoomFailure(controller, meta, record, { afterMs, filledAt }) {
   await sleep(Math.max(0, filledAt + afterMs - epochMs()));
   const i = controller.current;

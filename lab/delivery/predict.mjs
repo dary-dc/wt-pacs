@@ -1,5 +1,4 @@
-// The delivery comparison's model and its predictions file, from the host's own K1–K3 (and K3′) alone.
-// docs/client/evidence/delivery-comparison.md §4, §Amendment 2
+// The delivery comparison's model and its predictions file, from the host's own K1–K3′ alone. delivery-comparison.md §4, §Amendment 2
 //   node lab/delivery/predict.mjs INPUTS.json OUT.json
 import { readFileSync, writeFileSync } from "node:fs";
 import { ARMS, CELLS, DECODERS } from "./plan.mjs";
@@ -73,10 +72,7 @@ export const exactLatency = (bytes, link, loneMs) => askLastByte(bytes, link) + 
 /** A2.7: FIT's zoom asks a frame's rest on the window the fill left (an assumption): no slow start on a line. */
 export const zoomLatency = (restBytes, link, loneMs) => (link.curve ? askLastByte(restBytes, link) : link.rttMs + (8 * restBytes) / (link.goodputMbit * 1000)) + loneMs + PAINT_MS;
 
-/**
- * A2.3: SPLIT's fill, route-policy.md §4.6's balance of view and exact groups at the form's goodput, with A's makespan
- * factor k; SPLIT is A (x = 0) where A is wire-bound or G is outside (G_A, G_B). `x` is the share of exact groups.
- */
+/** A2.3: SPLIT's fill (route-policy.md §4.6's balance, A's makespan factor k), A's where A is wire-bound or G is outside (G_A, G_B); `x` its exact groups' share. */
 export function split(v, link, n, aFill) {
   const mean = (f) => (8 * sum(f.slice(0, n))) / n;
   const [bV, bE, dV, dE] = [mean(v.view.frames), mean(v.exact.frames), v.view.frameMs / DECODERS, v.exact.frameMs / DECODERS];
@@ -113,7 +109,6 @@ export function predictions(inputs) {
         else if (arm === "SPLIT") at(arm, "fill", split(v, link, n, view));
         else at(arm, "fill", view);
         if (arm === "C1") at(arm, "latency", { ms: latency }), at(arm, "askLastByte", { ms: askLastByte(v.exact.frames[shown], link) });
-        // A2.5: on a level-0 volume the zoom asks nothing, one paint, reported and not judged.
         if (arm === "FIT") at(arm, "zoom", v.fit ? { ms: zoomLatency(v.fit.rests[shown], link, v.exact.loneMs) } : { ms: PAINT_MS, judged: false });
       }
     }
@@ -134,7 +129,6 @@ export async function xxh3() {
   }
 }
 
-/** The predictions file's XXH3-64. */
 export const digestOf = async (text) => (await xxh3())(new TextEncoder().encode(text));
 
 if (import.meta.url === `file://${process.argv[1]}`) {
