@@ -522,7 +522,7 @@ what the cell is, and how its ρ is read.
 * **Legs a visit**: 9 at 12 and 20 (8 counted), 5 at 40 (4 counted), for a visit's length.
 * **(e) is not built**: the product's default is W = 15 on `dbts_b1` (`memoryWindow`), every cell's W; each visit
   reports the window it ran.
-* **The page view only**: the hold is installed on the page view's controller (`lab/viewer/hold.js`); the worker
+* **The page view only**: the hold is installed on the page view's controller (`claude/ask-cells:lab/viewer/hold.js`); the worker
   view's store is the same class and is not driven. *Centred* and *centred′* are the product's own store, no lever.
 * **The struck split's ρ** is the cell's nominal (0.216; 0.862 on `r80000rtt40`), not its measured one.
 * **Mutants**: `--mutate hold` (no hold installed) and `--mutate legs` (legs one frame short, which the driver's
