@@ -68,6 +68,8 @@ small enough that every open item has an owner and a next step.
   yes ("send it"), its review owed.
   The phone's reading carried 2026-11-24 (PHONE-CARRY): `phone-decode-route` §8.1 and `view-target` §6 name each
   open item's PHONE-ROUND-2 cell; the round's memory bound breaks the 11-22 fill (theory), its review owed.
+  `lab/`'s list re-read 2026-11-24 (LAB-REMOVAL-LIST, [`lab-list.md`](../decisions/lab-list.md) §Re-read): against
+  every owed run, 11 of the 47 kept (six an owed run names, five read by kept code), 36 for LAB-REMOVAL.
 
 ## Open (ordered)
 

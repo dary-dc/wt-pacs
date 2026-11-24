@@ -128,3 +128,60 @@ not by directory); the seven workspace crates (UNIFIED-LAB-WORKSPACE, coordinati
 **How it was made.** Two scripts on `claude/work-ledger`, `docs/queue/UNIFIED-LAB-LIST/` (the ledger, beside
 COMPLEXITY-AUDIT's): `counts.py` (each directory's lines and the docs naming it) and `gate_trace.py` (the trace
 above). `git worktree add --detach /tmp/u origin/claude/unified && python3 gate_trace.py /tmp/u trace.json`.
+
+## Re-read
+
+LAB-REMOVAL-LIST, 2026-11-24, `claude/work-ledger:docs/queue-2026-11-24.md` (README contradiction 4): each of the 47
+re-read against every owed run, not the gate alone. **Fixture and limits.** Trees: `origin/claude/unified`
+`b059388b6` and `origin/claude/eval-release` `e0dd6d4fb` (the same 66 directories; the 47 changed in 5 files since
+`4a2b4277f`, so the code-line counts above stand); the run rows' branches `claude/delivery`, `transport-arms`,
+`cache-arms`, `report-arms`, `engines`, `page-runs`, `session-cost`, `proposals`, `phone-run`, `beacon-loss` at
+11:30 UTC. Owed runs read: the 20 pages and `us-dbt-carry`, `pcs-note`; phase 2's rows and their protocols
+(`delivery-comparison.md` §Amendment 2, `page-runs.md`, `session-cost.md`, `exact-unasked.md`, IMPROVE-1's
+`candidates.md`); the held list (program §Trimmed, the README's *Held and late rows*, `docs/native/README.md` §How to
+resume, `docs/lines/*.md` §Owed). **Read, not run**, as above: `gate_trace.py` rerun on both tips finds the gate still
+reads none of the 47; then every `lab/<dir>` or `../<dir>/` on a non-comment line of the kept trees' and run
+branches' code, by hand where a comment was the only hit. A path built from parts would still be missed.
+
+**Kept: an owed run names it** (6 directories, 6 284 code lines).
+
+| directory | the run, and where it is named |
+| --- | --- |
+| `paint-floor` | `client-calls` item 5's GPU run (the owner's machine), judged against "`lab/paint-floor`'s 0.34 ms" (§3.5, §6) |
+| `htj2k-tiles` | FIT-ARM's protocol measures FIT against S★ (`delivery-comparison.md` §A2, `lab/htj2k-tiles/improve/stage3/`); TILES-STEP (held) |
+| `faultbench` | `page-runs.md` §6.4, the fault bench's twelve cells; REPORT-RERUNS' rig loads `/lab/faultbench/decode/decoder.js` (`claude/report-arms:lab/report-arms/page.js:65`) |
+| `proposals` | `page-runs.md` §6.3, `client-calls` item 3's rule (3) re-read on R5's harness (`lab/proposals/r5.sh`, `dav1d-fetched-on-need.md`); `docs/lines/proposals.md` points at it 49 times |
+| `decode-bench` | FIT-ARM-BUILD and DELIVERY-RUN-2 use RESLEVEL's lab (`delivery-comparison.md` A2.8: `lab/av1/decode/resolution-level/`), whose `prefix.mjs:12` imports `lab/decode-bench/decoder.mjs`; kept `lab/av1` reads it too (`lab/av1/delivery/preview/prefix.mjs:8`, `lab/av1/decode/region/build.sh:39`, `lab/av1/tools/newer/build.sh:66`) |
+| `native-window` | the paused native line's owed "fill on a GPU desktop" (`docs/lines/native.md` §Owed, `docs/native/README.md` resume step 3; held, amendment 18): the tree's one runner that times the window against the browser |
+
+**Kept as harness: a kept directory's code runs it** (5 directories, 2 048 code lines; each goes only with the file
+that reads it, which is the split by file of `lab/av1` and `lab/scripts` this page does not ask).
+
+| directory | read by |
+| --- | --- |
+| `downloader-cost` | `lab/decode-bench/builds.mjs:76` loads its page |
+| `loss-class` | `lab/cc-classify/run.sh:32` runs `lab/loss-class/run.py` |
+| `stream-shape` | `lab/scripts/askl_cells.sh:19,23` |
+| `session-survival` | `lab/scripts/controller_browser_cells.sh:79`, `deep_queue_cells.sh:100` |
+| `traces` | `lab/scripts/harness_sweep_mbps.sh:9`, `miss_cost_cloud.sh:10-11`, `miss_cost_sweep.sh:66-68`, `netem_validation.sh:8`, `gen_live_cell_trace.py:49` |
+
+**Removed** (36 directories, 18 059 code lines, 17 % of `lab/`'s): `study-index`, `htj2k-progressive`,
+`metadata-delivery`, `sqlite-engine`, `late-frame`, `ask-ahead`, `disk-tree`, `tail-rewrite`, `decode-tail`,
+`recv-cost`, `irtt`, `decoder-memory`, `decode-first-frame`, `paint-read`, `tcp-fallback`,
+`viewer-ceiling`, `containers`, `native-step1`, `fill-at-start`, `ask-behind`, `firefox-dial`, `early-messages`,
+`server-load`, `fastclock`, `frameloss`, `dial-deadline`, `worker-leak`, `ffportgc`, `telemetry-cost`,
+`link-conditions`, `clock-resolution`, `pgo-relay`, `idle-sessions`, `iwdeep`, `bb3`, `opfs-arms`. No owed run, held
+row or kept directory reads any of them. Pointers LAB-REMOVAL repoints, beyond the docs `check_links.py` finds:
+comments at `lab/scripts/first_ask_cells.sh:423` (`iwdeep`) and `lab/window-harness/src/bin/fill_load.rs:2`
+(`server-load`); `htj2k-tiles`' `build_levels.sh:13` reads `levels.patch` from the branch `claude/htj2k-progressive`
+(`a7f89db13`), not the tree, so FIT's and the tiles' level binding survive the removal only while that branch does;
+`claude/cache-arms:lab/cache-arms/view.js:22` cites `opfs-arms` by commit, which holds.
+
+**What changed against the first reading.** 11 of the 47 are kept, not 2: `faultbench` and `htj2k-tiles` as before;
+`paint-floor`, `proposals`, `decode-bench`, `native-window` by an owed run the gate does not run; five as harness of
+kept code, which a directory-level trace of the gate does not see. The question above stands with these 36 in place
+of the 47. The archive tag it names differs from LAB-REMOVAL's brief (no tag; `repository` item 2 makes tags the
+index, so a removed directory is in none): the owner's yes to `unified-to-main` item 4 decides which.
+
+How it serves the value statement: "as one small MIT-licensed server" — the release carries only the lab an owed
+run or kept code reads.

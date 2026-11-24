@@ -217,7 +217,7 @@ and marks its recommendation **provisional**.
 ## Index
 
 Inputs that are not pages: [`lab-list.md`](lab-list.md), what reads each `lab/` directory (UNIFIED-LAB-LIST, for
-`unified-to-main`).
+`unified-to-main`; §Re-read 2026-11-24, LAB-REMOVAL-LIST: 11 of the 47 kept for an owed run or kept code, 36 removed).
 
 *Client queue* rows are in `claude/work-ledger:docs/queue-client-2026-11-14.md`, the others in
 `claude/work-ledger:docs/queue-2026-11-14.md`. A page's date is the day its row is due.
