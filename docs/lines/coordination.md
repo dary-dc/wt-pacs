@@ -65,7 +65,8 @@ small enough that every open item has an owner and a next step.
   Carried to ultrasound clips and DBT stacks 2026-11-24 (US-DBT-CARRY, [`us-dbt-carry.md`](../decisions/us-dbt-carry.md)):
   premise 2 retired for ultrasound, eight yes or no lines, its review owed.
   One note to the PCS team 2026-11-24 (PCS-NOTE, [`pcs-note.md`](../decisions/pcs-note.md)): five drafts folded, one
-  yes ("send it"), its review owed.
+  yes ("send it"); reviewed 2026-11-24 (PCS-NOTE-REVIEW): every question traced, one blocker (part B says the PCS
+  delivers HTJ2K; its code writes raw frames), PCS-NOTE-FIX queued.
   The phone's reading carried 2026-11-24 (PHONE-CARRY): `phone-decode-route` §8.1 and `view-target` §6 name each
   open item's PHONE-ROUND-2 cell; the round's memory bound breaks the 11-22 fill (theory), its review owed.
   `lab/`'s list re-read 2026-11-24 (LAB-REMOVAL-LIST, [`lab-list.md`](../decisions/lab-list.md) §Re-read): against
