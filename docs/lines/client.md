@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-23 (the engines' path fix), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-23 (the engines' path fix), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -76,6 +76,19 @@ exact frame bit for bit, and only checked claims on screen.
 * **The owner's decisions of 2026-11-14 to 16** (amendments 16–23 of the client queue): in
   [`../client/design.md`](../client/design.md) §Decided, one row each, and the HTJ2K-only path with a reduced first
   picture and the 220-level checked hardware view in §Open; the rows that carry them, PRs 378, 389, 392, 394–397, 400.
+* **Series that are not stacks**, theory and sources only, 2026-11-22
+  ([`../client/evidence/non-cine-series.md`](../client/evidence/non-cine-series.md), row NON-CINE-OPTIONS): large
+  single frames (half the pictures of a DBT exam) keep the exact frame alone, with an exact level picture first as
+  the one arm worth a cloud run (its §7, predictions written); ultrasound stills are a stack of exact frames, held
+  back by three ingest refusals; over 12 bits waits. Read, not run: the painter makes no test against
+  `MAX_TEXTURE_SIZE`. The owner's five calls are its §8.
+  *Reviewed 2026-11-22 (NON-CINE-REVIEW, PR 431):* arithmetic and repository claims hold; one blocker, the level
+  picture of a 70 µm frame put at level 1 with a share measured on other series while `ffdm_d`'s measured level-2
+  cells (7.0–7.5 %, decode ×0.08, first picture ×0.09–0.27) went unused; eleven minors. *Fixed 2026-11-22
+  (NON-CINE-REVIEW-FIX):* level 1 (a phone's device pixels) labelled carried, level 2 measured beside it, §7 cut to
+  level 1 and V; the minors in place. *Re-reviewed 2026-11-22 (NON-CINE-REVIEW-FIX-REVIEW):* B1 and m1–m10
+  closed, no blocker open; four new minors (n1–n4 in PR 431's body: level 2 is a phone's left–right hanging, not a
+  laptop's; every handheld must decode AV1, in software if not hardware). Next: the `non-cine-series` page.
 * **The device model**, theory only, 2026-11-20 ([`../decode/mobile/device-model.md`](../decode/mobile/device-model.md)):
   a phone's decode, cache and decoder floors from its fast cores' speed and count, a range per price band, and the
   prediction for the 2026-11-21 round pre-registered (HTJ2K at 14–22 ms effective a `dbts_b1` frame with three
