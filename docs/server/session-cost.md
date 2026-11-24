@@ -245,6 +245,44 @@ claim to the frame retrieve (B4); per-arm CPU rates (m1), an intercept and the h
 order (m5), ask counts for A+C1 and FIT and the jumps in §1's counts (m6), client → server bytes recorded (nit).
 Corrected in place: §5's former "lowest server CPU … on `dbts_b1` for FIT (×3.5)", which fell under HTTP/2's ×6–8.
 
+**2026-11-24, SESSION-COST-RUN** (before any counted row; departures the rig forces, none changing a prediction).
+
+* **The run's tree.** `claude/session-cost-rig`: this branch at `b059388b6` + the protocol, with as files, no merge,
+  `claude/delivery`'s `lab/delivery/` (at `854372707`, FIT-ARM-BUILD's), `claude/phone-run-2`'s `lab/devices/`,
+  `lab/viewer/`, `client/viewer/head.js` and `server/dev-server.py` (the round page and its beacon, built on this tip),
+  and `claude/delivery`'s window read-back in `client/paint/` (FIT's check, lab-only). `client/view/` and
+  `client/transport/` are `b059388b6`'s byte for byte, so **T1** is the table (§3) and the harness is not rerun.
+* **The lever.** `--session` drives §1's trace in the page (`lab/delivery/session-page.js`): each step a `keydown` of
+  `ArrowRight` or `ArrowLeft` on the viewer's window, the next no sooner than 100 ms after it and only once `shown`
+  names its frame; a jump sets `#slice` and fires its `input`; A+C1's dwell is the viewer's `l`; FIT's is A2.5's zoom
+  (×2, the rest asked on the fill's session), the pose reset before the next jump. The trace starts at the fill's end
+  (the round page's `finished`: the window filled). Asks are counted as the controller's `received` (every arrival,
+  evicted or not) plus the exact asks at the dwells.
+* **Server lifetime: one pair a session, not one a form** (§6). The rig starts the relay, both series servers and the
+  page servers per load, in the relay's namespace, and each server serves one series; one pair for a form's three
+  volumes and four series would need a server serving many series and a relay counting by session, neither of which
+  the rig has. The 2026-11-23 rows that gave §4's rates and intercept ran the same way, a fresh pair a load, so the
+  predictions stand. The warm-up session (`dbts_b1` B, uncounted) is kept, to warm the page cache. Each session's CPU
+  and memory are taken from its pair's values before the page's load, after both servers have printed their banner.
+* **The relay's guard VOIDs no session here** (§6's first `VOID` reason, *measured* on the smoke below). Every
+  session that asks after an idle gap tripped it: A+C1 on `dbts_a1` (8 840 packets, p99 2.58 ms), B on `dbts_c1`
+  (p99 1.64 ms), every `dbts_b1` arm (p99 1.98–4.02 ms); sessions that ask nothing after the fill did not (A and B on
+  `dbts_a1`, p99 0.25–0.34 ms), and plain delivery loads on this host stayed under it (`dbts_b1` A and B, 0.44 and
+  0.35 ms). *Hypothesis, not checked*: the userspace relay wakes late from idle, which a fill never meets and a
+  session meets at every step. The guard protects a load's *time*, which is no result here (§6 *Forms*); the cost
+  cells are bytes, CPU and memory. So a tripped guard is recorded (`guardLate`) and counted per cell beside its
+  medians, and a byte cell outside ±3 % would show any retransmission it caused. The other `VOID` reasons stand.
+* **FIT's *W* is 15** on `dbts_b1` (the store reads the series' full-frame metadata, `memoryWindow`; recorded each
+  session), so FIT's row is §3's and §4's *W* 15.
+* **The mutants** (§6), each run once on CLEAN `dbts_a1` A and flagged as named (`lab/delivery/rows/session-mutant-*.jsonl`
+  on `claude/session-cost-rig`): the sampler on the relay's pid, "sampler: not a series server, or CPU zero"; a trace
+  one step short (the pass's last step dropped), "trace: 164 steps, §1 says 165"; the relay's tally dropped, "tally:
+  no bytes". A flag on a counted session stops the run.
+* **The smoke** (`session-smoke.jsonl`, not counted): CLEAN `dbts_a1` A 56 asks, 4.83 MB, 0.036 s; `dbts_b1` A and A+C1
+  *W* 15, FIT 132 + 3 asks, B 131.
+* **`usb_cine`** is coded by `lab/av1/tools/ingest_coded.py --codec htj2k` beside `series.sh`'s output, which does not
+  code it; B only, three sessions on CLEAN, as §6.
+
 ## Fixtures and limits
 
 Three timed DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`, as `claude/delivery:lab/delivery/series.sh` codes them);
