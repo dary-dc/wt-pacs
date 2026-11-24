@@ -111,6 +111,17 @@ class DevServer(unittest.TestCase):
                 self.assertEqual(headers.get("Cache-Control"), want)
                 self.assertIsNotNone(headers.get("Last-Modified"))
 
+    def test_revalidate_marks_every_response(self):
+        """With `--revalidate` every response carries `no-cache`, a module and an error too, so a browser never runs a
+        module older than the tree served: docs/client/evidence/stale-client-code.md."""
+        dev_server.Handler.revalidate = True
+        try:
+            for path in ["/client/module.js", "/client/page.html", "/series/metadata", "/nowhere.js"]:
+                with self.subTest(path=path):
+                    self.assertEqual(self.get(path)[1].get("Cache-Control"), "no-cache")
+        finally:
+            dev_server.Handler.revalidate = False
+
     def test_the_viewer_alone_carries_the_policy(self):
         """The viewer's page runs no inline script and connects on loopback alone; a lab page is left without a policy."""
         for path in ["/", "/client/viewer/index.html?wt=x"]:

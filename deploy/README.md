@@ -211,7 +211,8 @@ Cross-Origin-Resource-Policy: same-origin
 
 Cross-origin isolation is what gives the page `SharedArrayBuffer`. Losing it degrades the client silently rather
 than failing, since the downloader refuses to start without it. Pages and the metadata are revalidated
-(`Cache-Control: no-cache` on `text/html` and `application/json`); modules and WASM keep heuristic caching. The
+(`Cache-Control: no-cache` on `text/html` and `application/json`); modules and WASM keep heuristic caching, so after a deploy a browser may run the previous build's modules for a tenth
+of that build's age ([`../docs/client/evidence/stale-client-code.md`](../docs/client/evidence/stale-client-code.md)). The
 `types` block is there because nginx's `mime.types` answers `.js` as `application/javascript` and has no `.mjs`.
 
 **A Content-Security-Policy on every response**, so the workers carry it as well as the page:
