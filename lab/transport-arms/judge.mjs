@@ -28,6 +28,7 @@ export function judge(form, row, { proto, opening = false, tcp = false, pilot = 
   if (row.busiestCore > 0.95) voids.push(`a core ${(100 * row.busiestCore).toFixed(0)} % busy`);
   if (row.crash) voids.push(`crash: ${row.error}`);
   else if (proto && !(row.protocols.length && row.protocols.every((p) => p === proto))) voids.push(`spoke ${row.protocols.join(",") || "nothing"}, not ${proto}`);
+  if (row.startsMissing?.length) voids.push(`the server's start-up output lacks ${row.startsMissing.join(", ")}`);
   if (pilotMedian && row.wallMs > 3 * pilotMedian) voids.push(`visit ${row.wallMs} ms past 3x the pilot's ${pilotMedian}`);
   row.void = voids.length ? voids : undefined;
   // A one-frame visit can pass in under a tick of the server; only the cells CPU reads (CLEAN) flag a zero.

@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ARMS = ["WT-TS", "WT-TS'", "WT-WASM", "WS", "H3-frame", "H3-fill", "H2-frame", "H2-fill"]
+ARMS = ["WT-TS", "WT-TS'", "WT-WASM", "WS", "H3-frame", "H3-fill", "H2-frame", "H2-fill", "WT-TW", "WT-PF", "WT-AF"]
 HERE = Path(__file__).resolve().parent
 
 
@@ -28,11 +28,11 @@ def metrics(cell, row, series_bytes):
     return out
 
 
-def table(rows, cell, form, metric, strict, rounds):
+def table(rows, cell, form, metric, strict, rounds, arms):
     keep = [r for r in rows if r["form"] == form and (not strict or not r.get("void")) and not r.get("crash")]
     val = {(r["round"], r["arm"]): r["m"].get(metric) for r in keep}
     by = lambda a: [val.get((k, a)) for k in range(rounds)]
-    cells = {f"{form}/{metric}/{a}": {"ref": by("WT-TS"), "aa": by("WT-TS'"), "arm": by(a)} for a in ARMS if a != "WT-TS"}
+    cells = {f"{form}/{metric}/{a}": {"ref": by("WT-TS"), "aa": by("WT-TS'"), "arm": by(a)} for a in arms if a != "WT-TS"}
     path = Path(f"/tmp/summary-{form}-{metric}-{int(strict)}.aa.json")
     path.write_text(json.dumps(cells))
     verdicts = {}
@@ -42,7 +42,7 @@ def table(rows, cell, form, metric, strict, rounds):
             key, js = line.split(" ", 1)
             verdicts[key.rsplit("/", 1)[1]] = json.loads(js)["verdict"]
     lines = []
-    for a in ARMS:
+    for a in arms:
         ratios = sorted(v / r for r, v in zip(by("WT-TS"), by(a)) if r and v is not None)
         if not ratios:
             lines.append(f"| {a} | — | — | 0 | — |")
@@ -73,7 +73,8 @@ def main():
                 for why in r.get("void") or ["crash"]:
                     reasons[why] = reasons.get(why, 0) + 1
             exact = sum(r.get("exact") or 0 for r in fr)
-            med = {a: statistics.median([r["m"][cell] for r in fr if r["arm"] == a and not r.get("void") and r["m"].get(cell)] or [float("nan")]) for a in ARMS}
+            arms = [a for a in ARMS if any(r["arm"] == a for r in fr)]
+            med = {a: statistics.median([r["m"][cell] for r in fr if r["arm"] == a and not r.get("void") and r["m"].get(cell)] or [float("nan")]) for a in arms}
             print(f"### {cell} · {form}\n\n{len(fr)} visits, {rounds} rounds, {len(voids)} VOID ({reasons or 'none'}); "
                   f"{exact} frames exact; WT-TS median {med['WT-TS']:.0f}\n")
             for metric in fr[0]["m"]:
@@ -81,7 +82,7 @@ def main():
                 for strict in readings:
                     label = "" if len(readings) == 1 else (" — strict" if strict else " — round-paired")
                     print(f"{metric}{label}\n\n| arm | median ratio | range | rounds better | aa_rule |\n| --- | --- | --- | --- | --- |")
-                    print("\n".join(table(rows, cell, form, metric, strict, rounds)) + "\n")
+                    print("\n".join(table(rows, cell, form, metric, strict, rounds, arms)) + "\n")
 
 
 if __name__ == "__main__":

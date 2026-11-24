@@ -4,7 +4,8 @@
  * land. docs/transport/evidence/stacks.md §5, lab/transport-arms/README.md
  *
  *   node lab/transport-arms/run.mjs --cell CLEAN [--rounds N] [--series DIR] [--out FILE] [--limit-ms MS]
- *     [--pilot] [--mutate wrong-protocol|drop-frame|relay-no-loss|fixed-order|cpu-wrong-pid|no-opening|default-congestion]
+ *     [--pilot] [--mutate wrong-protocol|drop-frame|relay-no-loss|fixed-order|cpu-wrong-pid|no-opening|default-congestion
+ *       |no-arm-flag|af-as-pf|ignored-arg]
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -38,10 +39,18 @@ const PILOT = flag("--pilot");
 const SERVER_IP = "10.77.0.2";
 const [WT_PORT, GET_PORT, HTTP_PORT, CTRL_PORT] = [4433, 4434, 8765, 5599];
 
-/** stacks.md §5.1. `proto`: what `nextHopProtocol` must read, or the visit is VOID; `opening`: the fill rides the dial's URL; `tcp`: kernel TCP, whose controller is read back. */
+/**
+ * stacks.md §5.1. `proto`: what `nextHopProtocol` must read, or the visit is VOID; `opening`: the fill rides the dial's URL; `tcp`: kernel TCP, whose controller is read back.
+ * `server`: the arm's own server arguments; `starts`: what the server's start-up output must then say. docs/reviews/page-runs.md §1 on claude/page-runs
+ */
+const WT = { opening: true, module: "/client/transport/ts/dist/session.js", url: "wt" };
 const ARMS = {
-  "WT-TS": { opening: true, module: "/client/transport/ts/dist/session.js", url: "wt" },
-  "WT-TS'": { opening: true, module: "/client/transport/ts/dist/session.js", url: "wt" },
+  "WT-TS": { ...WT, starts: ["stream_mode=shared"] },
+  "WT-TS'": { ...WT, starts: ["stream_mode=shared"] },
+  "WT-TW": { ...WT, server: ["--send-window-follows-cwnd"], starts: ["stream_mode=shared", "--send-window-follows-cwnd: the send window is cwnd"] },
+  "WT-PF": { ...WT, server: ["--stream-mode", "per-frame"], starts: ["stream_mode=per-frame\n"] },
+  "WT-AF": { ...WT, server: ["--stream-mode", "per-frame-asks-first", "--send-window-bytes", "6291456"],
+    starts: ["stream_mode=per-frame-asks-first", "send_window=6291456"] },
   "WT-WASM": { opening: true, module: "/client/transport/wasm/session-adapter.js", url: "wt" },
   WS: { opening: true, tcp: true, module: "/client/transport/ts/dist/ws-session.js", url: "wt" },
   "H3-frame": { module: "/lab/transport-arms/dist/fetch-session.js", url: "get", shape: "frame", proto: "h3" },
@@ -110,7 +119,7 @@ async function until(file, text, ms = 15_000) {
 
 // §5.2's cores: the relay on 0, the server on 1, this driver and so the browser on 2–3.
 sh(`taskset -a -p -c 2,3 ${process.pid} >/dev/null; ip link set lo up`);
-if (!arg("--server")) execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "--features", "lab-get"], { cwd: ROOT, stdio: "inherit" });
+if (!arg("--server")) execFileSync("cargo", ["build", "-q", "--release", "-p", "series-server", "--features", "lab-get,lab-levers"], { cwd: ROOT, stdio: "inherit" });
 execFileSync("bash", ["lab/transport-arms/build.sh"], { cwd: ROOT, stdio: "ignore" });
 const meta = JSON.parse(fs.readFileSync(path.join(SERIES, "metadata.json"), "utf8"));
 const digests = meta.digests?.frames;
@@ -178,6 +187,19 @@ const holOf = (r) => {
   return p99(at.slice(1).map((t, k) => t - at[k]));
 };
 
+/** The arm's server arguments under the mutants: none (`no-arm-flag`, `ignored-arg`), or WT-AF's as plain per-frame (`af-as-pf`). */
+function armServer(arm) {
+  if (MUTATE === "no-arm-flag" || MUTATE === "ignored-arg") return [];
+  if (MUTATE === "af-as-pf" && arm === ARMS["WT-AF"]) return ["--stream-mode", "per-frame", "--send-window-bytes", "6291456"];
+  return arm.server ?? [];
+}
+/** What the start-up output must say: `ignored-arg` keeps the arm's expectation with its arguments dropped, so the check must void it. */
+function armStarts(arm) {
+  if (MUTATE === "no-arm-flag") return ARMS["WT-TS"].starts;
+  if (MUTATE === "af-as-pf" && arm === ARMS["WT-AF"]) return ARMS["WT-PF"].starts;
+  return arm.starts ?? [];
+}
+
 async function visit(round, armName, form, prev, browserArgs) {
   const arm = ARMS[armName];
   const relayArgs = [...form.relay];
@@ -188,12 +210,13 @@ async function visit(round, armName, form, prev, browserArgs) {
   const serverArgs = ["--series", path.join(SERIES, "series.sbnd"), "--cert-pem", `${T}/cert.pem`, "--key-pem", `${T}/key.pem`,
     "--port", String(WT_PORT), "--bind", SERVER_IP, "--websocket", "--lab-get-port", String(GET_PORT), "--lab-get-static", ROOT,
     ...(MUTATE === "default-congestion" ? [] : ["--lab-tcp-congestion", "cubic"]),
-    ...(MUTATE === "drop-frame" ? ["--lab-get-drop", "0"] : [])];
+    ...(MUTATE === "drop-frame" ? ["--lab-get-drop", "0"] : []), ...armServer(arm)];
   const server = start("taskset", ["-c", "1", "nsenter", `--net=${netns}`, SERVER, ...serverArgs], `${T}/server.log`);
   const row = { cell: CELL, form: form.name, round, arm: armName, prev, pilot: PILOT, mutate: MUTATE || undefined, at: new Date().toISOString() };
   let browser;
   try {
     const banner = await until(`${T}/server.log`, "wt_url=");
+    row.serverArgs = armServer(arm);
     const pid = MUTATE === "cpu-wrong-pid" ? Number(fs.readFileSync(`/proc/${relay.pid}/task/${relay.pid}/children`, "utf8").split(" ")[0]) : server.pid;
     if (round === 0 && armName === NAMES[0]) Object.assign(row, { banner, kernel: { client: sysctls(null), server: sysctls(netns) }, relay: relayArgs });
     const blackouts = form.blackoutEveryMs && setInterval(() => {
@@ -248,6 +271,8 @@ async function visit(round, armName, form, prev, browserArgs) {
     await stop(server);
     await stop(relay);
   }
+  const startup = fs.readFileSync(`${T}/server.log`, "utf8");
+  row.startsMissing = armStarts(arm).filter((s) => !startup.includes(s));
   Object.assign(row, { relayTally: tally(fs.readFileSync(`${T}/relay.log`, "utf8")) });
   return row;
 }

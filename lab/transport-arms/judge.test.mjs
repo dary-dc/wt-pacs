@@ -102,5 +102,14 @@ const visit = (o = {}) => ({
     "a visit long enough to judge alone was not refused at 0 %");
 }
 
+// An arm whose server did not say its flags at start-up measured something else: VOID, and the run goes on.
+{
+  const row = visit({ startsMissing: ["stream_mode=per-frame-asks-first"] });
+  check(judge(fill, row, { proto: "h3" }) === null, "a missing start-up flag stopped the run");
+  check(row.void?.join() === "the server's start-up output lacks stream_mode=per-frame-asks-first", `a missing start-up flag voided as ${row.void}`);
+  const said = visit({ startsMissing: [] });
+  check(judge(fill, said, { proto: "h3" }) === null && said.void === undefined, "a start-up output that said every flag voided");
+}
+
 if (failed) process.exit(1);
 console.log("transport-arms judge: ok");
