@@ -6,7 +6,7 @@ and five fetches of standards. Inputs: the 20 pages and [`README.md`](README.md)
 §Decided approaches (`claude/work-ledger:docs/queue-2026-11-14.md`); and at `origin/claude/unified` `b7cc007f7`:
 [`../FIXTURES.md`](../FIXTURES.md), `docs/av1/groups.md`, `docs/av1/noise-point.md`, `docs/av1/preview-noise.md`,
 `lab/av1/profiles/README.md`, `lab/av1/profiles/results/lossless.jsonl`, `lab/av1/metrics/README.md`,
-`lab/av1/bytes/colour-transform/README.md`, `docs/client/evidence/ask-model.md`,
+`lab/av1/bytes/colour-transform/README.md`, `claude/unified:docs/client/evidence/ask-model.md`,
 `docs/client/evidence/what-a-view-asks-for.md`, `ingest/from-parser/src/main.rs`, `optimal.rs`,
 `ingest/from-dicom/dicom_series.py`. Every number is labelled **source**, **theory**, **derived** or **measured**;
 a measured number is an earlier row's, with its file. S1–S5 are §8's sources.
