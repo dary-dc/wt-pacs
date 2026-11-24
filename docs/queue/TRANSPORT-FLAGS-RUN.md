@@ -1,20 +1,21 @@
-state: started
+state: done
 started: 2026-11-24T18:47Z
-heartbeat: 2026-11-24T21:48Z
+heartbeat: 2026-11-24T21:55Z
 by: bqyisHDi
-outputs: claude/transport-flags (the rig's additions, from origin/claude/transport-arms; raw rows); claude/page-runs (rows copied; docs/reviews/page-runs.md §Transport)
+outputs: claude/transport-flags 4aa86d5de (the rig's additions, lab only), 007ab4bf4 and 5b38c8982 (rows); claude/page-runs 42f4a38b1 (docs/reviews/page-runs.md §Transport: results, rows copied in docs/reviews/page-runs-rows/); no PR
 ## Resume
-Done (claude/transport-flags): 4aa86d5de the rig's additions (lab only); b3cc67981, 00299fb0c the 2-round pilot of
-WT-TS, WT-TW, WT-PF, WT-AF on AD and CR (not counted) and rows/pilot-medians.json extended by the three arms. Mutant
-ignored-arg run (1 round AD): WT-AF VOID "the server's start-up output lacks ...", killed. Series: dbts_b1 as HTJ2K,
-50 frames, 107407602 B, every one exact (ingest_coded.py --codec htj2k; pack-series), at /tmp/claude-0/b1-htj2k.
-Running (2026-11-24T19:08Z): /tmp/claude-0/s/chain.sh: the two measured mutants (no-arm-flag, af-as-pf; 2 rounds AD), then
-  node lab/transport-arms/run.mjs --cell AD --rounds 14 --arms "WT-TS,WT-TS',WT-TW,WT-PF,WT-AF,H3-fill,H3-frame" \
-    --series DIR --server target/release/series-server --pilot-medians lab/transport-arms/rows/pilot-medians.json \
-    --limit-ms 600000 --out lab/transport-arms/rows/flags-AD.jsonl     (then the same with --cell CR, flags-CR.jsonl)
-  rows pushed every 10 minutes to claude/transport-flags. ~85 min AD, ~75 min CR.
-On resume: a partial flags-AD.jsonl cannot be continued mid-cell by run.mjs (no --start-round); re-run the cell's
-remaining rounds is not supported, so rerun the whole cell to a new --out (flags-AD-2.jsonl), keep the partial, say so.
-Then: python3 lab/transport-arms/summary.py lab/transport-arms/rows flags-AD flags-CR; copy rows to claude/page-runs;
-page-runs.md §Transport: every cell against §1's bands, misses included; docs/lines line doc; status done.
+Done. Nothing left to resume.
 ## Result
+dbts_b1 HTJ2K, 14 rounds a cell, AD (196 visits, 3 VOID) and CR (98, 2 VOID), Williams-ordered, every frame exact.
+Ratios to WT-TS (median): AD-PUB / AD-LTE / CR.
+WT-TW ×0.993 / ×1.037 / ×1.000: PUB and CR hit (ties); AD-LTE misses its predicted gain ×0.70-0.88.
+WT-PF ×1.549 / ×1.696 / ×0.571: AD misses above (worse); CR below the band, better than H3-frame ×0.620.
+WT-AF ×0.780 / ×0.535 / ×0.676: AD hits; CR misses below ×0.97 (the fill is faster, not row 211's cost).
+H3-fill, H3-frame re-measured inside their bands; WT-TS' ties (AD-LTE not conclusive, the 0.1 % loss's spread).
+By §1's rules: TW and PF above ×0.8 on AD, so the GET path for asks stays the next draft; PF answers CR inside WT;
+#39 (asks first, 6 MiB window) is net on these cells (AD-PUB's ×0.780 a narrow margin to ×0.8). #96 not answered.
+Mutants: ignored-arg VOID (killed), af-as-pf loses AF's gain (killed), no-arm-flag ties on PUB.
+Link-bound by design; busiest core 0.86 (AD), 0.47 (CR); relay at or under 90 of its 100 Mbit/s.
+Limits: one DBT volume, no ultrasound; one 4-core container, headless Chromium 158; userspace relay models, not a
+radio; cwnd not recorded, so TW's AD-LTE miss is not attributed.
+Owner: #39 adopted as a product build row, yes or no (via PAGE-RUNS-VERDICT and BRIEF-WEEKEND).
