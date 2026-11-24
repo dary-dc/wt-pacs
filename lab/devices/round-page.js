@@ -4,6 +4,7 @@ import { beaconHooks } from "./beacon.js";
 import { bench, exactFill } from "./bench.js";
 import { TICK_MS, fillFailure, largestGap, losslessFailure, verdict } from "./round.mjs";
 import { fitFailure, recordAskLastByte } from "../delivery/fit-page.js";
+import { splitFill } from "../delivery/split.js";
 
 const epochMs = () => performance.timeOrigin + performance.now();
 
@@ -27,6 +28,21 @@ export function roundHooks(q) {
   };
   const late = setTimeout(() => leave(`no ${q.has("bench") ? "bench end" : "fill"} in ${fillS} s`), fillS * 1000);
   return {
+    // The delivery rig's SPLIT before the viewer dials, which it then never does: the load is the split fill's alone.
+    ...(q.get("split") === "1" && { started: async () => {
+      let failure;
+      try {
+        const [meta, transport] = await Promise.all([globalThis.viewerMetadata, globalThis.viewerTransport]);
+        const r = await splitFill({ meta, transport, decoders, aheadBytes: Number(q.get("ahead")), viewOnly: q.get("mutate") === "split-view-only" });
+        recorder.record("split", { forms: r.forms, x: r.x });
+        recorder.filled({ fillMs: r.errors.length ? null : r.fillMs, issuedAt: r.fillFrom, boot: { dial: r.fillFrom }, frames: r.frames, errors: r.errors }, meta);
+        failure = r.errors[0] ?? null;
+      } catch (e) {
+        failure = `split: ${e?.message ?? e}`;
+      }
+      leave(failure);
+      await new Promise(() => {});
+    } }),
     // Cell 1 before the viewer dials, which it then never does: the load is the bench's alone.
     ...(q.has("bench") && { started: async () => {
       let failure;

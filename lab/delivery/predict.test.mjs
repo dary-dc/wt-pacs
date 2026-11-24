@@ -87,8 +87,9 @@ const perVolume = VOLUMES.map((v) => loads.filter((l) => l.volume === v).map((l)
 check(perVolume.every((rows) => ARMS.every((a) => balanced(rows, a, ARMS))), "plan: every arm follows every other equally often within a volume");
 check(!ARMS.every((a) => balanced(cellLoads("CLEAN", { fixedOrder: true }).filter((l) => l.volume === "dbts_a1").map((l) => ({ ...l, unit: l.arm })), a, ARMS)), "plan: a fixed order is not balanced");
 check(loads.slice(0, 18).map((l) => l.volume).join() !== loads.slice(18, 36).map((l) => l.volume).join(), "plan: the volumes rotate between rounds");
-check(JSON.stringify([armParams("C1"), armParams("FIT"), armParams("SPLIT"), armParams("B")]) === JSON.stringify([{ decoders: "2", press: "lossless", pressAfter: "1000" }, { decoders: "2", fit: "1", zoomAfter: "1000" }, { decoders: "2", split: "1" }, { decoders: "2" }]),
-  "plan: two decoders every arm, C1 presses 1 s after, FIT zooms 1 s after, SPLIT splits");
+check(JSON.stringify([armParams("C1"), armParams("FIT"), armParams("SPLIT", "CLEAN"), armParams("B")]) === JSON.stringify([{ decoders: "2", press: "lossless", pressAfter: "1000" }, { decoders: "2", fit: "1", zoomAfter: "1000" }, { decoders: "2", split: "1", ahead: "22500" }, { decoders: "2" }]),
+  "plan: two decoders every arm, C1 presses 1 s after, FIT zooms 1 s after, SPLIT splits with CLEAN's 22 500 B ahead");
+check(JSON.stringify(["PUB", "CR", "LTE", "LOSS"].map((c) => armParams("SPLIT", c).ahead)) === '["225000","9000000","237500","100000"]', "plan: SPLIT's window is each form's round trip × its rate");
 check(loads.filter((l) => l.arm === "FIT").every((l) => l.series === "fit") && loads.filter((l) => l.arm === "SPLIT").every((l) => l.series === "view"), "plan: FIT loads its fit series, SPLIT the view with its pair");
 
 /** A2.4's K3′: 8 B loads a lossy (form, volume), not counted, on the lossy forms only. */

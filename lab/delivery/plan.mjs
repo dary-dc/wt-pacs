@@ -38,13 +38,16 @@ export function draw(key) {
 /** ms from the servers' start to a load's first blackout, the form's period after that; undefined where the form has none. */
 export const blackoutPhaseMs = (cell, key) => CELLS[cell].blackoutEveryMs && Math.floor(draw(`${cell}/${key}`) * CELLS[cell].blackoutEveryMs);
 
+/** bytes: a form's bandwidth-delay product, the wire SPLIT keeps full ahead of its decisions (A2.3). */
+export const bdpBytes = (cell) => (CELLS[cell].rttMs * Number(CELLS[cell].relay[CELLS[cell].relay.indexOf("--rate-kbit") + 1])) / 8;
+
 /** The URL parameters of one arm's load past the page's own. */
-export function armParams(arm) {
+export function armParams(arm, cell) {
   const p = { decoders: String(DECODERS) };
   if (arm === "C1") Object.assign(p, { press: "lossless", pressAfter: String(PRESS_AFTER_MS) });
   if (arm === "C2") p.exactFill = "1";
   if (arm === "FIT") Object.assign(p, { fit: "1", zoomAfter: String(ZOOM_AFTER_MS) });
-  if (arm === "SPLIT") p.split = "1";
+  if (arm === "SPLIT") Object.assign(p, { split: "1", ahead: String(bdpBytes(cell)) });
   return p;
 }
 
@@ -59,7 +62,7 @@ export function cellLoads(cell, { rounds = ROUNDS, fixedOrder = false, arms: arm
     const arms = fixedOrder ? armSet : order(armSet, round);
     const volumes = VOLUMES.map((_, k) => VOLUMES[(k + round) % VOLUMES.length]);
     for (const volume of volumes) {
-      arms.forEach((arm, k) => loads.push({ cell, round, volume, arm, prev: k ? arms[k - 1] : null, series: seriesOf(arm), params: armParams(arm),
+      arms.forEach((arm, k) => loads.push({ cell, round, volume, arm, prev: k ? arms[k - 1] : null, series: seriesOf(arm), params: armParams(arm, cell),
         blackoutPhaseMs: blackoutPhaseMs(cell, `${round}/${volume}/${arm}`) }));
     }
   }

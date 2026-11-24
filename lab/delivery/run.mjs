@@ -5,7 +5,7 @@
  *
  *   node lab/delivery/run.mjs --cell CLEAN --series DIR --predictions FILE [--rounds N] [--pilot] [--pilot-medians FILE]
  *     [--view VOLUME=ID …] [--volumes A,B] [--arms FIT,B] [--out FILE] [--fill-s 300] [--after-s 300]
- *     [--mutate fixed-order|relay-no-loss|decoders-3|flip-exact|fit-ignored|escaped|flip-level|no-clamp|canvas-readback]
+ *     [--mutate fixed-order|relay-no-loss|decoders-3|flip-exact|fit-ignored|escaped|flip-level|no-clamp|canvas-readback|split-view-only]
  *   node lab/delivery/run.mjs --k3-prime --cell LTE --series DIR [--mutate k3-from-a]     # K3′, A2.4: rows/K3P-<CELL>.jsonl
  *   node lab/delivery/run.mjs --bench --series DIR [--view VOLUME=ID …] [--out FILE]     # K2
  */
@@ -18,7 +18,7 @@ import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { CELLS, ROUNDS, UNIMPAIRED, VOLUMES, cellLoads, k3PrimeLoads } from "./plan.mjs";
 import { digestOf } from "./predict.mjs";
-import { blackoutsFromDial, voidOf, voidShares } from "./judge.mjs";
+import { blackoutsFromDial, fitRefusal, voidOf, voidShares } from "./judge.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const argv = process.argv.slice(2);
@@ -36,7 +36,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const BENCH = flag("--bench");
 const K3P = flag("--k3-prime");
 /** The mutants the page itself carries out: lab/delivery/fit-decoder.js, fit-page.js. */
-const PAGE_MUTANTS = ["flip-level", "no-clamp", "canvas-readback"];
+const PAGE_MUTANTS = ["flip-level", "no-clamp", "canvas-readback", "split-view-only"];
 /** A2.2: a phone held upright, its browser's bars off, at DPR 1. */
 const VIEWPORT = { width: 1080, height: 2100 };
 const CELL = arg("--cell");
@@ -248,6 +248,16 @@ function relayLossRefusal(rows) {
   return pct < form.lossPct / 3 || pct > form.lossPct * 3 ? `PILOT REFUSES: relay loss ${pct.toFixed(3)} %, asked ${form.lossPct} %` : null;
 }
 
+/** A2.8's pilot: every FIT load asked only its prefixes before its zoom; on CLEAN, SPLIT asked an exact group on `dbts_b1`. */
+function armRefusal(rows) {
+  const inputs = predictionsText && JSON.parse(predictionsText).inputs;
+  const notFit = rows.map((r) => fitRefusal(r, inputs?.volumes?.[r.volume]?.fit)).find(Boolean);
+  if (notFit) return `PILOT REFUSES: ${notFit}`;
+  const split = rows.filter((r) => r.arm === "SPLIT" && r.volume === "dbts_b1" && !r.void?.length);
+  const x = (r) => r.records?.find((x) => x.kind === "split")?.x ?? 0;
+  return CELL === "CLEAN" && split.length && split.every((r) => x(r) === 0) ? "PILOT REFUSES: SPLIT asked no exact group on CLEAN dbts_b1" : null;
+}
+
 const pilotMedians = JSON.parse(arg("--pilot-medians") ? fs.readFileSync(arg("--pilot-medians"), "utf8") : "{}");
 const k3Prime = () => k3PrimeLoads(CELL).map((l) => (MUTATE === "k3-from-a" ? { ...l, arm: "A", series: "view" } : l));
 const plan = (BENCH ? benchLoads() : K3P ? k3Prime() : cellLoads(CELL, { rounds: Number(arg("--rounds", PILOT ? 2 : ROUNDS)), fixedOrder: MUTATE === "fixed-order" }))
@@ -268,7 +278,7 @@ for (const [k, spec] of plan.entries()) {
   await sleep(IDLE_MS);
 }
 if (PILOT && !BENCH) for (const [cell, v] of Object.entries(voidShares(rows))) console.log(`${cell} pilot: ${v.void}/${v.loads} VOID; ${Object.entries(v.reasons).map(([why, n]) => `${n} ${why}`).join("; ") || "none"}`);
-if (!stopped && PILOT && !BENCH) stopped = relayLossRefusal(rows);
+if (!stopped && PILOT && !BENCH) stopped = relayLossRefusal(rows) ?? armRefusal(rows);
 roundHost.close();
 if (stopped) console.log(stopped);
 process.exit(stopped ? 3 : 0);
