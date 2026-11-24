@@ -41,7 +41,8 @@ console.log("cell | n | guard late | asks (pred) | MB down (pred ±3 %) | CPU s 
 const clean = new Map();
 for (const [k, rs] of [...cells].sort()) {
   const [cell, volume, arm] = k.split(" ");
-  const asks = median(rs.map((r) => r.session.asked + r.session.exactAsked));
+  // Frames off the wire: the fill's, every put after it (one already held included, which `received` skips), the dwells' exact asks.
+  const asks = median(rs.map((r) => r.session.askedAtFill + r.session.arrivals.length + r.session.exactAsked));
   const w = rs.map(wire);
   const down = median(w.map((x) => x.down));
   const cpu = rs.map((r) => r.serverCost.reduce((a, c) => a + c.cpuNs, 0) / 1e9);

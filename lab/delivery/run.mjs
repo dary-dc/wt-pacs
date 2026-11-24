@@ -192,7 +192,7 @@ async function load(k, spec) {
     servers.push(quic(VIEW_PORT, ids.view), quic(EXACT_PORT, second));
     const meta = (id) => (MUTATE === "flip-exact" && id === ids.exact ? flipped(id) : path.join(SERIES, `${id}.metadata.json`));
     const page = (port, a) => start("taskset", ["-c", "1", "nsenter", `--net=${netns}`, "python3", "server/dev-server.py", "--bind", SERVER_IP, "--port", String(port), "--beacon", BEACON, ...a], `${T}/page-${port}.log`);
-    servers.push(page(PAIR_PAGE, ["--metadata", meta(ids.view), "--transport", transportFile(VIEW_PORT), "--exact-metadata", meta(ids.exact), "--exact-transport", transportFile(EXACT_PORT)]),
+    servers.push(page(PAIR_PAGE, ["--metadata", meta(ids.view), "--transport", transportFile(VIEW_PORT), ...(ids.view === ids.exact ? [] : ["--exact-metadata", meta(ids.exact), "--exact-transport", transportFile(EXACT_PORT)])]),
       page(EXACT_PAGE, ["--metadata", meta(second), "--transport", transportFile(EXACT_PORT)]));
     for (const port of [VIEW_PORT, EXACT_PORT]) row[`banner${port}`] = await until(`${T}/server-${port}.log`, "transport=");
     for (const port of [PAIR_PAGE, EXACT_PAGE]) await until(`${T}/page-${port}.log`, "port=");
