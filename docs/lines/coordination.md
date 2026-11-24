@@ -147,6 +147,11 @@ small enough that every open item has an owner and a next step.
    PAGE-RUNS-PROTOCOL-FIX-2-REVIEW (2026-11-24, the file's §Re-review 2): no blocker open, R-B1 and r-m1, r-m2, r-n1
    closed; r2-m1 and r2-m2 (`summary.py`'s fixed arm list; `--out` paths) for TRANSPORT-FLAGS-RUN's built-first step,
    r2-n1 (AD-LTE's top is ×0.58 by its own sum) for PAGE-RUNS-VERDICT. TRANSPORT-FLAGS-RUN may start.
+   TRANSPORT-FLAGS-RUN (2026-11-24, rows on `claude/transport-flags`, results in
+   [`../reviews/page-runs.md`](../reviews/page-runs.md) §Transport: results): `dbts_b1` HTJ2K, 14 rounds, AD and CR.
+   WT-TW ties on AD-PUB and CR, misses its AD-LTE gain (×1.04); WT-PF is worse on AD (×1.55, ×1.70) and answers CR
+   within WebTransport (×0.571); WT-AF (#39) is net: AD ×0.780 and ×0.535, CR ×0.676. For the owner: #39 as a
+   product build row. #96 not answered.
    ENGINE-CELLS (2026-11-24, `page-runs.md` §3 Results; rows on `claude/engines:docs/decode/engine-cells/`): 3a, six
    complete traces on Firefox 159.0.1 and 160.0.1. The G = 8 failure is the client's layout choice for a unit with
    no sequence header (`av1-payload.js` `layouts()`), not Gecko's decoder: a bug with no trade-off, for

@@ -836,3 +836,90 @@ r2-m2 as part of its built-first step (lab only, said in its rows, before its fi
 prediction, which the run row may not write: the band stands as pre-registered (×0.25–0.57), and PAGE-RUNS-VERDICT
 names a WT-AF AD-LTE median in ×0.57–0.58 as inside the band's own sum, not a refutation. How it serves the value statement: the commands that run are now the ones that measure whether WebTransport
 alone gives "low latency on every jump" during a fill, and the summary must read the arms that answer it.
+
+## Transport: results (TRANSPORT-FLAGS-RUN)
+
+TRANSPORT-FLAGS-RUN, 2026-11-24 18:50–21:54 UTC, by a session that wrote none of this file, its reviews or its
+fixes (`by:` in `claude/work-ledger:docs/queue/TRANSPORT-FLAGS-RUN.md`). Every number below is **measured** on this
+run unless labelled. Raw rows: `claude/transport-flags` `lab/transport-arms/rows/flags-*.jsonl` (`007ab4bf4`,
+`5b38c8982`), copied into [`page-runs-rows/`](page-runs-rows/) with the summary,
+[`flags.summary.md`](page-runs-rows/flags.summary.md) (`summary.py lab/transport-arms/rows flags-AD flags-CR`).
+
+**Built first** (lab only, `claude/transport-flags` `4aa86d5de`, from `origin/claude/transport-arms` `4b2abcb6d`; no
+product code): the three arms with their own server arguments in `run.mjs`'s `ARMS`; the driver's build
+`--features lab-get,lab-levers`; a start-up check (`judge.mjs`): a visit whose server output lacks what its arm's
+flags print (`stream_mode=…`, `send_window=6291456`, TW's lab warning) is `VOID` (§Re-review 2's r2-m1 too: `summary.py`
+reads every arm). The banner prints no line for `--send-window-follows-cwnd`; TW is checked by the server's own
+lab-lever warning, not the banner. `judge.test.mjs` has the case; with the check removed the test fails.
+**Mutants**, rows not counted: `ignored-arg` (WT-AF's arguments dropped, its expectation kept), 1 round of AD: WT-AF
+`VOID` on both forms, killed. `af-as-pf` (WT-AF as plain `per-frame` under the same 6 MiB window), 2 rounds: AD-PUB
+×1.00 against WT-AF's ×0.78, its gain lost, killed. `no-arm-flag` (WT-TW without its flag), 2 rounds: AD-PUB ×1.01,
+a tie as §1 requires; it cannot tell TW from WT-TS there, since TW's own prediction on PUB is a tie too.
+**Pilot** (2 rounds of WT-TS, WT-TW, WT-PF, WT-AF on AD and CR, not counted) extended `rows/pilot-medians.json` by
+the three arms. **Departures from §1's commands**, none changing a cell: `--series` (the run's `dbts_b1` HTJ2K, 50
+frames, 107 407 602 B, every one decoded exact by `ingest_coded.py --codec htj2k`) and `--server` (the binary built
+by §1's `cargo build` line) passed; `--out` under the rig's rows directory (r2-m2).
+
+**AD** (latency: the asked frame's last byte − the page's ask; ratio to WT-TS in the same round, median, range;
+14 rounds, `balanced()` flagged nothing):
+
+| arm | AD-PUB | band | | AD-LTE | band | |
+| --- | --- | --- | --- | --- | --- | --- |
+| WT-TS (ms) | 736 | | | 5 603 | | |
+| WT-TS' | ×0.996 (0.963–1.028), tie | ×0.95–1.05 | hit | ×1.029 (0.881–1.389), not conclusive | ×0.95–1.05 | hit |
+| WT-TW | ×0.993 (0.969–1.015), tie | ×0.95–1.05 | **hit** | ×1.037 (0.803–1.227), 4 of 14 better | ×0.70–0.88 | **miss** |
+| WT-PF | ×1.549 (1.278–1.598), worse | ×0.95–1.45 | **miss** (above) | ×1.696 (1.239–2.253), worse | ×0.95–1.45 | **miss** (above) |
+| WT-AF | ×0.780 (0.722–0.802), 14 of 14 better | ×0.52–0.98 | **hit** | ×0.535 (0.270–0.835), 13 of 13 better | ×0.25–0.57 | **hit** |
+| H3-fill | ×0.548 (0.518–0.581) | 0.50–0.60 | hit | ×0.564 (0.304–0.770) | 0.47–0.58 | hit |
+| H3-frame | ×1.829 (1.702–2.243) | 1.6–2.0 | hit | ×1.671 (0.920–6.595) | 1.5–1.9 | hit |
+
+AD-LTE: 3 of 98 visits `VOID` (the relay's guard twice, one H3-frame visit that spoke nothing); AD-PUB none.
+
+**CR** (fill time: the latest last byte − the dial; 14 rounds; 2 of 98 `VOID`, the relay's guard):
+
+| arm | CR | band | |
+| --- | --- | --- | --- |
+| WT-TS (ms) | 35 020 | | |
+| WT-TS' | ×1.000 (0.999–1.000), tie | ×0.95–1.05 | hit |
+| WT-TW | ×1.000 (0.999–1.001), tie | ×0.97–1.03 | **hit** |
+| WT-PF | ×0.571 (0.571–0.572), 14 of 14 better | ×0.60–1.00 | **miss** (below) |
+| WT-AF | ×0.676 (0.675–0.678), 14 of 14 better | ×0.97–1.45 | **miss** (below) |
+| H3-fill | ×1.001 (1.000–1.002) | 0.95–1.05 | hit |
+| H3-frame | ×0.620 (0.610–0.663) | 0.58–0.70 | hit |
+
+**Each miss, read.** *WT-TW on AD-LTE* (×1.04 against ×0.70–0.88): the theory that 0.1 % loss holds Cubic's window
+near 0.06 MB, so TW's window (cwnd + 4.3 MB) sits under the 6 MiB credit, is refuted as a prediction of the ask;
+the run does not say which term failed (cwnd was not read). *WT-PF on AD* (×1.55, ×1.70 against a top of ×1.45):
+the asked frame's stream ranks below every open fill stream (§1's **source**) and waits behind more than the 10 MB
+window's arithmetic gives; worse than predicted, same direction. *WT-PF on CR* (×0.571, under ×0.60): it escapes
+the stream credit by more than H3-frame (×0.620); §1's **assumption** that Chromium's connection window exceeds
+6 MiB holds on this build, and better than the band, not a refutation of the lever. *WT-AF on CR* (×0.676, under
+×0.97): the 6 MiB send window did not cap the fill at the stream credit's ~63 Mbit/s (§1's **theory**, refuted), and
+row 211's fill cost (+2 to +44 %, 0.57 MB frames) does not carry to `dbts_b1`'s 2.15 MB frames on this rig: the fill
+is 32 % faster, not slower.
+
+**What it decides, by §1's rules.** (1) WT-TW and WT-PF are both above ×0.8 on AD (×0.99/×1.04; ×1.55/×1.70): the
+page's next step stands, "a GET path for asks alone is the next structural draft", for TW and PF; QW is untested
+(§1). (2) WT-PF at ×0.571 ≤ ×0.75 on CR: **CR is answered within WebTransport** (`--stream-mode per-frame`, a default
+build's flag), at the cost of a 1.5–1.7× slower ask during a fill. (3) **#39: net on these cells.** WT-AF is ≤ ×0.8
+on both AD forms (×0.780, ×0.535) with a CR fill of ×0.676 ≤ ×1.05: asks first under a 6 MiB send window is the
+owner's to adopt; it is a `lab-levers` flag, so a product build row follows, not this run. AD-PUB's ×0.780 sits
+0.02 under the rule's ×0.8, its range reaching ×0.802; 14 of 14 rounds better and `aa_rule` "better", but a
+narrow margin: named for PAGE-RUNS-VERDICT. WT-AF alone at ≤ ×0.8 keeps "no GET path" open, on that build.
+(4) **#96 is not answered** (§1: its lever is not in the rig's server). For the owner, through PAGE-RUNS-VERDICT and
+BRIEF-WEEKEND: adopt asks first under a 6 MiB window (#39) as a product build row, yes or no.
+
+**On which links the link, not the decode, binds:** every cell here; the browser decodes only to check each frame
+(4 900, 1 568 and 4 900 frames exact on AD-PUB, AD-LTE and CR; none failed). **Where the host saturates:** the
+busiest core reached 0.86 (AD) and 0.47 (CR), under §1's 0.95; the relay saturates at 100 Mbit/s and every link here
+is at or under 90, so nothing is claimed above it.
+**How it serves the value statement:** "low latency on every jump" during a fill is measured here per lever: asks
+first gives it (×0.54–0.78) with a faster fill; the one queue's window and per-frame streams do not.
+
+**Fixtures and limits.** `dbts_b1` as HTJ2K only (50 frames, 2.15 MB a frame), one DBT volume of one dataset, no
+ultrasound; one 4-core cloud container without a GPU; headless Chromium 158.0.8127.36 (Playwright's; the baselines
+of §1 were 157.0.8103.78, which the re-measured H3 arms match within their bands); the rig's userspace relay
+(`link_impair.py --tun`), its models of PUB, LTE and CR **assumed**, not a radio; 14 rounds a cell. Limits found by
+this run: the banner does not echo `--send-window-follows-cwnd` (found by the start-up check's build); cwnd is not
+recorded, so TW's AD-LTE miss is not attributed (found by the miss itself); AD-LTE's spread (WT-TS' 0.88–1.39) is
+the 0.1 % iid loss's, so the 2-round mutants' AD-LTE readings say nothing (found by `aa_rule`'s "not conclusive").

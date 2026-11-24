@@ -30,3 +30,19 @@ flags-AD
 | WT-PF | 1.696 | 1.239–2.253 | 0 of 13 | worse |
 | WT-AF | 0.535 | 0.270–0.835 | 13 of 13 | better |
 
+### flags-CR · cr
+
+98 visits, 14 rounds, 2 VOID ({'relay guard p99 over 1 ms': 2}); 4900 frames exact; WT-TS median 35020
+
+flags-CR
+
+| arm | median ratio | range | rounds better | aa_rule |
+| --- | --- | --- | --- | --- |
+| WT-TS | 1.000 | 1.000–1.000 | 0 of 14 | reference |
+| WT-TS' | 1.000 | 0.999–1.000 | 8 of 13 | tie |
+| H3-frame | 0.620 | 0.610–0.663 | 13 of 13 | better |
+| H3-fill | 1.001 | 1.000–1.002 | 2 of 14 | worse |
+| WT-TW | 1.000 | 0.999–1.001 | 6 of 14 | tie |
+| WT-PF | 0.571 | 0.571–0.572 | 14 of 14 | better |
+| WT-AF | 0.676 | 0.675–0.678 | 14 of 14 | better |
+
