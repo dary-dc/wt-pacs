@@ -256,8 +256,11 @@ Corrected in place: §5's former "lowest server CPU … on `dbts_b1` for FIT (×
   `ArrowRight` or `ArrowLeft` on the viewer's window, the next no sooner than 100 ms after it and only once `shown`
   names its frame; a jump sets `#slice` and fires its `input`; A+C1's dwell is the viewer's `l`; FIT's is A2.5's zoom
   (×2, the rest asked on the fill's session), the pose reset before the next jump. The trace starts at the fill's end
-  (the round page's `finished`: the window filled). Asks are counted as the controller's `received` (every arrival,
-  evicted or not) plus the exact asks at the dwells.
+  (the round page's `finished`: the window filled). Asks are counted as the frames off the wire: the fill's, every
+  `FrameStore.put` after it, and the exact asks at the dwells. *Corrected 2026-11-24 19:20, rows already running, no
+  prediction moved:* this said the controller's `received`, which skips a frame delivered while a copy is held
+  (`store.js` `put`): on CLEAN `dbts_b1` A it read 157 where 299 frames came off the wire (148.75 MB at 0.464 MB a
+  view frame, ×1.04: about 308). Both are in every row (`session.asked`, `session.arrivals`).
 * **Server lifetime: one pair a session, not one a form** (§6). The rig starts the relay, both series servers and the
   page servers per load, in the relay's namespace, and each server serves one series; one pair for a form's three
   volumes and four series would need a server serving many series and a relay counting by session, neither of which
