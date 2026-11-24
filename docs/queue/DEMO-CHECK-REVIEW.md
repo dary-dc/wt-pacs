@@ -1,16 +1,20 @@
 state: started
 started: 2026-11-24T06:26Z
-heartbeat: 2026-11-24T06:33Z
+heartbeat: 2026-11-24T06:37Z
 by: MdHdiu8t
 outputs: findings in PRs 418 and 419's bodies
 ## Resume
-Static read done: 418 (7567248b) and 419 (5ca31b35) both from unified 4a2b4277; each conflicts with the other in
-client/viewer/demo-check.mjs; 418 also conflicts with the tip b7cc007f in docs/lines/client.md only (line doc).
-demo-check.mjs is unchanged on the tip since 4a2b4277. Next: build on the tip in /home/user/u (rustup target add
-wasm32-unknown-unknown; cargo install wasm-pack 0.15.0; npm i -g playwright@1.56.1; client/transport/wasm/build.sh,
-ts/build.sh; server/scripts/gen_dev_cert.sh; cargo build --release -p series-server; scripts/demo-series.sh, or
-only dbts_a1's series), then demo-check on each branch, both views, with 418's B1 mutant and 419's wait removed,
-and on the merged form (418 then 419's wait); write findings into both PR bodies.
-Build in progress (ingest/tools.sh). Variant check files and mutants (B1: show() also asks (want+8)%n on a miss;
-A: wantFrom on demand [c, c+8]) are rebuilt from the PR heads in a minute; Playwright: NODE_PATH=/opt/node-tools/node_modules.
+Built on the tip b7cc007f in /home/user/u; fixtures dbts_a1, -q8-g8-cut, -q8-g16-cut (35 s). Running
+/tmp/claude-0/s/run.sh CHECK CONTROLLER SERIES VIEW, rows in /tmp/claude-0/s/rows.jsonl, to be pushed to
+docs/queue/DEMO-CHECK-REVIEW/rows.jsonl. Checks: 418, 419, merged (418 + 419's wait, ON_DEMAND = groupsOf),
+merged-nowait. Controllers on the tip: orig, B1 (show() on a miss also asks (want+8)%n), A (wantFrom on demand
+[c, (c+8)%n]).
+Predictions, written before any mutant run (dbts_a1-q8-g8-cut, G 8, 56 frames, window 65 frames > 56, so no
+eviction on the tip):
+* orig: every check passes, both views.
+* B1, page: 419 survives (extras land in groups 1 and 0, atJump 24); 418 and merged kill (16 > 8 before step 8).
+* B1, worker: equivalent (the worker view's show() takes the store's branch), every check survives.
+* A, page: equivalent on the tip too (page view on demand never calls want()), every check survives.
+* A, worker: killed by all three (418/merged: 16 > 8 before step 1; 419: 32 not 24).
+* dbts_a1-q8-g16-cut, worker, orig: merged passes 3/3; merged-nowait fails at least 1 of 3 (419's 4 of 5).
 ## Result
