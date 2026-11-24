@@ -467,7 +467,8 @@ none of it, for DELIVERY-RUN-2. It covers `claude/reviews-2026-11-28:docs/decisi
 `phone-decode-route.md` item 3. Nothing here is measured. Every number is **source** (quoted from the file named),
 **theory**, **derived** (arithmetic on rows named), or **retrodiction** (the new model applied to the 2026-11-23 rows
 it was shaped after: a sanity check, never a test). §1–§10 bind as written except where this section says otherwise;
-§11 A1–A5 were that run's and do not carry.*
+§11 A1–A5 were that run's and do not carry. Fixed in place on 2026-11-24 by FIT-ARM-PROTOCOL-FIX, a session that wrote
+neither this section nor its review, for the review's B1, B2, m1–m8 and n1; §Amendment 2 fix lists where each went.*
 
 ### A2.1 · What changes, in one table
 
@@ -519,8 +520,16 @@ does need the exact frame: the view's samples are lossy at Q 8 and cut to 10 bit
 narrow window magnifies the coding error and cannot reach the stored 12 bits; and the round's phone returned its
 10-bit hardware frames as 8-bit `RGBA` (`phone-decode-route.md` §3, cell 4, *measured*), so a hardware view windows 8
 bits a sample. The run checks the theory's premise, not a reader's view: each FIT load, after its fill, sets a narrow
-window (centre and width of the series' own default, width ÷ 8) and reads back the canvas; it must equal the window
-applied to the level picture's truth. Nothing about what a reader sees is claimed.
+window (centre and width of the series' own default, width ÷ 8) on the frame on screen and reads back **the windowed
+picture at its own size, before placement**: the RGBA8 texture the viewer's window pass writes, one texel a sample
+(`client/paint/paint-worker.js` `windowPass`), read from its framebuffer by a lab-only read beside `readback`. Not the
+canvas: `placePass` draws that texture into the viewport with `gl.LINEAR`, so the canvas is the window resampled (×0.84 on
+`dbts_b1`'s level picture, ×0.95 on `dbts_a1`) and equals no sample-for-sample window (review B1). It is compared with
+the viewer's own window function applied in the page to the truth's samples, `windowTable(frame, display)` and
+`tableShape(frame)`'s offset from `client/paint/voi.js`, looked up as the shader does (code = table[sample + offset]),
+with the truth from RESLEVEL's witness on `dbts_b1` and the frame itself on the level-0 volumes; equal byte for byte, no
+tolerance, since both sides are the same table on the same integers. Nothing about the placed canvas or what a reader
+sees is claimed.
 
 **What each arm is, beside speed and bytes** (the owner, 2026-11-23 ~02:00):
 
@@ -529,7 +538,7 @@ applied to the level picture's truth. Nothing about what a reader sees is claime
 | A | the lossy view (Q 8; `dbts_a1`, `dbts_c1` at 10 of 12 bits) | in software, by its reconstruction digest | **unchecked**: no browser reads a hardware frame back at full precision |
 | C1 | as A, then one exact frame on request | the exact frame, bit for bit | the view unchecked, the exact frame checked |
 | B | the exact frame | every frame, bit for bit | unchanged (HTJ2K is decoded in WASM) |
-| FIT | the exact frame (level 0), or the exact level-1 picture | every frame (level 0), every level picture against its truth, the whole frame on zoom | unchanged |
+| FIT | the exact frame (level 0), or the exact level-1 picture | every frame (level 0) and the whole frame on zoom, by the frame digest; a level picture **in the lab only**, against `ll.py`'s truth (the product has no per-level digest, not built) | unchanged |
 | SPLIT | either, per group | as A for view groups, as B for exact groups | view groups unchecked |
 
 ### A2.3 · SPLIT, and the switch
