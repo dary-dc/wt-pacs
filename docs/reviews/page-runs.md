@@ -579,3 +579,50 @@ refutes; on AD-LTE the 0.1 % loss holds cwnd near 0.06 MB, under the 2 MB TW nee
 derived), and a median of ×0.75–0.85 there alone is named as not deciding. m4: §3b 12 rounds (two whole periods),
 the ring − disk band a miss either side, the per-round bar predicted 12 of 12. m5: P1b 12 rounds. m6: 20 MiB labelled
 **assumed**, with why. m7: §3a's order (alternating versions) and VOID rule (an incomplete trace, rerun once).
+
+### Re-review
+
+PAGE-RUNS-PROTOCOL-FIX-REVIEW, 2026-11-24 16:07–16:20 UTC, by a session that wrote none of this file, its review or
+its fix and will run none of it (`by:` in `claude/work-ledger:docs/queue/PAGE-RUNS-PROTOCOL-FIX-REVIEW.md`). Read: the
+fix's commits `b630a3738`, `131198c9d`, `4d263a209` (`git diff 9c752355f..4d263a209`: this file and
+`docs/lines/coordination.md` only, every hunk under B1, B2 or m1–m7); at `origin/claude/transport-arms`
+`stream_mode.rs`, `link.rs:205-232,255-270`, `tuning.rs:55-61,100-112`, `run.mjs:43-70`, `lab/order.mjs`; at
+`origin/claude/report-arms` `lab/report-arms/run.mjs:138-209`; at `origin/claude/av1-unified-mainbase`
+`quic-compared.md` §9.7 (its theory table and *Measured*); `av1/queue.md` rows 180, 207, 211 on `claude/unified`.
+Nothing run but `git` reads, `scripts/check_links.py` (9 unresolved, as before the fix) and the fix's sums, recomputed:
+Binomial(18, 0.75) gives P(10–17) 0.975, P(18) 0.0056, P(≤ 16) 0.961; the range of 18 uniform draws on 0–50 ms is
+under 30 ms with probability 1.3 × 10⁻³; 1.2 ÷ √0.001 = 37.9 packets = 0.057 MB; (4.36 + 2.15) ÷ 8.44 = ×0.77,
+(2.25–3.2 + 2.15) ÷ 8.44 = ×0.52–0.63, (0.06 + 2.15) ÷ 8.44 = ×0.26, (10 + 2.15) ÷ 8.44 = ×1.44. All hold.
+
+* **B1: open in part (R-B1, blocker).** The arm, its flags (`--send-window-bytes` is the rig server's, `tuning.rs:60`;
+  quinn's 10 MB default is `quic-compared.md` §9.7's "quinn's 10 MB send window"), its mutant, its predictions, "WT-AF
+  decides #39" and "#96 stays held" are in §1 as B1 asks. But §1's **Commands**, which TRANSPORT-FLAGS-RUN runs, still
+  read `--rounds 12 --arms WT-TS,WT-TS\',WT-TW,WT-PF,H3-fill,H3-frame` for both cells, and the VOID line's pilot is
+  "for WT-TW and WT-PF". Run as written, WT-AF is never measured, so #39 is again claimed on no arm, and 12 rounds of
+  the seven arms §1 now names would not be one whole period (`lab/order.mjs:16`: "2n for odd n", 14). Fix: both
+  commands with `WT-AF` in `--arms` and `--rounds 14`; the pilot for WT-TW, WT-PF and WT-AF; nothing else.
+  (§Review's coverage line "§1's 12 rounds = two of six" is the record of the file it read, not a defect.)
+* **B2: closed.** `D5a-busy` is named as a build with its seed rule, the delay recorded beside `row.kill` (the rig's
+  `killAfterFault`, `run.mjs:139`, and its fixed `ending === "D5a" ? 50 : 500`, `:208`, read), a spread mutant whose
+  false-alarm rate is derived, the band re-derived from the stated distribution (the task phase **assumed** independent,
+  said), read against the recorded delays, and 18 of 18 named a refutation. The race rule's 0.96 is right.
+* **m1: closed** (ranks from `link.rs:215-226` and its test; row 180's ×0.96–1.03 labelled another rig; the ×1.44
+  upper end derived). **m2: closed** (AD, then CR; `--cell AD` runs both forms, `run.mjs:68`). **m3: argued, accepted**:
+  PUB a tie at the A/A's band, so ×0.80 refutes there; LTE's gain rests on Cubic's window under random loss at
+  ~1.2 ÷ √p, the form §9.7 itself uses ("Under random loss Cubic's window is ~1.2 ÷ √p packets"), **theory**, and a
+  median of ×0.75–0.85 on AD-LTE alone is named as not deciding. **m4–m7: closed** as §Fix says.
+* **r-m1 (minor).** WT-AF's AD-PUB upper end cites row 211 "×0.87–0.98 measured" behind deep FIFOs. In §9.7's table
+  ×0.87 is uncapped asks first's; the + 6 MiB arm, the one WT-AF copies, measured ×0.91–0.98 there (18/800, 103/360,
+  103/800, 103/92/800), and its 0.98 is above the band's ×0.95. Restate the anchor, and widen the band to it or say why
+  not.
+* **r-m2 (minor).** WT-AF's AD-LTE band ×0.25–0.50 leans on row 211's loss cells (×0.18–0.19 measured against the
+  arithmetic's ×0.09, about twice it), but twice ×0.26 is ≈ ×0.54, above the band; and row 211's loss was 1 % behind
+  20 ms, not 0.1 %, a window ~√10 smaller, so the carry is weaker than "the band is" says. Widen or argue.
+* **r-n1 (nit).** AD-PUB's cwnd lower end of 2.25 MB has no source in the line; it reads as Cubic's β (0.7 × 3.2 MB):
+  say so. "≈ 39 packets" is 37.9 by the formula given.
+
+**Verdict.** One blocker open (R-B1, §1's commands); PAGE-RUNS-PROTOCOL-FIX-2 and -FIX-2-REVIEW appended to
+`claude/work-ledger:docs/queue-2026-11-24.md`. TRANSPORT-FLAGS-RUN waits on the second re-review; REPORT-RERUNS
+does not (its blocker, B2, is closed; R-B1 is §1's alone); ENGINE-CELLS, ASK-CELLS and CACHE-CELLS were never waiting
+on this. How it serves the value statement: the run that decides #39 is the one that says whether an ask during a fill
+("low latency on every jump") can be had within WebTransport, so the arm must be in the commands that run.

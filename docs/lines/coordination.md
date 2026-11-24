@@ -138,7 +138,10 @@ small enough that every open item has an owner and a next step.
    PAGE-RUNS-PROTOCOL-FIX, its re-review; the five run rows wait as §Review's verdict says.
    PAGE-RUNS-PROTOCOL-FIX (2026-11-24, the same file in place, its §Fix): B1 by arm WT-AF deciding #39, #96 held
    (its lever not in the rig's server); B2 by a `D5a-busy` build with a drawn kill delay and a derived band of 10–17
-   of 18; m1–m7 fixed, m3 argued in part (AD-LTE's loss keeps cwnd under TW's 2 MB). Owed: its re-review.
+   of 18; m1–m7 fixed, m3 argued in part (AD-LTE's loss keeps cwnd under TW's 2 MB).
+   PAGE-RUNS-PROTOCOL-FIX-REVIEW (2026-11-24, the same file's §Re-review): B2 and m1–m7 closed; B1 open in part
+   (R-B1: §1's commands omit WT-AF and run 12 rounds, not 14); r-m1, r-m2 (WT-AF's bands against row 211), r-n1.
+   Owed: PAGE-RUNS-PROTOCOL-FIX-2, its re-review; TRANSPORT-FLAGS-RUN waits on it, REPORT-RERUNS does not.
 
 ## Unification (the owner, 2026-11-09)
 
