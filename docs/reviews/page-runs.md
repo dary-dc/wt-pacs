@@ -692,7 +692,7 @@ New, none blocking (each the run row's first step, lab only, or a line):
   (both under ×0.8).
 
 **Verdict.** No blocker open: R-B1, r-m1, r-m2 and r-n1 closed. TRANSPORT-FLAGS-RUN may start; it makes r2-m1 and
-r2-m2 as part of its built-first step (lab only, said in its rows) and reads WT-AF's AD-LTE band as ×0.25–0.58 (r2-n1),
-or a later fix row writes them here first; either way before its first counted row, as this file's amendment rule
-asks. How it serves the value statement: the commands that run are now the ones that measure whether WebTransport
+r2-m2 as part of its built-first step (lab only, said in its rows, before its first counted row). r2-n1 changes a
+prediction, which the run row may not write: the band stands as pre-registered (×0.25–0.57), and PAGE-RUNS-VERDICT
+names a WT-AF AD-LTE median in ×0.57–0.58 as inside the band's own sum, not a refutation. How it serves the value statement: the commands that run are now the ones that measure whether WebTransport
 alone gives "low latency on every jump" during a fill, and the summary must read the arms that answer it.

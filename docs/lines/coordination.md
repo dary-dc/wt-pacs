@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124, PAGE-RUNS-PROTOCOL and its review 2026-11-24.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124, PAGE-RUNS-PROTOCOL and its reviews 2026-11-24.
 
 ## Goal
 
@@ -144,7 +144,9 @@ small enough that every open item has an owner and a next step.
    PAGE-RUNS-PROTOCOL-FIX-2 (2026-11-24, §1 in place, the file's §Fix 2): R-B1 by WT-AF in both commands at 14
    rounds and in the pilot; r-m1 (WT-AF's AD-PUB band to ×0.98, the + 6 MiB arm's ×0.91–0.98), r-m2 (AD-LTE to
    ×0.57, the carry labelled assumed), r-n1 (cwnd's floor is Cubic's β, RFC 9438 §4.6).
-   Owed: PAGE-RUNS-PROTOCOL-FIX-2-REVIEW; TRANSPORT-FLAGS-RUN waits on it, REPORT-RERUNS does not.
+   PAGE-RUNS-PROTOCOL-FIX-2-REVIEW (2026-11-24, the file's §Re-review 2): no blocker open, R-B1 and r-m1, r-m2, r-n1
+   closed; r2-m1 and r2-m2 (`summary.py`'s fixed arm list; `--out` paths) for TRANSPORT-FLAGS-RUN's built-first step,
+   r2-n1 (AD-LTE's top is ×0.58 by its own sum) for PAGE-RUNS-VERDICT. TRANSPORT-FLAGS-RUN may start.
 
 ## Unification (the owner, 2026-11-09)
 
