@@ -133,7 +133,10 @@ small enough that every open item has an owner and a next step.
    US-END-TO-END (2026-11-24, `claude/us-end-to-end`, draft PR into unified): the evaluation release's condition 2 as
    a gate step, `scripts/stacks_end_to_end.sh` (`docs/FIXTURES.md` §Stacks end to end): `usb_cine`, `usb_cine_rgb` and
    `dbts_a1` through the DICOM ingest, held to their pins, every frame exact in the page and the view worker; skipped by
-   name until the three sets are fetched. Owed: US-END-TO-END-REVIEW.
+   name until the three sets are fetched. US-END-TO-END-REVIEW (one blocker) and US-END-TO-END-FIX (2026-11-24): the
+   gate workflow caches the three sets, fetching them on a miss, so CI runs the step; the served bundle's own digests,
+   not the metadata beside it, are held to the pin (the same-length swap now fails); the US object's limit named.
+   Owed: US-END-TO-END-FIX-REVIEW.
 
 ## Unification (the owner, 2026-11-09)
 
