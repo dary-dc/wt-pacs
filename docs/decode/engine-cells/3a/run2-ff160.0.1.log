@@ -1,0 +1,117 @@
+# run 2, Mozilla Firefox 160.0.1, 2026-11-24T19:37:09Z, claude/engines 7048b6534, fresh profile (drive_firefox.mjs)
+dispatch
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030522.98,"ev":"submit","index":0,"decoder":0,"key":true,"unit":3065623410}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030523.42,"ev":"submit","index":1,"decoder":0,"key":false,"unit":1871189809}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030537.18,"ev":"create","instance":"rawapeqk.1"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030537.8599,"ev":"configure","instance":"rawapeqk.1","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030541.0999,"ev":"decode","instance":"rawapeqk.1","timestamp":1,"type":"key","unit":2106679191,"queue":0}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030554.78,"ev":"output","instance":"rawapeqk.1","timestamp":1,"format":"BGRX"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030555.16,"ev":"flush","instance":"rawapeqk.1"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030555.5598,"ev":"flushed","instance":"rawapeqk.1"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030555.74,"ev":"create","instance":"rawapeqk.2"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030555.8599,"ev":"configure","instance":"rawapeqk.2","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030556.2,"ev":"decode","instance":"rawapeqk.2","timestamp":1,"type":"key","unit":3065623410,"queue":0}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030558.64,"ev":"output","instance":"rawapeqk.2","timestamp":1,"format":"BGRX"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030560.0798,"ev":"done","index":0}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030560.3,"ev":"configure","instance":"rawapeqk.1","codec":"av01.0.00M.08.1.110.02.02.02.0"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030561.0999,"ev":"decode","instance":"rawapeqk.1","timestamp":2,"type":"key","unit":3269717552,"queue":0}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030561.24,"ev":"submit","index":2,"decoder":0,"key":false,"unit":917252847}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030561.76,"ev":"error","instance":"rawapeqk.1","message":"The given encoding is not supported."}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030561.8599,"ev":"create","instance":"rawapeqk.3"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030574.3599,"ev":"submit","index":8,"decoder":1,"key":true,"unit":286793435}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030574.74,"ev":"create","instance":"4pkj77bb.1"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030575.06,"ev":"configure","instance":"4pkj77bb.1","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030575.66,"ev":"decode","instance":"4pkj77bb.1","timestamp":1,"type":"key","unit":2106679191,"queue":0}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030577.34,"ev":"output","instance":"4pkj77bb.1","timestamp":1,"format":"BGRX"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030577.82,"ev":"flush","instance":"4pkj77bb.1"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030578.3,"ev":"flushed","instance":"4pkj77bb.1"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030578.92,"ev":"create","instance":"4pkj77bb.2"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030579.04,"ev":"configure","instance":"4pkj77bb.2","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030579.88,"ev":"decode","instance":"4pkj77bb.2","timestamp":1,"type":"key","unit":286793435,"queue":0}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030582.44,"ev":"output","instance":"4pkj77bb.2","timestamp":1,"format":"BGRX"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030583.8599,"ev":"done","index":8}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030588.24,"ev":"submit","index":9,"decoder":1,"key":false,"unit":1220023103}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030588.46,"ev":"configure","instance":"4pkj77bb.1","codec":"av01.0.00M.08.1.110.02.02.02.0"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030590.66,"ev":"failed","index":1,"reason":"undecodable: frame 0 was not decoded before it here"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030590.72,"ev":"decode","instance":"4pkj77bb.1","timestamp":2,"type":"key","unit":3269717552,"queue":0}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030590.78,"ev":"failed","index":2,"reason":"undecodable: frame 1 was not decoded before it here"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030591.14,"ev":"error","instance":"4pkj77bb.1","message":"The given encoding is not supported."}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030591.24,"ev":"submit","index":3,"decoder":0,"key":false,"unit":607904878}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030591.4,"ev":"create","instance":"4pkj77bb.3"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030591.76,"ev":"failed","index":3,"reason":"undecodable: frame 2 was not decoded before it here"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030592.14,"ev":"submit","index":4,"decoder":0,"key":false,"unit":2298544288}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030592.3,"ev":"failed","index":4,"reason":"undecodable: frame 3 was not decoded before it here"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030592.44,"ev":"submit","index":5,"decoder":0,"key":false,"unit":749237556}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030592.5598,"ev":"failed","index":5,"reason":"undecodable: frame 4 was not decoded before it here"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030592.92,"ev":"submit","index":6,"decoder":0,"key":false,"unit":2757150523}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030592.98,"ev":"failed","index":6,"reason":"undecodable: frame 5 was not decoded before it here"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030593.04,"ev":"submit","index":7,"decoder":0,"key":false,"unit":2429629099}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030593.0798,"ev":"failed","index":7,"reason":"undecodable: frame 6 was not decoded before it here"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030598.82,"ev":"submit","index":10,"decoder":1,"key":false,"unit":824019967}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030614.2,"ev":"failed","index":9,"reason":"undecodable: frame 8 was not decoded before it here"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030614.58,"ev":"failed","index":10,"reason":"undecodable: frame 9 was not decoded before it here"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030614.84,"ev":"submit","index":11,"decoder":1,"key":false,"unit":1565603559}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030615.18,"ev":"failed","index":11,"reason":"undecodable: frame 10 was not decoded before it here"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030621.56,"ev":"submit","index":12,"decoder":1,"key":false,"unit":3171991671}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030621.76,"ev":"failed","index":12,"reason":"undecodable: frame 11 was not decoded before it here"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030630,"ev":"submit","index":13,"decoder":1,"key":false,"unit":1339827215}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030630.14,"ev":"failed","index":13,"reason":"undecodable: frame 12 was not decoded before it here"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030643.3,"ev":"submit","index":14,"decoder":1,"key":false,"unit":3375414009}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030643.48,"ev":"failed","index":14,"reason":"undecodable: frame 13 was not decoded before it here"}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030652.78,"ev":"submit","index":15,"decoder":1,"key":false,"unit":182321541}
+TRACE-EVENT {"worker":"4pkj77bb","t":1795549030653.06,"ev":"failed","index":15,"reason":"undecodable: frame 14 was not decoded before it here"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030656.3,"ev":"submit","index":16,"decoder":0,"key":true,"unit":3912714441}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030656.64,"ev":"flush","instance":"rawapeqk.2"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030657.28,"ev":"flushed","instance":"rawapeqk.2"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030657.5,"ev":"decode","instance":"rawapeqk.2","timestamp":2,"type":"key","unit":3912714441,"queue":0}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030657.98,"ev":"output","instance":"rawapeqk.2","timestamp":2,"format":"BGRX"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030659.5798,"ev":"done","index":16}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030665.48,"ev":"submit","index":17,"decoder":0,"key":false,"unit":1919760289}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030665.6199,"ev":"failed","index":17,"reason":"undecodable: frame 16 was not decoded before it here"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030668.5598,"ev":"submit","index":18,"decoder":0,"key":false,"unit":1485620577}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030668.8398,"ev":"failed","index":18,"reason":"undecodable: frame 17 was not decoded before it here"}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030671.46,"ev":"submit","index":19,"decoder":0,"key":false,"unit":3127815731}
+TRACE-EVENT {"worker":"rawapeqk","t":1795549030671.54,"ev":"failed","index":19,"reason":"undecodable: frame 18 was not decoded before it here"}
+TRACE-FRAME {"index":0,"worker":"rawapeqk","decoder":0,"keyWorker":"rawapeqk","keyDecoder":0,"keyInstance":"rawapeqk.2","chunks":[{"instance":"rawapeqk.2","timestamp":1,"type":"key","queue":0}],"outputs":[{"instance":"rawapeqk.2","timestamp":1,"format":"BGRX"}],"route":"av1-webcodecs","exactToSource":true,"pageDecoder":0}
+TRACE-FRAME {"index":1,"worker":"rawapeqk","decoder":0,"keyWorker":"rawapeqk","keyDecoder":0,"keyInstance":"rawapeqk.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 0 was not decoded before it here"}
+TRACE-FRAME {"index":2,"worker":"rawapeqk","decoder":0,"keyWorker":"rawapeqk","keyDecoder":0,"keyInstance":"rawapeqk.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 1 was not decoded before it here"}
+TRACE-FRAME {"index":3,"worker":"rawapeqk","decoder":0,"keyWorker":"rawapeqk","keyDecoder":0,"keyInstance":"rawapeqk.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 2 was not decoded before it here"}
+TRACE-FRAME {"index":4,"worker":"rawapeqk","decoder":0,"keyWorker":"rawapeqk","keyDecoder":0,"keyInstance":"rawapeqk.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 3 was not decoded before it here"}
+TRACE-FRAME {"index":5,"worker":"rawapeqk","decoder":0,"keyWorker":"rawapeqk","keyDecoder":0,"keyInstance":"rawapeqk.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 4 was not decoded before it here"}
+TRACE-FRAME {"index":6,"worker":"rawapeqk","decoder":0,"keyWorker":"rawapeqk","keyDecoder":0,"keyInstance":"rawapeqk.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 5 was not decoded before it here"}
+TRACE-FRAME {"index":7,"worker":"rawapeqk","decoder":0,"keyWorker":"rawapeqk","keyDecoder":0,"keyInstance":"rawapeqk.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 6 was not decoded before it here"}
+TRACE-FRAME {"index":8,"worker":"4pkj77bb","decoder":1,"keyWorker":"4pkj77bb","keyDecoder":1,"keyInstance":"4pkj77bb.2","chunks":[{"instance":"4pkj77bb.2","timestamp":1,"type":"key","queue":0}],"outputs":[{"instance":"4pkj77bb.2","timestamp":1,"format":"BGRX"}],"route":"av1-webcodecs","exactToSource":true,"pageDecoder":1}
+TRACE-FRAME {"index":9,"worker":"4pkj77bb","decoder":1,"keyWorker":"4pkj77bb","keyDecoder":1,"keyInstance":"4pkj77bb.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 8 was not decoded before it here"}
+TRACE-FRAME {"index":10,"worker":"4pkj77bb","decoder":1,"keyWorker":"4pkj77bb","keyDecoder":1,"keyInstance":"4pkj77bb.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 9 was not decoded before it here"}
+TRACE-FRAME {"index":11,"worker":"4pkj77bb","decoder":1,"keyWorker":"4pkj77bb","keyDecoder":1,"keyInstance":"4pkj77bb.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 10 was not decoded before it here"}
+TRACE-FRAME {"index":12,"worker":"4pkj77bb","decoder":1,"keyWorker":"4pkj77bb","keyDecoder":1,"keyInstance":"4pkj77bb.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 11 was not decoded before it here"}
+TRACE-FRAME {"index":13,"worker":"4pkj77bb","decoder":1,"keyWorker":"4pkj77bb","keyDecoder":1,"keyInstance":"4pkj77bb.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 12 was not decoded before it here"}
+TRACE-FRAME {"index":14,"worker":"4pkj77bb","decoder":1,"keyWorker":"4pkj77bb","keyDecoder":1,"keyInstance":"4pkj77bb.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 13 was not decoded before it here"}
+TRACE-FRAME {"index":15,"worker":"4pkj77bb","decoder":1,"keyWorker":"4pkj77bb","keyDecoder":1,"keyInstance":"4pkj77bb.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 14 was not decoded before it here"}
+TRACE-FRAME {"index":16,"worker":"rawapeqk","decoder":0,"keyWorker":"rawapeqk","keyDecoder":0,"keyInstance":"rawapeqk.2","chunks":[{"instance":"rawapeqk.2","timestamp":2,"type":"key","queue":0}],"outputs":[{"instance":"rawapeqk.2","timestamp":2,"format":"BGRX"}],"route":"av1-webcodecs","exactToSource":true,"pageDecoder":0}
+TRACE-FRAME {"index":17,"worker":"rawapeqk","decoder":0,"keyWorker":"rawapeqk","keyDecoder":0,"keyInstance":"rawapeqk.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 16 was not decoded before it here"}
+TRACE-FRAME {"index":18,"worker":"rawapeqk","decoder":0,"keyWorker":"rawapeqk","keyDecoder":0,"keyInstance":"rawapeqk.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 17 was not decoded before it here"}
+TRACE-FRAME {"index":19,"worker":"rawapeqk","decoder":0,"keyWorker":"rawapeqk","keyDecoder":0,"keyInstance":"rawapeqk.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 18 was not decoded before it here"}
+TRACE-INSTANCE {"worker":"rawapeqk","t":1795549030537.18,"ev":"create","instance":"rawapeqk.1"}
+TRACE-INSTANCE {"worker":"rawapeqk","t":1795549030537.8599,"ev":"configure","instance":"rawapeqk.1","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-INSTANCE {"worker":"rawapeqk","t":1795549030555.16,"ev":"flush","instance":"rawapeqk.1"}
+TRACE-INSTANCE {"worker":"rawapeqk","t":1795549030555.5598,"ev":"flushed","instance":"rawapeqk.1"}
+TRACE-INSTANCE {"worker":"rawapeqk","t":1795549030555.74,"ev":"create","instance":"rawapeqk.2"}
+TRACE-INSTANCE {"worker":"rawapeqk","t":1795549030555.8599,"ev":"configure","instance":"rawapeqk.2","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-INSTANCE {"worker":"rawapeqk","t":1795549030560.3,"ev":"configure","instance":"rawapeqk.1","codec":"av01.0.00M.08.1.110.02.02.02.0"}
+TRACE-INSTANCE {"worker":"rawapeqk","t":1795549030561.76,"ev":"error","instance":"rawapeqk.1","message":"The given encoding is not supported."}
+TRACE-INSTANCE {"worker":"rawapeqk","t":1795549030561.8599,"ev":"create","instance":"rawapeqk.3"}
+TRACE-INSTANCE {"worker":"4pkj77bb","t":1795549030574.74,"ev":"create","instance":"4pkj77bb.1"}
+TRACE-INSTANCE {"worker":"4pkj77bb","t":1795549030575.06,"ev":"configure","instance":"4pkj77bb.1","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-INSTANCE {"worker":"4pkj77bb","t":1795549030577.82,"ev":"flush","instance":"4pkj77bb.1"}
+TRACE-INSTANCE {"worker":"4pkj77bb","t":1795549030578.3,"ev":"flushed","instance":"4pkj77bb.1"}
+TRACE-INSTANCE {"worker":"4pkj77bb","t":1795549030578.92,"ev":"create","instance":"4pkj77bb.2"}
+TRACE-INSTANCE {"worker":"4pkj77bb","t":1795549030579.04,"ev":"configure","instance":"4pkj77bb.2","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-INSTANCE {"worker":"4pkj77bb","t":1795549030588.46,"ev":"configure","instance":"4pkj77bb.1","codec":"av01.0.00M.08.1.110.02.02.02.0"}
+TRACE-INSTANCE {"worker":"4pkj77bb","t":1795549030591.14,"ev":"error","instance":"4pkj77bb.1","message":"The given encoding is not supported."}
+TRACE-INSTANCE {"worker":"4pkj77bb","t":1795549030591.4,"ev":"create","instance":"4pkj77bb.3"}
+TRACE-INSTANCE {"worker":"rawapeqk","t":1795549030656.64,"ev":"flush","instance":"rawapeqk.2"}
+TRACE-INSTANCE {"worker":"rawapeqk","t":1795549030657.28,"ev":"flushed","instance":"rawapeqk.2"}
+
+dispatch over ts: 1/1 checks passed through the downloader
+

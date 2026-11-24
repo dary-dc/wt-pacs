@@ -1,0 +1,24 @@
+run1-ff159.0.1.log: run 1, Mozilla Firefox 159.0.1, 2026-11-24T19:37:06Z, claude/engines 7048b6534, fresh profile (drive_firefox.mjs)
+  complete=True failed=1,2,3,4,5,6,7,9,10,11,12,13,14,15,17,18,19 exact=[0, 8, 16]
+  every frame submitted to its keyframe's decoder: True; chunks of inter frames handed to any VideoDecoder: 0; keyframes on their instance, output timestamp = chunk's: True
+  configures: ['av01.0.00M.08.1.110.02.02.02.0', 'av01.1.00M.08.0.000.01.13.00.1']; errors: ['The given encoding is not supported.'] x2; reasons: ['undecodable: frame N was not decoded before it here']
+run2-ff160.0.1.log: run 2, Mozilla Firefox 160.0.1, 2026-11-24T19:37:09Z, claude/engines 7048b6534, fresh profile (drive_firefox.mjs)
+  complete=True failed=1,2,3,4,5,6,7,9,10,11,12,13,14,15,17,18,19 exact=[0, 8, 16]
+  every frame submitted to its keyframe's decoder: True; chunks of inter frames handed to any VideoDecoder: 0; keyframes on their instance, output timestamp = chunk's: True
+  configures: ['av01.0.00M.08.1.110.02.02.02.0', 'av01.1.00M.08.0.000.01.13.00.1']; errors: ['The given encoding is not supported.'] x2; reasons: ['undecodable: frame N was not decoded before it here']
+run3-ff160.0.1.log: run 3, Mozilla Firefox 160.0.1, 2026-11-24T19:37:10Z, claude/engines 7048b6534, fresh profile (drive_firefox.mjs)
+  complete=True failed=1,2,3,4,5,6,7,9,10,11,12,13,14,15,17,18,19 exact=[0, 8, 16]
+  every frame submitted to its keyframe's decoder: True; chunks of inter frames handed to any VideoDecoder: 0; keyframes on their instance, output timestamp = chunk's: True
+  configures: ['av01.0.00M.08.1.110.02.02.02.0', 'av01.1.00M.08.0.000.01.13.00.1']; errors: ['The given encoding is not supported.'] x2; reasons: ['undecodable: frame N was not decoded before it here']
+run4-ff159.0.1.log: run 4, Mozilla Firefox 159.0.1, 2026-11-24T19:37:12Z, claude/engines 7048b6534, fresh profile (drive_firefox.mjs)
+  complete=True failed=1,2,3,4,5,6,7,9,10,11,12,13,14,15,17,18,19 exact=[0, 8, 16]
+  every frame submitted to its keyframe's decoder: True; chunks of inter frames handed to any VideoDecoder: 0; keyframes on their instance, output timestamp = chunk's: True
+  configures: ['av01.0.00M.08.1.110.02.02.02.0', 'av01.1.00M.08.0.000.01.13.00.1']; errors: ['The given encoding is not supported.'] x2; reasons: ['undecodable: frame N was not decoded before it here']
+run5-ff159.0.1.log: run 5, Mozilla Firefox 159.0.1, 2026-11-24T19:37:15Z, claude/engines 7048b6534, fresh profile (drive_firefox.mjs)
+  complete=True failed=1,2,3,4,5,6,7,9,10,11,12,13,14,15,17,18,19 exact=[0, 8, 16]
+  every frame submitted to its keyframe's decoder: True; chunks of inter frames handed to any VideoDecoder: 0; keyframes on their instance, output timestamp = chunk's: True
+  configures: ['av01.0.00M.08.1.110.02.02.02.0', 'av01.1.00M.08.0.000.01.13.00.1']; errors: ['The given encoding is not supported.'] x2; reasons: ['undecodable: frame N was not decoded before it here']
+run6-ff160.0.1.log: run 6, Mozilla Firefox 160.0.1, 2026-11-24T19:37:17Z, claude/engines 7048b6534, fresh profile (drive_firefox.mjs)
+  complete=True failed=1,2,3,4,5,6,7,9,10,11,12,13,14,15,17,18,19 exact=[0, 8, 16]
+  every frame submitted to its keyframe's decoder: True; chunks of inter frames handed to any VideoDecoder: 0; keyframes on their instance, output timestamp = chunk's: True
+  configures: ['av01.0.00M.08.1.110.02.02.02.0', 'av01.1.00M.08.0.000.01.13.00.1']; errors: ['The given encoding is not supported.'] x2; reasons: ['undecodable: frame N was not decoded before it here']

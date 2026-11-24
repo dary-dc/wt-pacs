@@ -1,0 +1,117 @@
+# run 3, Mozilla Firefox 160.0.1, 2026-11-24T19:37:10Z, claude/engines 7048b6534, fresh profile (drive_firefox.mjs)
+dispatch
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032432.1401,"ev":"submit","index":0,"decoder":0,"key":true,"unit":3065623410}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032432.7,"ev":"submit","index":1,"decoder":0,"key":false,"unit":1871189809}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032457.32,"ev":"create","instance":"ow1r5rve.1"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032457.8801,"ev":"configure","instance":"ow1r5rve.1","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032458.9202,"ev":"decode","instance":"ow1r5rve.1","timestamp":1,"type":"key","unit":2106679191,"queue":0}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032464.48,"ev":"output","instance":"ow1r5rve.1","timestamp":1,"format":"BGRX"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032464.98,"ev":"flush","instance":"ow1r5rve.1"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032465.76,"ev":"flushed","instance":"ow1r5rve.1"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032466.02,"ev":"create","instance":"ow1r5rve.2"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032466.24,"ev":"configure","instance":"ow1r5rve.2","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032466.6802,"ev":"decode","instance":"ow1r5rve.2","timestamp":1,"type":"key","unit":3065623410,"queue":0}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032468.3,"ev":"output","instance":"ow1r5rve.2","timestamp":1,"format":"BGRX"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032469.58,"ev":"done","index":0}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032469.9202,"ev":"configure","instance":"ow1r5rve.1","codec":"av01.0.00M.08.1.110.02.02.02.0"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032470.52,"ev":"decode","instance":"ow1r5rve.1","timestamp":2,"type":"key","unit":3269717552,"queue":0}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032470.6401,"ev":"submit","index":2,"decoder":0,"key":false,"unit":917252847}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032471.04,"ev":"error","instance":"ow1r5rve.1","message":"The given encoding is not supported."}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032471.1602,"ev":"create","instance":"ow1r5rve.3"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032491.6,"ev":"submit","index":8,"decoder":1,"key":true,"unit":286793435}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032496.4001,"ev":"create","instance":"h76bh6ht.1"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032496.8801,"ev":"configure","instance":"h76bh6ht.1","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032498.6602,"ev":"decode","instance":"h76bh6ht.1","timestamp":1,"type":"key","unit":2106679191,"queue":0}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032498.94,"ev":"submit","index":9,"decoder":1,"key":false,"unit":1220023103}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032502.4001,"ev":"output","instance":"h76bh6ht.1","timestamp":1,"format":"BGRX"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032502.62,"ev":"failed","index":1,"reason":"undecodable: frame 0 was not decoded before it here"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032502.8,"ev":"failed","index":2,"reason":"undecodable: frame 1 was not decoded before it here"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032502.9001,"ev":"flush","instance":"h76bh6ht.1"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032503.3,"ev":"submit","index":3,"decoder":0,"key":false,"unit":607904878}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032503.54,"ev":"failed","index":3,"reason":"undecodable: frame 2 was not decoded before it here"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032503.6802,"ev":"submit","index":4,"decoder":0,"key":false,"unit":2298544288}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032503.7,"ev":"flushed","instance":"h76bh6ht.1"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032503.8801,"ev":"failed","index":4,"reason":"undecodable: frame 3 was not decoded before it here"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032504.3801,"ev":"create","instance":"h76bh6ht.2"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032505.1,"ev":"submit","index":5,"decoder":0,"key":false,"unit":749237556}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032505.76,"ev":"configure","instance":"h76bh6ht.2","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032506.62,"ev":"decode","instance":"h76bh6ht.2","timestamp":1,"type":"key","unit":286793435,"queue":0}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032507.58,"ev":"failed","index":5,"reason":"undecodable: frame 4 was not decoded before it here"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032507.6802,"ev":"submit","index":6,"decoder":0,"key":false,"unit":2757150523}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032507.76,"ev":"failed","index":6,"reason":"undecodable: frame 5 was not decoded before it here"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032508.48,"ev":"submit","index":7,"decoder":0,"key":false,"unit":2429629099}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032508.6,"ev":"failed","index":7,"reason":"undecodable: frame 6 was not decoded before it here"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032508.62,"ev":"output","instance":"h76bh6ht.2","timestamp":1,"format":"BGRX"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032512.2,"ev":"done","index":8}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032515.24,"ev":"configure","instance":"h76bh6ht.1","codec":"av01.0.00M.08.1.110.02.02.02.0"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032516.34,"ev":"decode","instance":"h76bh6ht.1","timestamp":2,"type":"key","unit":3269717552,"queue":0}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032516.6802,"ev":"submit","index":10,"decoder":1,"key":false,"unit":824019967}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032517.36,"ev":"error","instance":"h76bh6ht.1","message":"The given encoding is not supported."}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032517.52,"ev":"create","instance":"h76bh6ht.3"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032545.78,"ev":"failed","index":9,"reason":"undecodable: frame 8 was not decoded before it here"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032545.98,"ev":"failed","index":10,"reason":"undecodable: frame 9 was not decoded before it here"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032546.1802,"ev":"submit","index":11,"decoder":1,"key":false,"unit":1565603559}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032546.6602,"ev":"failed","index":11,"reason":"undecodable: frame 10 was not decoded before it here"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032546.8,"ev":"submit","index":12,"decoder":1,"key":false,"unit":3171991671}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032547.52,"ev":"failed","index":12,"reason":"undecodable: frame 11 was not decoded before it here"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032547.72,"ev":"submit","index":13,"decoder":1,"key":false,"unit":1339827215}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032548.02,"ev":"failed","index":13,"reason":"undecodable: frame 12 was not decoded before it here"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032556.1,"ev":"submit","index":14,"decoder":1,"key":false,"unit":3375414009}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032556.3,"ev":"failed","index":14,"reason":"undecodable: frame 13 was not decoded before it here"}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032566.26,"ev":"submit","index":15,"decoder":1,"key":false,"unit":182321541}
+TRACE-EVENT {"worker":"h76bh6ht","t":1795549032566.3801,"ev":"failed","index":15,"reason":"undecodable: frame 14 was not decoded before it here"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032572.3,"ev":"submit","index":16,"decoder":0,"key":true,"unit":3912714441}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032572.48,"ev":"flush","instance":"ow1r5rve.2"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032573.52,"ev":"flushed","instance":"ow1r5rve.2"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032573.6401,"ev":"decode","instance":"ow1r5rve.2","timestamp":2,"type":"key","unit":3912714441,"queue":0}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032574.6401,"ev":"output","instance":"ow1r5rve.2","timestamp":2,"format":"BGRX"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032576.04,"ev":"done","index":16}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032578.8,"ev":"submit","index":17,"decoder":0,"key":false,"unit":1919760289}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032579.02,"ev":"failed","index":17,"reason":"undecodable: frame 16 was not decoded before it here"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032586.4402,"ev":"submit","index":18,"decoder":0,"key":false,"unit":1485620577}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032586.96,"ev":"failed","index":18,"reason":"undecodable: frame 17 was not decoded before it here"}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032596.36,"ev":"submit","index":19,"decoder":0,"key":false,"unit":3127815731}
+TRACE-EVENT {"worker":"ow1r5rve","t":1795549032596.5,"ev":"failed","index":19,"reason":"undecodable: frame 18 was not decoded before it here"}
+TRACE-FRAME {"index":0,"worker":"ow1r5rve","decoder":0,"keyWorker":"ow1r5rve","keyDecoder":0,"keyInstance":"ow1r5rve.2","chunks":[{"instance":"ow1r5rve.2","timestamp":1,"type":"key","queue":0}],"outputs":[{"instance":"ow1r5rve.2","timestamp":1,"format":"BGRX"}],"route":"av1-webcodecs","exactToSource":true,"pageDecoder":0}
+TRACE-FRAME {"index":1,"worker":"ow1r5rve","decoder":0,"keyWorker":"ow1r5rve","keyDecoder":0,"keyInstance":"ow1r5rve.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 0 was not decoded before it here"}
+TRACE-FRAME {"index":2,"worker":"ow1r5rve","decoder":0,"keyWorker":"ow1r5rve","keyDecoder":0,"keyInstance":"ow1r5rve.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 1 was not decoded before it here"}
+TRACE-FRAME {"index":3,"worker":"ow1r5rve","decoder":0,"keyWorker":"ow1r5rve","keyDecoder":0,"keyInstance":"ow1r5rve.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 2 was not decoded before it here"}
+TRACE-FRAME {"index":4,"worker":"ow1r5rve","decoder":0,"keyWorker":"ow1r5rve","keyDecoder":0,"keyInstance":"ow1r5rve.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 3 was not decoded before it here"}
+TRACE-FRAME {"index":5,"worker":"ow1r5rve","decoder":0,"keyWorker":"ow1r5rve","keyDecoder":0,"keyInstance":"ow1r5rve.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 4 was not decoded before it here"}
+TRACE-FRAME {"index":6,"worker":"ow1r5rve","decoder":0,"keyWorker":"ow1r5rve","keyDecoder":0,"keyInstance":"ow1r5rve.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 5 was not decoded before it here"}
+TRACE-FRAME {"index":7,"worker":"ow1r5rve","decoder":0,"keyWorker":"ow1r5rve","keyDecoder":0,"keyInstance":"ow1r5rve.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 6 was not decoded before it here"}
+TRACE-FRAME {"index":8,"worker":"h76bh6ht","decoder":1,"keyWorker":"h76bh6ht","keyDecoder":1,"keyInstance":"h76bh6ht.2","chunks":[{"instance":"h76bh6ht.2","timestamp":1,"type":"key","queue":0}],"outputs":[{"instance":"h76bh6ht.2","timestamp":1,"format":"BGRX"}],"route":"av1-webcodecs","exactToSource":true,"pageDecoder":1}
+TRACE-FRAME {"index":9,"worker":"h76bh6ht","decoder":1,"keyWorker":"h76bh6ht","keyDecoder":1,"keyInstance":"h76bh6ht.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 8 was not decoded before it here"}
+TRACE-FRAME {"index":10,"worker":"h76bh6ht","decoder":1,"keyWorker":"h76bh6ht","keyDecoder":1,"keyInstance":"h76bh6ht.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 9 was not decoded before it here"}
+TRACE-FRAME {"index":11,"worker":"h76bh6ht","decoder":1,"keyWorker":"h76bh6ht","keyDecoder":1,"keyInstance":"h76bh6ht.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 10 was not decoded before it here"}
+TRACE-FRAME {"index":12,"worker":"h76bh6ht","decoder":1,"keyWorker":"h76bh6ht","keyDecoder":1,"keyInstance":"h76bh6ht.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 11 was not decoded before it here"}
+TRACE-FRAME {"index":13,"worker":"h76bh6ht","decoder":1,"keyWorker":"h76bh6ht","keyDecoder":1,"keyInstance":"h76bh6ht.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 12 was not decoded before it here"}
+TRACE-FRAME {"index":14,"worker":"h76bh6ht","decoder":1,"keyWorker":"h76bh6ht","keyDecoder":1,"keyInstance":"h76bh6ht.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 13 was not decoded before it here"}
+TRACE-FRAME {"index":15,"worker":"h76bh6ht","decoder":1,"keyWorker":"h76bh6ht","keyDecoder":1,"keyInstance":"h76bh6ht.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 14 was not decoded before it here"}
+TRACE-FRAME {"index":16,"worker":"ow1r5rve","decoder":0,"keyWorker":"ow1r5rve","keyDecoder":0,"keyInstance":"ow1r5rve.2","chunks":[{"instance":"ow1r5rve.2","timestamp":2,"type":"key","queue":0}],"outputs":[{"instance":"ow1r5rve.2","timestamp":2,"format":"BGRX"}],"route":"av1-webcodecs","exactToSource":true,"pageDecoder":0}
+TRACE-FRAME {"index":17,"worker":"ow1r5rve","decoder":0,"keyWorker":"ow1r5rve","keyDecoder":0,"keyInstance":"ow1r5rve.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 16 was not decoded before it here"}
+TRACE-FRAME {"index":18,"worker":"ow1r5rve","decoder":0,"keyWorker":"ow1r5rve","keyDecoder":0,"keyInstance":"ow1r5rve.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 17 was not decoded before it here"}
+TRACE-FRAME {"index":19,"worker":"ow1r5rve","decoder":0,"keyWorker":"ow1r5rve","keyDecoder":0,"keyInstance":"ow1r5rve.2","chunks":[],"outputs":[],"exactToSource":null,"failed":"undecodable: frame 18 was not decoded before it here"}
+TRACE-INSTANCE {"worker":"ow1r5rve","t":1795549032457.32,"ev":"create","instance":"ow1r5rve.1"}
+TRACE-INSTANCE {"worker":"ow1r5rve","t":1795549032457.8801,"ev":"configure","instance":"ow1r5rve.1","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-INSTANCE {"worker":"ow1r5rve","t":1795549032464.98,"ev":"flush","instance":"ow1r5rve.1"}
+TRACE-INSTANCE {"worker":"ow1r5rve","t":1795549032465.76,"ev":"flushed","instance":"ow1r5rve.1"}
+TRACE-INSTANCE {"worker":"ow1r5rve","t":1795549032466.02,"ev":"create","instance":"ow1r5rve.2"}
+TRACE-INSTANCE {"worker":"ow1r5rve","t":1795549032466.24,"ev":"configure","instance":"ow1r5rve.2","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-INSTANCE {"worker":"ow1r5rve","t":1795549032469.9202,"ev":"configure","instance":"ow1r5rve.1","codec":"av01.0.00M.08.1.110.02.02.02.0"}
+TRACE-INSTANCE {"worker":"ow1r5rve","t":1795549032471.04,"ev":"error","instance":"ow1r5rve.1","message":"The given encoding is not supported."}
+TRACE-INSTANCE {"worker":"ow1r5rve","t":1795549032471.1602,"ev":"create","instance":"ow1r5rve.3"}
+TRACE-INSTANCE {"worker":"h76bh6ht","t":1795549032496.4001,"ev":"create","instance":"h76bh6ht.1"}
+TRACE-INSTANCE {"worker":"h76bh6ht","t":1795549032496.8801,"ev":"configure","instance":"h76bh6ht.1","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-INSTANCE {"worker":"h76bh6ht","t":1795549032502.9001,"ev":"flush","instance":"h76bh6ht.1"}
+TRACE-INSTANCE {"worker":"h76bh6ht","t":1795549032503.7,"ev":"flushed","instance":"h76bh6ht.1"}
+TRACE-INSTANCE {"worker":"h76bh6ht","t":1795549032504.3801,"ev":"create","instance":"h76bh6ht.2"}
+TRACE-INSTANCE {"worker":"h76bh6ht","t":1795549032505.76,"ev":"configure","instance":"h76bh6ht.2","codec":"av01.1.00M.08.0.000.01.13.00.1"}
+TRACE-INSTANCE {"worker":"h76bh6ht","t":1795549032515.24,"ev":"configure","instance":"h76bh6ht.1","codec":"av01.0.00M.08.1.110.02.02.02.0"}
+TRACE-INSTANCE {"worker":"h76bh6ht","t":1795549032517.36,"ev":"error","instance":"h76bh6ht.1","message":"The given encoding is not supported."}
+TRACE-INSTANCE {"worker":"h76bh6ht","t":1795549032517.52,"ev":"create","instance":"h76bh6ht.3"}
+TRACE-INSTANCE {"worker":"ow1r5rve","t":1795549032572.48,"ev":"flush","instance":"ow1r5rve.2"}
+TRACE-INSTANCE {"worker":"ow1r5rve","t":1795549032573.52,"ev":"flushed","instance":"ow1r5rve.2"}
+
+dispatch over ts: 1/1 checks passed through the downloader
+

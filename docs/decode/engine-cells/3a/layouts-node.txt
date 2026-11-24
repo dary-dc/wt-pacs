@@ -1,0 +1,5 @@
+0 profile 1 mono 0 → layouts ["c8"]
+1 no sequence header → layouts ["g8"]
+7 no sequence header → layouts ["g8"]
+8 profile 1 mono 0 → layouts ["c8"]
+9 no sequence header → layouts ["g8"]
