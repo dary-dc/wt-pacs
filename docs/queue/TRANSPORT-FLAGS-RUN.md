@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-24T18:47Z
-heartbeat: 2026-11-24T19:08Z
+heartbeat: 2026-11-24T19:18Z
 by: bqyisHDi
 outputs: claude/transport-flags (the rig's additions, from origin/claude/transport-arms; raw rows); claude/page-runs (rows copied; docs/reviews/page-runs.md §Transport)
 ## Resume
