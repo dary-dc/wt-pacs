@@ -223,6 +223,8 @@ test("in groups, the window is the frame's group and its nearer neighbour", () =
   const groups = (c) => [...new Set(wantFrom(c, 50, true, false, 15, 8).map((i) => i >> 3))].sort((a, b) => a - b).join();
   assert.deepEqual([3, 4, 0, 49].map(groups), ["0,1", "0,1", "0,1", "5,6"]);
   assert.deepEqual([19, 20].map(groups), ["1,2", "2,3"]);
+  const odd = [...new Set(wantFrom(4, 12, true, false, 3, 3).map((i) => Math.floor(i / 3)))].sort().join();
+  assert.equal(odd, "1,2", "at equal distance, the later group");
   assert.deepEqual(wantFrom(20, 50, true, false, 15, 8).slice(0, 3), [20, 21, 19]);
   assert.equal(wantFrom(20, 50, true, false, 40, 8).length, 40);
   assert.deepEqual(wantFrom(20, 50, true, false, 4, 1), [20, 21, 19, 22]);
