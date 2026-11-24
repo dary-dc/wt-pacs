@@ -87,7 +87,6 @@ function decoder(length) {
   };
   /** The unit to the decoder, and its frame once out. */
   const send = async (bytes, unit) => {
-    continues(last, unit);
     last = null;
     if (unit.key && held) await vd.flush();
     if (unit.key) configure(bytes);
@@ -119,12 +118,15 @@ function decoder(length) {
       let free;
       sendable = new Promise((r) => (free = r));
       const mid = length > 1 && (unit.index + 1) % length;
+      let sent = false;
       const p = (async () => {
         let frame = null;
         try {
           await mayStart;
           // Only a unit inside the group of the one before is sent while that one is still read back.
           if (unit.key) await before;
+          continues(last, unit);
+          sent = true;
           frame = await send(bytes, unit);
           if (!(await before) && !unit.key) continues(null, unit);
           if (mid) {
@@ -150,7 +152,8 @@ function decoder(length) {
           free();
         }
       })();
-      read = p.then(() => true, () => false);
+      // A unit refused before it was sent leaves the decoder as the unit before it left it.
+      read = p.then(() => true, () => (sent ? false : before));
       return p;
     },
   };
