@@ -26,6 +26,11 @@ phone ── https://PUBLIC_NAME:8443/?t=TOKEN ── the runner page, D0 → D1
 | `deploy.sh` | `up`, `fetch DIR`, `down` on the Oracle machine, from the local machine |
 | `make_bundles.sh` | each set as `SET.htj2k.sbnd` and `SET.av1.sbnd` through `lab/av1/tools/ingest_coded.py` |
 | `dry_run.mjs` | the page through a deployed kit in headless Chromium, quick mode: exits 0 when every visit is exact |
+| `round_plan.mjs` | the round's plan for `round.py`: `roundOrder()`'s loads on their pages, the four series' servers; `--dial` required; `--quick` for the dry run |
+| `raw_rows.py` | the round's raw files for the public repository: only what a cell reads, the laptop and the phone stripped, refused if a MAC or an SSID is left (`docs/devices.md` §4) |
+| `devtools.mjs` | before load 1, over Chrome's DevTools port: the browser cache cleared, the round's tabs closed, the first round page's scripts checked against the tree (below) |
+| `resources.sh` | one phone snapshot over `adb` at the start and after each load (memory, PSI, swap and fault counters, thermal, each Chrome process's RSS and swap, the top 8 by RSS), beside `round.py`: `resources.sh OUT/round.jsonl OUT/resources.jsonl` |
+| `round.py`, `round.mjs`, `round-page.js`, `beacon.js` | the phone round of `claude/phone-protocol:docs/phone-rows/next-round.md` (below): one press, the laptop's plan behind `GET /next`, each load recorded by the viewer's lab gate |
 
 **Quick and full.** Quick is 3 rounds of D1 on `dbt10_ea1141` alone (the largest frames, all three decoders) and
 D2's `shared`, `asksfirst` and `iw38400`; the reading prints on the phone as soon as each run ends, marked
@@ -140,3 +145,127 @@ session's to change, or not:
   converter and reaches a fatal `NOTREACHED()`, which crashes the renderer (§3 there; not reproduced: 141 is not in
   the container). If so it is not a hang, a worker cannot contain it, and the harness should record a page crash
   as that cell's outcome and run it last.
+
+## The round
+
+The phone round of `claude/phone-protocol:docs/phone-rows/next-round.md` (§3 and §10 items 1–5), grown from this
+kit and the 11-11 runner (`claude/phone-rows` `1354e67f`, `lab/phone/`): the owner unlocks the phone, opens the
+laptop's page and presses **Start** once.
+
+```text
+round.py (laptop) ── GET / ─▶ Start ─▶ GET /next ─302─▶ viewer ?round=…&at=k ── its fill, then cell 3's sequence
+     ▲  adb between loads, servers per block, the gap                         │ records to the dev server's --beacon
+     └──────────────────────────── GET /next?after=k ◀────────────────────────┘
+```
+
+* **`round.py PLAN OUT --host http://<laptop>:8780`** refuses to start unless the served tree's `HEAD`, and each
+  server's image `org.opencontainers.image.revision` where the plan names an `image`, are the plan's `commit`. Before
+  the press it starts one `adb` server, reads `stay_on_while_plugged_in`, sets it to 7, reads it back, and reads
+  `logcat` once; after the round (or on SIGTERM) it puts the setting back and stops the servers. Between loads, never
+  during one: each Chrome process's `/proc/<pid>/stat` before and after, `logcat` after (then cleared), kept under
+  `OUT/adb/`. A block's servers start when its first load is next, each ready by `ready` (a URL that answers) or
+  `readyLine` (a line it prints); a block with `rebootAfter` ends with `adb reboot`. A block whose servers do not
+  start (not answering, or not printing its line, within `readyS`, 60 s by default; or exited) is recorded `host failed`, each of its loads `load failed` with
+  why, and the round goes on to the next block. A page that asks `/next` again for the same load gets the same
+  answer, nothing read, waited or rebooted twice. Every step is a line of `OUT/round.jsonl`.
+* **Resources** (on by default; `--no-resources` off): one `adb shell` read before the press and after each load's
+  reads, a line of `OUT/resources.jsonl` labelled `start` or `after-k`: `MemTotal`, `MemFree`, `MemAvailable`,
+  `Cached` and swap used in MiB, `/proc/pressure/memory`, `pswpin`, `pswpout`, `pgmajfault`, the thermal status and
+  the SKIN, AP and BAT temperatures, each Chrome process's `VmRSS` and `VmSwap`, and the top 8 processes by RSS
+  (about 0.46 s of the gap on the 2026-11-22 phone).
+* **`--fresh-chrome --beacon FILE`** (the dev servers' `--beacon` file, one per round): a fresh Chrome before every
+  load after the first. After load k's reads, once a `verdict` record of `step` k is in FILE and FILE has not grown
+  for 2 s, all within 8 s of the load's end, Chrome is sent to `about:blank`, force-stopped and opened on
+  `HOST/next?after=k`, which gets the answer already made; each VIEW intent carries
+  `com.android.browser.application_id`, so Chrome keeps one tab. A `relaunch` line records the verdict's and the
+  quiet's delays and the new pid; with no verdict, or a FILE still growing, no relaunch, a `relaunch skipped` line
+  with why. The relaunch counts in the gap: the gap's sleep is what is left of `gapS` after it.
+* **`devtools.mjs TREE [--port 9222] [--wait-s 600]`**, started before the press with the phone's DevTools forwarded
+  (`adb forward tcp:9222 localabstract:chrome_devtools_remote`): clears Chrome's HTTP cache (every site's, as
+  `Network.clearBrowserCache` does), closes the round's own tabs (any on `http://127.0.0.1:`; a restored tab at
+  `/next?after=k` would end a load of the new round), then waits for the first round page (a URL with `round=` and
+  `at=`) and checks each same-origin script and WASM it fetched, as the HTTP cache holds it, against `TREE` by
+  SHA-256. One JSON line per step; exit 0 when every script matches, 1 naming those that differ, 2 with no round
+  page. It reads only tabs on `http://127.0.0.1`; no other tab is printed or recorded. Its limits: a module worker's
+  scripts are not in the page's resource list, and a script the cache did not keep is fetched again, so it reads as
+  served.
+* **Node in a container**, where the laptop has none on its PATH: the worktree mounted at its own path (the plan
+  holds absolute paths, `round_plan.mjs` runs `git`) and the data folder too, since `demo-series` is a symlink out
+  of the worktree; the host's network for `devtools.mjs`. A form of it, not the exact line of 2026-11-22, which was
+  not recorded:
+
+  ```bash
+  NODE() { podman run --rm -i --network host --security-opt label=disable -v "$PWD:$PWD" -v "$DATA:$DATA" -w "$PWD" \
+             docker.io/library/node:22 node "$@"; }
+  ```
+* **The stopping rule** (next-round.md §3): `budgetsS` maps a cell to its budget in seconds of its counted loads'
+  own time, each load timed from `load opened` to its page's `/next?after=k`; once a cell's sum passes its budget,
+  each of its loads not yet started is recorded `not started` (`why: budget`). A started load always runs to its
+  end; the gap, waits for a server and a failed block count toward nothing.
+* **The plan** is JSON: `commit`, `gapS`, `fillS`, `afterS?`, `budgetsS?`, and `blocks`, each `{ name, servers: [{
+  cmd, ready | readyLine, readyS?, image? }], loads: [{ url, cell, arm, counted?, press?, seq?, steps?, cineS?,
+  fault?, decoders?, bench?, exactFill? }], rebootAfter? }`; `url` is the
+  viewer with its `view` and `beacon=<controller>`. `roundOrder()` (`round.mjs`) gives next-round.md's order: cell
+  1's three repetitions, each a Williams row of its eight arms (HTJ2K and the view × 1–4 decoders, 50 frames), four
+  warm-ups, cell 2's 16 Williams rounds over A, B, C1, C2 with the series alternating (C1 with `press: "lossless"`, C2 with `exactFill`), cell 3's
+  24 ABBA pairs, and last cell 1's 1- and 3-decoder arms again (`drift`); the phone session maps each to its URL and
+  servers.
+* **Each load** (`round-page.js`, loaded only through the viewer's lab gate): the screen wake lock asked at load,
+  on each return to visible and after each release, every acquire, release and refusal recorded; a ticker every
+  250 ms, whose largest gap over 2 s makes the load **VOID: stopped** (the load's own work included: stricter than
+  §3's bar, which counts gaps outside it); the fill's record (`beacon.js`), and the load's last batch POSTed and
+  awaited before it leaves (5 s); its `drain` record names the path and counts the batch (`records`). A failed post
+  falls back to `sendBeacon`: the `drain` record first, then the batch in beacons of at most 16 KiB, newest first
+  (the verdict with them), until one is refused, since Chrome refuses a keepalive body once 64 KiB would be in flight (the Fetch standard's "greater than
+  64 kibibytes"; Chromium's `kKeepaliveInflightBytesQuota = 64 * 1024`, `resource_fetcher.h`); a read counts what
+  arrived against `records`. A post that timed out after the server took it arrives twice: the beacon's copies are
+  the post's records field for field, so a read keeps one record of each (load, kind, at); with
+  `press=lossless` one exact frame and back; with `seq=view` cell 3's sequence: `steps` frame changes (20) as
+  dispatched key presses due at a random 0–250 ms phase, timed from when each was due to its frame's paint, then
+  `cineS` (10) of cine painted against due, then one exact frame, each first idle and then with the busy lever (100
+  ms of work every 250 ms on the viewer's own thread). A failed load is recorded with why, and the next is taken:
+  whatever follows the fill that throws, or has not ended `afterS` (300) after it, fails the load. `fault=throw|hang`
+  injects either after the fill, for the headless test; `seq=view` refuses a series under `2 × steps + 1` frames.
+* **The round's levers** (`bench.js`; each refused outside a round but `decoders`, each refused where `lab/` is not
+  served): `decoders=N` (1–8) sets the fill's decoder count, recorded on every record of the load with
+  `navigator.hardwareConcurrency` (`cores`), absent the downloader's default; `exactFill=1` is arm C2: once the
+  view has filled, a second downloader fills the whole exact series (OpenJPH, the load's decoder count), every frame
+  checked by its XXH3, its `exactFill` record each frame's arrival, check, route, KB and decode ms and the span
+  from its issue to its last frame; `bench=<frames>` (with `decoders`) is cell 1: before the viewer dials, which it
+  then never does, the series' first frames are received whole with no decoder (`decode: false`) and held, then
+  handed by whole groups, two outstanding each, to N workers of the product's `client/decode/decoder.js`, each frame
+  timed there as the product times it (`decodeEnd − decodeStart`, the digest check included), its `bench` record the
+  frames (each with its `start` and `end`), `t0` (the first hand-over), `spanMs` from the first hand-over to the last frame and `effectiveMs` (the span ÷ frames). As the product,
+  a frame without a digest is `unchecked` (today's view: no reconstruction digests on this branch) and a mismatch
+  fails the load. The beacon's frames carry `decodedAt`.
+* **Not built here** (a product seam, or another row): `getStats()` at the fill's end and the configure's `hardwareAcceleration` (both inside workers the page cannot
+  read); the commit as the page reads it (no such file in the served tree); cell 5's arms; the report cells' ending
+  levers. `claude/phone-rows:lab/phone/` (the runner, its start page, its beacon) is superseded by this; its `rows.py`, `losses.py`
+  and `read-path.sh` read the 11-11 run and stay on `claude/phone-rows`.
+
+**The plan** of the evening is `round_plan.mjs DIR RUN --dial LAPTOP_IP [--quick]` (DIR as `scripts/demo-series.sh`
+wrote it): cells 1–3, 144 loads, the views `dbts_b1-q8-g8` and `dbts_a1-q8-g8-cut` on UDP 4433 and 4435, their exact
+series on 4434 and 4436, each pair's page on 8765–8766 and each exact series' alone on 8767–8768 (arm B, cell 1's
+HTJ2K), all on loopback for `adb reverse`; `--quick` is one repetition of cell 1, two rounds of cell 2, two pairs of
+cell 3 (28 loads). `--rounds N`, `--pairs N` and `--bench-reps N` set cell 2's rounds, cell 3's pairs and cell 1's
+repetitions (over `--quick`'s too; `round.test.mjs` checks they reach `roundOrder()`). `round_headless.sh --plan` runs the quick plan whole in headless Chromium on the synthetic pair.
+
+**Tested** in the container: `round.test.mjs`, `beacon.test.mjs` and `round_test.py` (a fake `adb` on PATH; `raw_rows.py`) in the
+gate, and `round_headless.sh`: headless Chromium against the real viewer, `series-server` and dev servers, on a
+synthetic 10-bit pair (64 × 48, 20 frames), nineteen loads — a run-commit mismatch stops before load 1, one press runs
+the plan, a load made to fail is recorded and the next taken, a throw and a hang after the fill each fail their load
+and the next is taken, a stall marks its load VOID, each wake lock outcome
+recorded (headless Chromium refuses it: `NotAllowedError`), cell 3's steps, cine and exact frames in both views, the
+busy lever on the viewer's thread, `adb` only between loads; and four loads of the round's levers: the bench on each
+codec on 2 decoders, the viewer never filling; C2's exact fill after the view's, every frame exact; a fill on
+`decoders=1`, no two of its frames decoding at once; the bench's frame times its decoder's own start to end, one
+frame at a time on each decoder, its span from `t0`; and against the exact series' metadata with one digest changed,
+a bench load and a C2 load each failing by name; every load's last batch posted, none left to the beacon; cell 3
+with the round's 10 s cine (9 steps, the most 20 frames allow), its end batch over 64 KiB arriving whole. Not
+tested: a phone, `adb` itself, `podman` images, Wi-Fi, a page hidden or a screen turned off. `round_test.py` also
+holds the resource snapshot (parsed from a canned read, at the start and after each load, none with
+`--no-resources`) and `--fresh-chrome` (relaunched after a load with its verdict, skipped after one without, none
+after the last, refused without `--beacon`); `devtools.test.mjs` runs `devtools.mjs` against headless Chromium's
+DevTools port (the round's tab closed and another kept unprinted, a differing script named, the cache cleared so a
+script changed since it was cached runs as served). Each check failed once with its code broken. Not tested on a
+phone: the real `dumpsys` and `/proc` formats, Chrome's VIEW intent, DevTools over `adb forward`.

@@ -1,0 +1,3 @@
+CR/dbts_a1 {"n": 9, "arm": 0.9983, "aa": 0.9983, "sd": 0.0026, "mdl": 0.0049, "verdict": "tie"}
+CR/dbts_b1 {"n": 7, "arm": 0.9967, "aa": 0.9967, "sd": 0.0101, "mdl": 0.0227, "verdict": "tie"}
+CR/dbts_c1 {"n": 9, "arm": 0.9988, "aa": 0.9988, "sd": 0.0039, "mdl": 0.0078, "verdict": "tie"}

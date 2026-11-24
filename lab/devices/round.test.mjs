@@ -1,0 +1,143 @@
+/** node lab/devices/round.test.mjs — the round's rules: a load's failure, the timer gap, the verdict. */
+import assert from "node:assert/strict";
+import { balanced } from "../order.mjs";
+import { ARMS, BENCH, SERIES, STOPPED_GAP_MS, TICK_MS, fillFailure, largestGap, roundOrder, verdict } from "./round.mjs";
+import { countsOf, roundLoads, roundPlan, shapeLoads } from "./round_plan.mjs";
+
+const tests = [];
+const test = (name, fn) => tests.push([name, fn]);
+
+/** A fill fails on its own error, on a frame short, or on the first error the page collected; whole and clean, it passes. */
+test("a fill's failure is its error, a frame short, or its first error", () => {
+  const frames = [{ i: 0 }, { i: 1 }];
+  assert.equal(fillFailure({ error: "connect: refused" }, 2), "connect: refused");
+  assert.equal(fillFailure({ frames: frames.slice(1) }, 2), "received 1 of 2");
+  assert.equal(fillFailure({ frames, errors: ["frame 1: digest"] }, 2), "frame 1: digest");
+  assert.equal(fillFailure({ frames, errors: [] }, 2), null);
+});
+
+/** The gap is the largest between consecutive ticks, not the span, so a steady ticker over a long load has none. */
+test("the gap is the largest between consecutive ticks", () => {
+  const steady = Array.from({ length: 400 }, (_, k) => k * TICK_MS);
+  assert.equal(largestGap(steady), TICK_MS);
+  assert.equal(largestGap([0, 250, 2900, 3150]), 2650);
+  assert.equal(largestGap([5]), 0);
+});
+
+/** A gap past 2 s makes the load VOID: stopped, even when it otherwise passed; a gap at the bar does not. */
+test("a gap past the bar is VOID: stopped, whatever else happened", () => {
+  assert.deepEqual(verdict(null, STOPPED_GAP_MS), { ok: true, gapMs: STOPPED_GAP_MS });
+  const v = verdict(null, STOPPED_GAP_MS + 1);
+  assert.equal(v.ok, false);
+  assert.equal(v.void, "stopped");
+  assert.equal(verdict("received 1 of 2", 3000).void, "stopped");
+});
+
+/** A failed load says why and is not VOID: it counts as the failure it is. */
+test("a failed load says why and is not void", () => {
+  assert.deepEqual(verdict("received 1 of 2", 300), { ok: false, why: "received 1 of 2", gapMs: 300 });
+});
+
+/**
+ * The round's order is next-round.md §4's: cell 1's three repetitions each a Williams row of its eight arms (two codecs
+ * × 1–4 decoders, 50 frames each), four warm-ups not counted, then cell 2's 16 rounds each a Williams row of the four
+ * arms, the series alternating by round (8 each, 64 loads, every arm before and after every other equally), C2 alone
+ * filling the exact series after the view; cell 3's 24 pairs in ABBA order (48 loads); last, cell 1's 1- and
+ * 3-decoder arms again, the drift check.
+ */
+test("the round's order is the protocol's", async () => {
+  const all = await roundOrder();
+  assert.equal(all.length, 24 + 4 + 64 + 48 + 4);
+  const cell1 = all.slice(0, 24);
+  const arms1 = [...new Set(cell1.map((l) => l.arm))];
+  assert.equal(arms1.length, 8);
+  for (let r = 0; r < 3; r += 1) assert.deepEqual(cell1.filter((l) => l.rep === r).map((l) => l.arm).sort(), [...arms1].sort());
+  assert.ok(cell1.every((l) => l.cell === "1" && l.counted && l.bench === 50 && BENCH.decoders.includes(l.decoders) && l.series === BENCH.series[l.arm.split("-")[0]]));
+  assert.notDeepEqual(cell1.slice(0, 8).map((l) => l.arm), cell1.slice(8, 16).map((l) => l.arm));
+  const drift = all.slice(-4);
+  assert.deepEqual(drift.map((l) => l.arm).sort(), ["htj2k-1", "htj2k-3", "view-1", "view-3"]);
+  assert.ok(drift.every((l) => l.drift && l.cell === "1" && l.bench === 50));
+  assert.ok(all.filter((l) => l.exactFill).every((l) => l.arm === "C2" && l.exactFill === 1));
+  assert.equal(all.filter((l) => l.exactFill).length, 16);
+  assert.ok(all.every((l) => (l.press === "lossless") === (l.arm === "C1")), "C1 presses Lossless, no other arm");
+  assert.ok(all.every((l) => (l.cell === "1") === ("bench" in l)));
+  const loads = all.slice(24, -4);
+  assert.ok(loads.slice(0, 4).every((l) => !l.counted));
+  const cell2 = loads.filter((l) => l.cell === "2" && l.counted);
+  assert.equal(cell2.length, 64);
+  for (let r = 0; r < 16; r += 1) {
+    const round = cell2.filter((l) => l.round === r);
+    assert.deepEqual([...round.map((l) => l.arm)].sort(), [...ARMS].sort());
+    assert.ok(round.every((l) => l.series === SERIES[r % 2]));
+  }
+  const rows = cell2.map((l, k) => ({ unit: l.arm, prev: k % 4 ? cell2[k - 1].arm : undefined }));
+  for (const arm of ARMS) assert.ok(balanced(rows, arm, ARMS), `${arm} balanced`);
+  const cell3 = loads.filter((l) => l.cell === "3");
+  assert.equal(cell3.length, 48);
+  assert.deepEqual(cell3.slice(0, 4).map((l) => l.view), ["page", "worker", "worker", "page"]);
+  assert.ok(cell3.every((l) => l.seq === "view"));
+});
+
+/** A plan with no address to dial is refused before anything is read: an unset LAPTOP_IP never reaches the phone. */
+test("the plan refuses a missing, empty or flag-shaped --dial", async () => {
+  for (const dial of [undefined, "", "--quick"]) {
+    await assert.rejects(roundPlan({ dir: "/nonexistent", run: "/nonexistent", dial, quick: true }), /--dial/, `dial ${JSON.stringify(dial)}`);
+  }
+});
+
+/**
+ * --rounds, --pairs and --bench-reps reach roundOrder() through the plan's loads: each cell's count follows its flag
+ * (over --quick's too), an absent flag keeps the protocol's 144 loads, and a missing or non-positive value is refused.
+ */
+test("the plan's count flags reach the round's order", async () => {
+  const cells = (loads) => ({
+    rounds: new Set(loads.filter((l) => l.cell === "2" && l.counted).map((l) => l.round)).size,
+    pairs: new Set(loads.filter((l) => l.cell === "3").map((l) => l.pair)).size,
+    benchReps: new Set(loads.filter((l) => l.cell === "1" && !l.drift).map((l) => l.rep)).size,
+  });
+  const short = await roundLoads({ counts: countsOf(["--dial", "x", "--rounds", "8", "--pairs", "16", "--bench-reps", "1"]) });
+  assert.deepEqual(cells(short), { rounds: 8, pairs: 16, benchReps: 1 });
+  assert.equal(short.length, 8 + 4 + 32 + 32 + 4);
+  assert.ok(short.every((l) => l.url.startsWith("http://127.0.0.1:")));
+  assert.deepEqual(cells(await roundLoads({ counts: countsOf(["--pairs", "5"]) })), { rounds: 16, pairs: 5, benchReps: 3 });
+  assert.deepEqual(cells(await roundLoads({ quick: true, counts: countsOf(["--rounds", "3"]) })), { rounds: 3, pairs: 2, benchReps: 1 });
+  assert.equal((await roundLoads({ counts: countsOf([]) })).length, 144);
+  for (const bad of [["--rounds"], ["--pairs", "0"], ["--bench-reps", "-1"], ["--rounds", "2.5"], ["--pairs", "--quick"]]) {
+    assert.throws(() => countsOf(bad), /positive integer/, bad.join(" "));
+  }
+});
+
+/**
+ * PHONE-ROUND-2's shape (docs/phone-rows/round-2.md): --cells keeps only the cells it names; cell 3's loads hold the
+ * whole series (budget = its frames) and its worker loads carry the start's four settings; cell M is eight loads on one
+ * renderer, each view at the default window and twice it, its first load alone relaunched; an unknown cell is refused.
+ */
+test("round 2's loads: the cells named, cell 3 whole with the start's fix, cell M on one renderer", async () => {
+  const meta = { frameCount: 64, width: 2048, height: 2048, bitsStored: 10 };
+  const loads = shapeLoads(await roundLoads(), ["3", "M"], () => meta, SERIES[0]);
+  const cell3 = loads.filter((l) => l.cell === "3");
+  assert.equal(cell3.length, 48);
+  assert.equal(loads.length, 48 + 8);
+  assert.ok(cell3.every((l) => l.budget === 64 && l.url.includes("&budget=64")));
+  const fix = (l) => decodeURIComponent(l.url.split("&opts=")[1] ?? "");
+  assert.ok(cell3.filter((l) => l.view === "worker").every((l) => JSON.parse(fix(l)).pageDials && JSON.parse(fix(l)).viewWorkerFirst && JSON.parse(fix(l)).glAfterDial && JSON.parse(fix(l)).shortRuns));
+  assert.ok(cell3.filter((l) => l.view === "page").every((l) => !l.url.includes("&opts=")));
+  const m = loads.filter((l) => l.cell === "M");
+  assert.deepEqual(m.map((l) => [l.view, l.budget]), [["worker", 32], ["worker", 64], ["page", 64], ["page", 32], ["worker", 32], ["worker", 64], ["page", 64], ["page", 32]]);
+  assert.deepEqual(m.map((l) => Boolean(l.sameRenderer)), [false, true, true, true, true, true, true, true]);
+  assert.ok(m.every((l) => l.url.includes(`&budget=${l.budget}`) && l.steps === Math.min(20, Math.floor((Math.min(64, l.budget) - 1) / 2))));
+  assert.equal(shapeLoads(await roundLoads(), undefined, () => meta, SERIES[0]).length, 144);
+  assert.throws(() => shapeLoads([], ["9"], () => meta, SERIES[0]), /names no cell/);
+});
+
+let failed = 0;
+for (const [name, fn] of tests) {
+  try {
+    await fn();
+  } catch (e) {
+    failed += 1;
+    console.log(`FAIL ${name}: ${e.message}`);
+  }
+}
+console.log(`round: ${tests.length - failed}/${tests.length} passed`);
+process.exit(failed ? 1 : 0);
