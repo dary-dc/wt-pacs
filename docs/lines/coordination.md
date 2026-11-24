@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review, its fix and re-review 2026-11-23; the order to decide in 2026-11-23; phase 2's queue (`claude/work-ledger:docs/queue-2026-11-24.md`, PHASE2-PLAN) 2026-11-24.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review, its fix and re-review 2026-11-23; the order to decide in 2026-11-23; phase 2's queue (`claude/work-ledger:docs/queue-2026-11-24.md`, PHASE2-PLAN) 2026-11-24, its review (three blockers, the fix loop opened) 2026-11-24.
 
 ## Goal
 
