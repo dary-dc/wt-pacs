@@ -20,7 +20,7 @@ Only the owner can send it.
 ## 2 · The recommendation, and the owner's yes or no
 
 **Send the note of §9, once, after US-DBT-CARRY-REVIEW leaves `us-dbt-carry` item 2 standing (or E is edited to
-match it), and after PCS-NOTE-FIX-REVIEW.** It serves the value statement's last line ("Its input is what the PCS
+match it), and after PCS-NOTE-FIX-REVIEW (done 2026-11-24, no blocker open; §Re-review r-m1 advised before sending).** It serves the value statement's last line ("Its input is what the PCS
 delivers; the PCS itself is out of scope"): the note asks what the input is and changes nothing at the PCS that the
 PCS has not offered.
 
@@ -91,7 +91,7 @@ U3 to the owner, which reopens *the exact HTJ2K frame* for lossy-sourced clips (
 ## 8 · Rows and links
 
 PCS-NOTE (this page), PCS-NOTE-REVIEW (§Review: one blocker, m1–m6), PCS-NOTE-FIX (B1, m1–m6 and the nits, in
-place, 2026-11-24), PCS-NOTE-FIX-REVIEW (owed; the yes waits on it). The drafts: `pacs-sync`
+place, 2026-11-24), PCS-NOTE-FIX-REVIEW (§Re-review, 2026-11-24: no blocker open, r-m1 and r-n1). The drafts: `pacs-sync`
 §9 (PACS-PAGE), `ingest-optimal-quality` §9 (INGEST-PAGE), `exact-frame-layout` §9 (EXACT-LAYOUT-PAGE),
 `claude/noise-ingest:docs/av1/noise-point.md` §Note to the PCS team (NOISE-INGEST-PROTOCOL, PR 413),
 `non-cine-series` item 3 (NON-CINE-PAGE), `us-dbt-carry` item 2 (US-DBT-CARRY). The refusals:
@@ -301,3 +301,51 @@ section, `docs/FIXTURES.md` (`uscine_crc*`); `83f73e2bc:docs/av1/noise-point.md`
   (Q-U6), A13 (Q-U7), D4 (`sf.jxl` only, and its setting). Left out with why in §3: the `.sbnd` "Agreed?" (A2 asks
   it), curl and a script (only if A2 answers a package), Q-U1 (= A4), Q-U2 (answered), Q-U5 (= A9).
 * **Nits, fixed.** A's parentheticals are plain clauses; E4's added clause is named as this row's in §3.
+
+## Re-review
+
+PCS-NOTE-FIX-REVIEW, 2026-11-24 17:07–17:10 UTC, by a session that wrote none of this page, its review or its fix
+(`by:` in `claude/work-ledger:docs/queue/PCS-NOTE-FIX-REVIEW.md`). Read: PCS-NOTE-FIX's commit `e9dbd582e` (`git
+show`: this page, `exact-frame-layout.md` §9, the index line in `README.md` and `docs/lines/coordination.md` only;
+every hunk under B1, m1–m6 or the nits); on `origin/claude/unified` `b059388b6`: `docs/ingest/contract.md` (line 6,
+§What the ingest reads, §What each name means), `docs/adr/pcs-transfer.md` §15.3, `docs/adr/metadata-updates.md`
+§13.6 and its "Q-U1 restated" line, `docs/ingest/pacs-receive-design.md` §15, `docs/decode/README.md`'s single-frame
+section, `docs/FIXTURES.md` (`uscine_crc*`); `83f73e2bc:docs/av1/noise-point.md` §Note and the two reference paths
+(`git cat-file -e`: both exist); `pacs-sync` §2 items 4–7 and §9; `ingest-optimal-quality` §9; `us-dbt-carry` §2
+item 7 and its fixtures line. Nothing run but `git` and `scripts/check_links.py` (17 unresolved, none in this page;
+the one in `exact-frame-layout.md`, line 127, predates the fix); docs only, the gate not run.
+
+* **B1: closed.** Part B's heading and lead say the PCS's code writes raw frames, coded in HTJ2K by our ingest "on
+  your side" (`contract.md` line 6: the "ingest run on the **PCS's side**"; its table: "frames are coded by the Rust
+  ingest"), and that `<S>/c/` and `mf.mxf` are planned ("a later layout that the code does not write yet"). B1–B4 ask
+  of that planned HTJ2K and of any HTJ2K object received from a modality; B5 of the planned encoder, "or whether our
+  ingest should code them". §3's B row says what was reworded and why, with the sources; `pcs-transfer.md` §15.3's
+  "the PDF's containers, replaced by the bundle" is quoted as written. `exact-frame-layout` §9 carries the same lead,
+  dated, with its reason. A5 and B no longer contradict each other. The fix's correction of the review ("our
+  sender's" → the ingest's) follows `contract.md` and stands.
+* **m1: closed.** `pacs-sync` item 6 is "Layout A … (D14)"; §3 now maps A6 there.
+* **m2: closed.** §3 and §7 both send B5 to `exact-frame-layout` item 2's build cost.
+* **m3: closed.** "by Sobel gradient", the reference pointer ("both on request") and the G note's cost clause are in
+  C, each verbatim against `noise-point.md` §Note and `ingest-optimal-quality` §9 (the Rust cost drops "on one cloud
+  core", which is ours to know, not theirs).
+* **m4: closed.** §2's no column names *breast* clips in the PCS's layout and `uscine_crc1`…`3` as grey liver clips
+  in no result, as `FIXTURES.md` ("sound") and `us-dbt-carry` item 7 say.
+* **m5: closed.** §2's lead and its row 1 make the yes wait on US-DBT-CARRY-REVIEW (item 2 standing, or E edited) and
+  on this re-review. US-DBT-CARRY-REVIEW has no status file at 17:09, so the yes still waits on it.
+* **m6: closed in part (r-m1, minor).** A10–A13 match Q-U3, Q-U4, Q-U6, Q-U7 (A13's "It decides how often A7 fires"
+  made a plain clause); D4 matches `decode/README.md`'s two "asked of the PCS team" lines; the left-out list checks
+  (Q-U1 is A4 by `metadata-updates.md`'s own "Q-U1 restated"; Q-U2 "answered: fixed upstream at `e105214`"; Q-U5's
+  A08/A40 is A9). Two of `pacs-receive-design.md` §15's questions are still neither carried nor listed: its layout
+  line's "How does one `[instance]/d/` hold 'one file for each SOP instance'?" (A6 keeps only the digits), and its
+  parser line's "exit codes 12 and 0, unbounded attribute tables, the failing builds" (A8 keeps group 0002; §15
+  records the other two fixes as upstream, not these). Fix, before sending, one line each: carried into A6 and A8, or
+  listed in §3's *Left out* with why. Not a blocker: neither moves an item §3 names, and `pacs-sync` §9 left both out
+  before this page.
+* **Nits: closed.** A's parentheticals are plain clauses (A1–A6, A9, A13); E4's added clause is named in §3.
+* **r-n1 (nit).** `exact-frame-layout`'s index line in `README.md` does not mention its dated §9 correction (the
+  phase 2 file's briefs: "A page edit is in place, dated, and updates the page's index line"); one clause would.
+
+**Verdict.** No blocker open; the fix loop is closed after one round. The page's yes ("send it") now waits only on
+US-DBT-CARRY-REVIEW (item 2 standing, or E edited), with r-m1's two lines advised before it is sent; BRIEF-WEEKEND's
+line for it says so. Fixtures and limits as §4 states (3 of 19 DBT volumes timed; lossy-sourced `usb_cine`; the
+archive counts on 1 000 headers); the PCS's code not read here, its facts are our documents'.
