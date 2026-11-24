@@ -1,8 +1,8 @@
 state: started
 started: 2026-11-24T05:18Z
-heartbeat: 2026-11-24T05:18Z
+heartbeat: 2026-11-24T05:22Z
 outputs: PR 438 body §Re-review (pending)
 ## Resume
-Claimed. Reviewing claude/failed-frame-withheld 17ea1f69b..41dfb1cc6 against PR 438 body §FAILED-FRAME-WITHHELD-REVIEW (B1, m1, m2). Next: read PR 438 body, revert-and-see each fix, gate.
+Done (nothing pushed but this file): each fix test fails on 45f2c98c0^'s code (downloader, consumer x2, controller x2); my mutants R2-R5 killed, R1 (page view's stepped-away guard) and R6 (resume()'s `wanted` loop without lost) survive; a scratch run shows a command's re-dial failure (live(): ask, want) posts failed with lost:false, so its frames are withheld at once. Next: gate.sh --quick at 41dfb1cc6 (running), then PR 438 body §Re-review (blocker R-B1), append FAILED-FRAME-WITHHELD-FIX-2 and -FIX-2-REVIEW to docs/queue-2026-11-24.md. Commands: git checkout --detach 41dfb1cc6; scripts/gate.sh --quick.
 ## Result
 (pending)
