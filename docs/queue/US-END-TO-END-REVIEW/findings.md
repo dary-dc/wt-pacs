@@ -47,3 +47,30 @@ sync row merges second takes the entry to the new path.
 a sync row merges this PR only after the re-review with no blocker open. Fixtures and limits: usb_cine and
 usb_cine_rgb lossy-sourced (a function check, no bytes or times), dbts_a1 sound; one cloud host, software decode,
 loopback, HTJ2K and the ts client only.
+
+## Fix
+
+US-END-TO-END-FIX, 2026-11-24 23:30–, by a session that wrote neither PR 445 nor its review (`by:` in
+`docs/queue/US-END-TO-END-FIX.md`). Commits on `claude/us-end-to-end`: `e1f6b817e`, `653ebb6d2`, `cf09b9d38`.
+
+* **B1: fixed (the first way).** `.github/workflows/gate.yml` (unified's): an `actions/cache` of
+  `lab/av1/data/{usb_cine,usb_cine_rgb,dbts_a1,dicom}` keyed on `hashFiles('lab/av1/data.json')`, and on a miss
+  `OUT=lab/av1/data lab/av1/fetch_data.sh usb_cine usb_cine_rgb dbts_a1`, then the 1.5 GB zip removed, so the cache
+  holds about 0.5 GB (**measured** here: 17 + 49 + 219 + 218 MB). `ffmpeg` joins the apt line: the clips are decoded by
+  FFmpeg 6.1.1 (`docs/FIXTURES.md` §Provenance), which is Ubuntu 24.04's package (6.1.1-3ubuntu5 on this host, the
+  runner's image is the same release; not run on a runner). No allowed skip is added. PR 442's `gate.yml` changes the
+  triggers only, so whichever of 442 and 445 a sync row merges second takes both hunks. Not shown: a CI run (the
+  workflow's triggers on unified do not include PRs into `claude/unified` until PR 442 lands).
+* **m1: fixed.** `stack_fixture.py same` now reads the served `.sbnd`'s own metadata (the header of `docs/FIXTURES.md`
+  §SBND series bundle), and the step hands it the same `$out` it serves. The review's mutant (`usb_cine`'s bundle
+  copied over `usb_cine_rgb`'s after the ingest) now **fails** (**measured**: exit 1, "usb_cine_rgb.sbnd: 64 digests
+  against usb_cine_rgb's 64 pinned frames, frames [0, 1, 2, 3, 4] differ"). A mutant of `check.mjs`'s argument alone
+  is a different edit from the one served path; not guarded further.
+* **m2: fixed.** `docs/FIXTURES.md` §Stacks end to end: complete for an uncompressed 8-bit US object only, explicit LE,
+  planar 0; JPEG baseline and `YBR_FULL_422` refused (`dicom_series.py`, checked at l. 79 and 81), planar 1 not
+  exercised; the PCS's US objects are `pcs-note`'s question. The PR body says the same.
+* **Nit: argued, left to the sync row.** PR 443 is not yet merged into `claude/unified`; the entry stays in
+  `coordination.md` and whichever of 443 and 445 merges second moves it to `release.md`.
+
+Run (**measured**, 4-core cloud host, no GPU, headless Chromium/SwiftShader, loopback, HTJ2K, ts client): the step
+alone, exit 0, usb_cine 64/64, usb_cine_rgb 64/64, dbts_a1 56/56 exact in page and worker.
