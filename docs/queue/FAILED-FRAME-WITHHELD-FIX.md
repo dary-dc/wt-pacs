@@ -1,7 +1,7 @@
 state: started
 started: 2026-11-23T11:17Z
-heartbeat: 2026-11-24T04:22Z
+heartbeat: 2026-11-24T04:24Z
 outputs: claude/failed-frame-withheld (PR 438)
 ## Resume
-2026-11-24T04:22Z: on claude/failed-frame-withheld the first claim's failing tests 17ea1f69b are pushed; corrected (not yet pushed) and the fix written locally: downloader fail(..., lost) from resume(), consumer carries lost to onError and the rejection, Controller.refused(i, reason, lost) asks a lost frame once more (worker view: FrameStore.lost(i) then want; page view: the current frame asked again), withholds it the second time. Next: mutants, commit + push, PR body (B1 sentence, m1 untested paths, m2), README/store comment, gate.
+2026-11-24T04:24Z: pushed on claude/failed-frame-withheld: 4de895f61 (tests corrected, failing), 45f2c98c0 (fix: lost carried downloader -> consumer -> Controller.refused, asked once more then withheld; README m2), 41dfb1cc6 (line doc, store comment). Mutants M1-M8 all killed (M4 by a hang). Next: scripts/gate.sh --quick in /tmp/claude-0/ffw (log in the session scratch), then PR 438 body: B1 sentence corrected in place, a §FAILED-FRAME-WITHHELD-FIX section, m1 named untested; status done.
 ## Result
