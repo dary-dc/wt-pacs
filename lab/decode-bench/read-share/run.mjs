@@ -1,12 +1,8 @@
 /**
- * DECODE-OVERLAP's first step: of a frame's time on one WebCodecs decoder, the share after the frame is out (read
- * back, packed, checked). Rounds alternate the throttles' order; each round a fresh page. Rows as JSON lines.
- * docs/decode/README.md §The read-back's share
+ * Of a frame's time on one WebCodecs decoder, the share after its frame is out; `overlap`, each frame's samples
+ * against the serial variant's. Rounds alternate the cells' order. docs/decode/README.md §The read-back's share
  *
  *   node lab/decode-bench/read-share/run.mjs SERIES.sbnd G [--throttles 1,4] [--variants serial,overlap] [--rounds 4] [--out FILE]
- *
- * `overlap` starts a frame when the codec says the one before it is out: a function check that each frame's samples
- * are the serial variant's, and the bench's span, not the view's fill.
  */
 import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";

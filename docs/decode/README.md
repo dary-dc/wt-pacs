@@ -2172,6 +2172,40 @@ only at G = 1; and it regressed `dbts_b1` at 4× in Chromium 156. It rests on `d
 fluoroscopy and ultrasound units only. Restore from tag `archive/av1-keyparse`; its record is
 `git show archive/av1-keyparse:lab/av1/decode/key-parse/README.md`.
 
+### The read-back's share
+
+Queue row DECODE-OVERLAP (2026-11-24; `claude/work-ledger:docs/queue/IMPROVE-1/candidates.md` §4 item 2), headless
+Chromium as Playwright ships it, on the 4-core cloud host, `dbts_b1-q8-g8` (50 frames, 2560 × 3328, 10-bit grey, G = 8;
+coded here by `scripts/demo-series.sh`'s steps for that one set), one stream, no split
+([`lab/decode-bench/read-share`](../../lab/decode-bench/read-share/run.mjs), rows beside it). Each frame through
+`av1.js` on WebCodecs, stamped at the unit's `decode()`, its `VideoDecoder` output callback, `decodeFrame`'s return
+and the XXH3 after it; frame 0 and each group's last (its flush) left out. A view series carries no digests, so a view
+frame takes no hash (`decoder.js`'s `checked`); the share is of `decode()` to return.
+
+**Measured, 4 rounds, interleaved:** of a frame's time on one decoder, the share after its frame is out (the
+`copyTo`, the chroma check and the pack) is **39.1–45.6 %** at 1× (a frame 124–147 ms: 76–85 ms to the output, 47–58 ms
+after it) and **74.3–76.3 %** at 4×. The 4× cells throttle the page's thread only: the output arrives at 80–84 ms at
+both rates, so the browser's decode threads run at the host's speed and 4× overstates the share a slow CPU would show.
+IMPROVE-1 put it at 18–32 % (*theory*); it is larger, so the build went ahead (the row's bar was 10 %).
+
+**Built** (`client/decode/av1-webcodecs.js`): inside a group the next unit is sent once the frame before it is out
+and the one before that is read — one frame read back while one decodes; a keyframe waits for the unit before it to
+be read, so nothing crosses a group; the flush, the 2 s stall guard and a failed unit's name are as before, and a
+unit whose read fails after the next was sent fails every later unit of its group with `continues()`' own name.
+`decoder.js` starts its next frame when the codec says (`out()`), else when the frame ends. The read waits one task
+after `out()`: without it the next unit's send was queued behind the read and left at the read's end (+39 ms after
+its start, against +0.2 ms with it, the bench's send stamps).
+
+**Function check, not the view's fill** (the same bench, 4 rounds, serial and overlapped interleaved): every frame's
+samples the same in both (XXH3 of each). The bench's span over the 50 frames, median of 4: **6733 ms serial, 6968
+overlapped at 1× (+3.5 %)**; 17822 and 13983 ms at 4× (−21.5 %). At 1× a frame's decode, sent to output, grew from
+76–85 ms to 131–144 ms and its read from 47–52 to 118–129 ms while they ran together, and the host's busy cores rose
+from 1.14 to 1.98 of 4 (one run each, `/proc/stat` at 0.5 s): the overlap spends a core and gains nothing here. What
+binds is not known (*theory*: memory bandwidth, the read-back's three passes over 17 MB beside the decoder's; or the
+copy and the decode sharing one browser thread). The 4× gain is the throttle's: it idles the thread rather than
+using a core, so the overlap fills time no phone would have free (*derived*). The prediction was −14 to −27 % on a
+fill the decode binds. Whether a phone with free cores gains is DECODE-OVERLAP-MEASURE's and the phone's.
+
 ### A split payload through two decoders
 
 Behind decoder config `mixed` (queue row MIXDEC, [`lab/av1/decode/mixed`](../../lab/av1/decode/mixed/README.md)), a split payload

@@ -51,7 +51,6 @@ function route(payload, top, avoid) {
   return refusedDeep ? { refusal: refusedDeep } : webcodecs([]);
 }
 
-/** `out()`: the next unit of this one's group may be decoded while this one is read back. */
 export async function decodeFrame(bytes, unit = { key: true }, preview, avoid, out) {
   if (avoid && !unit.key) throw new Error("a frame inside a group decodes on its group's decoder alone");
   const payload = parsePayload(bytes);
