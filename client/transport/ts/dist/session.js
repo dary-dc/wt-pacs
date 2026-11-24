@@ -268,8 +268,7 @@ async function readInto(reader, view, min, onRead) {
     let read;
     try {
       read = await reader.read(new Uint8Array(buffer, byteOffset + filled, rest), { min: Math.min(rest, min) });
-    } catch (e) {
-      throw e;
+    } catch {
       return { bytes: new Uint8Array(0), filled };
     }
     const { value, done } = read;
