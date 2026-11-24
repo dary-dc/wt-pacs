@@ -21,7 +21,9 @@ exact frame bit for bit, and only checked claims on screen.
   (EXACT-UNASKED-REVIEW, PR 440's body): blocker B1, *T*d misreads Beard 1994 (0.2 s is a display time, 0.54 s the
   per-step pace), and m1–m6. Fixed 2026-11-24 (EXACT-UNASKED-FIX): *T*d argued above the step pace (1.0 and 2.0 s
   sized, **theory**, no source), §3.2 recomputed (CR 2.4–3.1× over ACR's 3 s; LOSS at 2.0 s partly over), §3.4's
-  shares said to hold only above the step pace, m1–m6 and n1–n2 fixed; EXACT-UNASKED-FIX-REVIEW owed.
+  shares said to hold only above the step pace, m1–m6 and n1–n2 fixed. Re-reviewed 2026-11-24
+  (EXACT-UNASKED-FIX-REVIEW, PR 440's §Re-review): no blocker open, the loop closed; minor r-m1 (the owner's line to
+  carry *T*d > 0.54 s) and r-m2 (§6's neighbour decoded at the class's speed: CLEAN up to 0.78 s, not 0.68).
 * **The view's memory bound** (VIEW-MEMORY-BOUND, 2026-11-23, `claude/view-memory-bound`, a draft into
   `claude/unified`): the view holds 256 MiB of decoded frames a tab by default, in the series' frames, farthest first
   ([`../client/evidence/what-a-view-asks-for.md`](../client/evidence/what-a-view-asks-for.md) *M, the budget*); the
