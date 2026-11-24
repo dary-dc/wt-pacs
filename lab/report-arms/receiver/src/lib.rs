@@ -194,8 +194,8 @@ impl Receiver {
             self.counters.outside += checked.outside.len() as u64;
             eprintln!("WARN report fields outside the list dropped: {}", checked.outside.join(", "));
         }
-        let t = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
-        let day = utc_date(t / 1000);
+        let t = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0.0, |d| arrival_ms(d));
+        let day = utc_date(t as u64 / 1000);
         if day != self.day {
             self.day = day.clone();
             self.day_bytes = 0;
@@ -235,6 +235,11 @@ impl Receiver {
         }
         Ok(())
     }
+}
+
+/// A unit: epoch milliseconds with a microsecond fraction, the page's `performance.timeOrigin + now()` scale.
+fn arrival_ms(since_epoch: std::time::Duration) -> f64 {
+    since_epoch.as_micros() as f64 / 1000.0
 }
 
 /// `YYYY-MM-DD` of a Unix time in seconds, UTC (the proleptic Gregorian civil date).
@@ -284,11 +289,25 @@ mod tests {
         let load = lines(&r, "load");
         assert_eq!(load.len(), 1);
         assert_eq!(load[0]["r"]["reportId"], "a");
-        assert!(load[0]["t"].is_u64());
+        assert!(load[0]["t"].is_f64());
         assert_eq!(lines(&r, "safety").len(), 1);
         let c = r.counters.to_json();
         assert_eq!((c["appended"].as_u64(), c["acknowledged"].as_u64()), (Some(2), Some(2)));
         assert_eq!((c["byKind"]["load"].as_u64(), c["byKind"]["safety"].as_u64()), (Some(1), Some(1)));
+    }
+
+    /// Arrival is stamped to the microsecond: a whole-millisecond clock gave BEACON-H's ~1.2 ms floor a 1 ms step
+    /// and voided Lbusy's A/A (page-runs.md §2(b)).
+    #[test]
+    fn arrival_is_stamped_to_the_microsecond() {
+        let mut r = receiver("micros", u64::MAX, false);
+        for i in 0..20 {
+            assert_eq!(post(&mut r, "safety", &format!(r#"{{"kind":"safety","reportId":"m{i}","load":"L"}}"#)), 204);
+            std::thread::sleep(std::time::Duration::from_micros(137));
+        }
+        let fractions = lines(&r, "safety").iter().filter(|l| l["t"].as_f64().unwrap().fract() != 0.0).count();
+        assert!(fractions > 0, "every arrival a whole millisecond");
+        assert_eq!(arrival_ms(std::time::Duration::from_micros(1_700_000_000_123_456)), 1_700_000_000_123.456);
     }
 
     /// A body over 16 KiB, read or only announced, is a counted 413 and no line.

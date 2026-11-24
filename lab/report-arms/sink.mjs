@@ -11,6 +11,9 @@ const KINDS = ["load", "safety"];
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json",
                 ".wasm": "application/wasm", ".bin": "application/octet-stream" };
 
+/** Epoch ms with a microsecond fraction, the page's clock: a whole-ms stamp voided Lbusy's A/A (page-runs.md §2(b)). */
+export const arrivalMs = () => Math.round((performance.timeOrigin + performance.now()) * 1000) / 1000;
+
 export function counters() {
   return { received: 0, appended: 0, acknowledged: 0, duplicates: 0, byKind: { load: 0, safety: 0 },
            refused: { notObject: 0, tooLarge: 0, path: 0 } };
@@ -36,7 +39,7 @@ export async function startSink({ dir, port = 8790, statics = null, mutant = nul
       if (r.reportId != null) seen.has(r.reportId) ? c.duplicates++ : seen.add(r.reportId);
       c.byKind[kind]++;
       if (mutant === "ack-before-write") return c.acknowledged++, answer(res, 204);
-      appendFileSync(join(dir, `${kind}.jsonl`), JSON.stringify({ t: Date.now(), r }) + "\n");
+      appendFileSync(join(dir, `${kind}.jsonl`), JSON.stringify({ t: arrivalMs(), r }) + "\n");
       c.appended++;
       c.acknowledged++;
       answer(res, 204);

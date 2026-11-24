@@ -1,14 +1,21 @@
 // node lab/report-arms/sink.test.mjs — the sink appends one line per record before its 204, refuses what is not one
 // JSON object or is over 16 KiB, counts each outcome and each second copy of a reportId, and its ack-before-write
-// mutant leaves appended below acknowledged.
+// mutant leaves appended below acknowledged; arrival is stamped to the microsecond, not the millisecond.
 import { mkdtempSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { get } from "node:http";
-import { startSink } from "./sink.mjs";
+import { startSink, arrivalMs } from "./sink.mjs";
 
 let failed = 0;
 const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
+
+{
+  const stamps = [];
+  for (let i = 0; i < 20; i++) { stamps.push(arrivalMs()); const end = performance.now() + 0.137; while (performance.now() < end); }
+  check(stamps.some((t) => t % 1 !== 0) && Math.abs(stamps[0] - Date.now()) < 1000,
+    `arrivalMs: epoch ms with a µs fraction (${stamps.slice(0, 3)})`);
+}
 
 async function withSink(opts, body) {
   const dir = mkdtempSync(join(tmpdir(), "sink-"));
