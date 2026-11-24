@@ -188,6 +188,15 @@ else
   skip "DICOM to .sbnd needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi
 
+step "ingest to page: a breast ultrasound clip, its colour form and a DBT volume through the DICOM ingest, served, every frame exact in the page and the view worker (headless Chromium)"
+data="${DATA:-$ROOT/lab/av1/data}"
+if [[ $browser -eq 1 && -f "$INGEST_BUILD/payload/libdecode.so" && -d "$INGEST_BUILD/openjph" ]] \
+  && [[ -d "$data/usb_cine" && -d "$data/usb_cine_rgb" && -d "$data/dbts_a1" ]] && "$PYTHON" -c "import numpy, pydicom, xxhash" 2>/dev/null; then
+  run 1 env DATA="$data" PYTHON="$PYTHON" bash scripts/stacks_end_to_end.sh
+else
+  skip "the stacks end to end need the fetched usb_cine, usb_cine_rgb and dbts_a1 (OUT=\$DATA lab/av1/fetch_data.sh, docs/FIXTURES.md §Stacks end to end), ingest/tools.sh's build and the browser"
+fi
+
 step "ingest: optimal quality — its metadata and pairing, every frame from its keyframe, close and not exact, at G 1, 8 and 16; the product's value matrix and pair, known gaps named"
 if [[ -f "$INGEST_BUILD/payload/libdecode.so" && -x "$INGEST_BUILD/aom-3.15.1/bin/aomenc" ]] \
   && "$PYTHON" -c "import numpy, xxhash" 2>/dev/null; then
