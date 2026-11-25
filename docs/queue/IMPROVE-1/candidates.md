@@ -13,15 +13,20 @@ script beside this file over the product's own modules), **theory**, **hypothesi
 
 ## 1. What it shows
 
-1. **The memory window and the AV1 group do not fit each other, and a scroll pays for it eight times over**
-   (**model**, §2). `dbts_b1`'s window is 15 frames and its group is 8. The store holds and lets go single frames; the
-   downloader fetches and decodes whole groups. Scrolling the 50 frames forward once delivers 398 frames, not 50:
-   more bytes than the whole exact series. Every series larger than 256 MiB decoded is in this case. This is the
-   first candidate, and it is a defect of what is built, not a new design.
+1. **The memory window and the AV1 group do not fit each other, and a scroll pays for it** (§2). `dbts_b1`'s window
+   is 15 frames and its group is 8. The store holds and lets go single frames; the downloader fetches and decodes
+   whole groups. The **model** said a forward scroll over the 50 frames delivers 398 frames, more bytes than the whole
+   exact series. *Corrected 2026-11-25 (IMPROVE-1-FIX; §Review B1):* the product, **measured**, delivers fewer: 268
+   forward and 280 back on a stand-in wire, and 104–113 frames forward (49.4 MB) on CLEAN and 72–77 (33.7 MB) on LTE
+   in the browser; the build cut a pass's bytes ÷ 1.3 to ÷ 3.3, not ÷ 8. Every series larger than 256 MiB decoded is
+   in this case. This is the first candidate, and it is a defect of what is built, not a new design.
 2. **Three premises of the pages do not hold as stated** (§3, each **derived** from the round's rows):
-   * *"The view saturates at three decoders."* The fourth decoder got 8 frames and the first two 16 each, because 50
-     frames are 7 groups: the fill's span is the longest decoder's share, 16 frames with four decoders and 18 with
-     three. The cores were not the limit (Chrome used at most 3.3 of 8, the read's own number).
+   * *"The view saturates at three decoders"* holds only in part. The fourth decoder got 8 frames and the first two
+     16 each, because 50 frames are 7 groups: the fill's span is the longest decoder's share, 16 frames with four
+     decoders and 18 with three, so the group count bounds a fourth decoder's gain at −11 %. A frame's median also
+     rose from three decoders to four (108–117 → 111–130 ms; the read's 110.2 → 118.8), eating that gain. Both bind;
+     which binds past four is M12's to read. *(Corrected 2026-11-25, §Review m2: this said "the cores were not the
+     limit (at most 3.3 of 8)"; the read's 3.32 is a partial sum, a lower bound.)*
    * *"The exact frame's 216 ms is unexplained."* A decoder's first HTJ2K decode takes 42 ms longer than its median
      (20 to 66 ms, 30 decoder starts). Cell 3's "idle 201 ms, busy 120 ms" is the load's first exact request against
      its second, not idle against busy: the harness always asks idle first.
@@ -65,8 +70,12 @@ always cuts two groups. The unit that is held, wanted and let go has to be the g
 What it costs a reader (**derived**; the round's phone, `dbts_b1`, view frame 3.71 Mbit, a frame's decode on one
 decoder 110 to 176 ms **measured**):
 
-* *Bytes*: 398 × 0.464 MB = 185 MB for one forward pass, against 23 MB for the 50 frames once and 107 MB for the
-  whole exact series.
+* *Bytes*, the **model**'s: 398 × 0.464 MB = 185 MB for one forward pass, against 23 MB for the 50 frames once and
+  107 MB for the whole exact series. **Measured** since (corrected 2026-11-25, §Review B1): the tip's forward pass in
+  the browser is 104–113 frames, 49.4 MB, on CLEAN and 72–77, 33.7 MB, on LTE
+  (`docs/queue/WINDOW-WHOLE-GROUPS-MEASURE/findings.md` §Timed cells); after the build 34 frames, 15.8 MB, in every
+  cell but LTE 1× forward (÷ 1.3 to ÷ 3.3 over the cells). The model overstates because its stand-in delivers every miss whole, where "the real
+  downloader replaces a want's unsent asks" (ibid.).
 * *The step at the window's edge*: the wanted frame is at offset *k* of its group and waits for *k* + 1 frames on one
   decoder; over *k* = 0…7 the mean is 4.5 frames: 16.7 Mbit and 0.50 to 0.79 s of decode. At ≥ 568 Mbit/s that is
   0.5 to 0.8 s a step; at 27 Mbit/s 1.1 to 1.4 s. A held frame's step was **measured** at 10.5 to 11.4 ms.
@@ -76,7 +85,10 @@ decoder 110 to 176 ms **measured**):
 Limits: a model, not the product run. The real downloader's runs, its `ended` set and its same-want guard are not in
 the stand-in; the store, the want and the two quoted rules are the product's. The gate's fixtures are all under
 256 MiB decoded or key-frame only, so no gate step meets the case. WINDOW-WHOLE-GROUPS's first step is the failing
-product test; if it does not fail, this section is wrong and the row says so.
+product test; if it does not fail, this section is wrong and the row says so. *Found since (2026-11-25):* it failed,
+so the mechanism holds, but with the real downloader behind a stand-in transport the counts are 268 forward and 280
+back, not 398 and 234 (`docs/queue/WINDOW-WHOLE-GROUPS.md`), and in the browser fewer again (above; MEASURE-2 and
+MEASURE-3 in `findings.md`). The table is the model's, kept as such; the sizes a reader meets are the measured ones.
 
 ## 3. The round's rows, read per decoder (derived)
 
@@ -127,9 +139,9 @@ names the unanswered item a build would need; "none" means it may be built now (
 
 | # | candidate | kind | first picture | fill | jump | cost | page |
 | ---: | --- | --- | --- | --- | --- | --- | --- |
-| 1 | **Whole groups in the window** | defect, design | — | bytes of a scroll ÷ 8 (model) | a step at the window's edge 0.5–0.8 s → a held frame's 11 ms; 1–3 s on an entry phone | ~40–70 lines in `store.js`, `controller.js`; up to one frame over 256 MiB | none |
-| 2 | **The next unit decoded while the last is read back** | optimization | — | −14 to −27 % where the decode binds (above 54–88 Mbit/s here, 19–41 on an entry phone) | a group prefix −18 to −32 % | ~50 lines in `av1-webcodecs.js`, `decoder.js` | none |
-| 3 | **The dial waits for nothing it does not need** | design | −1 to −2 round trips: 0.05–0.2 s on LTE, 0.4–0.8 s at 400 ms | the same shift | — | ~15 lines in `viewer.js` | none |
+| 1 | **Whole groups in the window** | defect, design | — | bytes of a scroll ÷ 8 (model); ÷ 1.3 to ÷ 3.3 **measured** | a step at the window's edge 0.5–0.8 s → a held frame's 11 ms; 1–3 s on an entry phone (model); forward waits → 0 on three of four cells **measured** | ~40–70 lines in `store.js`, `controller.js`; one frame over 256 MiB (260 MiB on `dbts_b1`); on LTE 1× a backward pass still waits on four steps | none |
+| 2 | **The next unit decoded while the last is read back** | optimization | — | −14 to −27 % where the decode binds (above 54–88 Mbit/s here, 19–41 on an entry phone), free cores only; −10 to −19 % **measured** on a 4-core host | a group prefix −18 to −32 %; −21 to −26 % at offset 7, 4× **measured** | ~50 lines in `av1-webcodecs.js`, `decoder.js` | none |
+| 3 | **The dial waits for nothing it does not need** | design | −1 to −2 round trips: 0.05–0.2 s on LTE, 0.4–0.8 s at 400 ms; −2.0 to −2.3 **measured** | the same shift | — | ~15 lines in `viewer.js` | none |
 | 4 | **The exact decoder warm before the first press** | optimization | — | — | the first exact frame −35 to −80 ms (216 → 135–180) | a decode's CPU once a load; a stream to decode | none; a trade-off (CPU) |
 | 5 | **A jump deep in a group is served by the exact frame** | design | — | — | offset 7: 0.9–1.5 s → 0.07–0.12 s on the round's link, 2.0–2.5 → 0.7 s at 27 Mbit/s | a rule in the want; the label | `visually-lossless` 3, `phone-decode-route` 3–4 |
 | 6 | **The view's decoder count follows the groups** | optimization | — | 0 to −40 % in memory, unknown sign | — | one number; memory a decoder unknown | `phone-decode-route` 5 |
@@ -141,10 +153,14 @@ How each number is reached:
 
 **1 · Whole groups in the window.** §2. The window becomes a count of whole groups, at least two (the one in view and
 its neighbour on the side the reader is nearer or moving to), wanted and let go as groups; a key-frame-only series
-(G = 1) is unchanged. On `dbts_b1` two groups are 16 frames, 273 MiB, one frame over the 256 MiB default (the owner,
-amendment 28: the number "should be decided by you or the other session"). It builds none of `asking` item 1's rule:
-the order stays nearest first. *Serves the value statement:* "low latency on every jump" and "lowest … network cost
-per reading session".
+(G = 1) is unchanged. On `dbts_b1` two groups are 16 frames, 260 MiB (272.6 MB; this said "273 MiB", corrected
+2026-11-25), one frame over the 256 MiB default (the owner, amendment 28: the number "should be decided by you or the
+other session"). It builds none of `asking` item 1's rule: the order stays nearest first. *Measured since
+(2026-11-25, PR 446):* its first build made a backward step onto a group's last frame wait for that group (0.67–0.84 s
+a pass at 1×, 4.8–5.0 s at 4×, §Timed cells B1); after its second fix no step waits either way on CLEAN or LTE 4×,
+and on LTE 1× the backward pass still waits on its four group ends, 4.2–4.3 s against the tip's 9.6–10.4 s
+(§Timed cells again, o1, not diagnosed). A reader turning back early in a group is *derived* only. *Serves the value
+statement:* "low latency on every jump" and "lowest … network cost per reading session".
 
 **2 · The next unit decoded while the last is read back.** `client/decode/decoder.js`: "A decoder that answers later
 still takes its frames one at a time, in order." and `av1-webcodecs.js`'s `picture` sends a unit, waits for its
