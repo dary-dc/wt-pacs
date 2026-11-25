@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-25 (the whole groups' window by the direction of travel, WINDOW-WHOLE-GROUPS-FIX-2; timed, WINDOW-WHOLE-GROUPS-MEASURE-2; kept on a rock, WINDOW-WHOLE-GROUPS-FIX), 2026-11-24 (whole groups in the view's memory window), 2026-11-23 (the engines' path fix; the memory a navigation leaves; the view's default memory bound, its second fix and its re-review; stale client code), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-25 (the whole groups' window timed again, a non-regressor, WINDOW-WHOLE-GROUPS-MEASURE-3; re-reviewed, WINDOW-WHOLE-GROUPS-FIX-2-REVIEW; by the direction of travel, WINDOW-WHOLE-GROUPS-FIX-2; timed, WINDOW-WHOLE-GROUPS-MEASURE-2; kept on a rock, WINDOW-WHOLE-GROUPS-FIX), 2026-11-24 (whole groups in the view's memory window), 2026-11-23 (the engines' path fix; the memory a navigation leaves; the view's default memory bound, its second fix and its re-review; stale client code), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -26,8 +26,11 @@ exact frame bit for bit, and only checked claims on screen.
   for the group, 3 to 7 times the tip's on CLEAN, so not yet a non-regressor. Fixed 2026-11-25
   (WINDOW-WHOLE-GROUPS-FIX-2): once two steps agree, the neighbour the reader moves toward ranks a group nearer, so a
   backward pass wants the group behind 7 steps before its last frame, not 3 (`window.test.mjs`, W = 15, G = 8); a reader
-  turning back in a group's first three frames pays for it (*derived*); its time is WINDOW-WHOLE-GROUPS-MEASURE-3's. The
-  record: `claude/work-ledger:docs/queue/WINDOW-WHOLE-GROUPS-MEASURE/findings.md` §Timed cells and §FIX-2.
+  turning back in a group's first three frames pays for it (*derived*, not timed). Re-reviewed 2026-11-25, no blocker open.
+  Timed again 2026-11-25 (WINDOW-WHOLE-GROUPS-MEASURE-3, the same cells against `8459a0a7b`, *measured*): no step waits
+  either way on CLEAN at 1× and 4× or on LTE 4×; on LTE 1× the waited sums ÷ 10 forward and ÷ 2.4 backward of the tip's,
+  four backward waits left (not diagnosed); bytes ÷ 1.4 to ÷ 3.2: a non-regressor. The record:
+  `claude/work-ledger:docs/queue/WINDOW-WHOLE-GROUPS-MEASURE/findings.md` §Timed cells, §FIX-2, §Re-review 2 and §Timed cells again.
 * **The view's memory bound** (VIEW-MEMORY-BOUND, 2026-11-23, `claude/view-memory-bound`, a draft into
   `claude/unified`): the view holds 256 MiB of decoded frames a tab by default, in the series' frames, farthest first
   ([`../client/evidence/what-a-view-asks-for.md`](../client/evidence/what-a-view-asks-for.md) *M, the budget*); the
