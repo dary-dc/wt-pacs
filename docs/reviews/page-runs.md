@@ -337,6 +337,28 @@ error). A container restart cut the cell at round 14; rounds 0–13 were kept, r
 The page-thread carriers hand a report off after the long task (p99 ≈ the 50 ms task); the worker carriers do not.
 Read with D5a busy above: a kill inside that wait takes the report, so the race (b) asks for exists, and Lbusy gives its size.
 
+**C** (`r3-chromium-C.jsonl`, 28 rounds × 7 units, Williams-balanced, no error, no long task ≥ 50 ms in any arm).
+A second container restart cut it after round 26; it went on from round 27 (`fromRound: 27`). Fill time ÷ `off`'s in
+the same round, median of 28 (IQR), **measured**, against §2(a):
+
+| arm | median ratio (IQR) | paired with `off`: median Δ, rounds slower, sign test | predicted | |
+| --- | --- | --- | --- | --- |
+| **A/A** `off′` | **1.053** (0.997–1.130) | +5.3 ms, 21 of 28, p 0.013 | 0.98–1.02; VOID outside 0.95–1.05 | **VOID** |
+| BEACON-H, BEACON-Y | 1.018 (0.984–1.053), 1.028 (0.949–1.093) | | 0.96–1.06 | hit |
+| KEEPALIVE-H | 1.096 (1.026–1.195) | | 1.06–1.18 | hit |
+| KEEPALIVE-Y | 1.102 (1.038–1.179) | +9.8 ms, 25 of 28, p < 0.001 | 1.03–1.12 | hit |
+| **KEEPALIVE-Y°** | **1.038** (0.936–1.091) | +3.9 ms, 19 of 28, p 0.09 | **0.97–1.03** | miss, above |
+
+* **The cell is VOID by its A/A** (`off′` 5.3 ms slower than `off`, p 0.013, on a ~100 ms fill): two loads of the
+  same arm differ by about what (a) set out to attribute, so nothing in this cell is adopted. REPORT-RUN-2's C also
+  met its per-round bar for no arm, `off′` included; on this host C may not be measurable at this size.
+* **As read, not adopted:** KEEPALIVE-Y against KEEPALIVE-Y° is +7.3 ms, 19 of 28 rounds, p 0.09 (**derived**, sign
+  test): most of KEEPALIVE-Y's cost goes with the wrapped decoder, as the theory said, but KEEPALIVE-Y° sits above its
+  band and inside `off′`'s own spread. The carrier's metered page-thread time: KEEPALIVE-Y° 2.47 ms, KEEPALIVE-Y
+  1.50 ms, `off` 0.55 ms a load (medians, **measured**).
+* So (a)'s condition for KEEPALIVE-Y ("its C cost comes from its wrapped decoder") is **not shown**: leaning that way,
+  under a failed A/A. With (b)'s race shown, the page's rule is the verdict's to apply (PAGE-RUNS-VERDICT).
+
 ## 3 · Engines (`engines` items 3 and 4) → ENGINE-CELLS
 
 **Firefox builds.** No script installs a pinned Firefox: `scripts/wtcompat.py --fetch` takes only the latest release
