@@ -63,7 +63,8 @@ small enough that every open item has an owner and a next step.
   2026-11-23 (PROGRAM-CLOSE, the README's first six sections): the order to decide in, six contradictions between
   pages, nine premises no page tested, what each open answer needs, the held and late rows, phase 2's first rows.
   Carried to ultrasound clips and DBT stacks 2026-11-24 (US-DBT-CARRY, [`us-dbt-carry.md`](../decisions/us-dbt-carry.md)):
-  premise 2 retired for ultrasound, eight yes or no lines, its review owed.
+  premise 2 retired for ultrasound, eight yes or no lines. Reviewed 2026-11-25 (US-DBT-CARRY-REVIEW, its §Review):
+  sources and arithmetic hold; one blocker (the fine band's property misread from `preview-noise.md`), m1–m4; the fix loop opened.
   One note to the PCS team 2026-11-24 (PCS-NOTE, [`pcs-note.md`](../decisions/pcs-note.md)): five drafts folded, one
   yes ("send it"); reviewed 2026-11-24 (PCS-NOTE-REVIEW): every question traced, one blocker (part B says the PCS
   delivers HTJ2K; its code writes raw frames), PCS-NOTE-FIX queued; fixed 2026-11-24 (PCS-NOTE-FIX): B1 and m1–m6

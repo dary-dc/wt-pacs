@@ -217,3 +217,64 @@ Sources, fetched 2026-11-24, each quoted verbatim above or here:
 
 Not read, and said so where used: which phones' hardware decoders take the High profile; how a browser decodes a
 JPEG stream and whether two do so alike; any source on what a reader takes from speckle.
+
+## Review
+
+US-DBT-CARRY-REVIEW, 2026-11-25 12:30–13:20 UTC, by a session that wrote none of this page (`by:` in its status
+file, `claude/work-ledger:docs/queue/US-DBT-CARRY-REVIEW.md`). Read: this page at `96600fb17`; at
+`origin/claude/unified` `b7cc007f7`, `docs/FIXTURES.md` (§The ultrasound data search, the set tables),
+`lab/av1/profiles/results/lossless.jsonl`, `lab/av1/metrics/rows/curves.tsv` and README §Controls,
+`docs/av1/noise-point.md`, `docs/av1/preview-noise.md` §2.1, `docs/av1/groups.md`, `docs/transport/link-profiles.md`,
+`ingest/from-parser/src/main.rs`, `optimal.rs`; `phone-decode-route.md`, `frame-integrity.md` on this branch; the
+program's §Decided approaches. Nothing run but `git` reads, four fetches and arithmetic.
+
+**Sources.** S1–S4 fetched 2026-11-25: each sha256 equals §8's pin, and every quote of S1–S4 in §4.1, §4.2 and §8 is
+found verbatim in the fetched text (S1's elided "…" spans the JPEG 2000 and MPEG syntaxes, which the reading does not
+change). S5 is the repository's record, as §8 says. **Recomputed** (all hold): §3's bytes a frame (HTJ2K means of
+`lossless.jsonl`: 1 210 936, 2 148 152, 75 716, 78 094, 78 004, 184 711, 257 419); the ratios against bits stored
+(2.53, 4.96, 2.70, 2.62, 3.36, 4.26, 3.73); the view ÷ exact at Q 8, G 1 (`curves.tsv`: 0.074, 0.219, 0.338, 0.347,
+0.291, 0.177, 0.247); G 16's gain as 1 − *B*₁₆ ÷ *B*₁ (−0.2, +1.2, +23.0, +22.7, +72.2, +8.3 %); 15.6 and 44.3
+Mbit/s; 4.5 and 7.8; 2.9× against 4.6–13.5×; 5.0–18.0 MB and 67.8–107.4 MB; 3.3×; 17–67 MB; 2.5–3.2 frames a
+100 ms task. The header counts (917 + 56 + 3 + 18 + 6 = 1 000; `01` on 997; colour-typed 979; `MONOCHROME2` 21;
+sound 3) and the two ingest lines match their files. `✓ Lossless` is `frame-integrity` §3.1's state 3.
+
+**Blocker.**
+
+* **B1. The third deciding property misreads its source.** §2's lead decides a clip by three properties, the third
+  "that its fine band is texture, not noise"; §4.1 row 4 cites `preview-noise.md` for it, and §4.3's
+  `visually-lossless` row rests B–G's "do not hold, in kind" on "the fine band is the tissue's texture". The source
+  (§2.1, verbatim): "TRUS and `mr9_ispy2` sit at 1.46–1.71 from Q 32 up. Their σ is near one step of their depth
+  (σ₁₀ 6.6 on an 8-bit scale is 1.65 8-bit codes; `mr9_ispy2` 0.79 9-bit codes), so their fine band holds as much
+  structure as noise." It says *as much structure as noise*, not *texture, not noise*; it gives the cause as the
+  noise lying near one code step of the stored depth; and it finds the same ratio on a breast MR series (1.60), so
+  by the source the property is the depth's against the noise, not the modality's speckle. Measured on two prostate
+  sweeps only (the breast clips are lossy-sourced: 1.43–8.57, in no verdict). Fix: the lead, §4.1 row 4 and §4.3's
+  `visually-lossless` row state the property as the source does (noise near one code step of 8 bits, shared with
+  `mr9_ispy2`; measured on the sweeps), and B–G's verdict follows from that property, or is "not shown to hold" with
+  why; or argue the texture reading from another source.
+
+**Minor.**
+
+* **m1. "Its decode never binds" is stated flat in §2's lead**; §4.1 makes it **derived on theory** and "if the
+  scaling holds", and §4 lists the fixed cost it ignores. The lead should carry the label. In §4.1, "18.9 and 40.4 ms"
+  are both the exact HTJ2K frame's (effective, and one decoder: `phone-decode-route.md` lines 93 and 269), not the 42.1 ms view
+  beside them; say so, and that a colour clip's three samples scale it ×3 (still 1.7–3.7 ms, **derived**).
+* **m2. Two decided approaches are missing from §4.2**: "the six-octet reading is of record (11)" and "nothing
+  reaches `main` uncleaned, and `lab/` on `main` is the harness only". Both are likely modality-free; one line each.
+* **m3. "Bits Allocated … 8 for every US photometric"** (§4.2, *moot* rows): S1's Table C.8-20 gives `PALETTE COLOR`
+  "8 - 8 bit palette, or 16 - 16 bit palette". Name the exception (a palette index, not a sample depth, so the *moot*
+  verdicts likely stand).
+* **m4. "Most field clips" (§2 item 2's *a no leaves*; "usually already lossy" in the lead)** generalise one public
+  archive, 917 of the 1 000 from one liver collection and none breast, as §4's own limit says. "Most of the archive's
+  clips read" keeps the claim to what was read.
+
+**Nits.** §4.1 row 1 uses `dbts_a1`'s `12bit` form (0.074); the shipped view of a 12-bit volume is the depth cut,
+`top10` in `curves.tsv` (4 655 594 B, 0.069): the verdict stands either way. §4.3's link paragraph calls M-Lab's
+27–85 Mbit/s "one far LTE stream" after `link-profiles.md`'s row 177; its source row (76) says "one TCP stream, any
+access". DBT's "2.22–4.96" (§4.1 row 5) was not recomputed here.
+
+**Not affected by B1:** items 2–8 of §2, the door (§4.1), and `pcs-note`'s questions from item 2; so `pcs-note`'s
+yes, which waited on this review, waits on nothing here.
+
+**Verdict.** One blocker (B1), four minor. US-DBT-CARRY-FIX and US-DBT-CARRY-FIX-REVIEW appended to
+`claude/work-ledger:docs/queue-2026-11-24.md`; BRIEF-WEEKEND's `us-dbt-carry` line waits on the re-review.
