@@ -240,7 +240,7 @@ re-review. Fixtures and limits: the synthetic pair only (no DBT volume, no ultra
 
 ## Fix (PHONE-ROUND-2-PREP-FIX, 2026-11-25)
 
-By a session that wrote none of this file, its harness or its review (`by:` in its status file), 01:06–01:45 UTC.
+By a session that wrote none of this file, its harness or its review (`by:` in its status file), 01:06–01:40 UTC.
 
 * **B1: fixed.** §1's *What landed* names PR 446 (WINDOW-WHOLE-GROUPS) as not landed, open and unmerged at 01:30, with
   WINDOW-WHOLE-GROUPS-MEASURE and a sync row owed; §1 *PR 446 and cell M* says what the round does: re-merge
@@ -249,7 +249,7 @@ By a session that wrote none of this file, its harness or its review (`by:` in i
   labelled "before PR 446" and what they cannot answer said.
 * **m1: fixed** (`c1a88f1dc`, lab only): `round.mjs` `fillFailure` fails a fill that receives more than the window
   (`received N, past the window of W`), as it failed one short of it; the round page's `memory` record carries
-  `received`. A test first: `round.test.mjs` "a fill past the window fails" failed on `6b6d1dbe5`'s parent's
+  `received`. A test first: `round.test.mjs` "a fill past the window fails" failed on `5a4532dcf`'s
   `round.mjs` (8/9) and passes with the change (9/9). Mutant M4 (the page view's `budget: lab.budget` dropped in
   `client/viewer/viewer.js`), run through §Review's variant (cell M at budgets 6 and 12 of 20): **killed by the round's
   own verdicts**: "cell M: 4 of 8 loads ok; 6 page 12: received 20, past the window of 12; 7 page 6: received 20, past
