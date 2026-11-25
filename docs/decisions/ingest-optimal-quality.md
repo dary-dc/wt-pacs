@@ -86,18 +86,19 @@ and the exact series is served alone (**measured** by #390's RGB test, on synthe
 either (`usb_cine` exists, lossy-sourced), and the σ rule has no US calibration.
 
 **At which budget a quality check passes** (2026-11-25, PAGES-PASS; amendment 28, "budgets are ranges"). I2-RUN timed
-only the full set (`--integrity`: the reconstruction digest and the coding error), **measured** at +48 to +60 % of
+the full set (`--integrity`: the reconstruction digest and the coding error), **measured** at +48 to +60 % of
 the ingest's time (`claude/oq-integrity-build:lab/oq-integrity/rows/i2-cost/`: 704 ÷ 462, 740 ÷ 461 and 683 ÷ 462 s,
-rounds 0–2: +52.4, +60.5 and +47.8 %, **derived**); the checks alone 0.09–0.20 CPU s a megapixel. Per volume
+rounds 0–2: +52.4, +60.5 and +47.8 %, **derived**), and the checks together on one core ("10.5, 85.7 and 14.5 CPU s a series, 0.09, 0.20 and 0.09 CPU s a
+megapixel", `payload-format.md` §Integrity on `claude/oq-integrity-build`); the guard and the digest not apart. Per volume
 (**derived** from the same files, each volume's seven view series' whole-second times summed): `dbts_a1` +28 %,
 `dbts_c1` +35 to +46 %, `dbts_b1` +67 to +86 %. Item 8's guard and #368's digest are each a part of the full set and neither is timed alone,
 so each is read at the full set's cost, an upper bound (**derived**).
 
 | option that leans on a quality check | 10 % | 25 % | 50 % | 75 % |
 | --- | --- | --- | --- | --- |
-| the full set, as I2 ran it (+48 to +60 %) | fails | fails | passes on round 2 only (+47.8 %), on `dbts_a1` and `dbts_c1`; fails on rounds 0 and 1 and on `dbts_b1` | passes on every run; per volume all but `dbts_b1` in round 1 (+86 %) |
-| item 8's guard (a closeness bound), at most the full set's | fails at that bound; not measured alone | fails at that bound; not measured alone | as the full set, at that bound | passes on every run, at that bound |
-| #368's reconstruction digest, at most the full set's | fails at that bound; not measured alone | fails at that bound; not measured alone | as the full set, at that bound | passes on every run, at that bound |
+| the full set, as I2 ran it (+48 to +60 %) | fails | fails | as a whole run, passes on round 2 only (+47.8 %); per volume `dbts_a1` and `dbts_c1` pass in every round, `dbts_b1` in none | passes on every run; per volume all but `dbts_b1` in round 1 (+86 %) |
+| item 8's guard (a closeness bound), at most the full set's | not shown to pass (the bound is over the budget); not measured alone | not shown to pass; not measured alone | passes where the full set does; elsewhere not shown to pass | passes on every run, at that bound |
+| #368's reconstruction digest, at most the full set's | not shown to pass (the bound is over the budget); not measured alone | not shown to pass; not measured alone | passes where the full set does; elsewhere not shown to pass | passes on every run, at that bound |
 
 The cost is a point against every option that leans on a quality check: at a 10 % or 25 % budget none passes at
 the only cost measured, and at 50 % only some runs and volumes do. No recommendation changes: item 8 queues a re-read

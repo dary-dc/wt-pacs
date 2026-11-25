@@ -91,7 +91,7 @@ worker's win is the page's thread, and the cine it was measured on plays frames 
 §3, **measured**). The fill, the exact frame and a jump past the held frames are bound alike in both views: by the
 link where [`delivery-per-link.md`](delivery-per-link.md) §4 has the wire binding (B below its class's *G*★; A on
 LTE, a far stream, LOSS-like links and public Wi-Fi below ~83 Mbit/s for `dbts_b1` on the round's phone; C1's exact
-frame on every link, **derived**), by the decode above that crossover, the same in both (**derived**: one downloader,
+frame on every link, **derived**, its wire part only: its wire and decode parts "cannot be split" (`delivery-per-link.md` §4)), by the decode above that crossover, the same in both (**derived**: one downloader,
 decoders and wire; the phone's fill no difference, **measured**, one link). No transport row is lowered by the
 decode-bound phone, and no link is a reason here to pick either view.
 

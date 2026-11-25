@@ -98,7 +98,8 @@ the stack's. Per profile, for A (the view's fill), B (the exact series') and C1 
 marked:
 
 * **Home Wi-Fi, measured (≥ 600 Mbit/s):** the decode binds A (2.25 s against a wire of 0.31 s); B is near the line
-  (wire 1.43 s, its phone decode unmeasured); the link binds C1. The stacks tie on CLEAN's fill (**measured**).
+  (wire 1.43 s, its phone decode unmeasured); C1 is "~0.04 s after a silence, + one HTJ2K decode", the decode
+  its unknown. The stacks tie on CLEAN's fill (**measured**).
 * **Home Wi-Fi, median (~218, p10 40):** the decode binds A at the median, the wire at p10 (4.6 s); the wire binds B
   (3.9 s) and C1.
 * **Public Wi-Fi (~101):** A at the line (wire 1.84 s against decode 2.25 s); below ~83 Mbit/s, `link-profiles.md`
@@ -119,11 +120,13 @@ marked:
   so not measurable here.
 * **An ask, on any link:** the link binds it: what it waits behind during a fill (AD) and the window left after a
   silence (AA), **measured**; C1's exact frame is round trips and slow start on an idle session on every link
-  ([`delivery-per-link.md`](delivery-per-link.md) §4).
+  ([`delivery-per-link.md`](delivery-per-link.md) §4), plus one HTJ2K decode: its wire and decode parts "cannot be split" (the same §4),
+  so "link-bound" is **derived** for its wire part only.
 
 The premise under it is untested ([`README.md`](README.md) §Premises item 1): on the one phone measured, the exact
 series filled faster than the view in 15 of 15 rounds, median 0.705 (**measured**,
-[`phone-decode-route.md`](phone-decode-route.md) §4), so on that fast clean link the phone's decode bound the view.
+[`phone-decode-route.md`](phone-decode-route.md) §4), so on that fast clean link the phone's decode bound the view (**derived** from B ÷ A: "no wire time was recorded,
+so no fill's regime was read", `route-policy.md` §PHONE-READ on `claude/mobile-decode`).
 No transport row is lowered by it: where the decode binds A every stack already ties on the fill (CLEAN, PUB), and
 item 2's run (TRANSPORT-FLAGS-RUN, done 2026-11-24, unverdicted) asked about the ask, which the link binds on every
 profile.

@@ -116,9 +116,9 @@ under the view's decode, which binds A from ~83 Mbit/s up (**derived**, §5 and 
 2026-11-25, PAGES-PASS-FIX, README §Pass review B4). From [`delivery-per-link.md`](delivery-per-link.md) §4: B is link-bound on every link below
 its class's *G*\* (public Wi-Fi, LTE, a far stream and the median home's p10 for every class); A on LTE, a far
 stream, LOSS-like links and public Wi-Fi below ~83 Mbit/s (`link-profiles.md` §2's crossover for `dbts_b1` on the
-round's phone, **derived**); C1's exact frame on every link; the decode binds A on clean links above that crossover,
+round's phone, **derived**); C1's exact frame on every link (its wire part; its wire and decode parts "cannot be split" (`delivery-per-link.md` §4)); the decode binds A on clean links above that crossover,
 as on the round's home Wi-Fi at ≥ 568–595 Mbit/s, where B filled faster in 15 of 15 rounds, median 0.705
-(**measured**; `README.md` §Premises item 1: the wire-binds premise itself untested). The profiles' *G* fall on both
+(the ratio **measured**, the decode binding A **derived** from it: no wire time recorded, §4 below; `README.md` §Premises item 1: the wire-binds premise itself untested). The profiles' *G* fall on both
 sides of every class's *G*\* ([`transport-stack.md`](transport-stack.md) §4, per profile), so the switch (item 3)
 reads the link per session. No transport row is lowered by the decode-bound phone: the wire still binds B below
 every class's *G*\*, A on the wire-bound profiles, and C1's exact frame on all of them.
