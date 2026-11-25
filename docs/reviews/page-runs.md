@@ -377,6 +377,26 @@ and SESSION-1, 0/18 for each H arm and `off`. Predicted: Chromium's idle pattern
 record under a kill): **hit** on every cell. The race is not placed on an idle page (each report left before 50 ms),
 as on Chromium in REPORT-RUN-2.
 
+**Firefox L** (`r3-firefox-L.jsonl`, idle page, 20 later faults a load; 18 rounds × 9 units, Williams-balanced;
+resumed, `fromRound: 12` for its last part). **Measured**: no later report lost (one `off` load never filled,
+`VOID: no fill`); per-load p99, median of 18: BEACON-* and `off` 5.6–6.4 ms, KEEPALIVE-* 5.3–5.5 ms, SESSION-* 3.2–3.4
+ms. **VOID by the A/A**: BEACON-H's floor even ÷ odd rounds 7.12 ÷ 3.17 ms = 2.25, outside 0.95–1.05 (the µs clock in
+place): Firefox's beacon floor is not stable on this host; the latencies stand beside, adopted for nothing.
+
+**Firefox D6: unrun.** Under `--tun` every Firefox load's WebTransport session to the relay's address timed out
+(`NS_ERROR_NET_TIMEOUT`, 3 of 3 loads in each try; rows kept as `r3-firefox-D6.unrun-wt-timeout.jsonl`); Chromium's
+D6 ran under the same relay in REPORT-RUN-2. Not traced (Firefox's WebTransport with a certificate hash on a
+non-loopback http origin is the first suspect, **theory**). The remaining Firefox cells (D2 D9 D4 D5b D8 D3 D7 Lbusy C)
+are not run, as §2 allows.
+
+**Summary for PAGE-RUNS-VERDICT.** (b) **the race exists** on Chromium: on a busy page BEACON-* deliver 9 of 18,
+KEEPALIVE-* 18 of 18 (D5a busy), and Lbusy places the page carriers' hand-off at the long task's end (p99 ≈ 51 ms
+against ≤ 3 ms for the worker carriers, its A/A passing). (a) **is VOID** by its A/A (`off′` 1.053); read beside,
+KEEPALIVE-Y's cost leans on its wrapped decoder (+7.3 ms over KEEPALIVE-Y°, p 0.09), not shown. SESSION lost 2–3 of 18
+safety reports on a busy page, unpredicted. Host CPU ≤ 63 % in every sample of the run (16 257 samples of 5 s; none over
+90 %). How it serves the value statement: the checked frame's safety report is what makes a failed check known; on a
+busy phone page only a worker carrier delivered it every time.
+
 **Driver defects found while running Firefox (lab only):** step 0's close-rejects-pending left a rejected call no
 caller awaited, and Node ended the process on it (cut D5a at round 2, D1 at 9, L at 4): fixed in `e9b0e0a9b`,
 `712a3fc67`, and the driver now logs a dropped `BiDi socket closed` and goes on (any other error still stops it). Each

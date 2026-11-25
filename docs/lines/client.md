@@ -188,6 +188,10 @@ exact frame bit for bit, and only checked claims on screen.
   KEEPALIVE-H/Y pass cell D (provisional: L, C, Y unbuilt), the Y timing leading by 50 points; BEACON-Y against
   KEEPALIVE-Y, rule 3 and the receivers not decided. D5's kill is timed from the page's send, not the mismatch, so
   D5a never tested its race. Owed: D5 retimed, cells L, C, Y, R, D6, Firefox and WebKitGTK.
+  The reruns (REPORT-RERUNS, 2026-11-24/25, Chromium 158, Firefox 160.0.1; `docs/reviews/page-runs.md` §2 Results):
+  D5a on a busy page, the kill timed from the decoder worker, places the race: BEACON-* 9/18, KEEPALIVE-* 18/18,
+  SESSION-* 15-16/18; Lbusy's A/A passes on a µs clock; C is VOID by its A/A; Firefox D5a, D1 as predicted, L VOID by
+  its A/A, D6 unrun (WebTransport under the relay timed out). Owed: PAGE-RUNS-VERDICT.
 
 ## PRs
 
