@@ -1,10 +1,11 @@
 state: started
 started: 2026-11-25T07:07Z
-heartbeat: 2026-11-25T10:06Z
+heartbeat: 2026-11-25T10:07Z
 by: 22u6GUnd
 outputs: claude/unified 9170cdf39 (11 merges + one link fix), pushed; PR comments and closes next
 ## Resume
 Resumed 2026-11-25T10:06Z by 22u6GUnd (stalled since 08:49): checking whether the gate ran, then the gate on origin/claude/unified, then comments and closes.
+2026-11-25T10:07Z: the deploy job's cause fixed locally as 8459a0a7b on 9170cdf39 (deploy/Containerfile and its .dockerignore copy lab/noise-ingest), not yet pushed; next `docker compose -f deploy/compose.yml build`, then ingest/tools.sh and scripts/gate.sh on it; if this stalls, redo that commit (two COPY lines after metadata-store's, two ! lines in the .dockerignore).
 Resumed 2026-11-25T08:47Z by P4ZSLYDZ (stalled since 07:32): claude/unified is at 9170cdf39 on origin; running the gate on it, then the PR comments and closes.
 Gate started 2026-11-25T08:47Z: ingest/tools.sh then scripts/gate.sh on 9170cdf39 (dockerd, meson 1.9.1). If this stalls: git checkout -B claude/unified origin/claude/unified; ingest/tools.sh; scripts/gate.sh; then comment + close PRs 413 418 419 439 440 442 443 444 445 447 448.
 Merged and pushed (9170cdf39) onto b059388b6, --no-ff, in order: 413 418 419 439 440 442 443 444 445 447 448, then 9170cdf39
