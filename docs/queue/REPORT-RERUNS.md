@@ -19,6 +19,7 @@ D5a-busy complete 22:18Z, its reading in page-runs.md §2 Results (claude/page-r
 (BEACON-* 9/18 each, KEEPALIVE-* 18/18). Lbusy running from 22:18Z, then C. A container restart (~01:20Z) killed the run at Lbusy round 14: rounds 0-13 kept,
 round 14's two rows kept apart (rows/r3-chromium-Lbusy.cut-round14.jsonl), the cell resumed from round 14 at 01:27Z
 (run.mjs --from-round, claude/report-arms 0092cf5e6); after a restart, run the three scripts again as below.
+Lbusy complete 02:19Z, read in §2 Results (claude/page-runs edeeb39f6): A/A 1.040 pass, every band hit. C running from 02:19Z (~4 h), then Firefox.
 Running since 19:34Z: docs/queue/REPORT-RERUNS/run.sh (chromium D5a-busy, Lbusy, C; firefox D5a, D1, L; D6 --tun),
 push.sh pushing rows every 10 min. Next: when each cell's {"cell"} line lands, its reading in page-runs.md §Reports
 on claude/page-runs, against §2's predictions.
