@@ -125,6 +125,10 @@ Reviewed 2026-11-25 (PHONE-ROUND-2-PREP-REVIEW, round-2.md §Review): the re-run
 window holds under the series in both views (*measured*, synthetic pair); one blocker, B1: cell M at *w* runs the window
 PR 446 found defective and the plan does not say so; m1, the `memory` record's `window` is the URL's (a dropped
 `?budget` seam passes, mutant M4). PHONE-ROUND-2-PREP-FIX next; the round waits on its re-review.
+Fixed 2026-11-25 (PHONE-ROUND-2-PREP-FIX, round-2.md §Fix): §1 names PR 446 as not landed and what the round does
+(re-merge if a sync row has merged it, else cell M's *w* arms read as "before PR 446"); a fill past its window now fails
+the load and the record carries `received` (`c1a88f1dc`), killing M4 in the round's own verdicts; the length is
+1 h 21 min. PHONE-ROUND-2-PREP-FIX-REVIEW next; the round waits on it.
 
 ## Rules for a device run
 

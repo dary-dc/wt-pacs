@@ -237,3 +237,31 @@ cell asks; one row there would keep the two in step.
 **Verdict.** One blocker (B1): PHONE-ROUND-2-PREP-FIX and its review appended to the queue; PHONE-ROUND-2 waits on the
 re-review. Fixtures and limits: the synthetic pair only (no DBT volume, no ultrasound clip opened); the window's size on
 `dbts_b1-q8-g8` not exercised (15 frames, *theory*); a fake `adb`, headless Chromium in one container, no phone, no radio.
+
+## Fix (PHONE-ROUND-2-PREP-FIX, 2026-11-25)
+
+By a session that wrote none of this file, its harness or its review (`by:` in its status file), 01:06–01:45 UTC.
+
+* **B1: fixed.** §1's *What landed* names PR 446 (WINDOW-WHOLE-GROUPS) as not landed, open and unmerged at 01:30, with
+  WINDOW-WHOLE-GROUPS-MEASURE and a sync row owed; §1 *PR 446 and cell M* says what the round does: re-merge
+  `origin/claude/unified` `--no-ff`, take `held` from the store's rule (PR 446's max(*W*, 2*G*)), re-run `--round2`
+  and the gate if a sync row has merged it before the round; else run as written with cell M's *w* (and 2*w*) arms
+  labelled "before PR 446" and what they cannot answer said.
+* **m1: fixed** (`c1a88f1dc`, lab only): `round.mjs` `fillFailure` fails a fill that receives more than the window
+  (`received N, past the window of W`), as it failed one short of it; the round page's `memory` record carries
+  `received`. A test first: `round.test.mjs` "a fill past the window fails" failed on `6b6d1dbe5`'s parent's
+  `round.mjs` (8/9) and passes with the change (9/9). Mutant M4 (the page view's `budget: lab.budget` dropped in
+  `client/viewer/viewer.js`), run through §Review's variant (cell M at budgets 6 and 12 of 20): **killed by the round's
+  own verdicts**: "cell M: 4 of 8 loads ok; 6 page 12: received 20, past the window of 12; 7 page 6: received 20, past
+  the window of 6; …" (*measured*). Without the mutant the variant holds every claim (worker and page 6:6, 12:12).
+  The record still states the window the load expects, not one read from the `Controller`: reading it there would
+  touch the product's view interface, and the check makes any disagreement fail the load instead.
+* **m2: fixed.** §0: about 1 h 21 min (72 min + 8 × 70 s).
+* **n1: fixed.** §5 has a row for the exact frame's 216.5 ms (`phone-decode-route` §8.1).
+* **Runs**, one 4-core cloud container, headless Chromium, no GPU, fake `adb`, no phone, the synthetic 10-bit pair
+  (64 × 48, 20 frames, Q 8 G 8): `round_headless.sh --round2` at `6b6d1dbe5`, **every claim holds**, 12 loads, 6 min
+  12 s; the variant clean, every claim holds, 6 min 3 s; the variant with M4, 3 claims fail (above).
+  `scripts/check_links.py` 0 unresolved; `scripts/comment_budget.sh` ok. The gate not re-run (lab only; §6's run cited).
+  Logs: `claude/work-ledger:docs/queue/PHONE-ROUND-2-PREP-FIX/`.
+* **Limits**: the window on `dbts_b1-q8-g8` still not exercised (15 frames, *theory*); no DBT volume or ultrasound clip
+  opened; PR 446's effect on the round is argued from its body, not run here.
