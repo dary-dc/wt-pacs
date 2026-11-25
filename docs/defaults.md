@@ -214,4 +214,4 @@ count on a phone (`phone-decode-route` item 5), `waitAhead` (`asking-policy`, th
 keep-alive (`transport-idle-sessions`, proposed). The rest have no owner: the client's deadlines but `stallMs`,
 `dialMs` and `decodeMs`, `perDecoder`'s 2, the server's `ASKS_AHEAD`, `POOL_CAP` and per-frame grace, the receiver's
 caps, the deploy's published address and healthchecks. The two ingests differ on the view above 10 bits (`ingest.py` codes 12 bits at profile 2; the product's
-`optimal.rs` cuts or refuses), as `docs/lines/optimal-quality.md` already says.
+`optimal.rs` cuts or refuses), as [`lines/codecs.md`](lines/codecs.md) §Optimal quality already says.
