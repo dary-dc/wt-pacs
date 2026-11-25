@@ -8,8 +8,9 @@ by the owner's local phone session once PHONE-ROUND-2-PREP-REVIEW is done with n
 ## 0 · On one screen
 
 * **What runs:** cell 3 again, all 48 loads under one condition, then cell M (eight loads on one renderer). One press,
-  then nothing until "round done". Length about **1 h 15 min** (*derived*: PHONE-ROUND-3D ran cell 3's 48 loads with a
-  fresh Chrome before each in 72 min of wall clock, a restart included; cell M adds 8 loads of about 70 s).
+  then nothing until "round done". Length about **1 h 21 min** (*derived*: PHONE-ROUND-3D ran cell 3's 48 loads with a
+  fresh Chrome before each in 72 min of wall clock, a restart included; cell M adds 8 loads of about 70 s, 9 min 20 s;
+  corrected 2026-11-25 from "1 h 15 min", §Review m2).
 * **The code:** `claude/phone-run-2` (§1), the run commit its tip when the round starts; `round.py` refuses any other.
 * **What it answers:** `view-target` item 4 (cell 3 under one condition, the worker with the start's fix, a
   first-picture field); the memory bound's size at two values and the phone's memory after worker loads (cell M);
@@ -34,6 +35,22 @@ What landed, by the brief's four rows:
 | VIEW-MEMORY-BOUND (PR 435) | yes: the 256 MiB default window, the page view's fill cut to it with no cache | in `c914c7a76` |
 | BEACON-LOSS (PR 436) | yes: the drain's post, its fallback in 16 KiB beacons newest first, `resources.sh` | `9180c0542` |
 | STALE-CODE (PR 437) | yes: `dev-server.py --revalidate`, now passed to every dev server by `round_plan.mjs` (`313ad1b55`); `devtools.mjs`'s cache clear and first-page check (DEVICEKIT-TOOLS) | in `c914c7a76`, `313ad1b55` |
+| WINDOW-WHOLE-GROUPS (PR 446, draft into `claude/unified`) | **no**: WINDOW-WHOLE-GROUPS-MEASURE and a sync row are still owed (PR 446 open, not merged, 2026-11-25 01:30) | — |
+
+**PR 446 and cell M** (added 2026-11-25, §Review B1). On this branch the window is a count of frames centred on the one
+in view; PR 446 found it defective where a series in groups is over its window (its product test on `b059388b6`, 50
+frames, G = 8, W = 15: 268 frames on the wire for one forward pass, 280 for one back, a sawtooth refetching two groups
+on every turn), which is cell M's *w* arms on `dbts_b1-q8-g8` (15 frames, G = 8, *theory*). What the round does:
+
+* **If a sync row has merged PR 446 into `claude/unified` before the round**: merge `origin/claude/unified` into this
+  branch again (`--no-ff`, each conflicted file named), take the round page's `held` from the same rule as the store
+  (PR 446 raises the store's budget to max(*W*, 2*G*): 16 frames on `dbts_b1-q8-g8`, else every *w* load fails its fill
+  by the check of §2), re-run `round_headless.sh --round2` and the gate, and name the merge here; the run commit is the
+  new tip.
+* **Else** the round runs as written, and the read labels cell M's *w* arms **before PR 446**: they measure the window
+  and memory of the defective bound, and their steps may put refetched groups on the phone's link. They cannot answer
+  the memory the shipped window holds (16 frames, 260 MiB, PR 446's body) nor a step's time at its edge; the 2*w* arms
+  (30 frames, nearly four whole groups) are less exposed but not free of it, and are labelled the same.
 
 Not landed: a record of the code each load ran. With `--revalidate` every response carries `Cache-Control: no-cache`,
 so the browser asks the server before reusing a cached module, and `round.py` refuses a served tree whose `HEAD` is
@@ -55,8 +72,11 @@ the controller's default holds, so the product is unchanged.
   2*w*, page at *w*, twice (worker first, as loads 26 and 27 of 2026-11-22). Each load fills to what it holds and
   steps within it (steps = min(20, ⌊(held − 1)/2⌋)). Its loads after the first carry `sameRenderer`, so `round.py`'s
   `--fresh-chrome` relaunches Chrome only before the first. `round.py`'s per-load resource snapshot reads the memory.
-* **Every load** records `memory`: `budget`, `window` (what the store holds), `deviceMemory`, `maxTextureSize`; and
-  `firstPicture`, `ms` from the navigation's start to the first quality label (the reading 11-22 had to derive).
+* **Every load** records `memory`: `budget`, `window` (the frames the load expects the store to hold: `?budget`, else
+  `memoryWindow`), `received` (the frames the fill delivered), `deviceMemory`, `maxTextureSize`; and `firstPicture`,
+  `ms` from the navigation's start to the first quality label (the reading 11-22 had to derive). A fill that receives
+  more than `window` fails (`round.mjs` `fillFailure`, as one short of it does), so a view that dropped its budget is
+  not recorded as honoured (§Review m1; `c1a88f1dc`).
 
 ## 3 · Before the press (the laptop; any state)
 
@@ -110,6 +130,7 @@ Each needs a build first; none is improvised on the evening.
 | M5 at a volume's size, the 4:2:0 form | `phone-decode-route` item 7 | `hw-units.json` holds 16² and 256² units only; `make_hw_units.py` at 2048² stops in `ingest.decode` (`av1 decode failed (-2)`, *measured* here) | a unit at the frame's size from a real `dbts_b1` frame, or the decode's size limit raised |
 | P1 and P2, D against D+T3 | `exact-frame-layout` item 3 | no Lossless-request arm with strips in the runner | the arms of `lab/htj2k-tiles/improve/stage3/` behind the round page |
 | the cache's P2 and P1 | `cache` | no cache arms in the runner, and CACHE-DESIGN-1124 has chosen no store (no output on any branch at 13:20) | its choice, then its arms |
+| a cause for the exact frame's 216.5 ms | `phone-decode-route` §8.1 ("no cell asks it") | no cell of this round times the exact frame's parts (fetch, decode, check, paint) | a split of the exact frame's time on the phone, a lab stamp per part (added 2026-11-25, §Review n1) |
 
 ## 6 · Results of the preparation
 
