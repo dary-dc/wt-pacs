@@ -320,3 +320,54 @@ of S1 (its sha256 equals §8's pin) and arithmetic. Each finding, in place:
   `FIXTURES.md`'s frame sizes and bits stored: `dbts_a4` 2.22 to `dbts_b1` 4.96): holds.
 
 `scripts/check_links.py`: 17 unresolved before and after (0 new). The yes waits on US-DBT-CARRY-FIX-REVIEW.
+
+## Re-review
+
+US-DBT-CARRY-FIX-REVIEW, 2026-11-25 14:07–14:10 UTC, by a session that wrote none of this page, its review or its
+fix (`by:` in `claude/work-ledger:docs/queue/US-DBT-CARRY-FIX-REVIEW.md`). Read: this page at `434234cf6` and its diff
+from `a092f2625`; at `origin/claude/unified` `b7cc007f7`, `docs/av1/preview-noise.md` §2.1, `docs/av1/noise-point.md`
+§1, `lab/av1/metrics/rows/curves.tsv`, `lab/av1/profiles/results/lossless.jsonl`, `docs/FIXTURES.md`'s set table,
+`docs/transport/link-profiles.md` rows 76 and 177, `docs/adr/disk-access.md`; `visually-lossless.md` §3–§4 and
+`phone-decode-route.md` on this branch. Nothing run but `git` reads, one fetch of S1 and arithmetic.
+
+* **B1: closed.** §2's lead, §4.1 row 4 and §4.3's `visually-lossless` row now state the property as
+  `preview-noise.md` §2.1 does; its quote is verbatim ("Their σ is near one step of their depth … so their fine band
+  holds as much structure as noise"), and its numbers match the source's table: TRUS 1.535–1.714 (the page's
+  1.54–1.71), DBT 1.031–1.228 (1.03–1.23), `mr9_ispy2` 1.604–1.610, the lossy clips 1.428–8.565, σ 1.65 8-bit codes
+  and 0.79 9-bit codes. B–G's "not shown to hold" rests on lines that are in their sources: "the DBT x\* picks one
+  rung too high on `ustrus_2`" and "gives no Q at all on lossy-sourced input" (`noise-point.md` §1), "x is defined on
+  the stored form's σ" and E and G "unknown" on DBT (`visually-lossless` §3–§4), and it now agrees with that page's
+  "not yet known for B–G".
+* **m1: closed.** The lead carries *derived on theory* and its condition. 18.9 ms (effective) and 40.4 ms (one
+  decoder) are the exact frame's (`phone-decode-route.md` lines 93, 168, 269); recomputed × 0.262 ÷ 8.52 Mpx
+  (512² = 262 144; 2560 × 3328 = 8 519 680): 0.58 and 1.24 ms, ×3 1.74 and 3.73 ms, the view 1.30 ms. All hold.
+* **m2: closed.** Both rows are in §4.2, each "none of the modality's".
+* **m3: closed.** S1 fetched again 2026-11-25: sha256 `9d745240…c47decfb4223`, §8's pin; Table C.8-20's text reads
+  "… YBR_PARTIAL_420 8 PALETTE COLOR 8 - 8 bit palette, or 16 - 16 bit palette", the page's quote verbatim.
+* **m4: closed.** "Most of the archive's clips read" in item 2 and §4.3; "in the archive's clips read" in the lead;
+  "in the archive read" in §5. No "field" claim is left.
+* **Nits: closed.** `dbts_a1` `top10` at Q 8, G 1 is 4 655 594 B in `curves.tsv`; ÷ (56 × 1 210 936) = 0.0687, and
+  `12bit`'s 5 019 224 B gives 0.0740, so 0.069–0.219 and 4.6–14.5× hold. Row 76 of `link-profiles.md` reads "one TCP
+  stream, any access … country medians 27–85 Mbit/s, lower quartile 7–26", and row 177 (LTE) carries the same.
+  DBT's 2.22–4.96 recomputed over the 19 volumes (`lossless.jsonl` HTJ2K means against `FIXTURES.md`'s frame sizes
+  and bits stored; the 15 `dbts_*` plus `dbt12_ea1141` 2.51, `dbt10_ea1141` 2.58, `dbt10_d` 2.52, `dbt12_c` 3.11):
+  `dbts_a4` 2.22 to `dbts_b1` 4.96, holds.
+
+**New, minor.**
+
+* **r-m1. The corrections are recorded in §Fix only, not at the lines they change.** The lead's third property, §4.1
+  row 4, §4.3's `visually-lossless` verdict (was "B–G **do not hold**, in kind") and the withdrawn limitation ("That
+  readers read the fine band's texture is **theory**") were rewritten with no mark in place. `CLAUDE.md` §Docs: "A
+  retracted claim is corrected in place, not quietly dropped: `docs/adr/disk-access.md` §2 is the model", whose
+  lines read "*corrected <date>, <row>*: …". The record exists on the page, so nothing is lost; a reader of §4.3 or of
+  BRIEF-WEEKEND's table taken from it cannot see that the verdict moved. Fix: "(corrected 2026-11-25, §Fix B1)" at
+  those four places, the withdrawn limitation kept struck through or as one line "withdrawn 2026-11-25 (B1)".
+
+**Nits.** The lead's "near one code step of 8 bits …, shared by a breast MR series" compresses `mr9_ispy2`'s 0.79
+9-bit codes into 8 bits; §4.1 row 4 says it right. §8's first line still reads "US-DBT-CARRY-REVIEW (owed)". The
+index line's rows column names US-DBT-CARRY and -REVIEW, not -FIX and -FIX-REVIEW.
+
+`scripts/check_links.py`: 17 unresolved, as before the fix (0 new).
+
+**Verdict.** No blocker open: B1 and m1–m4 closed, the nits closed; r-m1 minor and three nits, none changing a yes or
+no of §2. The page's eight lines may enter BRIEF-WEEKEND's table as written, r-m1 advised before then.

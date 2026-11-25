@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review, its fix and re-review 2026-11-23; the order to decide in 2026-11-23; phase 2's queue (`claude/work-ledger:docs/queue-2026-11-24.md`, PHASE2-PLAN) 2026-11-24, its review (three blockers, the fix loop opened) 2026-11-24. The carry to ultrasound and DBT (`docs/decisions/us-dbt-carry.md`, US-DBT-CARRY) 2026-11-24. The one PCS note (`docs/decisions/pcs-note.md`, PCS-NOTE) 2026-11-24. The phone's reading carried (PHONE-CARRY) 2026-11-24, its review (one blocker, the fix loop opened) 2026-11-24, its fix 2026-11-24, its re-review (no blocker open) 2026-11-24. Every page passed (PAGES-PASS) 2026-11-25. The carry's review and fix (US-DBT-CARRY-REVIEW, -FIX) 2026-11-25.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review, its fix and re-review 2026-11-23; the order to decide in 2026-11-23; phase 2's queue (`claude/work-ledger:docs/queue-2026-11-24.md`, PHASE2-PLAN) 2026-11-24, its review (three blockers, the fix loop opened) 2026-11-24. The carry to ultrasound and DBT (`docs/decisions/us-dbt-carry.md`, US-DBT-CARRY) 2026-11-24. The one PCS note (`docs/decisions/pcs-note.md`, PCS-NOTE) 2026-11-24. The phone's reading carried (PHONE-CARRY) 2026-11-24, its review (one blocker, the fix loop opened) 2026-11-24, its fix 2026-11-24, its re-review (no blocker open) 2026-11-24. Every page passed (PAGES-PASS) 2026-11-25. The carry's review, fix and re-review (US-DBT-CARRY-REVIEW, -FIX, -FIX-REVIEW) 2026-11-25.
 
 ## Goal
 
@@ -66,7 +66,8 @@ small enough that every open item has an owner and a next step.
   premise 2 retired for ultrasound, eight yes or no lines. Reviewed 2026-11-25 (US-DBT-CARRY-REVIEW, its §Review):
   sources and arithmetic hold; one blocker (the fine band's property misread from `preview-noise.md`), m1–m4; the fix loop opened.
   Fixed 2026-11-25 (US-DBT-CARRY-FIX, its §Fix): the property restated as the source gives it, B–G not shown to hold;
-  m1–m4 and the nits in place; the yes waits on US-DBT-CARRY-FIX-REVIEW.
+  m1–m4 and the nits in place. Re-reviewed 2026-11-25 (US-DBT-CARRY-FIX-REVIEW, its §Re-review): no blocker
+  open; r-m1 (corrections marked in §Fix only) and three nits; the yes is the owner's.
   One note to the PCS team 2026-11-24 (PCS-NOTE, [`pcs-note.md`](../decisions/pcs-note.md)): five drafts folded, one
   yes ("send it"); reviewed 2026-11-24 (PCS-NOTE-REVIEW): every question traced, one blocker (part B says the PCS
   delivers HTJ2K; its code writes raw frames), PCS-NOTE-FIX queued; fixed 2026-11-24 (PCS-NOTE-FIX): B1 and m1–m6
