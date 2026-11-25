@@ -146,3 +146,73 @@ being only *derived*. The owner opens the account; nothing here signs up for any
 * **What is recorded:** the device's model class (not its serial), Chrome's version, `hardwareConcurrency`,
   `deviceMemory`, each frame's decode time, the thermal state where the cloud offers it; nothing else leaves the device.
 * **Read by** cell 1's rules against DEVICE-THEORY's middle-band prediction (`device-model.md` §4), held or missed.
+
+## Review (PHONE-ROUND-2-PREP-REVIEW, 2026-11-25)
+
+By a session that wrote none of this file or its harness (`by:` in its status file), 00:08–00:45 UTC. Read: this file at
+`21c8102b0`; `git diff 9180c0542 21c8102b0` (the harness and the `?budget` seam); the merge `c914c7a76` against
+`origin/claude/unified` `b059388b6`; `claude/reviews-2026-11-28`'s pages `view-target`, `phone-decode-route`,
+`exact-frame-layout`, `cache`, `non-cine-series` and `README.md`; PR 446's status file (WINDOW-WHOLE-GROUPS). Run, in one
+4-core cloud container, headless Chromium, no GPU, no phone, on the synthetic 10-bit pair (64 × 48, 20 frames, Q 8 G 8):
+`round.test.mjs` 8/8, `round_test.py` OK, `levers.test.mjs` ok; `round_headless.sh --round2` (**every claim holds**, 12
+loads, 6 min 14 s); a variant of it with cell M's window under the series and four mutants (below). The variant's two
+scripts are on `claude/work-ledger:docs/queue/PHONE-ROUND-2-PREP-REVIEW/`. The gate not re-run (§6's run cited).
+
+**What holds.** The round's code is `claude/unified`'s tip: unified has not moved since `b059388b6`, and the merge's
+`client/view/controller.js` differs from it only by PR 378's one re-ask of a lost exact ask and the frame's `about(info)`
+(r2-m1 of the queue's §Re-review 2: unified's side of PRs 434, 435 and 437 kept). PR 436 open, `claude/phone-run`
+untouched. BEACON-LOSS-REVIEW's open (2) matches `beacon.js` `drain()` (the drain record with its count, then 16 KiB
+chunks newest first until one is refused); (3) is asserted and held in the re-run. Each cell traced to the page that asks
+it:
+
+| what the round records | asked by | carried |
+| --- | --- | --- |
+| cell 3, one condition, the start's fix, `firstPicture` | `view-target` §2 item 4, §6 *The first picture on the phone* | yes |
+| cell M, memory after worker loads | `view-target` §2 (P5's condition), §6 *The phone's memory* | yes |
+| cell M, the window at *w* and 2*w*; `deviceMemory` | amendment 28's VIEW-MEMORY-BOUND ("the per-device-class size a measurement of phase 2"); no page item | yes |
+| `maxTextureSize` | `non-cine-series` item 4 and §4 ("the phone's `MAX_TEXTURE_SIZE`"); `decisions/README.md` *the phone's cells* | yes |
+| M17, M5 at a volume's size | `phone-decode-route` item 7 | no, §5 |
+| P1, P2 | `exact-frame-layout` item 3 | no, §5 |
+| the cache's P2, P1 | `cache` | no, §5 |
+| cell 1 on a middle-band phone | `phone-decode-route` item 8 | §Middle-band phone; needs a static bench build |
+| a cause for the exact frame's 216.5 ms | `phone-decode-route` §8.1 ("no cell asks it") | no, and not in §5 (n1) |
+
+**The window under the series (measured, the variant).** Cell M's loads at budgets 6 and 12 of the pair's 20 frames
+(window under 2*G* = 16, the regime PR 446 found defective): every load ok; each fills exactly its window, worker and page
+(`worker 6:6, worker 12:12, page 12:12, page 6:6`, twice); steps, cine, drain and `firstPicture` as in the re-run.
+
+**Mutants.** M1 `round.py` relaunching before a `sameRenderer` load: `round_test.py` fails. M2 cell 3's `budget`
+dropped: `round.test.mjs` fails. M3 cell M's steps off by one: `round.test.mjs` fails. M4 the page view's
+`budget: lab.budget` dropped in `client/viewer/viewer.js`: **every unit test passes, and the re-run's claims would**; the
+variant fails it only through its own count (`page 12:20, page 6:20`), while the round's `memory` record still says 12 and
+6 and every load is ok (m1).
+
+**Blocker.**
+
+* **B1. Cell M at *w* runs the window PR 446 found defective, and this file does not say so.** WINDOW-WHOLE-GROUPS
+  (`claude/window-whole-groups` `e8a52cfe4`, draft PR 446 into `claude/unified`, its status file): "on the tip b059388b6,
+  the real downloader behind a stand-in transport (…50 frames, G = 8, W = 15) put 268 frames on the wire for one forward
+  pass and 280 for one back"; "a sawtooth 24|23 refetched groups 2 and 3 on every turn". That is cell M's worker and page
+  at *w* on `dbts_b1-q8-g8` (15 frames, G = 8, §2). PR 446 changes the window to whole groups ("dbts_b1 16 frames, 260
+  MiB against 256"), so cell M's *w* arms measure a window and a memory the product may not keep, and their steps put
+  re-fetched groups on the phone's link. Fix: §1's *What landed* names PR 446 as not landed (WINDOW-WHOLE-GROUPS-MEASURE
+  and a sync row still owed), and §1 or §2 says what the round does about it: re-merge `origin/claude/unified` (`--no-ff`)
+  and re-run `--round2` if a sync row has merged PR 446 before the round, else run as written with cell M's *w* arms
+  labelled "before PR 446" in the read and what they cannot answer (the shipped window's memory) said.
+
+**Minor.**
+
+* **m1. The `memory` record's `window` is the URL's, not the store's.** `round-page.js` computes `held` from `?budget`
+  or `memoryWindow(meta)`, never from the `Controller`, and `fillFailure` fails only a fill *under* it; so a seam that
+  drops the budget is recorded as honoured (M4 above, measured). On the phone a dropped seam shows only where the default
+  is smaller (cell M's 2*w* page arm fails its fill), and a cell-3 page load would hold 15 frames while recording 50.
+  Fix: record what the store holds (the `Controller`'s window, or the fill's `received` against it), or a check that
+  `received` equals `window`, its mutant M4.
+* **m2. §0's length.** 72 min for cell 3 (3D) plus 8 loads of about 70 s is about 1 h 21 min, not "about 1 h 15 min".
+
+**Nit.** n1: §5 lists the asks not carried but not the exact frame's 216.5 ms, which `phone-decode-route` §8.1 says no
+cell asks; one row there would keep the two in step.
+
+**Verdict.** One blocker (B1): PHONE-ROUND-2-PREP-FIX and its review appended to the queue; PHONE-ROUND-2 waits on the
+re-review. Fixtures and limits: the synthetic pair only (no DBT volume, no ultrasound clip opened); the window's size on
+`dbts_b1-q8-g8` not exercised (15 frames, *theory*); a fake `adb`, headless Chromium in one container, no phone, no radio.
