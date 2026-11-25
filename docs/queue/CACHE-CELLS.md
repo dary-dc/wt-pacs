@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-25T12:07Z
-heartbeat: 2026-11-25T13:08Z
+heartbeat: 2026-11-25T13:25Z
 by: Nbp96Zk8
 outputs: claude/cache-arms (rows); claude/page-runs (page-runs.md §Cache)
 ## Resume
@@ -8,7 +8,7 @@ Done: claude/cache-arms 5766cfc53, dbccc29d3, 8f2110c83 (the four builds, tests,
 claude/page-runs 7962e2551 (§5 Amendment, before any counted row: Firefox blocked here, fetch refused; Chromium 158 headless shell,
 no storage process; item 4's Chromium cell derived; arms; verify's record; mutants).
 Mutants done and pushed (0f4978063): all four caught on every arm (slot-held: delivered/backlog/exact; view-copy: delay p99; drop-writes: exact; tab-writes: readerWroteNothing).
-Running (since 12:45): cells-1125.sh chromium L-512 then L-2560.
+L-512, L-2560 done and pushed. Running (since 13:15): T, O-512, O-3328.
 Next, one job each, in /home/user/cache (a checkout of claude/cache-arms): cells-1125.sh chromium L-512, L-2560, T, O-512, O-3328
 (a cell already .jsonl is skipped; a .running is kept as .partial). Then read: lBars summary rows, pssByProcess, verify classes, O fromStartMs/n;
 results in page-runs.md §Cache: results (CACHE-CELLS), every cell against its prediction; docs/lines/client.md line.
