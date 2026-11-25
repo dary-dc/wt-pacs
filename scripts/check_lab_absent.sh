@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The product carries no lab code: nothing of lab/ in the deploy images or the default build, and
-# no check module in the web image. head.js's lab gate is the one path to lab/. docs/lines/coordination.md §Decisions
+# no check module in the web image. head.js's lab gate is the one path to lab/. docs/lines/release.md §Decisions
 # Prints every breach, then fails if there was one.
 set -euo pipefail
 cd "$(dirname "$0")/.."

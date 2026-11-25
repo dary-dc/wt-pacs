@@ -1,6 +1,6 @@
-# Coordination
+# Release
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 2026-11-24, GATE-CI 2026-11-24.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 2026-11-24, GATE-CI 2026-11-24; LINES-FOLD 2026-11-24 (this file renamed from `coordination.md`, the line from *coordination* to *release*; `optimal-quality.md` folded into `codecs.md` §Optimal quality, `devices.md` into `client.md` §Devices; history in git).
 
 ## Goal
 
@@ -60,7 +60,7 @@ small enough that every open item has an owner and a next step.
    on `claude/core-next` (PR 351), `claude/demo-fixes-0` (PR 355) and `claude/demo-fixes-1` (PR 363), each carried by
    the next. After FREEZE-E2E the owner gives two merge words, PR 367 then PR 250, as merge commits; the PRs and
    branches they carry in full are listed by MERGE-PLAN (`claude/merge-plan:docs/reviews/merge-plan.md`) and closed
-   or deleted after. Nothing reaches `main` uncleaned ([`optimal-quality.md`](optimal-quality.md) §Open 2).
+   or deleted after. Nothing reaches `main` uncleaned (`docs/lines/optimal-quality.md` §Open 2 at `4c84013ed`).
    Pre-main review of `main...claude/demo-fixes-0` (2026-11-11, for MAIN-REVIEW): no blocker, 11 should-fix, the
    gate green; [`../reviews/pre-main.md`](../reviews/pre-main.md).
 3. The proposed order into `main` after that: `av1-unified-mainbase` ← `line-hygiene` ← `line-server` ← `core` ←

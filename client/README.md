@@ -263,7 +263,7 @@ series of a pair, under the default view (`?view=page`, no URL flags):
 
 One level down, where a point needs it: a frame whose digest does not match is decoded once more on another path
 before it is called not exact (`decoder.js` `checked`; [`docs/adr/exactness-in-production.md`](../docs/adr/exactness-in-production.md)
-§2); a WebCodecs failure inside a group is not recovered by dav1d ([`docs/lines/optimal-quality.md`](../docs/lines/optimal-quality.md)
+§2); a WebCodecs failure inside a group is not recovered by dav1d ([`docs/lines/codecs.md`](../docs/lines/codecs.md#optimal-quality)
 §State now).
 
 **What could not be explained simply**, candidates for simplification (OPT-SIMPLIFY) and naming (NAMES-FIND):

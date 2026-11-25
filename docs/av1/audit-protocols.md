@@ -109,7 +109,7 @@ does the OQ view keep at the rule's Q, on every DBT volume? And at what Q and by
 **Decision rule.** This decides wording and an owner's option, not a Q:
 * If A2 holds, the line's description of the OQ view changes. "Keeps part of the noise" (`claude/av1-quality-metrics:lab/av1/metrics/README.md`
   §Quality metrics, measured) becomes "keeps ν of the fine-band noise", with the measured range, in
-  `docs/lines/codecs.md` and `docs/lines/optimal-quality.md`. "Also for diagnosis" is then marked as resting on a
+  `docs/lines/codecs.md` (its own sections and §Optimal quality). "Also for diagnosis" is then marked as resting on a
   view that removes most of the finest noise, until a reader test (quality study §6) runs.
 * Q_ν and its bytes per volume are reported as the option "keep at least half", for the owner's decision 1 or 9 in
   `claude/docs-lines-3:docs/lines/codecs.md` §Open 0.
