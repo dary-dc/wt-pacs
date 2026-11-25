@@ -730,5 +730,129 @@ else {
   delete globalThis.EncodedVideoChunk;
 }
 
+/**
+ * Inside a group the next unit goes to WebCodecs once the frame before it is out, while that frame is still read back,
+ * with one frame in flight: a third unit waits for the first's read, a keyframe for its group's last; frames come back
+ * in order, each its own samples.
+ */
+const overlapWorld = () => {
+  const { PROBES } = globalThis.__probes;
+  const unit = (layout) => Uint8Array.from(atob(PROBES[layout].unit), (c) => c.charCodeAt(0));
+  const [w, h] = [2, 2];
+  const w0 = { decoded: [], gates: [], tint: new Set() };
+  globalThis.EncodedVideoChunk = class { constructor(c) { Object.assign(this, c); } };
+  globalThis.VideoDecoder = class {
+    constructor({ output }) { this.output = output; this.state = "unconfigured"; }
+    configure() { this.state = "configured"; }
+    async flush() {}
+    close() { this.state = "closed"; }
+    decode(chunk) {
+      const k = w0.decoded.length;
+      w0.decoded.push(chunk.timestamp);
+      let open;
+      w0.gates[k] = new Promise((r) => (open = r));
+      w0.gates[k].open = open;
+      setTimeout(() => this.output({ format: "I420", timestamp: chunk.timestamp, visibleRect: { width: w, height: h }, close() {},
+        allocationSize: () => w * h + 2,
+        copyTo: async (buf) => {
+          await w0.gates[k];
+          const px = new Uint8Array(buf);
+          px.fill(k, 0, w * h);
+          px.fill(w0.tint.has(k) ? 129 : 128, w * h);
+          return [{ offset: 0, stride: w }, { offset: w * h, stride: 1 }, { offset: w * h + 1, stride: 1 }];
+        } }), 1);
+    }
+  };
+  return { ...w0, key: unit("g8f"), delta: new Uint8Array(8) };
+};
+const watchdog = setTimeout(() => {
+  console.error("FAIL overlap: a unit never settled");
+  process.exit(1);
+}, 10000);
+{
+  globalThis.__probes = await import("./av1-probe.js");
+  const world = overlapWorld();
+  const wc = await import("./av1-webcodecs.js?overlap");
+  await wc.init({ groupLength: 4 });
+  const settle = () => new Promise((r) => setTimeout(r, 20));
+  const outs = [];
+  const ask = (i) => {
+    let said;
+    outs[i] = new Promise((r) => (said = r));
+    return wc.picture(i % 4 ? world.delta : world.key, { key: i % 4 === 0, gen: 0, index: i }, "top", said).then((p) => p.planes[0].heap[0]);
+  };
+  const p0 = ask(0);
+  await outs[0];
+  const p1 = ask(1);
+  const p2 = ask(2);
+  await settle();
+  check(world.decoded.length === 2, `overlap: unit 1 is sent while frame 0 is read back, unit 2 not yet (${world.decoded.length} sent)`);
+  world.gates[0].open();
+  check((await p0) === 0, "overlap: frame 0 reads back its own samples");
+  await settle();
+  check(world.decoded.length === 3, `overlap: unit 2 is sent once frame 0 is read and frame 1 is out (${world.decoded.length} sent)`);
+  const p3 = ask(3);
+  const p4 = ask(4);
+  world.gates[1].open();
+  world.gates[2].open();
+  await settle();
+  check(world.decoded.length === 4, `overlap: the next group's keyframe waits for its group's last frame (${world.decoded.length} sent)`);
+  world.gates[3].open();
+  await settle();
+  world.gates[4].open();
+  const got = await Promise.all([p1, p2, p3, p4]);
+  check(got.join() === "1,2,3,4" && world.decoded.length === 5, `overlap: frames 1-4 come back in order, each its own (${got})`);
+  const p5 = ask(5);
+  await outs[5];
+  const jump = wc.picture(world.key, { key: true, gen: 1, index: 16 }).then((p) => p.planes[0].heap[0]);
+  await settle();
+  check(world.decoded.length === 6, `overlap: a keyframe after a unit inside a group waits for that unit's read (${world.decoded.length} sent)`);
+  world.gates[5].open();
+  await settle();
+  world.gates[6]?.open();
+  check((await p5) === 5 && (await jump) === 6, "overlap: then the jump's keyframe decodes");
+  delete globalThis.VideoDecoder;
+  delete globalThis.EncodedVideoChunk;
+}
+
+/** A unit whose frame fails its read after the next unit was sent fails, and so does every unit after it in its group, by name; the next group decodes. */
+{
+  const world = overlapWorld();
+  const wc = await import("./av1-webcodecs.js?overlap-fail");
+  await wc.init({ groupLength: 4 });
+  world.tint.add(1);
+  const why = (i) => wc.picture(i % 4 ? world.delta : world.key, { key: i % 4 === 0, gen: 0, index: i }).then((p) => `frame ${p.planes[0].heap[0]}`, (e) => e.message);
+  const got = [0, 1, 2, 3, 4].map(why);
+  for (let k = 0; k < 6; k++) {
+    await new Promise((r) => setTimeout(r, 10));
+    world.gates.forEach((g) => g.open());
+  }
+  const [f0, f1, f2, f3, f4] = await Promise.all(got);
+  check(f0 === "frame 0" && /4:2:0 with chroma/.test(f1), `overlap: frame 1 fails its own read (${f0}; ${f1})`);
+  check(world.decoded.length === 4, `overlap: unit 2 had been sent before frame 1 failed, unit 3 never (${world.decoded.length} sent)`);
+  check(f2 === "undecodable: frame 1 was not decoded before it here" && f3 === "undecodable: frame 2 was not decoded before it here",
+    `overlap: the frames after it in its group fail by name (${f2}; ${f3})`);
+  check(f4 === "frame 3", `overlap: the next group decodes, the fourth unit sent (${f4})`);
+  delete globalThis.VideoDecoder;
+  delete globalThis.EncodedVideoChunk;
+}
+clearTimeout(watchdog);
+/** av1.js hands WebCodecs the caller's `out()` for a payload of one stream. */
+{
+  const seen = [];
+  const stub = {
+    init: async () => {},
+    probe: async () => true,
+    picture: async (bytes, unit, which, out) => (seen.push(`${which} ${typeof out}`), { width: 1, height: 1, bits: 10, planes: [{ heap: Uint16Array.of(7), offset: 0, stride: 1 }] }),
+  };
+  const av1 = await import("./av1.js?out");
+  await av1.init({}, async (path) => (path === "./av1-webcodecs.js" ? stub : { init: async () => {} }));
+  globalThis.VideoDecoder = class {};
+  await av1.decodeFrame(golden("plain", "g10"), { key: true, gen: 0, index: 0 }, undefined, undefined, () => {});
+  check(seen.join() === "top function", `out: the top unit's decoder is handed out() (${seen})`);
+  delete globalThis.VideoDecoder;
+}
+
+
 console.log(failed ? `${failed} of ${failed + passed} failed` : `av1 payload reader: ${passed} ok`);
 process.exit(failed ? 1 : 0);

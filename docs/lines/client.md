@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-24 (the exact frame without a request, sized), 2026-11-23 (the engines' path fix; the memory a navigation leaves; the view's default memory bound, its second fix and its re-review; stale client code), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-24 (the exact frame without a request, sized; the next AV1 unit sent while the last is read back, DECODE-OVERLAP), 2026-11-23 (the engines' path fix; the memory a navigation leaves; the view's default memory bound, its second fix and its re-review; stale client code), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -13,6 +13,11 @@ exact frame bit for bit, and only checked claims on screen.
 
 ## In flight
 
+* **The next AV1 unit while the last is read back** (DECODE-OVERLAP, 2026-11-24, `claude/decode-overlap`, PR 447, a draft
+  into `claude/unified`): the read-back is 39–46 % of a WebCodecs frame on `dbts_b1-q8-g8` in the cloud, measured; the
+  overlap built, tests mutated; on the 4-core host the bench's span is +3.5 % at 1× and −21.5 % at a 4× throttle
+  that idles the thread, not a result ([`../decode/README.md`](../decode/README.md) §The read-back's share).
+  DECODE-OVERLAP-MEASURE owes the view's fill, interleaved against the tip.
 * **The exact frame without a request** (EXACT-UNASKED, 2026-11-24, `claude/exact-unasked`, a draft into
   `claude/unified`, docs only): a dwell trigger sized from the delivery run's C1 rows
   ([`../client/evidence/exact-unasked.md`](../client/evidence/exact-unasked.md)): one frame a dwell, 0.2–1.3 s after

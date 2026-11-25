@@ -72,5 +72,35 @@ check((await frameUnder(undefined)).m.pixels instanceof SharedArrayBuffer, "a la
   check(sent[0]?.route === "av1-dav1d" && sent[0]?.refusal === "no VideoDecoder", `its frame names the route and the refusal (${sent[0]?.route}; ${sent[0]?.refusal})`);
 }
 
+/** The next frame starts once its codec says the one before it is out, before that one is delivered; both are delivered. */
+{
+  const STUB = `export async function init() {}
+export async function decodeFrame(bytes, unit, preview, avoid, out) {
+  globalThis.__started.push(unit.index);
+  if (unit.index === 0) out?.();
+  await globalThis.__gate;
+  return { info: { width: 1, height: 1, bitsPerSample: 8, componentCount: 1, isSigned: false }, sab: new SharedArrayBuffer(1),
+    byteCount: 1, range: { min: 0, max: 0 }, route: "av1-webcodecs" };
+}`;
+  const { register } = await import("node:module");
+  register(`data:text/javascript,${encodeURIComponent(`export async function resolve(s, c, next) {
+  return c.parentURL?.endsWith("?overlap") && s === "./av1.js" ? { url: "data:text/javascript,${encodeURIComponent(STUB)}", shortCircuit: true } : next(s, c);
+}`)}`);
+  globalThis.__started = [];
+  let open;
+  globalThis.__gate = new Promise((r) => (open = r));
+  await import("./decoder.js?overlap");
+  const replies = [];
+  reply = (m) => replies.push(m.kind);
+  onmessage({ data: { kind: "init", toConsumer: { postMessage() {} }, decoder: { codec: "av1" } } });
+  await new Promise((r) => setTimeout(r, 20));
+  for (const index of [0, 1]) onmessage({ data: { kind: "decode", index, gen: 0, bytes: new Uint8Array(4), stamps: {} } });
+  await new Promise((r) => setTimeout(r, 20));
+  check(__started.join() === "0,1" && !replies.includes("done"), `frame 1 starts while frame 0 is undelivered (${__started}; ${replies})`);
+  open();
+  await new Promise((r) => setTimeout(r, 20));
+  check(replies.join() === "ready,done,done", `then both are delivered (${replies})`);
+}
+
 console.log(failed ? `${failed} failed` : "decoder frame buffer: ok");
 process.exit(failed ? 1 : 0);

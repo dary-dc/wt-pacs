@@ -51,14 +51,14 @@ function route(payload, top, avoid) {
   return refusedDeep ? { refusal: refusedDeep } : webcodecs([]);
 }
 
-export async function decodeFrame(bytes, unit = { key: true }, preview, avoid) {
+export async function decodeFrame(bytes, unit = { key: true }, preview, avoid, out) {
   if (avoid && !unit.key) throw new Error("a frame inside a group decodes on its group's decoder alone");
   const payload = parsePayload(bytes);
   const [top, low] = units(payload.frames[0], payload.split);
   let { wc, refusal } = await route(payload, top, avoid);
   if (wc) {
     try {
-      const [t, l] = await Promise.all([wc.picture(top, unit), low && wc.picture(low, { key: true }, "low")]);
+      const [t, l] = await Promise.all([wc.picture(top, unit, "top", low ? undefined : out), low && wc.picture(low, { key: true }, "low")]);
       return { ...(l ? merge(t, l, payload) : end(begin(t, payload), l)), route: "av1-webcodecs" };
     } catch (e) {
       if (avoid === "av1-dav1d") throw e;
