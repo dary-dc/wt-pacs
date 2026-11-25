@@ -223,3 +223,13 @@ words it; the check it kills is the same.
   convention since the 23rd.
 
 ### Verdict
+
+No blocker open: DELIVERY-RUN-2's need on this review is met. Six minors and three nits for a later fix or the run's
+session. `scripts/gate.sh --quick` green on `854372707` plus this review's docs (2026-11-25, this container); skipped by
+name: the decoders' rebuild and the absence checks (`--quick`; `check_lab_absent.sh` run by hand, green), every step
+that needs `PYTHON=` with numpy or `INGEST_BUILD=` (not passed), the viewer's cross-codec arm and Firefox, the native
+painter and window (no lavapipe), the web host's check (no nginx).
+
+Fixtures and limits: `dbts_b1` only (2560 × 3328, 50 frames, its HTJ2K series and FIT's), one CLEAN load per mutant,
+the view stood in by the exact series; unit tests on synthetic rows; one 4-core cloud container without a GPU,
+software decode, headless Chromium, the userspace TUN relay; nothing here is a result.
