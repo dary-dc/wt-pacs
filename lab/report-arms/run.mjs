@@ -290,6 +290,7 @@ async function load({ unit: u, ending, mutant, sinkMutant, wait, sink, srv, dir,
 if (import.meta.url === `file://${process.argv[1]}`) {
   const { values: o } = parseArgs({ options: { units: { type: "string", default: "off,stub:Y" },
     endings: { type: "string", default: "D1" }, rounds: { type: "string", default: "1" }, mutant: { type: "string" },
+    "from-round": { type: "string", default: "0" },
     "sink-mutant": { type: "string" }, receiver: { type: "string", default: "sink" }, tun: { type: "boolean" }, engine: { type: "string", default: "chromium" }, wait: { type: "string", default: "60" }, out: { type: "string", default: "rows.jsonl" } } });
   if (o["sink-mutant"] && o.receiver === "nginx") throw new Error("--sink-mutant has no lever in NGINX");
   if (o.tun && !process.env.REPORT_ARMS_NS) {
@@ -308,7 +309,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     for (const ending of o.endings.split(",")) {
       const rows = plan(units, Number(o.rounds));
       const done = [];
-      for (const { round, unit: u, predecessor } of rows) {
+      // --from-round: a cell cut by a host restart goes on at a round boundary, its Williams order unchanged.
+      for (const { round, unit: u, predecessor } of rows.filter((r) => r.round >= Number(o["from-round"]))) {
         const srv = ending === "D8" ? null : (servers.up ??= await server(dir, out, at));
         const row = { round, predecessor, ...await load({ unit: u, ending, mutant: o.mutant, sinkMutant: o["sink-mutant"],
           wait: Number(o.wait), sink, srv, dir, out, via, at, engine: o.engine, round, index: units.indexOf(u) }) };
@@ -317,6 +319,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         done.push(row);
       }
       const line = { cell: ending, rounds: Number(o.rounds), balanced: balance(rows, units),
+                     ...(o["from-round"] !== "0" ? { fromRound: Number(o["from-round"]) } : {}),
                      ...(ending === "D5a-busy" ? { spread: delaySpread(done) } : {}) };
       appendFileSync(o.out, JSON.stringify(line) + "\n");
       console.log(JSON.stringify(line));
