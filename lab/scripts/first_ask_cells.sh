@@ -420,7 +420,7 @@ ceiling_cells() {
 
 # IWDEEP (docs/transport/link-conditions.md §Re-measured, proposed): quinn's 12 000-byte initial window
 # against 38 400 on a fresh ask-only session and a push-opened control, behind three queue depths.
-# One JSON row per run to $OUT; lab/iwdeep/summary.py reads them. RTTs and sizes are the protocol's.
+# One JSON row per run to $OUT, read by lab/iwdeep/summary.py (removed; e0dd6d4fb holds it). RTTs and sizes are the protocol's.
 iwdeep_cells() {
   local out="${OUT:?OUT=rows.jsonl}" rate rtt q kb n i k prev r raw link label iw
   local queues=("--queue-pkts 10" "--queue-ms 20" "--queue-ms 360")

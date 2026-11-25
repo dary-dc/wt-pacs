@@ -79,7 +79,7 @@ different points, because it is the same code stamping.
   `dyn_into::<ReadableStreamDefaultReader>()`, an `instanceof` check a substitute object fails; a
   `Proxy` forwards `getPrototypeOf`, and so does every handler in `lab/client-telemetry/proxy.ts`.
   *Corrected 2026-09-26:* this said the trap "carries its own test". None exists in
-  `lab/client-telemetry/test/`; the WASM variant of `lab/telemetry-cost` exercises it.
+  `lab/client-telemetry/test/`; the WASM variant of `lab/telemetry-cost` (removed; at `e0dd6d4fb`) exercises it.
 - **`gesture` is not covered**: it happens before the transport is called. The harness shell
   supplies it; without one, `queue` exports `null`.
 - The tap sees bytes, not frames, so frame boundaries are recovered arithmetically from byte
@@ -207,7 +207,7 @@ telemetry or carries its field literals, or if importing `dist/session.js` alone
 path. It does not include the Proxy dispatch that gets it there, or the per-frame row bookkeeping.
 This is the other number: the same client driven identically with the seam installed and not.
 
-`lab/telemetry-cost/cost.mjs` runs it in Node, no browser and no server: the seam is a patched
+`lab/telemetry-cost/cost.mjs` (removed; at `e0dd6d4fb`) runs it in Node, no browser and no server: the seam is a patched
 global `WebTransport`, which is what `client/contract/`'s fake occupies. **Three variants, not two.**
 `off` runs twice; the second is a null control whose difference from the first is the rig's
 resolution. Variants interleave and rotate every round.

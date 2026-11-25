@@ -4,10 +4,7 @@
 # Rust / Python / Node
 /target/
 lab/other-clients/h3/target/
-lab/study-index/target/
-lab/study-index/results/latency.jsonl
 lab/metadata-store/update-link/target/
-lab/disk-tree/target/
 
 # Generated Quinn modules (crates.io 0.11.11 + patches/quinn-0.11.11-mtu-gso.patch).
 /patched/quinn/src/**
@@ -33,8 +30,6 @@ client/transport/ts/test/run.mjs
 # Contract suite bundles (build via client/transport/ts/build.sh)
 client/contract/run.mjs
 client/contract/dist/
-# Telemetry cost bench bundle (build via client/transport/ts/build.sh)
-lab/telemetry-cost/cost.mjs
 
 # Generated fixtures by frame size (regenerate with lab/scripts/gen_tf_fixtures.sh)
 lab/fixtures/frames_32k/*.sbnd
@@ -78,15 +73,8 @@ lab/.av1-work/
 lab/.askjump/
 # Link traces a lab run fetches (lab/av1/delivery/total-time/run.mjs, lab/scripts/*_cells.sh)
 lab/.traces/
-lab/recv-cost/target/
 lab/frame-clock/runs/
 lab/.perf-nightly-*/
 
 # scripts/demo-series.sh output
 /demo-series/
-lab/containers/out/
-lab/sqlite-engine/target/
-# The late-frame cells: frames, containers and rows (lab/late-frame)
-lab/.late-frame-work/
-lab/late-frame/sbnd-late/target/
-lab/tail-rewrite/merge/target/

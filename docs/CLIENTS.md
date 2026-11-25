@@ -213,7 +213,7 @@ frame 2's two met the count before frame 3's came.
 The fake says `listening` on its channel once it is up, and the page posts nothing before it hears
 that. Chromium can drop a message posted to a channel a worker has already constructed: on Chrome
 148, 10 of 5 000 pings posted at once were lost without the wait and 0 with it (five rounds each,
-interleaved); on Chromium 141 in this container 103 of 5 000 (`lab/early-messages/run.mjs`). No
+interleaved); on Chromium 141 in this container 103 of 5 000 (`lab/early-messages/run.mjs` (removed; at `e0dd6d4fb`)). No
 product code uses a `BroadcastChannel`.
 
 **Against the real server** (`run_wire.sh`). It builds a debug `series-server` and `pack-series`,
@@ -486,8 +486,8 @@ new place.
 * The contract suite's WASM adapter (`adapters.ts`): `WTPACS_WASM_PKG=<pkg> node client/contract/run.mjs` runs every
   clause on the moved client, as it runs a feature build today. Without the variable, `run.mjs` runs the TypeScript
   sessions and the race and says the WASM client was not run. `refusals.html?client=wasm` stays for a lab wire run.
-* Every lab harness that dials it (`lab/page-open`, `lab/dial-deadline`, `lab/scripts/downloader_both_clients.sh`,
-  `lab/scripts/verify_e2e.py`, `lab/telemetry-cost`) and every dav1d-WASM run, their paths rewritten; the recorder's
+* Every lab harness that dials it (`lab/page-open`, `lab/dial-deadline` (removed; at `e0dd6d4fb`), `lab/scripts/downloader_both_clients.sh`,
+  `lab/scripts/verify_e2e.py`, `lab/telemetry-cost` (removed; at `e0dd6d4fb`)) and every dav1d-WASM run, their paths rewritten; the recorder's
   `transport-wasm` label; `lab/av1/delivery/scalable/two-layer/dav1d_wrap_op.c` including the wrapper where it is.
 
 **What it costs, for the owner to weigh.** It reverses the 2026-09-18 decision in §The contract suite ("The WASM
@@ -631,7 +631,7 @@ Rows 1 and 2 add no product path and can land before the owner rules on 3 and 4.
 both clients; if it is ruled first, W4 is not built.
 
 **Measured, and not.** Measured: the bytes (W10, today); R2's tie, and the page open on both clients (W11, row 279); the fill's tie; N6, stale; both clients
-pending past 180 s on a held dial ([`../lab/dial-deadline/`](../lab/dial-deadline/README.md)); the telemetry's cost;
+pending past 180 s on a held dial ([`../lab/dial-deadline/`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/dial-deadline/README.md)); the telemetry's cost;
 W6 through the downloader and the gate's added time (row 274, above). Not measured: the WASM client on the product page
 with #98's preload, or from the image; W4's cost on WASM, inferred from row 229's arms; the WASM client in Firefox or WebKit; the image's
 build time with a wasm32 stage.

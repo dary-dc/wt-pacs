@@ -1,5 +1,5 @@
 //! N sessions fill the same series at once; each fill's time, every frame matched byte for byte
-//! with the item ingest wrote, and the server's CPU and memory over the fills. lab/server-load.
+//! with the item ingest wrote, and the server's CPU and memory over the fills. docs/transport/transport-conclusions.md §4.
 //!
 //! usage: fill_load --url https://127.0.0.1:4433/ --items DIR --ext htj2k --sessions 8
 //!                  [--read-bps 2500000] --server-pid PID [--stream-window 6291456 --connection-window 15728640]

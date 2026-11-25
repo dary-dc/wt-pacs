@@ -158,7 +158,7 @@ only, and a cold claim waits for a lever that forces one.
   `fsync` of the parent, into one directory (A) and into D's 256. Time each publish.
 * **P4 · scan.** `readdir` plus `stat` of every entry, as a file-level backup does, over the P1 trees. Time per entry.
 
-**Amended 2026-10-26, before any run** (the run is [`lab/disk-tree/`](../../lab/disk-tree/README.md)). The reasons
+**Amended 2026-10-26, before any run** (the run is [`lab/disk-tree/`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/disk-tree/README.md)). The reasons
 are the container's: 4 vCPUs, 15 GiB of memory and 30 GB of free disk.
 
 * **Arms:** A, B, C, D and D2 in every protocol, not only A, C and D, so the meeting sees every path option. E and
@@ -192,7 +192,7 @@ untimed: the directories a publish renames into, the study a deletion or correct
 destination folder. Every timed pass also records the bytes read from the loop devices, so a cell that read any is
 not called warm.
 
-**Measured 2026-10-26** ([`lab/disk-tree/README.md`](../../lab/disk-tree/README.md), every number and its host). The
+**Measured 2026-10-26** ([`lab/disk-tree/README.md`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/disk-tree/README.md), every number and its host). The
 run used 4 vCPUs, ext4 without `large_dir` and XFS, up to 10⁶ studies, warm only. Lookup: the option costs at most a
 few µs. Scan and deletion cost about the same per study under every option. Publication is bound by the flush under
 every option, and B's and C's next-day folder takes every writer as A's root does. A corrected date moves the study

@@ -88,7 +88,7 @@ open the viewer.
 
 ## What a real Chromium does
 
-Headless Chromium 141, loopback, against this server, driven by `lab/idle-sessions/idle-hold.html` —
+Headless Chromium 141, loopback, against this server, driven by `lab/idle-sessions/idle-hold.html` (removed; at `e0dd6d4fb`) —
 which dials, takes a frame, sends nothing for the hold, then asks for another frame, so **alive
 means a frame arrived**, not that the handle still exists.
 

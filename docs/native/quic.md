@@ -261,7 +261,7 @@ server build, controller (`cubic-restart`), initial window and relay, printed pe
   Rule: P1 holding makes the native receive path a lever on desktop and Android; P3 failing at 50 Mbit/s names the
   receive path as a bound inside the target range. Say where the container saturates.
 
-  **Measured 2026-10-11 (queue row 135), run from this protocol and rule alone** ([`../../lab/recv-cost`](../../lab/recv-cost/README.md)):
+  **Measured 2026-10-11 (queue row 135), run from this protocol and rule alone** ([`../../lab/recv-cost`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/recv-cost/README.md)):
   7 rounds, the five arms in a Williams order inside each (cell, round), 210 fills, **168 000 / 168 000 frames exact**
   against SHA-256s written when the series were made (random bytes, 800 × 250 KB and 800 × 32 KB). Every arm: one
   `series-server` build (this tree at `3add8a9`), `cubic-restart`, quinn's default initial window, `stream_mode=shared`,

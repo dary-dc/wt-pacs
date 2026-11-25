@@ -578,7 +578,7 @@ series with thousands of frames (the N-read opens would grow past 14 ms), DCMTK,
 
 *One question: what does adding 1 or 10 late frames cost, at the end and in the middle
 of a series, in each container? Reported, not decided. Pre-registered, rig and reproduction:
-[`../../lab/late-frame/README.md`](../../lab/late-frame/README.md).*
+[`../../lab/late-frame/README.md`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/late-frame/README.md).*
 
 **The rig.** 2 000 synthetic 512² CT frames (`lab/scripts/gen_frame_pnm.py` `ct`), 12-bit samples in 16-bit words,
 plus 10 late frames, coded two ways: HTJ2K in the served profile by OpenJPH 0.31.0 (264 kB a frame), and lossless AV1
@@ -606,9 +606,9 @@ two-stream payload. Series of N = 262 and 2 000 frames:
 
 Every output was read back once by another tool: each MP4 decoded by FFmpeg's libdav1d to the generator's samples,
 evenly timed; each MXF by bmx's `mxf2raw` with `--check-end --check-complete`, its essence the codestreams in order;
-each `.sbnd` by its index. Seven deliberate breakages, one per path, were each caught (`lab/late-frame/mutate.txt`).
+each `.sbnd` by its index. Seven deliberate breakages, one per path, were each caught (`lab/late-frame/mutate.txt` (removed; at `e0dd6d4fb`)).
 Five rounds, every round all 144 cells in a Williams order; each run copies the series, `sync`s, then times the
-operation alone, page cache warm. Medians of 5; the range is in `lab/late-frame/rows.jsonl`.
+operation alone, page cache warm. Medians of 5; the range is in `lab/late-frame/rows.jsonl` (removed; at `e0dd6d4fb`).
 
 **At N = 2 000, k late frames: bytes written · warm · `fsync`'d.** Measured, every cell.
 
@@ -669,7 +669,7 @@ byte for byte (libdav1d decoded every splice exactly through the one sample entr
 
 *One question, from the owner: can a merge write only the frames from the insertion point to the end, and still
 publish by rename, keep the frames contiguous in display order and keep no old index? Reported, not decided.
-Pre-registered, rig and reproduction: [`../../lab/tail-rewrite/README.md`](../../lab/tail-rewrite/README.md).*
+Pre-registered, rig and reproduction: [`../../lab/tail-rewrite/README.md`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/tail-rewrite/README.md).*
 
 **The answer: yes on a filesystem with reflinks, and no gain without them.** The merge clones the published file
 into `incoming/` (`FICLONE`: the clone shares the old file's extents, nothing copied), rewrites the clone from the
@@ -706,7 +706,7 @@ and the directory's `fsync` (warm reads back through the cache). 96 cells in a W
 | tail, ext4 (no reflink: `copy_file_range`) | 529.4 MB · 1.79 s · 2.77 s | 529.4 MB · 1.81 s · 2.69 s | 529.4 MB · 1.84 s · 4.25 s |
 
 Index at the front: the same bytes (+2 kB) and times within the ranges; every cell, both N, in
-`lab/tail-rewrite/rows.jsonl`. At N = 262 the XFS tail took 2.7 ms / 5.5 ms at the end and 0.15 s / 0.19 s in the
+`lab/tail-rewrite/rows.jsonl` (removed; at `e0dd6d4fb`). At N = 262 the XFS tail took 2.7 ms / 5.5 ms at the end and 0.15 s / 0.19 s in the
 middle, against 0.23–0.24 s / 0.31–0.32 s for the full rewrite.
 
 * **Read.** The XFS tail reads the old index and the old frames after the point (56 kB at the end, 264 MB in the
@@ -716,7 +716,7 @@ middle, against 0.23–0.24 s / 0.31–0.32 s for the full rewrite.
   hidden copy. FIEMAP shows the published file sharing exactly the blocks below the point with the old one.
 * **Correct.** All 24 (filesystem × N × position × index place) published a file identical byte for byte to the full
   rewrite's, and a reader holding the old file open read it unchanged after the rename. Five deliberate breakages were
-  each caught (`lab/tail-rewrite/mutate.txt`).
+  each caught (`lab/tail-rewrite/mutate.txt` (removed; at `e0dd6d4fb`)).
 * **A frame at the start is worse by clone.** It writes what the full rewrite writes, but every block overwrites a
   shared extent and pays copy-on-write: 1.6× the full rewrite `fsync`'d. A merge should clone only when there is a
   prefix to share.

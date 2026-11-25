@@ -58,7 +58,7 @@ for the old sources (one hash, older mtimes). Compare trees with a target direct
   build, which now refuses the flag; `docs/devices.md` D2 (on `claude/phone-protocol`) runs that arm, "the same
   binary". The phone run today uses an earlier commit, so nothing is broken yet. Options: a `FEATURES` build argument
   in `deploy/Containerfile` for a lab image the kit builds, or D2 without that arm. A structural choice, so not made
-  here. `lab/ask-ahead` and `lab/irtt` already say `--features lab-levers` in their READMEs.
+  here. `lab/ask-ahead` (removed; at `e0dd6d4fb`) and `lab/irtt` (removed; at `e0dd6d4fb`) already say `--features lab-levers` in their READMEs.
 * **F2 (lab tool): under `?check=`, a refused transport now gives no result.** When `globalThis.viewerTransport`
   rejects, `viewer.js` makes `lab = { refused }`, so `hooks` is undefined and `hooks?.report` writes nothing: the
   check waits its 300 s and reports "no result" where it reported the refusal before. From the code, not run; the

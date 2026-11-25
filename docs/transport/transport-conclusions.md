@@ -552,7 +552,7 @@ So the bound is predicted to pass the protocol's first three cells and not to be
 *2026-10-09, queue row BB3MEASURE.*
 
 [`bb3-protocol.md`](bb3-protocol.md) run as written on one release build of `claude/av1-unified`; every visit's raw
-output is in [`lab/bb3`](../../lab/bb3/README.md). `VOID` is the relay's own timing rule; medians [range over rounds],
+output is in [`lab/bb3`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/bb3/README.md). `VOID` is the relay's own timing rule; medians [range over rounds],
 ratios the median of round-paired ones. Host: 4 cores; load 0.2–4.2 and steal 0.7–1.3 % median (max 5.8 %) across
 the cells. *Not as written:* cells 1–3 ran beside a build pinned to the fourth core at the lowest priority (load up
 to 4.2), and cell 4 ran 6 of its 10 rounds, the row's five-hour budget.
@@ -602,7 +602,7 @@ none of theirs is kept; counted):
 | AV1 | 4× | l2 ÷ bbr | **1.187** [0.98–1.38] (3) | **1.854** [1.68–2.02] (2) | **1.314** [1.15–1.48] (2) | 0.982 [0.98–0.98] (1) |
 | AV1 | 4× | l5 ÷ bbr | **1.823** [1.67–1.98] (2) | **4.086** [2.63–5.55] (2) | **4.812** [4.81–4.81] (1) | **2.742** [2.28–3.20] (2) |
 
-44 of the 73 cells with a kept pair are over the bar with `VOID` dropped, 45 with it counted (`lab/bb3/rule4.py`): 34
+44 of the 73 cells with a kept pair are over the bar with `VOID` dropped, 45 with it counted (`lab/bb3/rule4.py` (removed; at `e0dd6d4fb`)): 34
 of 44 lossy cells, up to ×8.3 at 4× on 50 Mbit/s with 5 % loss, and 10 of 29 clean or jitter cells. Most cells hold
 1–5 kept pairs, short of the protocol's 10 rounds.
 
@@ -672,7 +672,7 @@ source on ECN.
 
 #### Where BBR's clean-link cost comes from
 
-**Nothing is lost on the cost cells.** The bound's cell 4 (`lab/bb3/cell4-losscc.jsonl`, 12 visits per arm and cell,
+**Nothing is lost on the cost cells.** The bound's cell 4 (`lab/bb3/cell4-losscc.jsonl` (removed; at `e0dd6d4fb`), 12 visits per arm and cell,
 `VOID` included: these are counts, not timings) ran `bbr` and `cubic-restart` on the clean and ±20 ms cells.
 
 * On every fixed-rate cell, for every controller, the relay dropped no datagram (`s2c`, median 0, max 0); on
@@ -1673,7 +1673,7 @@ Arms alternate within every round (`lab/scripts/order.py`), and both readings ar
 **Cells.**
 
 * **A, the first flight lost:** `lab/scripts/swallow_cells.sh` drops exactly the server's first flight. 40, 80 and
-  150 ms; headless Chromium 141, Firefox (`lab/firefox-dial`) and `cold_open`; n = 20 a cell and arm.
+  150 ms; headless Chromium 141, Firefox (`lab/firefox-dial` (removed; at `e0dd6d4fb`)) and `cold_open`; n = 20 a cell and arm.
 * **B, random loss:** 1 % each way, 80 ms, Chromium and `cold_open`, ≥ 1 000 cold opens an arm. Report:
   * the share of opens whose server sent a probe before the first ACK (the server's `session path` line:
     `datagrams_tx` over the clean cell's);
@@ -1710,7 +1710,7 @@ Arms alternate within every round (`lab/scripts/order.py`), and both readings ar
 
 #### Measured: IRTTMEASURE, 2026-10-11
 
-*Queue row 139*, run from the protocol and rule above only: [`lab/irtt`](../../lab/irtt/README.md), raw rows in
+*Queue row 139*, run from the protocol and rule above only: [`lab/irtt`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/irtt/README.md), raw rows in
 `lab/irtt/raw/`. One `series-server` binary (sha256 `5c29b21a…`), `cubic-restart` in both arms, the arms differing only
 in `initial_rtt_ms=100`; quinn 0.11.11, quinn-proto 0.11.18, wtransport 0.7.2. The dev certificate (one P-256 leaf)
 and an ECDSA chain (leaf and intermediate, 2 091 B). Chromium 141.0.7390.37 headless, Firefox 157.0.1 headless,
@@ -1862,7 +1862,7 @@ owner declines the 100 ms default (an open owner call: row 139 left it to a revi
 
 #### Measured: INITIALMEASURE, 2026-10-14
 
-*Queue row 189*, run from the protocol and rule above only: [`lab/irtt`](../../lab/irtt/README.md) `--row reply`, raw rows
+*Queue row 189*, run from the protocol and rule above only: [`lab/irtt`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/irtt/README.md) `--row reply`, raw rows
 in `lab/irtt/raw/reply-{a,b,c}.jsonl.gz`. The build is `5b5d68c3`: `patches/quinn-proto-0.11.18-reply-repeated-initial.patch`
 behind `--reply-repeated-initial`, off by default, and two tests in `server/src/transport/server.rs` that fail with the
 flag off, with the once-a-connection guard removed and with every CRYPTO frame counted as new. One `series-server`
@@ -2040,7 +2040,7 @@ the viewer does with a partly-filled series.
 ### Firefox's dial on a slow link, 2026-10-09
 
 **Firefox 157 never got a session through a 5 Mbit/s link, and lost most at 10–20: the server's
-early SETTINGS were ours to fix** ([`../../lab/firefox-dial/README.md`](../../lab/firefox-dial/README.md)).
+early SETTINGS were ours to fix** ([`../../lab/firefox-dial/README.md`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/firefox-dial/README.md)).
 Firefox's ClientHello is 1 841 B and spans two Initial datagrams (a post-quantum key share); Chromium
 141's fits its first. The server starts its HTTP/3 driver on the connection's first datagram so SETTINGS
 leave with the handshake flight ([`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Early SETTINGS); when the
@@ -2337,7 +2337,7 @@ measured its CPU per byte. That measurement would decide it.
 *2026-10-07, queue row 81.*
 
 **How many concurrent fills one server core carries before it, not the links, is the clock**
-(`lab/server-load`). The server on one core of a 4-vCPU container, N native sessions
+(`lab/server-load` (removed; at `e0dd6d4fb`)). The server on one core of a 4-vCPU container, N native sessions
 (`fill_load`) on the other three, each on its own socket, all asking the whole 10-bit tomosynthesis
 volume at once — 24 × 678×1727, 13.6 MB as HTJ2K, 13.0 MB as the optimized AV1 payload. Each session
 reads as fast as it can, or at 20 or 50 Mbit by pacing its reads, so flow control holds the server

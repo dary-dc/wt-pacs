@@ -352,7 +352,7 @@ sizes are a seeded shuffle.
 ## An ask behind the decoders
 
 *Queue row ASKBEHIND (183), 2026-10-13. Theory: nothing built or timed but a model of the dispatch,
-[`lab/ask-behind/sim.py`](../../lab/ask-behind/sim.py) (`--test` checks its claims, each mutated to fail). The protocol
+[`lab/ask-behind/sim.py`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/ask-behind/sim.py) (`--test` checks its claims, each mutated to fail). The protocol
 below is for a separate session given it and its rule only.*
 
 **The question.** At the measured rates, what does an ask wait behind in a decoder's queue, and does ask-aware
@@ -426,7 +426,7 @@ help the wire's part, which at 103 Mbit/s is the larger (0.49 s, row 167).
   (`lab/scripts/aa_rule.py`, three arms in `lab/scripts/order.py`'s order, n = 12, up to 24 for a cell not
   conclusive). Each arm prints its settings: build sha256s, controller and initial window, transport options, decoder
   path, `perDecoder` and the ring's size, which differs by one under B and nowhere else.
-* **Rig:** `lab/ask-ahead` (`cells.py`, `page.js`, `visit.mjs`) with decoding on, and Chromium's CPU throttle at 1×
+* **Rig:** `lab/ask-ahead` (removed; at `e0dd6d4fb`) (`cells.py`, `page.js`, `visit.mjs`) with decoding on, and Chromium's CPU throttle at 1×
   and 4× as `lab/av1/delivery/fill` sets it. The page fills the whole series and, once half has landed, asks for the last
   frame. Per run it records the ask's decoder wait (`decodeEnd − lastByte` of the asked frame; *corrected by the run,
   2026-10-22:* from the later of `lastByte` and the ask, since at AV1 4× every asked frame was already in hand and
@@ -512,7 +512,7 @@ quoted.
 
 A dedicated worker is a thread in the page's renderer, so its cost is a **slope in the worker
 count**: the same page decodes the same series at `decoders=1` and `decoders=3`, and the answer is
-`(RSS₃ − RSS₁) / 2`. `lab/decoder-memory/`, 87 × 512×512 × 16-bit, the wrapper as delivered,
+`(RSS₃ − RSS₁) / 2`. `lab/decoder-memory/` (removed; at `e0dd6d4fb`), 87 × 512×512 × 16-bit, the wrapper as delivered,
 interleaved with variant and count order rotated, a fresh context per run, every frame checked. Chrome
 148, peak from `VmHWM`, settled after `measureUserAgentSpecificMemory()` with the workers alive.
 
@@ -557,7 +557,7 @@ list is under `N`; one smaller than the frame being read is dropped rather than 
 `decode: false` frame goes to the page and never returns. **The reader is never paused when the list
 is empty**; a fresh buffer is allocated, so no consumer that keeps a buffer can deadlock it.
 
-`lab/decoder-memory/` with `path=downloader&hold=1 --wire 0,8`, D=3, the size rotated every round;
+`lab/decoder-memory/` (removed; at `e0dd6d4fb`) with `path=downloader&hold=1 --wire 0,8`, D=3, the size rotated every round;
 peak is `VmHWM`, paired inside each round, MB, median [range]:
 
 | series | peak, one buffer per frame | peak, a ring of 8 | paired | lower in | fill + decode wall | n |
@@ -655,7 +655,7 @@ The row's view: queue it only if FASTCLOCK finds a target series with Q over ~20
 * **Arms:** A (today), A′ (today under another name), B (`high` = the ring's frames' bytes, `low` = 0), by §Net
   protocols' common rule (`lab/scripts/aa_rule.py`, three arms, `lab/scripts/order.py`, n = 12, up to 24). Each arm
   prints its full settings.
-* **Rig:** `lab/ask-ahead` with decoding on, and Chromium's CPU throttle at 4× as `lab/av1/delivery/fill` sets it.
+* **Rig:** `lab/ask-ahead` (removed; at `e0dd6d4fb`) with decoding on, and Chromium's CPU throttle at 4× as `lab/av1/delivery/fill` sets it.
   Per run it records:
   * the page's renderer peak (`VmHWM`) and the network service's, summed;
   * the downloader's largest queued coded bytes;
@@ -682,7 +682,7 @@ The row's view: queue it only if FASTCLOCK finds a target series with Q over ~20
 ## The first frame
 
 A decoder just created is slower than the same decoder a few frames later.
-`lab/decode-first-frame/`, headless Chromium on a persistent profile, a fresh decoder per visit, 3
+`lab/decode-first-frame/` (removed; at `e0dd6d4fb`), headless Chromium on a persistent profile, a fresh decoder per visit, 3
 rounds, medians. **The first frame costs about four times the steady state**: on `g512` frame 0 is
 11.8 ms, frames 1–5 ~4.5, steady 3.0 (**3.92×**); on `cine512` 13.7, 4.3 and 3.8 (**3.57×**) — ~9 ms
 on a 512×512 frame, exactly where a user is waiting. **The engine's code cache does nothing to it**:
@@ -948,7 +948,7 @@ Mutants, each caught: the colour range from its first component (87/87 differ), 
 gate, `dispatch-rig.ts` holds `decoder.js` to both halves with the package and a stand-in glue that
 answers `getRange()` (`client/contract/range-glue.js`); always-pass and never-pass each fail one.
 
-**What it buys.** [`../../lab/decode-tail/run.mjs`](../../lab/decode-tail/run.mjs), the wrapper
+**What it buys.** [`../../lab/decode-tail/run.mjs`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/decode-tail/run.mjs), the wrapper
 before (`today`) against `built`, both from source at a 16 MB heap through `decoder-split.js`; every
 browser thread slowed; c512 and g512 with three asks after the fill; 7 rounds interleaved. Medians,
 and rounds `built` was sooner:
@@ -1010,7 +1010,7 @@ variant; medians, ms/frame):
 
 The workstation's rig saw a colour fill's last byte ~325 ms after the ask and its last frame decoded
 ~685 ms after it. **The pool is busy the whole fill; the tail is throughput, not scheduling.**
-[`../../lab/decode-tail/run.mjs`](../../lab/decode-tail/run.mjs) runs a fill through the downloader
+[`../../lab/decode-tail/run.mjs`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/decode-tail/run.mjs) runs a fill through the downloader
 with three real decoders against the server on loopback, driverless Chromium, and splits it from each
 frame's stamps (last byte, dispatched, decode start and end, decoder index), charging any idle
 decoder with work in reach to where that work sat. §Content's two sets, 87 frames, 7 rounds
@@ -1035,7 +1035,7 @@ content only**: on the rig a 237-frame 16-bit fill ended 15 ms after its last by
 * **The order frames reach decoders** cannot shorten a throughput-bound finish; at most the ragged
   end, one frame's decode (~18 ms).
 * **Starting a frame before its last byte** adds no capacity to a pool busy while bytes arrive.
-* **Reusing the pixel buffer** (`lab/decode-tail/decoder-reuse.js`) tied: allocation is not in the
+* **Reusing the pixel buffer** (`lab/decode-tail/decoder-reuse.js` (removed; at `e0dd6d4fb`)) tied: allocation is not in the
   tail.
 
 **Where the host saturates.** Three decoders, the page, the downloader and the server on four cores:
@@ -1073,7 +1073,7 @@ workstation (Chrome 148, 2026-10-02): 267 / 1 097 ms page thread, 268 / 1 206 ms
 ### The package, throttled
 
 `run.mjs --throttles 1,4,6 --asks 20,43,66`: a fill of each set, then three frames asked one at a
-time on the warm session, through [`decoder-split.js`](../../lab/decode-tail/decoder-split.js) (the
+time on the warm session, through [`decoder-split.js`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/decode-tail/decoder-split.js) (the
 product's worker with stamps inside `decodeFrame`). Two sets × three builds × three throttles,
 rotated, 7 rounds. The package, medians:
 
@@ -1120,7 +1120,7 @@ largest frames only — §Faster HTJ2K in the browser.
 header and pixels out stay under 1 ms at every throttle. **But the range pass is the largest
 per-frame cost after the decode** — 21–31 % of a frame in its decoder at every throttle. Keeping its
 min and max as integers rather than doubles from ±Infinity
-([`range.mjs`](../../lab/decode-tail/range.mjs), a browser worker, 7 rounds): colour 3.36 → 2.58 ms
+([`range.mjs`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/decode-tail/range.mjs), a browser worker, 7 rounds): colour 3.36 → 2.58 ms
 (6/7), 16-bit 1.52 → 1.26 (5/7), signed 12-bit 2.45 → 2.20 (5/7) — not changed. Not walking the
 pixels at all was built: §The range in the pack.
 
@@ -1811,8 +1811,8 @@ downloader's `decoderWorker` seam; server and store unchanged.
 ### HTJ2K progressive, measured
 
 *2026-11-02/03, a separate session given the protocol above and nothing else; the predictions above are left as
-written. Harness, commands and every check: [`lab/htj2k-progressive`](../../lab/htj2k-progressive/README.md); every
-table in full, and the rows, in its [`rows/`](../../lab/htj2k-progressive/rows/).*
+written. Harness, commands and every check: [`lab/htj2k-progressive`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/htj2k-progressive/README.md); every
+table in full, and the rows, in its [`rows/`](https://github.com/dary-dc/wt-pacs/tree/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/htj2k-progressive/rows).*
 
 **What ran: the ladder, all three stages. One set, two layers and two sets were not built.** The lab writer (5/3
 lifting, an HT cleanup at plane p, SigProp and MagRef encoders, layered packet headers and tag trees) and the patched
@@ -1938,7 +1938,7 @@ two quality shapes, not built; the 20 Mbit/s `dbts_a1` level-2 cell at 1×, ever
 ### HTJ2K quality layers, built
 
 *2026-11-04, a later session; not timed. Everything, with sources and commands, in
-[`lab/htj2k-progressive`](../../lab/htj2k-progressive/README.md) §Quality layers, built.* Both quality shapes are now
+[`lab/htj2k-progressive`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/htj2k-progressive/README.md) §Quality layers, built.* Both quality shapes are now
 built by a lab writer (its one-layer output equal to `ojph_compress`'s byte for byte) and checked on `mr9_ispy2`,
 `rf_fluoro`, `mr_ispy1`, `dbt12_ea1141` and `dbts_b1` (149 frames): every layer-1 picture and every whole frame
 decoded as expected by the client's OpenJPH build, through a one-layer rewrite, since that build refuses two layers.
@@ -1952,7 +1952,7 @@ here reads the layered bytes whole (OpenJPEG 2.5.4 refuses or misreads layer 2).
 ### HTJ2K quality layers, measured
 
 *2026-11-04/05, a separate session given the protocol; everything in
-[`lab/htj2k-progressive`](../../lab/htj2k-progressive/README.md) §Quality layers, measured.* The protocol's stages ran
+[`lab/htj2k-progressive`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/htj2k-progressive/README.md) §Quality layers, measured.* The protocol's stages ran
 for both quality shapes through OpenJPH 0.31.0 patched to read layers, on every frame of the 23 grey sets (12-bit and
 10-bit DBT, fluoroscopy, MR, `usb_cine`): every exact frame equal to its source digest (single-decoder), every layer 1
 also OpenJPEG 2.5.4's. **By the rule as written, one set, two layers is interesting**: on `rf_fluoro` its layer 1 is at

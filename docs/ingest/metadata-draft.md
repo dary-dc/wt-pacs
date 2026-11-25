@@ -20,7 +20,7 @@ is marked where it is made; every number keeps its source.*
 | metadata size and repetition on five TCIA series | §2 | the same README, §Repetition | #150 |
 | the parser's own output on the same series | §2 | the same README, §The parser's own output | #154 |
 | compressing metadata-only update packages on emulated links | §2 | the same README, §Updates on the link | #156 |
-| rusqlite against Turso; each at its best; a read beside an update in two processes | §3 | [`lab/sqlite-engine`](../../lab/sqlite-engine/README.md) §1–§5 | #147, #151, #157 |
+| rusqlite against Turso; each at its best; a read beside an update in two processes | §3 | [`lab/sqlite-engine`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/sqlite-engine/README.md) §1–§5 | #147, #151, #157 |
 
 ## Why
 
@@ -849,7 +849,7 @@ disk holds the study databases under the target, so the hosted service is not on
 
 rusqlite 0.41.0 (SQLite 3.54.1, the 3.54.x line) against Turso 0.8.3 (`v0.8.3` = `607bff9`), both in process, for one
 study database per study, one writer process, readers in that process or another. The evidence, with every source
-line and the pre-registrations: [`lab/sqlite-engine/README.md`](../../lab/sqlite-engine/README.md) — §1–§3 the first
+line and the pre-registrations: [`lab/sqlite-engine/README.md`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/sqlite-engine/README.md) — §1–§3 the first
 comparison (#147), §4 each engine at its best (#151), §5 a read beside an update in two processes
 (#157). One 4-vCPU VM, files in the page cache. *Re-measured the same day with each engine
 at its best* (§4): both in `spawn_blocking`, Turso without its default features, equal engine caches, rusqlite
@@ -906,7 +906,7 @@ The principle is decided: only what the page needs now. What remains open:
 * **The gate.** The `pack-series` same-bytes check (`scripts/gate.sh:180`) packs `metadata.json` into the `.sbnd`;
   under the target it packs none, so that check changes with the target's format, not with this work.
   `deploy/check_equivalence.sh` lists `/series/metadata` among what the image answers; it goes with the JSON.
-* **The lab.** `lab/container-bench` and `lab/viewer-ceiling` read the ingest's `metadata.json` as their input. It
+* **The lab.** `lab/container-bench` and `lab/viewer-ceiling` (removed; at `e0dd6d4fb`) read the ingest's `metadata.json` as their input. It
   stays the ingest's output, so the lab keeps it.
 
 ## What the owner decides, in order
@@ -937,7 +937,7 @@ Fetched 2026-10-19, first 12 hex of the fetched file's sha256.
   (`6f75c718aecf`), usage and billing (`b975c2fcfd32`); the pricing page could not be fetched.
 
 Read 2026-10-25 for §3's rusqlite against Turso, each cited by file and line in
-[`lab/sqlite-engine/README.md`](../../lab/sqlite-engine/README.md): Turso's source at tag `v0.8.3` (`607bff9fd0e5`), its
+[`lab/sqlite-engine/README.md`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/sqlite-engine/README.md): Turso's source at tag `v0.8.3` (`607bff9fd0e5`), its
 issues #4627, #7995, #8536, #9362, #10114, #10314 and PR #8103 on GitHub; `rusqlite` 0.41.0 and `libsqlite3-sys`
 0.39.1 as cargo fetched them; tokio 1.54.1's source, docs.rs and the tokio.rs tutorial; ryhl.io, "Async: What is
 blocking?".

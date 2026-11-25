@@ -133,6 +133,9 @@ small enough that every open item has an owner and a next step.
    EVAL-RELEASE (2026-11-24, `claude/eval-release` from `b059388b6`): COMPLEXITY-AUDIT re-derived on the tip, items
    1-4 and 6 landed, so no cleanup commit; items 5, 7, 8, `handoff/`, P4-P8, P10, S2 and S5 one line each in
    `docs/reviews/eval-release.md` with the page that holds them. Owed: EVAL-RELEASE-REVIEW.
+   LAB-REMOVAL (2026-11-25, `claude/lab-removal` into `claude/eval-release`, draft): the 36 directories of
+   `lab-list.md` §Re-read removed, recovered from `e0dd6d4fb` (no archive tag); the docs name that commit; gate OK.
+   Its merge is the owner's yes to `unified-to-main` item 4. Owed: LAB-REMOVAL-REVIEW.
 
 ## Unification (the owner, 2026-11-09)
 

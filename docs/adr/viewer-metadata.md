@@ -324,7 +324,7 @@ the page's origin is no slower to the first exact frame than F's opening message
   page, the same rule decides §10's question 8: if F wins there, taking that lever means taking F.
 
 *Measured 2026-10-26, for the owner's option (design state §6; not this protocol's run):*
-[`lab/metadata-delivery`](../../lab/metadata-delivery/README.md) builds the study DB read at open (per-instance values
+[`lab/metadata-delivery`](https://github.com/dary-dc/wt-pacs/blob/e0dd6d4fbcba596f78ea97c604422b2615970308/lab/metadata-delivery/README.md) builds the study DB read at open (per-instance values
 or a ready row; over HTTPS or as the session's first message), B and this record's split, and times them on fiber,
 4G/5G at 1 % loss and GEO, with their host cost and their consistency under updates. It reports; it does not move §8 or
 §11, and the choice is the owner's (§10).

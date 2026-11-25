@@ -46,7 +46,7 @@ written); the new tip's last commit names it unlinked.
 * **The server** — `server/src/` (18 files, +973 −279: the BBR loss bound, the controller trace, row 54's tests
   and the renames, on PR #34's structure), `common/` (`study-bundle` moved to `common/series-bundle/`, the
   envelope's `INDEX_LEN`), `server/scripts/`.
-* **The lab** — `lab/decode-bench/`, `lab/bb3/`, `lab/recv-cost/`, `lab/page-open/`, `lab/disk-access-bench/`
+* **The lab** — `lab/decode-bench/`, `lab/bb3/` (removed; at `e0dd6d4fb`), `lab/recv-cost/` (removed; at `e0dd6d4fb`), `lab/page-open/`, `lab/disk-access-bench/`
   and some 40 more folders; `lab/scripts/` renamed by what each script measures.
 * **Docs** — `docs/av1/` (the phase, its queue's reports), `docs/adr/`, `docs/transport/`, `docs/decode/`,
   `docs/codecs/`, `docs/native/`, `docs/ingest/`, the glossary; `README.md` and `CLAUDE.md`.

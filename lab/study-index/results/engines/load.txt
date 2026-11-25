@@ -1,3 +1,0 @@
-mysql: 336 s
-sqlite: 147 s
-postgresql: 82 s

@@ -419,7 +419,7 @@ passes if the write's failure deletes one series and retries, then stops writing
 
 **Pre-registered 2026-10-27, before any run, for the build** (`claude/opfs-cache-build`), on the 4-vCPU agent
 container: a millisecond there is container-measured ([`../rig-limits.md`](../../rig-limits.md)). Series are
-`lab/viewer-ceiling/make_series.py`'s, 16-bit grey, 64 distinct fields cycled; every frame is checked twice, by the
+`lab/viewer-ceiling/make_series.py` (removed; at `e0dd6d4fb`)'s, 16-bit grey, 64 distinct fields cycled; every frame is checked twice, by the
 page's XXH3 against the metadata and by the rig's SHA-256 against the encoder input. Arms are ordered per round by
 `lab/order.mjs`; ≥ 7 rounds; each arm's full settings printed with its rows. Rig: `lab/opfs-cache/`.
 
