@@ -1,8 +1,8 @@
 state: started
 started: 2026-11-25T07:27Z
-heartbeat: 2026-11-25T07:30Z
+heartbeat: 2026-11-25T07:37Z
 by: n8fUGgJW
-outputs: claude/reviews-2026-11-28 (pending)
+outputs: claude/reviews-2026-11-28 96600fb17 (group D), 9f6f3b54f (group C); A, B pending
 ## Resume
 Worktree of origin/claude/reviews-2026-11-28 at 78b49608f. 21 pages (lab-list and README are not pages). Four
 subagents edit disjoint page groups in place, uncommitted; the orchestrator commits and pushes each group as it lands:
