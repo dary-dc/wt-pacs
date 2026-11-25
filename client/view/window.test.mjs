@@ -100,6 +100,21 @@ test("rocking over any adjacent pair fetches no frame twice", async () => {
   }
 });
 
+/** On a backward pass at W = 15, G = 8, the group behind is on the wire at least G − 1 steps before the reader reaches its last frame: the neighbour group is the one the reader moves toward. */
+test("a backward pass wants the group behind G − 1 steps ahead of its last frame", async () => {
+  const n = 50, g = 8;
+  const w = await world("behind", { n, g, budget: 15 });
+  await walk(w, Array.from({ length: n }, (_, i) => i));
+  const path = Array.from({ length: n }, (_, i) => n - 1 - i);
+  const stepOf = new Map();
+  for (const [s, i] of path.entries()) for (const f of await walk(w, [i])) if (!stepOf.has(f)) stepOf.set(f, s);
+  for (let last = g - 1; last < n - g; last += g) {
+    if (!stepOf.has(last)) continue;
+    const lead = path.indexOf(last) - stepOf.get(last);
+    assert.ok(lead >= g - 1, `frame ${last}, its group's last, on the wire ${lead} steps before it is reached`);
+  }
+});
+
 for (const [name, fn] of tests) {
   await fn();
   console.log(`ok ${name}`);
