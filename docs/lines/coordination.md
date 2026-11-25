@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review, its fix and re-review 2026-11-23; the order to decide in 2026-11-23; phase 2's queue (`claude/work-ledger:docs/queue-2026-11-24.md`, PHASE2-PLAN) 2026-11-24, its review (three blockers, the fix loop opened) 2026-11-24. The carry to ultrasound and DBT (`docs/decisions/us-dbt-carry.md`, US-DBT-CARRY) 2026-11-24. The one PCS note (`docs/decisions/pcs-note.md`, PCS-NOTE) 2026-11-24. The phone's reading carried (PHONE-CARRY) 2026-11-24, its review (one blocker, the fix loop opened) 2026-11-24, its fix 2026-11-24, its re-review (no blocker open) 2026-11-24. Every page passed (PAGES-PASS) 2026-11-25. The carry's review, fix and re-review (US-DBT-CARRY-REVIEW, -FIX, -FIX-REVIEW) 2026-11-25.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review, its fix and re-review 2026-11-23; the order to decide in 2026-11-23; phase 2's queue (`claude/work-ledger:docs/queue-2026-11-24.md`, PHASE2-PLAN) 2026-11-24, its review (three blockers, the fix loop opened) 2026-11-24. The carry to ultrasound and DBT (`docs/decisions/us-dbt-carry.md`, US-DBT-CARRY) 2026-11-24. The one PCS note (`docs/decisions/pcs-note.md`, PCS-NOTE) 2026-11-24. The phone's reading carried (PHONE-CARRY) 2026-11-24, its review (one blocker, the fix loop opened) 2026-11-24, its fix 2026-11-24, its re-review (no blocker open) 2026-11-24. Every page passed (PAGES-PASS) 2026-11-25, its review (four blockers, the fix loop opened) 2026-11-25. The carry's review, fix and re-review (US-DBT-CARRY-REVIEW, -FIX, -FIX-REVIEW) 2026-11-25.
 
 ## Goal
 
@@ -83,7 +83,8 @@ small enough that every open item has an owner and a next step.
   Every page passed 2026-11-25 (PAGES-PASS): each §4 lists each limitation with what found it and says where the
   link, not the decode, binds; `ingest-optimal-quality` gives the quality check's pass at 10/25/50/75 % budgets; six
   pages' §1–§3 detail moved to appendices (m13); r-m1, r-n1, r-n2 and the nits closed; no recommendation changed.
-  The engines verdict (ENGINE-CELLS, unverdicted) named for the owner in `engines` §6. Its review owed.
+  The engines verdict (ENGINE-CELLS, unverdicted) named for the owner in `engines` §6. Reviewed 2026-11-25 (PAGES-PASS-REVIEW, [README](../decisions/README.md) §Pass
+  review): four limitations or link lines contradicted by their own sources (B1–B4), m1–m8; PAGES-PASS-FIX next.
 
 ## Open (ordered)
 

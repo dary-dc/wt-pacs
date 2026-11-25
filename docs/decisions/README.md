@@ -245,7 +245,7 @@ Inputs that are not pages: [`lab-list.md`](lab-list.md), what reads each `lab/` 
 | [`final-state`](final-state.md) | what the state `claude/unified` reaches before `main` is called, and its definition | FINAL-STATE (Fable), FINAL-STATE-REVIEW, FINAL-STATE-FIX, FINAL-STATE-FIX-REVIEW | 11-23 | written 2026-11-22: *bench-verified*, with its scope and a line saying what it is not; seven conditions for UNIFIED-PAGE; reviewed 2026-11-23, two blockers; fixed 2026-11-23: *evaluation release* kept as the release's name, *bench-verified* its state, the README line only once the seven conditions hold; re-reviewed 2026-11-23, no blocker open, three nits; the yes or no on both names due; corrected 2026-11-23 (DECISION-PAGES-FIX B3): the status line leaves condition 2 unmet, `usb_cine` the clip; passed 2026-11-25 (PAGES-PASS): §4's limitations each with what found it, where the link binds, §1–§3 detail to an appendix (m13) |
 | [`us-dbt-carry`](us-dbt-carry.md) | do the decided approaches and the pages' recommendations hold for ultrasound clips and DBT stacks | US-DBT-CARRY (Fable), -REVIEW (phase 2, `claude/work-ledger:docs/queue-2026-11-24.md`) | 11-26 | written 2026-11-24: DBT as each page says; premise 2 retired for ultrasound (refuted on the sound sweeps: the view 0.34 of exact, G 16 +23 %, the noise rule void); 997 of 1 000 archive clips flagged lossy and 979 colour-typed, which the ingest refuses or serves without a view; a clip's own switch (*G* ≥ bytes × rate) and time to stall-free play as theory to test; the sound clips `uscine_crc*` unused by any row; contradiction 6 answered; passed 2026-11-25 (PAGES-PASS): §4's limitations each with what found it, where the link binds; reviewed 2026-11-25 (US-DBT-CARRY-REVIEW, §Review): sources and arithmetic hold, one blocker (B1: the fine band's property is the noise near one 8-bit code step, shared with `mr9_ispy2`, not speckle texture), m1–m4; `pcs-note`'s wait on it ends (B1 does not touch item 2); fixed 2026-11-25 (US-DBT-CARRY-FIX, §Fix): B1 (the band's property as `preview-noise.md` §2.1 states it; `visually-lossless` B–G not shown to hold), m1–m4 and the nits in place; re-reviewed 2026-11-25 (US-DBT-CARRY-FIX-REVIEW, §Re-review): no blocker open, B1 and m1–m4 closed, r-m1 (the corrections marked in §Fix only, not in place) and three nits; the eight lines may enter BRIEF-WEEKEND's table |
 | [`pcs-note`](pcs-note.md) | one note to the PCS team in place of five drafts | PCS-NOTE, -REVIEW (phase 2, `claude/work-ledger:docs/queue-2026-11-24.md`) | 11-25 | written 2026-11-24: one yes, "send it"; `pacs-sync` §9, `ingest-optimal-quality` §9, `exact-frame-layout` §9, the σ_min note and `us-dbt-carry` item 2 folded into parts A–F, three stills questions written for `non-cine-series` item 3, one request for two breast ultrasound clips (as delivered, and lossless-sourced); each question traced to the page item it moves; reviewed 2026-11-24 (PCS-NOTE-REVIEW): every draft question found, one blocker (B1: part B says the PCS delivers HTJ2K, which `contract.md` and `pcs-transfer.md` §15.3 contradict), m1–m6; the yes waits on PCS-NOTE-FIX-REVIEW; fixed 2026-11-24 (PCS-NOTE-FIX): part B asks of the PCS's planned HTJ2K (its code writes raw frames), A10–A13 and D4 carried from our documents' PCS questions, the yes waits on US-DBT-CARRY-REVIEW and PCS-NOTE-FIX-REVIEW; re-reviewed 2026-11-24 (PCS-NOTE-FIX-REVIEW): no blocker open, r-m1 (two §15 questions neither carried nor listed) advised before sending, the yes waits on US-DBT-CARRY-REVIEW only; passed 2026-11-25 (PAGES-PASS): §4's limitations each with what found it, where the link binds |
-| `README` | the order to decide in, and what the two weeks left open | DECISIONS-OPEN, DECISION-PAGES-REVIEW, PROGRAM-CLOSE (Fable), BRIEF-1127 | 11-28 | this file, opened 2026-11-19; §Review 2026-11-23: three blockers (B1 two pages stale against the 02:00 word, B2 PR 417 unreviewed, B3 condition 2 by a status line), m1–m13; fixed 2026-11-23 (§Fix); re-reviewed 2026-11-23 (§Re-review), no blocker open, r-m1 and two nits; the order, six contradictions, nine shared premises, the unanswered, the held and late rows and the next queue's first rows written 2026-11-23 (PROGRAM-CLOSE, above the form) |
+| `README` | the order to decide in, and what the two weeks left open | DECISIONS-OPEN, DECISION-PAGES-REVIEW, PROGRAM-CLOSE (Fable), BRIEF-1127 | 11-28 | this file, opened 2026-11-19; §Review 2026-11-23: three blockers (B1 two pages stale against the 02:00 word, B2 PR 417 unreviewed, B3 condition 2 by a status line), m1–m13; fixed 2026-11-23 (§Fix); re-reviewed 2026-11-23 (§Re-review), no blocker open, r-m1 and two nits; the order, six contradictions, nine shared premises, the unanswered, the held and late rows and the next queue's first rows written 2026-11-23 (PROGRAM-CLOSE, above the form); passed 2026-11-25 (PAGES-PASS), reviewed 2026-11-25 (§Pass review): four blockers (B1 pacs-sync's PR 417 "no review", B2 pcs-note's G on ultrasound, B3 transport-stack's flags run as unrun, B4 phone-decode-route's link line), m1–m8, the fix loop opened |
 
 ## Review
 
@@ -420,3 +420,110 @@ against §Review's ask; its numbers recomputed from the source the fix names.
 
 **Verdict:** no blocker open; round one closes. r-m1 and the nits go to PROGRAM-CLOSE's list or any later fix of
 `repository.md`. PROGRAM-CLOSE no longer waits on this row.
+
+## Pass review
+
+PAGES-PASS-REVIEW, 2026-11-25, of PAGES-PASS (`78b49608f..9d6cf4879`: groups A `86230b0ea`, B `2f551644c`, C
+`9f6f3b54f`, D `96600fb17`), by a session that wrote none of it. Read only: nothing run, no fixture touched, the gate
+not run (docs). Each page's diff read against the row's brief (`claude/work-ledger:docs/queue-2026-11-24.md`
+§PAGES-PASS); 135 §4 attributions traced to the source they name (126 hold); every number the pass added recomputed
+or traced; every §1–§3 line m13 moved diffed against its appendix (python `difflib`); every yes or no compared before
+and after. Line numbers are at the group's commit.
+
+**Passes.**
+
+* (1) Budgets as ranges: +52.4, +60.5, +47.8 % recompute exactly (704 ÷ 462, 740 ÷ 461, 683 ÷ 462 s, I2-RUN's
+  `claude/oq-integrity-build:lab/oq-integrity/rows/i2-cost/`); per volume `dbts_a1` +28 %, `dbts_c1` +35–46 %,
+  `dbts_b1` +67–86 %, reproduced from the same rows; 10 % and 25 % fail every run, 75 % passes every whole run.
+* (2) All 21 pages have a §4 list with what found each item; no limitation stated in a page's §1–§3 or §5 is missing
+  from it but m3 below.
+* (3) All 21 pages say where the link, not the decode, binds, or why none applies; the per-profile figures match
+  `link-profiles.md` §2 (14 of 14; 185.7 ÷ 2.25 = 82.5 ≈ 83 Mbit/s) and PHONE-READ (15 of 15, median 0.705); no page
+  lowers a transport row.
+* (4) m13: every removed §1–§3 line reappears in its appendix word for word, in order, on `unified-to-main`,
+  `transport-stack`, `phone-decode-route`, `ingest-optimal-quality` and `final-state` (but n1's two intended lines);
+  `frame-integrity` but for m5. §1–§3 now: `frame-integrity` 46 lines (was ~134), `unified-to-main` 48 (~96),
+  `final-state` 68 (~86), `phone-decode-route` 57 (84), `transport-stack` 58 (74), `ingest-optimal-quality` 60 (74).
+  r-m1 closed (`usb_cine`, `usb_cine_rgb` pinned in `claude/unified:lab/av1/data.json`), r-n1 closed (PR 223's body
+  quoted verbatim, "loopback" gone), r-n2 closed (0.074–0.237 recomputed from the 19 volumes' shard rows); the nits
+  closed: cache's P3 quote, ~63 Mbit/s **derived** (6 × 2²⁰ × 8 ÷ 0.8 = 62.9), WT-TS's five absolute misses (match
+  `stacks.md` §6.1, §6.6), `exact-frame-layout` §7's reason (against `target.md` §Layout 1), the G correction (in
+  part, n2), view-target's blocks, repository's ≈ 27 fetches (10 × 10⁹ ÷ 368 × 10⁶ = 27.2), final-state n1–n3.
+* No yes or no changed on any page (every §2 row compared). `scripts/check_links.py`: 17 unresolved before and after,
+  the same paths.
+
+**Blockers** (amendment 17: PAGES-PASS-FIX and PAGES-PASS-FIX-REVIEW appended to the queue). Each is a limitation or
+a link line the pass added that its own source contradicts.
+
+* **B1. `pacs-sync.md`:121, "PR 417 has no review. Found by DECISION-PAGES-REVIEW B2."** False when written:
+  `claude/work-ledger:docs/queue/SYNC-RECONCILE-REVIEW.md` is done 11-23 09:53 ("two blockers open"), and
+  `SYNC-RECONCILE-REVIEW-FIX-REVIEW.md` 10:49: "No blocker open. B1 closed: both conditions (zstd on the metadata call;
+  rsync's listing <= 34.2 KB ct, <= 221.5 KB at 2 000 on ADSL 0.5)". Item 3's condition was met before the pass, and
+  the review's corrected P4 condition is not carried: §2 E (:61, "if it compresses to ≤ 0.6×") and §6 (:137,
+  "above 0.6×") still give the misstated one. The fix: the limitation dropped, the review and re-review cited in item 3,
+  the corrected condition at :61 and :137, item 3 named for the owner (its condition is met).
+* **B2. `pcs-note.md`:80, "G has no measurement on ultrasound clips … Found by `ingest-optimal-quality` §9's G note
+  and `noise-point.md` §Note".** `us-dbt-carry.md` (:50–57 at `2f551644c`, from `docs/av1/groups.md`, measured) gives
+  G 16's gain at Q 8 on `ustrus_1`, `ustrus_2` (+23.0, +22.7 %), `usb_cine` (+72.2 %) and `us_liver` (+8.3 %). The
+  note's draft (:185, "we have no measurement on ultrasound clips"), which goes to the PCS team, says the same. The
+  fix: "no measurement on a lossless-sourced breast clip; sound sweeps and lossy-sourced clips measured
+  (`us-dbt-carry` §4)" in §4 and in the draft, the draft's change named on the page's yes.
+* **B3. `transport-stack.md`:161, "WT's one-queue flag never measured on this rig", and :128, item 2's run as to
+  come.** TRANSPORT-FLAGS-RUN was done 2026-11-24 21:55, ten hours before `9f6f3b54f`
+  (`claude/work-ledger:docs/queue/TRANSPORT-FLAGS-RUN.md`: "WT-TW ×0.993 / ×1.037 / ×1.000 … TW and PF above ×0.8 on
+  AD, so the GET path for asks stays the next draft; PF answers CR inside WT; #39 (asks first, 6 MiB window) is net
+  on these cells"). That bears on item 2, the appendix's #39 row ("hold for item 2's run") and §6's first bullet; the
+  brief's "one that would is named for the owner" is not done. The fix: both lines corrected (TW measured, ×0.99–1.04,
+  rows unverdicted until PAGE-RUNS-VERDICT), and item 2, #39 and §6's first bullet named for the owner and for
+  PAGES-AFTER-RUNS, which carries the verdict.
+* **B4. `phone-decode-route.md`:112–114, the link line inverts the page's question.** "The exact series fills faster
+  once *G* > *b*_E ÷ *d*_V, i.e. once the link stops binding the view. Below its class's *G*\* the link binds and the
+  view wins by its bytes". The view stops being link-bound at ~83 Mbit/s, not at *G*\* (251–408 Mbit/s on the
+  round's phone), as :118 of the same paragraph says ("the decode binds A on clean links above that crossover");
+  between the two, A is decode-bound and still wins because B is link-bound. The fix: "once the link stops binding the
+  exact series (B)"; below *G*\*, "B is link-bound".
+
+**Minors** (each fixed in place or argued, one line).
+
+* m1. `ingest-optimal-quality`:88, "I2-RUN timed only the full set": it timed the checks together too (`payload-format.md`
+  §Integrity on `claude/oq-integrity-build`: "The checks alone on one core … 10.5, 85.7 and 14.5 CPU s a series");
+  the guard and the digest are not timed apart. :98's 50 % cell: per volume `dbts_a1` and `dbts_c1` pass in every
+  round, not in round 2 only; :99–100 "fails at that bound": an upper bound over the budget shows no failure ("not
+  shown to pass", as §5:154 says).
+* m2. `transport-stack`:126 and `phone-decode-route`:118 say the phone's decode bound the view on the round's link;
+  PHONE-READ: "no wire time recorded, so no fill's regime was read". Label it **derived** (from B ÷ A).
+* m3. C1 "link-bound on every link" (`transport-stack`:101, `phone-decode-route`:118, `view-target`:93): its cell is
+  "~0.04 s after a silence, + one HTJ2K decode" (`link-profiles.md` §2), and `delivery-per-link` §4 says its wire and
+  decode parts "cannot be split". Say so.
+* m4. Attributions that do not hold: `transport-stack`:150 bbr default (TRANSPORT-BUILD-FIX's §5.7 amendment, not
+  TRANSPORT-RUN); :171 PR 254's index states nothing about BBR (source not found); `pacs-sync`:108 (#166 cold and
+  warm, only #173 warm and saturating); :118 the missing hash (the PCS code at `e105214`, §9 item 5, not
+  `rsync-delivery.md` §1); `exact-frame-layout`:84 "decode-bound only under the 4× cap" (HTJ2K-A1-RUN: "on every
+  volume"); `visually-lossless`:128 the rung (VL-READS' §5.1 limits; n1 found only `dbts_b3`, `b4`); `frame-integrity`:105,
+  :110 `link-profiles.md` §1, not §2; :65 INTEGRITY-MODEL's fixtures are four HTJ2K series and three DBT volumes.
+* m5. `frame-integrity`:169–170 says the appendix is unchanged; nine lines differ (eight citations made links, one
+  source, `lossless-after-a-failed-ask.md`, added; both right). Say so.
+* m6. `final-state`:100 counts two homonyms; n1's clause (:29) adds DICOM's A-RELEASE, judged harmless (FINAL-STATE-FIX, S15).
+* m7. References left behind by the moves: `transport-stack`:36 ("§3's last table"), :130; `phone-decode-route`:75
+  ("cell 4, below"); `final-state`:29, :55 ("§3"), and §8's "§3 in full" now names the appendix too.
+* m8. `non-cine-series`:89–90 gives the model's prediction "not yet read against the 2026-11-22 round" as current;
+  `paused-lines` (same commit) reads that round. Date it, or point to `phone-decode-route` §4.
+
+**Nits** (not blockers): "not recorded" where a source is findable: `client-calls`:180 (its own §3.5:103), `pacs-sync`:119
+(`pacs-receive-design.md`:912, checked 10-28 at `e105214`), `non-cine-series`:93 (NON-CINE-OPTIONS §4.2),
+`phone-decode-route`:155 (`b6154b8d8`, 11-15); n2 `ingest-optimal-quality`:225 carries `payload-format.md`'s G
+correction in part (drops "0.10–0.28 of HTJ2K's bytes" and "equal Q (not equal quality)"), and its §9 note (:190)
+still gives Q 8's result as G's; `ingest-optimal-quality` §1–§3 still over one screen (60 lines), unsaid;
+`visually-lossless`:34 "stored" is `form` `12bit`/`10bit`; `engines`:93 leaves out row 11; `pacs-sync`:105 r-n1 named the
+error, this pass corrected it; `exact-frame-layout`:79 labels C1's quote **derived** where its source has none, and
+§4 leaves out `dbts_c1` sideways not run; `reports` §4 "That is what the phone cells measure" points at a moved
+sentence; `us-dbt-carry` "917 of the 1 000" (FIXTURES.md: 917 + 56 + 18 + 6 = 997); `final-state`:71 "every other
+term refused" (two read "the right idea", "the right pair"), :82 quotes the preamble, not the status file;
+`transport-stack`:88 FF and AA "held" (not judged), :95 the metric is §5.3's; `asking`:110 `ask-order-during-fill.md`
+has no §Run; `view-target`:128 "the phone's order" is the `-g8` rows' order. Superseded since: `us-dbt-carry`'s
+"readers read the fine band's texture is **theory**" (US-DBT-CARRY-FIX `fbe02a261`).
+
+**Verdict:** four blockers; PAGES-PASS-FIX next, PAGES-PASS-FIX-REVIEW after it (amendment 17). PAGES-AFTER-RUNS'
+`transport-stack` and the pages' lines in BRIEF-WEEKEND wait on the re-review. Fixtures and limits: as each page
+states (19 DBT volumes, three timed; `usb_cine`, `usb_cine_rgb` lossy-sourced; 4-core cloud hosts, software
+WebCodecs; one phone, one link, one evening); this review read rows and status files, it ran none.
