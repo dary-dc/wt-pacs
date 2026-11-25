@@ -1,0 +1,43 @@
+56 rows kept, 8 VOID or failed: [(0, 'CLEAN', 1, 'tip-b', 'forward 32: no paint in 60 s'), (0, 'CLEAN', 4, 'tip-a', 'forward 32: frame 33 of 50 · client ts · view page · received 15, exact 0, not exact 0, no digest 41 · routes: av1-webcodecs 41 · codec av1 · renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver) (software) · fill 2227 ms · error: frame 38: frame 37 of its group did not decode'), (0, 'LTE', 1, 'tip-b', None), (0, 'LTE', 4, 'tip-a', None), (1, 'CLEAN', 1, 'tip-a', 'forward 42: no paint in 60 s'), (2, 'CLEAN', 1, 'pr-a', None), (2, 'LTE', 1, 'pr-b', 'backward 36: no paint in 60 s'), (3, 'CLEAN', 1, 'tip-b', 'backward 21: no paint in 60 s')]
+
+form  rate pass     arm   rounds    MB  frames waited  sum ms  med ms  max ms  pass ms
+CLEAN 1x   forward  tip-a     3    49.4    106      1     119     119     119     2189
+CLEAN 1x   forward  tip-b     2    48.7    104      1     219     219     219     2163
+CLEAN 1x   forward  pr-a      3    15.8     34      0       0       0       0     1463
+CLEAN 1x   forward  pr-b      4    15.8     34      0       0       0       0     1523
+      tip / pr: MB ÷3.10, waited sum ÷inf, max ÷inf, pass ÷1.46   A/A MB 1.01 1.00, waited sum 0.54 nan
+CLEAN 1x   backward tip-a     3    45.4     97      2     265      69      89     2320
+CLEAN 1x   backward tip-b     2    47.2    101      0       0       0       0     1867
+CLEAN 1x   backward pr-a      3    18.7     40      4     844     209     247     2137
+CLEAN 1x   backward pr-b      4    18.7     40      4     667     168     204     1966
+      tip / pr: MB ÷2.48, waited sum ÷0.18, max ÷0.20, pass ÷1.02   A/A MB 0.96 1.00, waited sum nan 1.27
+CLEAN 4x   forward  tip-a     3    52.6    113      4    1115     267     319    12385
+CLEAN 4x   forward  tip-b     4    50.4    108      6    1730     285     348    14504
+CLEAN 4x   forward  pr-a      4    15.8     34      0       0       0       0    12689
+CLEAN 4x   forward  pr-b      4    15.8     34      0       0       0       0    12043
+      tip / pr: MB ÷3.25, waited sum ÷inf, max ÷inf, pass ÷1.09   A/A MB 1.04 1.00, waited sum 0.64 nan
+CLEAN 4x   backward tip-a     3    43.5     93      3    1013     270     355    13560
+CLEAN 4x   backward tip-b     4    42.7     92      2     393     258     264    13674
+CLEAN 4x   backward pr-a      4    18.7     40      4    4805    1164    1368    15860
+CLEAN 4x   backward pr-b      4    18.7     40      4    4965    1242    1386    16017
+      tip / pr: MB ÷2.31, waited sum ÷0.14, max ÷0.22, pass ÷0.85   A/A MB 1.02 1.00, waited sum 2.58 0.97
+LTE   1x   forward  tip-a     4    33.7     72     24   15526     172    2838    16216
+LTE   1x   forward  tip-b     3    34.6     74     24   14641     267    2041    15335
+LTE   1x   forward  pr-a      4    23.3     50      6    6850     377    2976     8065
+LTE   1x   forward  pr-b      3    23.3     50      6    6943     672    2801     8135
+      tip / pr: MB ÷1.47, waited sum ÷2.19, max ÷0.84, pass ÷1.95   A/A MB 0.97 1.00, waited sum 1.06 0.99
+LTE   1x   backward tip-a     4    25.4     54      4    8896    1784    4987    10152
+LTE   1x   backward tip-b     3    24.3     52      4    9733    1851    4860    10949
+LTE   1x   backward pr-a      4    18.7     40      4    8697    1869    3204     9904
+LTE   1x   backward pr-b      3    18.7     40      4    8037    1865    3080     9265
+      tip / pr: MB ÷1.33, waited sum ÷1.11, max ÷1.57, pass ÷1.10   A/A MB 1.05 1.00, waited sum 0.91 1.08
+LTE   4x   forward  tip-a     3    36.0     77     14   10420     315    3539    19151
+LTE   4x   forward  tip-b     4    34.4     74     13    9092     337    2134    18309
+LTE   4x   forward  pr-a      4    15.8     34      0       0       0       0    12585
+LTE   4x   forward  pr-b      4    15.8     34      0       0       0       0    12679
+      tip / pr: MB ÷2.22, waited sum ÷inf, max ÷inf, pass ÷1.48   A/A MB 1.05 1.00, waited sum 1.15 nan
+LTE   4x   backward tip-a     3    31.2     67      2    6353    3176    3401    19654
+LTE   4x   backward tip-b     4    31.2     67      2    5980    2104    3501    19237
+LTE   4x   backward pr-a      4    18.7     40      4    6221    1464    1799    17215
+LTE   4x   backward pr-b      4    18.7     40      4    6525    1569    1915    16963
+      tip / pr: MB ÷1.67, waited sum ÷0.97, max ÷1.86, pass ÷1.14   A/A MB 1.00 1.00, waited sum 1.06 0.95
