@@ -972,3 +972,70 @@ of §1 were 157.0.8103.78, which the re-measured H3 arms match within their band
 this run: the banner does not echo `--send-window-follows-cwnd` (found by the start-up check's build); cwnd is not
 recorded, so TW's AD-LTE miss is not attributed (found by the miss itself); AD-LTE's spread (WT-TS' 0.88–1.39) is
 the 0.1 % iid loss's, so the 2-round mutants' AD-LTE readings say nothing (found by `aa_rule`'s "not conclusive").
+
+## Asking: results (ASK-CELLS)
+
+By ASK-CELLS, 2026-11-24 20:07 to 2026-11-25 06:05 UTC, sessions that wrote none of §4 (the builds, the pilot and main
+round 0 by one session; the rest, after it stalled, by a second). Rows `claude/ask-cells:lab/viewer/rows/ask/`
+`main.jsonl` (P1-20, P1-40, P1c-12, P2), `p1b.jsonl`, `p1c80.jsonl` at `5364c9f4`; the table is
+`node lab/viewer/ask-summary.mjs` over the three, run as written. Read under §4 as amended: an exact HTJ2K series,
+the paint sets the step, the order and the refutation lines bind, "the order and the gaps are predicted, not the
+values" (`ask-model.md:322`). Waits are per leg after the first pass, median over rounds [10th–90th]; every value is
+**measured**.
+
+| cell | ρ (measured) | behind | ¾ ahead | centred | centred′ | struck / rule | A/A median \|Δ\| | prediction | read |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| P1 legs 20 | 0.21 | 5.23 [4.96–5.33] | 5.25 | 6.14 | 6.11 | struck 7.91 | 0.048 | 0.50, 0.50, 0.87, 1.24 | **holds**: behind first and ¾ ahead shortest and tied, centred, then struck; each 9 of 9 rounds outside A/A |
+| P1 legs 40 | 0.21 | 19.19 [18.86–19.34] | 19.20 | 20.06 | 20.06 | struck 21.44 | 0.096 | 3.40, 3.40, 3.77, 4.14 | **holds**: the same order, 10 of 10 rounds each |
+| P1b legs 40, 3 s dwell | 0.28 | 19.29 [19.02–19.66] | — | 20.33 | 20.36 | rule 19.28 | 0.070 | 5.85, 4.55, 4.55 (always longest); bounded to 50 frames 4.09, 4.19, 4.09 | **refuted** as registered: behind first always is the shortest (with the rule), centred the longest, 12 of 12 rounds; the bounded model's order |
+| P1c legs 12 (control) | 0.21 | 0.42 [0.00–0.73] | 0.10 | 0.00 | 0.00 | struck 0.00 | 0.000 | every arm 0, no byte after the first pass | **refuted** on both lines: behind first above the A/A spread in 9 of 10 rounds; 19–23 frames received after the first pass in every arm |
+| P1c ρ ≥ 0.8, legs 40 | 0.92 | 0.00 [0.00–0.03] | 0.03 | 0.47 | 0.40 | struck 0.57 | 0.089 | every arm within A/A | **refuted**: behind first and ¾ ahead 0.43–0.47 s under centred, 10 of 10 rounds |
+| P2 corrected, one way | 0.18–0.21 | 22.26 [21.75–22.45] | 22.83 | 23.40 | 23.51 | struck 23.76 | 0.088 | a tie | **refuted**: behind first 1.20 s under centred, ¾ ahead 0.61 s, 10 of 10 rounds; struck 0.30 s over, 9 of 10 |
+
+Every cell's A/A median |Δ| is under §4's 0.10 s bar, so every cell reads (P1-40 at 0.096, closest to it). μ̂ was
+1.17–1.18 frames a second on `r20000rtt40` and 5.22–5.29 on `r80000rtt40`; W was 15 in every visit; 298 counted
+visits, every frame shown exact (15 of 15 checked a visit, no HTJ2K check false).
+
+**Against the model.** The order is the model's in P1 (both leg lengths); the gaps are larger (0.9 s and 1.8 s at legs
+20 against 0.37 s and 0.37 s; values not predicted). Where the model predicts a tie or a null, the run does not give
+one: in P1c-12, P1c-80 and P2 behind first and ¾ ahead wait least, and in P1c-12 behind first is the one arm that
+waits. *Theory, not tested here*: the window follows the display past the legs (the pilot's finding, §4 Amendment),
+so the store asks across the leg's ends and the hold's order decides which frames are there at the turn; the model,
+one fetch at a time with no RTT, keeps every arm's frames in reach. P1b meets its own refutation line, as the bounded
+model said it would on 50 frames (§4 Amendment): it cannot decide `asking` §6's P1b on this series. The rule waits
+as behind first always does (19.28 against 19.29 s), both 1.0–1.1 s under centred.
+
+**What it decides, by §4's rule** (page:119–121): P1 is not refuted on either leg length, so the hold is not dropped
+by this run: behind first (or ¾ ahead, tied with it in every cell) waits less than the product's centred store in
+P1, P1b, P1c-80 and P2, and never more but in P1c-12's dead control (0.42 s against 0). P1b's two states earn
+nothing over behind first always on this series. The adoption is the owner's, through PAGE-RUNS-VERDICT and
+BRIEF-WEEKEND: the hold's order behind first as the store's default, yes or no (a product build row; none here).
+
+**Live guard.** At least 10 % of forward steps not held in P1-20 (30–40 %), P1-40 (65–70 %), P1b (70–74 %), P2
+(94–100 %) and P1c-80's centred, centred′ and struck arms (25–34 %); P1c-12 is dead by design (0–2 %) and read as the
+control; P1c-80's behind first (0 %) and ¾ ahead (3 %) arms are dead *because* they waited for almost nothing, which
+is the reading, not a null.
+
+**VOID and interruptions.** 2 visits VOID (P1-20 centred, round 0; P1c-12 struck, round 6; relay p99 over 1 ms),
+re-run after the last round as round 12, out of the interleave: those two cells' paired A/A and arm differences are
+over the 9 rounds with both, their arm medians over 10. Not counted: main round 5's 13 visits stopped by a container
+restart (`interrupted-main-r5.jsonl`; round 5 re-run whole), and P1b round 0's first attempt, lost unpushed when the
+first session stopped; nothing else was dropped. The counted visits' relay p99 was 0.95 ms at most.
+
+**On which links the link, not the decode, binds:** on `r20000rtt40` the link (μ̂ 1.17 frames a second of 16.9 Mbit
+exact frames, a step of 155–236 ms); on `r80000rtt40` the paint nearly does (ρ 0.92: the step, 176 ms, is the
+software WebGL paint's pace; §4 Amendment). **Where the host saturates:** the browser cores were at most 0.62 busy
+during a fill (P1c-80; 0.36 elsewhere), the relay held its 1 ms guard on 298 of 300 visits; nothing is claimed for a
+paint faster than this host's ~150 ms. **How it serves the value statement:** "low latency on every jump": a scroll
+back over a series longer than the window waits 0.4–1.2 s a leg less with the hold behind first than with the
+product's centred store, on these cells.
+
+**Fixtures and limits.** `dbts_b1` only (50 × 2560×3328, 10 of 16 bits), one DBT volume of one dataset, run as the
+exact HTJ2K series (2.11 MB a frame), not the AV1 view the model's ρ was derived for (found by the pilot); no
+ultrasound; one 4-core cloud container without a GPU, software WebGL; headless Chromium 158.0.8127.36 (Playwright's);
+the rig's userspace relay at 20 and 80 Mbit/s, 40 ms round trip, no loss, not a radio; the page view only, W = 15
+(`memoryWindow`), the budget not set from the run ((e) not built). Limits found by this run: P1b cannot decide on 50
+frames (found by `bounded.py` before the run, confirmed by the rows); P1c's "no byte after the first pass" does not
+hold for any arm (found by the pilot, confirmed in every counted visit); the two control cells' nulls fail, so the
+model's tie predictions do not carry to this driver (found by the rows); the host's container restarted twice during
+the run (found by the lost background job), costing one round's re-run.

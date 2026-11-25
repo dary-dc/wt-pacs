@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-23 (the engines' path fix; the memory a navigation leaves; the view's default memory bound, its second fix and its re-review; stale client code), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-25 (the asking cells, measured), 2026-11-23 (the engines' path fix; the memory a navigation leaves; the view's default memory bound, its second fix and its re-review; stale client code), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -13,6 +13,11 @@ exact frame bit for bit, and only checked claims on screen.
 
 ## In flight
 
+* **The asking cells** (ASK-CELLS, 2026-11-25, *measured*, `docs/reviews/page-runs.md` §Asking: results on
+  `claude/page-runs`; rows `claude/ask-cells:lab/viewer/rows/ask/`): P1's order holds at legs 20 and 40 (behind first
+  and ¾ ahead tied shortest, centred, then the struck split); P1b, P1c's two controls and the corrected P2 are
+  refuted, behind first waiting least in each but the dead 12-frame control. `dbts_b1` exact HTJ2K only, one 4-core
+  host, headless Chromium, the userspace relay at 20 and 80 Mbit/s; the hold's adoption is the owner's.
 * **The view's memory bound** (VIEW-MEMORY-BOUND, 2026-11-23, `claude/view-memory-bound`, a draft into
   `claude/unified`): the view holds 256 MiB of decoded frames a tab by default, in the series' frames, farthest first
   ([`../client/evidence/what-a-view-asks-for.md`](../client/evidence/what-a-view-asks-for.md) *M, the budget*); the
