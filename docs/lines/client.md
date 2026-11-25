@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-25 (the asking cells, measured), 2026-11-23 (the engines' path fix; the memory a navigation leaves; the view's default memory bound, its second fix and its re-review; stale client code), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-25 (the asking cells, measured; the cache cells on Chromium, measured), 2026-11-23 (the engines' path fix; the memory a navigation leaves; the view's default memory bound, its second fix and its re-review; stale client code), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -13,6 +13,11 @@ exact frame bit for bit, and only checked claims on screen.
 
 ## In flight
 
+* **The cache cells** (CACHE-CELLS, 2026-11-25, *measured*, Chromium only, `docs/reviews/page-runs.md` §Cache: results
+  on `claude/page-runs`; rows `claude/cache-arms:lab/cache-arms/rows/chromium-1125/`): OPFS-SYNC's ~90 MiB is a
+  constant in the renderer at S1 and S2; T's non-exact re-reads are all `NotReadableError` misses, no SHA-256 mismatch
+  after XXH3; OPFS-ASYNC's handle a group brings its S1 cold reopen to 0.53 ms a frame. Firefox unrun (the fetch was
+  refused); provisional on the store question (CACHE-DESIGN-1124 never ran).
 * **The asking cells** (ASK-CELLS, 2026-11-25, *measured*, `docs/reviews/page-runs.md` §Asking: results on
   `claude/page-runs`; rows `claude/ask-cells:lab/viewer/rows/ask/`): P1's order holds at legs 20 and 40 (behind first
   and ¾ ahead tied shortest, centred, then the struck split); P1b, P1c's two controls and the corrected P2 are
