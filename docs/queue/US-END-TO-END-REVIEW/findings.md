@@ -78,3 +78,38 @@ Gate on `cf09b9d38`: every step passed up to the decoders' docker rebuild, which
 daemon, then Docker Hub `429 Too Many Requests` on `debian:bookworm-slim`; nothing under `client/decode/` changed);
 the three absence checks after it run by hand, each OK. PR 445's body updated (the review's copy there is this file's
 pointer).
+
+## Re-review
+
+US-END-TO-END-FIX-REVIEW, 2026-11-25 00:20–01:00 UTC, by a session that wrote none of PR 445, its review or its fix
+(`by:` in `docs/queue/US-END-TO-END-FIX-REVIEW.md`). Read: `git diff f4d78465d..cf09b9d38` (five files, only the
+fix), `scripts/gate.sh`'s step and its skip condition, `lab/av1/fetch_data.py`'s paths, `docs/FIXTURES.md` §SBND
+series bundle. Run (**measured**, 4-core cloud host, no GPU, headless Chromium/SwiftShader, loopback, HTJ2K, ts
+client): the three sets fetched (`OUT=lab/av1/data lab/av1/fetch_data.sh usb_cine usb_cine_rgb dbts_a1`, every pin
+held; FFmpeg 6.1.1-3ubuntu5), `ingest/tools.sh`, then `PYTHON=lab/av1/.venv/bin/python scripts/stacks_end_to_end.sh`
+on `cf09b9d38`: exit 0 in 106 s, usb_cine 64/64, usb_cine_rgb 64/64, dbts_a1 56/56 exact in the page and the worker.
+
+* **B1: closed.** The cache's four paths are exactly where `fetch_data.py` writes (`OUT/<set>/`, `OUT/dicom/`), and
+  `OUT/archives/` is where the zip lands and is removed; the fetch runs after `pip install -r lab/av1/requirements.txt`
+  (which pulls `ingest/requirements.txt`: numpy, pydicom, xxhash, so gate.sh's `import numpy, pydicom, xxhash` guard
+  holds with the default `PYTHON=python3`) and before `ingest/tools.sh`, so on the runner every condition of the
+  step's `if` is met and it prints no `SKIPPED` line; no allowed skip was added. ffmpeg is on the apt line, which the
+  miss needs. Not shown: a run on a runner. `gate.yml` on `claude/unified` (`b059388b6`, unchanged since 11-24 07:09)
+  still triggers on PRs into `main` and the two older bases only, so the first CI proof is PR 442's merge or
+  EVAL-RELEASE-PR; the sync row that merges second takes both hunks (442 changes the triggers, 445 the steps).
+* **m1: closed (measured both ways).** Mutant: `cp "$T/usb_cine.sbnd" "$out"` after usb_cine_rgb's ingest. On
+  `cf09b9d38` it **fails** (exit 1, "usb_cine_rgb.sbnd: 64 digests against usb_cine_rgb's 64 pinned frames, frames
+  [0, 1, 2, 3, 4] differ"); with `e1f6b817e` reverted it **passes** (exit 0, "usb_cine_rgb 64"), so the test needs
+  the fix. `bundle_metadata` reads the header as §SBND series bundle lays it out (16 bytes, then 12 per frame, then
+  `metadata_len` bytes of JSON).
+* **m2: closed.** `docs/FIXTURES.md` §Stacks end to end names the uncompressed 8-bit explicit-LE planar-0 object, the
+  refused JPEG baseline / `YBR_FULL_422`, planar 1 unexercised, and `pcs-note` as the owner of what a PCS sends.
+* **Nit: argued, accepted.** PR 443 is unmerged; `git merge-tree` of PR 445 onto `claude/unified` is clean; the
+  second of 443 and 445 to merge moves the entry to `release.md`.
+* **r-n1 (nit, no fix row).** `bundle_metadata` does not check the magic or version; a wrong file still exits non-zero
+  (the JSON or the digests fail), so it guards nothing the step relies on.
+
+Comment budget ok; `check_links.py` 0 unresolved. The full gate was not run here (the step, its mutant and the two
+checks). **Verdict: no blocker open.** A sync row may merge PR 445 by amendment 28 rule 1, the gate on the merged tree.
+Fixtures and limits: usb_cine and usb_cine_rgb lossy-sourced (a function check: no bytes or times are results),
+dbts_a1 sound; one cloud host, software decode, loopback, HTJ2K and the ts client only; no CI run.
