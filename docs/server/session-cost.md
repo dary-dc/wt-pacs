@@ -590,6 +590,64 @@ sum and server → client UDP MB, CR ÷ CLEAN, the negative `cpuNs` and the peak
   author's reading, and which of 90 or 100 it meant is for the re-review. *How it serves the value statement* and
   `SESSION-COST-RUN.md`'s Result say "not shown".
 
+## Verdict re-review 2
+
+SESSION-COST-VERDICT-FIX-2-REVIEW, 2026-11-25 12:18–12:21 UTC, by a session that wrote none of this file, its run, its
+verdict review, its fix, its re-review or its second fix (`by: nSjdEVPV` in
+`claude/work-ledger:docs/queue/SESSION-COST-VERDICT-FIX-2-REVIEW.md`). Read: `git diff 17986ca89 caa3cb219` (this
+file and `docs/lines/codecs.md`), `claude/work-ledger:docs/queue/SESSION-COST-RUN.md`'s Result. Recomputed, *measured*,
+by a script of my own over `claude/session-cost-rig` `8dcc345f5`'s four counted row files (149 rows, 147 counted; per
+cell the median `serverCost[].cpuNs` sum and the series servers' server → client UDP bytes), and over
+`claude/transport-arms` `lab/transport-arms/rows/CLEAN.jsonl` (64 rows, eight counted an arm: `serverTicks`,
+`relayTally.bytesToClient`).
+
+* **R-B1: closed.** CR `dbts_a1` A 0.06028 s ÷ CLEAN 0.03448 = ×1.748, over the reading used's 1.7: the bullet now says
+  missed on it, held per form, as the table's MISS cpu. The other five reproduce (×1.852, 1.021, 1.067, 1.003, 1.020).
+* **r-m1: closed.** CLEAN `dbts_a1` A 7.140 ms a wire MB (A+C1 7.044, `dbts_c1` 6.507–6.735, `dbts_b1` 5.285–5.457),
+  ×8.50 of 0.84; 5.3–7.1 and 6.5–7.1 in both bullets and §Verdict fix. No "7.0" or "×8.4" is left outside §4 and §5,
+  which are the protocol's.
+* **r-n1: closed** (12.483, written 12.5). **r-n2: closed** (75 negative `cpuNs`, −33.4 to −167.6 µs; the peak-RSS
+  floor 5.06 MiB, 5.1, also in the status file's Result).
+* **r-n3: closed, and its moved verdict argued sound.** The question the fix left here, which of 90 or 100 ms §5
+  meant: H2-frame's eight counted rows are 10, 10, 10, 10, 10, 9, 10, 10 ticks, median **100 ms**; H2-fill's are 9, 9,
+  10, 8, 10, 9, 8, 9, median **90 ms**; WT-TS's median is 61.5 ticks, the 615 ms §5 cites. 90 ÷ 615 = 0.146 is
+  `claude/transport-design:docs/transport/evidence/stacks.md` §Results' CPU row for H2-fill (0.145), and 100 ÷ 615 =
+  0.163 its H2-frame (0.162). So §5's 90 ms is H2-fill's median written under H2-frame's name (*derived*, from the
+  rows; its author's intent not recorded). The arm §5 names gives 100 ms, 0.896 ms a wire MB, and CR `dbts_a1` A at
+  ×13.93 against ×14.57 saved; §5's number as written gives 0.806 a wire MB and ×15.48. One reads met, the other not
+  met, a tick apart, and the reference is a CLEAN rate on a CR cell: **not shown** is the reading the rows support.
+  Every CLEAN verdict reproduces: `dbts_a1` A ×7.97–8.86 against ×14.57, clears; `dbts_c1` A ×7.26–8.07 against
+  ×8.13, clears across the range (a tie as the cautious word); `dbts_b1` FIT ×6.32–7.03 against ×3.43, not met; CR
+  `dbts_c1` A ×13.09–14.54 against ×10.21, not met.
+
+**Blocker.** None.
+
+**Minor.**
+
+* **r2-m1. The moved verdict's marker names the wrong round, and the pre-registered reading is not given beside it.**
+  §Results' CPU paragraph reads "**not shown** (B1, *corrected 2026-11-25, SESSION-COST-VERDICT-FIX*; R-B1's round put
+  it "not met")". It was SESSION-COST-VERDICT-FIX (B1) that wrote "not met", and SESSION-COST-VERDICT-FIX-2 (r-n3) that
+  made it "not shown"; R-B1 is the CPU-on-CR bullet's. A cell judged by a reference read differently from the protocol
+  is a departure and is reported with the pre-registered reading beside it (§7; `docs/adr/disk-access.md` §2 is the
+  model): "by §5's 0.84 as written, ×14.9 against ×14.6, not met". Fix: "**not shown** (r-n3, *corrected 2026-11-25,
+  SESSION-COST-VERDICT-FIX-2*: by §5's 0.84 as written, ×14.9 against ×14.6, not met, as SESSION-COST-VERDICT-FIX's B1
+  had it; §5's 90 ms is H2-fill's median, H2-frame's is 100)".
+
+**Nits.** r2-n1: the range's bottom, 90 ms, is H2-fill's median, not H2-frame's at the tick's resolution, as "90–100 ms
+… at a tick's 10 ms resolution" implies; say so. r2-n2: the paragraph orders its pairs two ways ("bytes saved ×14.6
+against its own ×8.0–8.9" for `dbts_a1`, "its own ×7.3–8.1 against ×8.1 saved" for `dbts_c1`, the rate first for
+`dbts_b1` and CR `dbts_c1`); one order reads faster.
+
+**Verdict.** No blocker open: R-B1, r-m1, r-n1, r-n2 and r-n3 closed, the CR `dbts_a1` A cell's move to *not shown*
+argued sound; one minor (r2-m1) and two nits for whoever next edits §Results (PAGES-AFTER-RUNS reads this file). The
+table, every lowest arm and the CLEAN-only CPU claim stand. PAGES-AFTER-RUNS' need on this row is met. How it serves
+the value statement: the one CPU cell behind "the lowest server … cost" that the rows cannot decide is reported as
+undecided, not as a loss or a win. Fixtures and limits of this re-review: recomputation of SESSION-COST-RUN's rows only
+(`dbts_a1`, `dbts_b1`, `dbts_c1` of one dataset; `usb_cine` lossy-sourced, a function check; one 4-core cloud host,
+headless Chromium 158, software decode; a userspace relay, CLEAN and CR, one session at a time on an assumed trace);
+HTTP/2's rate is `claude/transport-arms`' CLEAN rows (Chromium 157, process ticks of 10 ms, softirq not counted), a
+*theory* for the frame retrieve; nothing rerun. Gate not run (docs only).
+
 ## Fixtures and limits
 
 Three timed DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`, as `claude/delivery:lab/delivery/series.sh` codes them);
