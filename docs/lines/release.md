@@ -1,6 +1,6 @@
 # Release
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 2026-11-24, GATE-CI 2026-11-24, DEFAULTS-TABLE 2026-11-24 (`docs/defaults.md`: every default with what chose it; `final-state` condition 3's table), DEFAULTS-TABLE-FIX 2026-11-24 (each unmeasured default says why it stands), DEFAULTS-TABLE-FIX-2 2026-11-24 (the six `none` rows left without a why get one; the untested join the owner's list); LINES-FOLD 2026-11-24 (this file renamed from `coordination.md`, the line from *coordination* to *release*; `optimal-quality.md` folded into `codecs.md` §Optimal quality, `devices.md` into `client.md` §Devices; history in git).
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 2026-11-24, GATE-CI 2026-11-24, DEFAULTS-TABLE 2026-11-24 (`docs/defaults.md`: every default with what chose it; `final-state` condition 3's table), DEFAULTS-TABLE-FIX 2026-11-24 (each unmeasured default says why it stands), DEFAULTS-TABLE-FIX-2 2026-11-24 (the six `none` rows left without a why get one; the untested join the owner's list), US-END-TO-END 2026-11-24; LINES-FOLD 2026-11-24 (this file renamed from `coordination.md`, the line from *coordination* to *release*; `optimal-quality.md` folded into `codecs.md` §Optimal quality, `devices.md` into `client.md` §Devices; history in git).
 
 ## Goal
 
@@ -135,6 +135,13 @@ small enough that every open item has an owner and a next step.
    passed `scripts/gate.sh` in 620 s with the native painter, the window and the web host's check run, and failed
    the job on one skip the workflow does not allow: `pair_contract_test.py`'s "the pair's invariants: no writer"
    (a known gap held on `ingest-optimal-quality` item 1), so final-state condition 5 is unmet while it prints.
+   US-END-TO-END (2026-11-24, `claude/us-end-to-end`, draft PR into unified): the evaluation release's condition 2 as
+   a gate step, `scripts/stacks_end_to_end.sh` (`docs/FIXTURES.md` §Stacks end to end): `usb_cine`, `usb_cine_rgb` and
+   `dbts_a1` through the DICOM ingest, held to their pins, every frame exact in the page and the view worker; skipped by
+   name until the three sets are fetched. US-END-TO-END-REVIEW (one blocker) and US-END-TO-END-FIX (2026-11-24): the
+   gate workflow caches the three sets, fetching them on a miss, so CI runs the step; the served bundle's own digests,
+   not the metadata beside it, are held to the pin (the same-length swap now fails); the US object's limit named.
+   Owed: US-END-TO-END-FIX-REVIEW.
 
 ## Unification (the owner, 2026-11-09)
 
