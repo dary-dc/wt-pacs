@@ -14,6 +14,8 @@ const FORMS_ASKED = (env.FORMS || "CLEAN,LTE").split(",");
 const RATES = (env.RATES || "1,4").split(",").map(Number);
 const ROUNDS = Number(env.ROUNDS || 3), FIRST = Number(env.FIRST || 0);
 const DWELL_MS = Number(env.DWELL_MS || 300);
+// BARE=1: no frame is read off the page's ports, so a pass has no bytes and a step no wait; a stall or an error still shows.
+const BARE = env.BARE === "1";
 const OUT = env.OUT || "steps.jsonl";
 const RELAY_CPU = env.RELAY_CPU || "3";
 // claude/delivery lab/delivery/plan.mjs CELLS, one-way delay ms, kbit/s, queue packets; LTE without its blackout.
@@ -65,11 +67,11 @@ const hosts = Object.entries(HOSTS).map(([name, [root, port]]) => run("python3",
 await Promise.all([...servers.map((s) => ready(s, /transport=/)), ...hosts.map((h) => ready(h, /port=87/))]);
 
 /** Each frame a decoder hands the page (index, wire bytes, page clock) and each overlay and status write. */
-function watch() {
+function watch(bare) {
   globalThis.__frames = [];
   globalThis.__log = [];
   const d = Object.getOwnPropertyDescriptor(MessagePort.prototype, "onmessage");
-  Object.defineProperty(MessagePort.prototype, "onmessage", {
+  if (!bare) Object.defineProperty(MessagePort.prototype, "onmessage", {
     get() { return d.get.call(this); },
     set(fn) {
       d.set.call(this, fn && function (e) {
@@ -123,7 +125,7 @@ async function visit(arm, form, rate) {
   let stop = () => {};
   try {
     const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
-    await page.addInitScript(watch);
+    await page.addInitScript(watch, BARE);
     await page.goto(`http://127.0.0.1:9700/?overlay=1&view=page`, { waitUntil: "commit" });
     await page.waitForFunction(() => /fill \d+ ms|error/.test(globalThis.__log?.findLast((e) => e.id === "status")?.text ?? ""), null, { timeout: 120000, polling: 50 });
     row.fill = await page.evaluate(() => ({ status: globalThis.__log.findLast((e) => e.id === "status").text, frames: globalThis.__frames.length,
