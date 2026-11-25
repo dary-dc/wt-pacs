@@ -130,6 +130,11 @@ small enough that every open item has an owner and a next step.
    message names its conflicts); `scripts/gate.sh` full on the merged tree, OK in 722 s. Each PR commented and closed.
    Skipped, with why: 420 (commits after its last review), 413, 418, 419 (review owed), 438 (blocker open), 439
    (review owed then), 411, 412, 424 (structural, the owner's item 1), 406, 408 (rigs), 404, 405, 409 (do not merge).
+   UNIFIED-SYNC-1125 (2026-11-25, amendment 28 rule 1): 11 PRs merged `--no-ff` onto `b059388b6` (413, 418, 419,
+   439, 440, 442, 443, 444, 445, 447, 448), then `defaults.md`'s link to the folded `optimal-quality.md` and the deploy
+   image's copy of `lab/noise-ingest` (a workspace member since 413), tip `8459a0a7b`. CI run 45596759058: gate OK in
+   954 s, the job failing only on the known skip of the pair's invariants (as at `b059388b6`). Each PR commented.
+   Skipped: 438 (code conflict in `client/view/controller.js`, `client/viewer/viewer.js`); the rest as 1124 left them.
    GATE-CI (2026-11-24, `claude/gate-ci`, draft PR into unified): `gate.yml` runs on PRs into and pushes to
    `claude/unified` and `claude/eval-release`. Its run on unified's tip through PR 402 (run 45345879478, *measured*)
    passed `scripts/gate.sh` in 620 s with the native painter, the window and the web host's check run, and failed
