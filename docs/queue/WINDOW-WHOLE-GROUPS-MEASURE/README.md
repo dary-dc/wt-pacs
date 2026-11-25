@@ -83,3 +83,7 @@ the group's 0.6 s on the wire, so backward waits fall to what §Timed cells m1's
 pass stay 34 forward and 40 backward (two groups held, unchanged by FIX-2), its MB about 15.8 and 18.7; the ÷ 4 to ÷ 8 on
 bytes misses again (m3: the tip's real count is about half the stand-in's). (4) Forward waits on the branch stay 0 on CLEAN
 and LTE 4×. A non-regressor here means: no cell where the branch's waited sum exceeds the tip's beyond the A/A spread.
+
+**Result** (2026-11-25 12:02–13:25 UTC, 80 visits, 60 kept, `steps-3-summary.txt`): on CLEAN at 1× and 4× and on LTE 4× the
+branch waits on no step either way; LTE 1× its waited sums ÷ 10 forward and ÷ 2.4 backward of the tip's, the four backward
+waits left (prediction 2 missed). Bytes ÷ 1.4 to ÷ 3.2. A non-regressor: `findings.md` §Timed cells again.

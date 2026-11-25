@@ -236,3 +236,63 @@ or ultrasound clip opened. Whether 7 steps cover a group's wire and decode at 4�
 
 *How it serves the value statement:* the backward pass, the commonest reversal, keeps "low latency on every jump" in the
 count with the one-frame rock still free on the wire; its time is the next row's.
+
+## Timed cells again (WINDOW-WHOLE-GROUPS-MEASURE-3)
+
+WINDOW-WHOLE-GROUPS-MEASURE-3, 2026-11-25 12:02–13:25 UTC, by a session that built none of PR 446, its measures, fixes or
+reviews (`by:` in its status file). `steps.mjs` unchanged, on `origin/claude/unified` `8459a0a7b` (`tip-a`, `tip-b`) against
+`8459a0a7b` with PR 446's `94d447835` merged locally (`pr-a`, `pr-b`; `--no-ff`, never pushed; the code diff is PR 446's
+seven files). The prediction was written before any row (`README.md` §The timed cells again, `1187f17b9`). Rows
+`steps-3.jsonl`: 4 rounds × CLEAN, LTE × 1×, 4× × four arms (64 visits), then 2 more rounds of LTE only (rounds 4–5, 16
+visits) because 11 of the first 64 were VOID and one LTE 4× arm kept a single row; 60 of 80 kept, 19 VOID by the relay's
+self-timing (p99 over 1 ms), 1 failed (round 2, CLEAN 4×, `tip-b`: "forward 9: no paint in 60 s", the tip's, as §Timed
+cells m2). Summary `steps-3-summary.txt`. Every number *measured*: the median over kept rounds of each arm.
+
+| form, rate | pass | MB, tip → branch | steps that waited: count, sum, tip → branch | prediction |
+| --- | --- | --- | --- | --- |
+| CLEAN 1× | forward | 46.1, 48.1 → 15.8 (÷ 3.0) | 2, 0.13–0.26 s → **0** | (4) held; bytes ÷ 4–8 miss (3, held) |
+| CLEAN 1× | backward | 42.3, 43.4 → 18.7 (÷ 2.3) | 0–2, 0–0.39 s → **0** | (1) held |
+| CLEAN 4× | forward | 50.3, 50.3 → 15.8 (÷ 3.2) | 4–6, 1.2–1.9 s → **0** | (4) held |
+| CLEAN 4× | backward | 43.2, 42.5 → 18.7 (÷ 2.3) | 1–2, 0.31–0.50 s → **0** | (1) held |
+| LTE 1× | forward | 32.7, 32.2 → 19.1 (÷ 1.7) | 25–27, 14.4–14.5 s → 1–2, 1.3–1.5 s (÷ 10) | (not predicted) |
+| LTE 1× | backward | 26.5, 25.9 → 18.7 (÷ 1.4) | 4, 9.6–10.4 s → 4, 4.2–4.3 s (÷ 2.4) | (2) **missed**: the four waits stay |
+| LTE 4× | forward | 33.9, 35.0 → 15.8 (÷ 2.2) | 12–13, 8.8–9.5 s → **0** | (4) held |
+| LTE 4× | backward | 31.0, 33.1 → 18.7 (÷ 1.7) | 3–4, 6.7–7.2 s → **0** | (2) held |
+
+A/A: MB within 0.94–1.03 in every cell; the branch's waited sums (LTE 1×, the one cell with waits) 0.92 and 0.99; the
+tip's 0.50–1.65 with zero to six waits a pass on CLEAN. The branch's frames are the stand-in's 34 and 40 a pass in every kept
+row but LTE 1× forward (38–45: §Timed cells m1's refetch, still there).
+
+* **§Timed cells B1: closed in time.** On CLEAN the branch waits on no step either way, at 1× and 4× (MEASURE-2: four waits a
+  backward pass, 0.67–0.84 s and 4.8–5.0 s). The seven-step lead covers a group's wire and its eight chained decodes at
+  both rates (prediction 1). Forward waits stay at zero (prediction 4).
+* **No cell regresses.** The branch's waited sum is at most the tip's in every cell, well outside the tip's A/A spread where
+  it is lower; its bytes ÷ 1.4 to ÷ 3.2 (the brief's ÷ 4 to ÷ 8 missed again, as predicted in (3) and explained in §Timed
+  cells m3). By the brief, PR 446 is a **non-regressor** on these cells.
+* **o1 (observation, prediction 2 missed).** On LTE 1× the branch still waits at 31, 23, 15 and 7 on the backward pass
+  (0.34–2.2 s each, in all eight kept rows), half the tip's sum. At 1× a step takes about 0.35 s (dwell and paint), so 7
+  steps are about 2.4 s; a group is 0.6 s on the 50 Mbit/s wire (*derived*, `candidates.md` §2). The lead should cover it
+  and does not: not diagnosed here. At 4× (slower steps) the waits vanish, which points at the rate of asking rather than
+  the lead (*theory*, not tested). Not a blocker: the tip waits on the same four steps, longer. For BRIEF-WEEKEND's list
+  with §Timed cells m1, which it may share a cause with.
+* **o2.** The tip failed 1 of 40 instrumented visits (above); the branch 0 of 40. §Timed cells m2's count is not
+  re-diagnosed.
+* **What it costs** (§FIX-2: a reader turning back early in a group) is not in these cells: a pass runs one way to the end.
+  It stays *derived* only.
+
+**Verdict.** No blocker open. PR 446 is a non-regressor on `dbts_b1-q8-g8`'s timed cells: a sync row may merge it (amendment
+28 rule 1), its conflict in `docs/lines/client.md` its own to resolve. §Timed cells m1 and o1 go to BRIEF-WEEKEND's list.
+
+Fixtures and limits: `dbts_b1-q8-g8` and its exact series `dbts_b1` only (50 frames, 2560 × 3328, 10-bit, W = 15, G = 8),
+coded here by `ingest_coded.py` as `scripts/demo-series.sh` does; no ultrasound clip, no other DBT volume (`dbts_c1`'s six
+groups not timed; there §FIX-2's change moves nothing). One 4-core cloud container (no GPU), the browsers, servers and driver
+on cores 0–2 and the relay on core 3, load average about 3.2: the host is near saturation at 4×, so of the 4× cells only
+the arms' order is claimed. Headless Chromium, software WebCodecs and WebGL, the page view only; 4× by `cpu_throttle.mjs`'s
+per-thread cap (its check here: 1× 148 ms, 4× 703 ms), not a phone. A userspace relay (`link_impair.py`), not a radio; LTE
+without its 30 s blackout; the relay's self-timing VOIDed 19 visits here against 4 in MEASURE-2 on the same rig (a noisier
+host; VOID rows not read). One reader pace (a 300 ms dwell), one pass each way from frame 0 after the window's fill. The
+extra LTE rounds are a deviation from the four planned, named here; they changed no cell's reading.
+
+*How it serves the value statement:* on CLEAN and LTE 4× no step waits either way, and the bytes of a pass fall by 1.4 to
+3.2: "low latency on every jump" and "the lowest … network cost per reading session"; on LTE 1× the backward waits halve but
+remain (o1). On these links at 1× the link binds (LTE: ÷ 10 forward waits from asking less); at 4× the decode does.
