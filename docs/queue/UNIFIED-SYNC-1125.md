@@ -1,9 +1,10 @@
 state: started
 started: 2026-11-25T07:07Z
-heartbeat: 2026-11-25T12:47Z
-by: SuzFofkv
+heartbeat: 2026-11-25T13:48Z
+by: NXVRXPBP
 outputs: claude/unified 9170cdf39 (11 merges + one link fix), pushed; PR comments and closes next
 ## Resume
+Resumed 2026-11-25T13:48Z by NXVRXPBP (stalled since 12:47): CI on 8459a0a7b was green but for the skip-list step (12:47 entry); next: comment "Merged into claude/unified at <sha>" on PRs 413 418 419 439 440 442 443 444 445 447 448 and confirm each closed.
 Resumed 2026-11-25T12:46Z by SuzFofkv (stalled since 11:27): checking origin/claude/unified tip, CI on it, the gate, then comments and closes.
 2026-11-25T12:47Z: CI run 45596759058 (push, 8459a0a7b): job gate's scripts/gate.sh step GATE OK in 954 s, skipped the pair's invariants (no writer) and the viewer's cross-codec arm and Firefox; only the workflow's skip-list step failed, on the pair's invariants, as at b059388b6 (run 45345879478); deploy job green. Next: comment and confirm closed the 11 PRs.
 Resumed 2026-11-25T11:27Z by iBdmdVUA (stalled since 10:27): origin/claude/unified is at 8459a0a7b (pushed); checking CI and the gate on 8459a0a7b, then comment and close PRs 413 418 419 439 440 442 443 444 445 447 448.
