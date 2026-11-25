@@ -370,6 +370,13 @@ driver defect below and resumed from round 9, `fromRound: 9`; round 9's partial 
 | fill record, BEACON-H, KEEPALIVE-H | 17, 14 of 18 | H arms deliver at a navigation | hit (BEACON-H), KEEPALIVE-H loses 4 |
 | fill record, SESSION-H | 2 of 18 | SESSION-H fails the load bar | hit |
 
+**Firefox D5a** (`r3-firefox-D5a.jsonl`, idle page, the kill 50 ms after the fault, every content process; 18 rounds
+× 9 units, Williams-balanced; cut at rounds 2 and 5 and resumed, `fromRound: 8` for its last part; 162 of 162 reached
+the mismatch, no error, no late kill). **Measured**: safety report 18/18 every arm; fill record 18/18 for each Y arm
+and SESSION-1, 0/18 for each H arm and `off`. Predicted: Chromium's idle pattern (safety 18/18; H arms lose the fill
+record under a kill): **hit** on every cell. The race is not placed on an idle page (each report left before 50 ms),
+as on Chromium in REPORT-RUN-2.
+
 **Driver defects found while running Firefox (lab only):** step 0's close-rejects-pending left a rejected call no
 caller awaited, and Node ended the process on it (cut D5a at round 2, D1 at 9, L at 4): fixed in `e9b0e0a9b`,
 `712a3fc67`, and the driver now logs a dropped `BiDi socket closed` and goes on (any other error still stops it). Each
