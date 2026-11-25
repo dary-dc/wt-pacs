@@ -26,7 +26,7 @@ PCS has not offered.
 
 | # | the owner's yes or no | recommended | a yes changes | a no leaves |
 | ---: | --- | --- | --- | --- |
-| 1 | **Send it**: §9 to the PCS team, by the owner, in place of the five pages' drafts, once US-DBT-CARRY-REVIEW leaves `us-dbt-carry` item 2 standing (or E is edited) | **yes** | one yes answers `pacs-sync` item 10, `ingest-optimal-quality` item 11 (both notes), `exact-frame-layout` item 6, `non-cine-series` item 3's three questions and `us-dbt-carry` item 2's four; each answer moves the items §3 names; a row then carries the answers into those pages | the items of §3 stay open "until the PCS team answers"; no lossless-sourced breast ultrasound clip in the PCS's layout, so no breast ultrasound number (premise 2); the one sound public cine (`uscine_crc1`…`3`, grey liver clips) is in no result yet, which `us-dbt-carry` item 7 answers, not this note |
+| 1 | **Send it**: §9 to the PCS team, by the owner, in place of the five pages' drafts, once US-DBT-CARRY-REVIEW leaves `us-dbt-carry` item 2 standing (or E is edited) | **yes** (the draft's ultrasound G sentence corrected 2026-11-25, PAGES-PASS-FIX: what is sent changed, the yes did not) | one yes answers `pacs-sync` item 10, `ingest-optimal-quality` item 11 (both notes), `exact-frame-layout` item 6, `non-cine-series` item 3's three questions and `us-dbt-carry` item 2's four; each answer moves the items §3 names; a row then carries the answers into those pages | the items of §3 stay open "until the PCS team answers"; no lossless-sourced breast ultrasound clip in the PCS's layout, so no breast ultrasound number (premise 2); the one sound public cine (`uscine_crc1`…`3`, grey liver clips) is in no result yet, which `us-dbt-carry` item 7 answers, not this note |
 
 ## 3 · The options, and what each question moves
 
@@ -77,8 +77,10 @@ Merged, not dropped: C3 and E1 both ask about the lossy flag and stay two questi
   still open, advised before sending.
 * Every ultrasound figure we have is from lossy-sourced public clips (F); no lossless-sourced breast clip in the PCS's
   layout. Found by `docs/FIXTURES.md` (provenance per set) and PCS-NOTE-REVIEW m4.
-* G has no measurement on ultrasound clips, and σ_min's rule no calibration beyond the three DBT systems (C, C4).
-  Found by `ingest-optimal-quality` §9's G note and `noise-point.md` §Note, as the drafts say.
+* G has no measurement on a lossless-sourced breast clip; two sound sweeps (G 16 +23.0, +22.7 % at Q 8) and two
+  lossy-sourced clips (+8.3 to +72.2 %) are measured (`us-dbt-carry` §3, §4.1, from `docs/av1/groups.md`). σ_min's rule
+  has no calibration beyond the three DBT systems (C, C4). Found by `ingest-optimal-quality` §9's G note, `noise-point.md`
+  §Note and `us-dbt-carry` §4.1; corrected 2026-11-25 by PAGES-PASS-FIX (README §Pass review B2).
 
 No private name, address or deployment appears in the note; it names the team by its role only.
 
@@ -182,7 +184,8 @@ place, 2026-11-24), PCS-NOTE-FIX-REVIEW (§Re-review, 2026-11-24: no blocker ope
 > `lab/noise-ingest/src/sigma.rs` (at `83f73e2bc`) equals it bit for bit on the three timed volumes; both on request). Separately, our
 > ingest codes the view with any Q from 1 to 63 and any group length G ≥ 1; on DBT at Q 8 a group of 8 saved at most
 > 1.2 % of the view's bytes against G 1 on three volumes (nothing on one), and on one volume longer groups saved 4–5 %
-> but decoded about 20 % slower; we have no measurement on ultrasound clips.
+> but decoded about 20 % slower. On ultrasound at Q 8, a group of 16 saved 23 % on two public sound sweeps (prostate,
+> not breast) and 8–72 % on two lossy-sourced clips; we have no measurement on a lossless-sourced breast clip.
 >
 > 1. Will the parser's output carry the per-frame window? For enhanced multi-frame objects, it sits inside
 >    (5200,9229) or (5200,9230) → Frame VOI LUT Sequence (0028,9132). The ingest reads top-level keys today.

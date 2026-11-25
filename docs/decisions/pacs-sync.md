@@ -28,7 +28,7 @@ to know about edits made on our side.
 | ---: | --- | --- | --- | --- |
 | 1 | Merge PR 407: one study-DB schema, `xxh3 TEXT` (16 lowercase hex) (D1) | **yes** | `pacs-verify` reads what the receiver writes; the defect it fixes is measured ("Invalid column type Text"); review: no blocker | the verify tool fails on every stored study; `INTEGER` instead is PR 407's §The other choice (one hash in two forms in one DB, 8 bytes a group saved, **derived**) |
 | 2 | Merge PR 422: the receiver's signed-source tests, no range check of its own (metadata §Open 5) | **yes** | 51 tests, 5 mutants killed, two of which the old suite let live (**measured**); review: no blocker | §Open 5 stays open on paper although answered |
-| 3 | Merge PR 417: the hash bridge and P3 against E reconciled (metadata §Open 2) | **yes, after its review** (corrected 2026-11-23, `README.md` §Review B2: PR 417 had no review; SYNC-RECONCILE-REVIEW is queued, and amendment 28 rule 1 merges it only with no blocker open) | the records agree: bridge (a) in every pattern; P4 (E) over rsync, provisional on M-R2 | two records that contradict each other |
+| 3 | Merge PR 417: the hash bridge and P3 against E reconciled (metadata §Open 2) | **yes, after its review** (corrected 2026-11-23, `README.md` §Review B2; condition met 2026-11-25, PAGES-PASS-FIX: SYNC-RECONCILE-REVIEW and its re-review are done, "No blocker open" (`claude/work-ledger:docs/queue/SYNC-RECONCILE-REVIEW-FIX-REVIEW.md`), and UNIFIED-SYNC-1124 merged PR 417 into `claude/unified` at `e82b3c17f`) | the records agree: bridge (a) in every pattern; P4 (E) over rsync only with zstd on the metadata call and rsync's listing ≤ 34 KB (ct), ≤ 221 KB (2 000) | two records that contradict each other |
 | 4 | **One writer for now**: no client-application edits of metadata at the PACS; every correction comes through the PCS (#220's policy P5) | **yes** | the shape is **E + F** (#222 §6.4: "without one, E by simplicity"); a row to build E + F in sender and receiver, by a session that wrote none of #220–#223 | the fork stays open and A + F (+ G) is the ranking's first: a `manifest` member, the update mode, `stale` as final, a tombstone table (#222 §6.4) |
 | 5 | The hash bridge (a): the receiver checks the PCS's BLAKE3 names; our DB keeps XXH3 (D15) | **yes** | the default `pcs-pacs-options.md` §1 already prints | (b) or (c), which miss rot at rest at the PCS (`rsync-delivery.md` §1) |
 | 6 | Layout A: follow the PCS's code at `e105214`, the PDF's B recorded as its target (D14) | **yes, until the PCS team answers note item 6** | the default as built | a choice without the PCS's word on which layout it will ship |
@@ -56,9 +56,10 @@ at their worst: a second writer exists, the PCS keeps leftover files).
 | **F** anti-entropy, a layer | per-study roots, then down the tree | its tree | finds what every other shape misses | 1 exchange a day, ≈ 4 KB |
 
 Measured beside it (#223, one CT fix): E 35 KB, B 10–11 KB, a gap of one round trip; #223's pre-registered verdict is
-E. Over rsync (PR 417, **derived** from #234's estimates by #223's rule): E (P4) on satellite (P4 − P3 = 0.3 s for ct,
-1.8 s at 2 000, at 2 Mbit/s); on rural ADSL at 0.5 Mbit/s, P3 if rsync's listing goes raw (7.2 s at 2 000, over the
-5 s bar), E if it compresses to ≤ 0.6× (4.9 s, 2 % under): M-R2, not run.
+E. Over rsync (PR 417, **derived** from #234's estimates by #223's rule, as its review corrected it: `rsync-updates.md`
+§6.1, PR 417 §SYNC-RECONCILE-REVIEW B1): E (P4) "only if the metadata call uses zstd (`--zc=zstd`) and rsync's file
+list compresses to ≤ 34 KB for ct and ≤ 221 KB at 2 000 instances" on rural ADSL at 0.5 Mbit/s; else P3. With zlib
+per file, P3 on satellite too (P4 − P3 0.9–1.7 s for ct at 2 Mbit/s). M-R2 and M-R3, not run, decide.
 
 **The second writer** (#220 §1, **theory**). With a PACS edit, A refuses what E would overwrite: "every two-way shape
 … silently overwrites their edits on the next PCS change" (#222 §On one screen). P5 (no PACS edits) asks nothing new
@@ -118,7 +119,6 @@ lowered by the decode-bound phone (`README.md` §Premises item 1).
 * The PCS's frame files carry no hash, so (b) and (c) miss rot at rest at the PCS. Found by `rsync-delivery.md` §1.
 * Group 0002 still lands in the instance group at `e105214`: read, not run (§9 item 8). Found in the note's sources
   (design state §15, `pcs-pacs-options.md` §6, metadata §Open 4); which of them is not recorded here.
-* PR 417 has no review. Found by DECISION-PAGES-REVIEW B2.
 
 ## 5 · The mechanism
 
@@ -134,8 +134,9 @@ beside the old one (Q-U1; §9 item 4). The schema is a bug, not a trade: two cra
 
 * **Client-application edits wanted** (a QC tool, a correction at the reading room): item 4 flips to A + F (+ G). The
   deciding fact is product scope, not a measurement; #220 §6's three questions are the ones to answer.
-* **M-R2** (rsync's file list under `-z`): above 0.6×, P3 beats E on rural ADSL by #223's own rule. One cloud run,
-  pre-registered in `rsync-updates.md` §7.
+* **M-R2** (rsync's file list under `-z`) **and M-R3** (the zstd call's metadata bytes): a listing above 34 KB (ct)
+  or 221 KB (2 000), or a metadata call without zstd, and P3 beats E by #223's own rule (`rsync-updates.md` §6.1).
+  Cloud runs, pre-registered in `rsync-updates.md` §7.
 * **A real DBT or US series through the PCS's parser**: its instance count decides whether E's snapshot cost is the
   table's small or large end.
 * **The PCS team's answers** (§9): a kept, current, snapshot-able tree makes the kept mirror possible; frame files
@@ -149,7 +150,7 @@ yes replaces it with E + F. The owner's 10-24 decisions ("display metadata is up
 
 ## 8 · Rows and links
 
-* Rows: SYNC-RECONCILE (PR 417; its review SYNC-RECONCILE-REVIEW owed), STUDY-DB-TEST and STUDY-DB-TEST-REVIEW (PR 407), RECEIVER-RANGE and
+* Rows: SYNC-RECONCILE (PR 417; SYNC-RECONCILE-REVIEW and its fix loop done 2026-11-23, no blocker open; merged into `claude/unified` 2026-11-24), STUDY-DB-TEST and STUDY-DB-TEST-REVIEW (PR 407), RECEIVER-RANGE and
   RECEIVER-RANGE-REVIEW (PR 422); status files under `claude/work-ledger:docs/queue/`.
 * `docs/lines/metadata.md` §Open 1–7; `docs/ingest/pacs-receive-design.md` §6, §14, §15, §16;
   `docs/ingest/sync-protocol/shapes.md` §6.4; `docs/ingest/sync-protocol/second-writer.md` §1, §6;

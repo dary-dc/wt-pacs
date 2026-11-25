@@ -110,9 +110,10 @@ without hardware is not yet known.
 *G* sit across every class's *G*\*, which is why no fixed route is right everywhere (§5).
 
 **Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). This page's question is where the line falls: the
-exact series fills faster once *G* > *b*_E ÷ *d*_V, i.e. once the link stops binding the view. Below its class's
-*G*\* the link binds and the view wins by its bytes; above it the phone's decode binds the view (**derived**, §5 and
-the appendix's table). From [`delivery-per-link.md`](delivery-per-link.md) §4: B is link-bound on every link below
+exact series fills faster once *G* > *b*_E ÷ *d*_V, i.e. once the link stops binding the exact series (B) below the
+view's decode. Below its class's *G*\* B is link-bound and the view wins by its bytes; above it B's wire time falls
+under the view's decode, which binds A from ~83 Mbit/s up (**derived**, §5 and the appendix's table; corrected
+2026-11-25, PAGES-PASS-FIX, README §Pass review B4). From [`delivery-per-link.md`](delivery-per-link.md) §4: B is link-bound on every link below
 its class's *G*\* (public Wi-Fi, LTE, a far stream and the median home's p10 for every class); A on LTE, a far
 stream, LOSS-like links and public Wi-Fi below ~83 Mbit/s (`link-profiles.md` §2's crossover for `dbts_b1` on the
 round's phone, **derived**); C1's exact frame on every link; the decode binds A on clean links above that crossover,

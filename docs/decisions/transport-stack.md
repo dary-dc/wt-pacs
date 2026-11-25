@@ -125,7 +125,16 @@ The premise under it is untested ([`README.md`](README.md) §Premises item 1): o
 series filled faster than the view in 15 of 15 rounds, median 0.705 (**measured**,
 [`phone-decode-route.md`](phone-decode-route.md) §4), so on that fast clean link the phone's decode bound the view.
 No transport row is lowered by it: where the decode binds A every stack already ties on the fill (CLEAN, PUB), and
-item 2's run asks about the ask, which the link binds on every profile.
+item 2's run (TRANSPORT-FLAGS-RUN, done 2026-11-24, unverdicted) asked about the ask, which the link binds on every
+profile.
+
+**For the owner and PAGES-AFTER-RUNS** (2026-11-25, PAGES-PASS-FIX; README §Pass review B3). Item 2's run is done;
+its rows are unverdicted until PAGE-RUNS-VERDICT (`claude/page-runs:docs/reviews/page-runs.md` §Transport: results).
+Read by its own §1 rules it bears on three lines here, none changed by this fix: §6's first bullet ("WT-TW and WT-PF
+are both above ×0.8 on AD … the page's next step stands, 'a GET path for asks alone is the next structural draft'"),
+which reopens item 1; "#39: net on these cells" (WT-AF ×0.780, ×0.535 on AD, a CR fill of ×0.676), against the
+appendix's "hold for item 2's run"; and "CR is answered within WebTransport" by `per-frame` (×0.571). #96 "is not
+answered". PAGES-AFTER-RUNS carries the verdict into items 1 and 2, #39 and §6.
 
 **The stack per link profile** (**derived** from the table; LINK-TARGETS' profiles, `link-profiles.md`):
 
@@ -134,9 +143,9 @@ item 2's run asks about the ask, which the link binds on every profile.
 | home Wi-Fi, public Wi-Fi, 5G sub-6, clean | the wire or the phone's decode; every stack ties on the fill | WebTransport: no stack gains; WT and H3 keep their window through a reader's pause (AA at 5 s) |
 | enterprise Wi-Fi | reordering | not decided: ENT's model is uniform jitter, unbalanced, its fill ×18 the prediction (§6.3) |
 | LTE, one far stream, 0.1 % loss | the controller's loss slope | WebTransport: every arm not conclusive on the fill (LTE) |
-| LTE with a full queue (~0.8 s RTT) | the 6 MiB stream credit | H3-frame, by escaping the one stream's credit; WT's own `per-frame` flag is the untested equivalent (item 2) |
+| LTE with a full queue (~0.8 s RTT) | the 6 MiB stream credit | H3-frame, by escaping the one stream's credit; WT's own `per-frame` flag measured ×0.571 of WT-TS on CR, unverdicted (item 2's run) |
 | 5G mmWave | the stream credit or the decode | not measurable here (above 90 Mbit) |
-| any, an ask during a fill | what the ask waits behind | fill-shape fetch and WS ×0.47–0.74; WT's one-queue flag measured ×0.32–0.90 earlier on other rigs (`ask-during-a-fill.md`), never in this rig (item 2) |
+| any, an ask during a fill | what the ask waits behind | fill-shape fetch and WS ×0.47–0.74; WT's one-queue flag ×0.32–0.90 on other rigs (`ask-during-a-fill.md`), ×0.99–1.04 on this rig's AD, unverdicted (item 2's run) |
 | any, a UDP-hostile network | the dial | the WebSocket fallback, as decided |
 
 **Each limitation, and what found it** (2026-11-25, PAGES-PASS):
@@ -158,8 +167,10 @@ item 2's run asks about the ask, which the link binds on every profile.
   TRANSPORT-VERDICT-REVIEW (§6.5); re-run by TRANSPORT-AD-RERUN (§6.6).
 * AD's re-run has had no review of its own. Found by this page (TRANSPORT-PAGE), from the rows of §8.
 * Why the fill shape's ask is faster is **theory**, not traced. Found by TRANSPORT-AD-RERUN (§6.6).
-* WT's one-queue flag never measured on this rig, only on others (×0.32–0.90). Found by this page's reading of
-  `ask-during-a-fill.md` against §6 (TRANSPORT-PAGE).
+* WT's flags on this rig (TW ×0.993, ×1.037, ×1.000 of WT-TS on AD-PUB, AD-LTE and CR; PF, AF) are one volume
+  (`dbts_b1`), one 4-core container, unverdicted until PAGE-RUNS-VERDICT; QW and #96's lever not run. Found by
+  TRANSPORT-FLAGS-RUN (`page-runs.md` §Transport: results); the earlier "never measured on this rig" corrected
+  2026-11-25 by PAGES-PASS-FIX (README §Pass review B3).
 * No Firefox, no Safari, no phone, no Android `tcp_rmem`, no handover; Chromium's `net/` read, not traced. Found by
   TRANSPORT-THEORY (`stacks.md` *Fixtures and limits*, "Not read").
 * ENT's reorder model, CR's credit numbers to other engines and every absolute time to a radio do not carry. Found by
@@ -201,7 +212,8 @@ controller's (**derived**). The Wi-Fi pairs (9 of 10 faster under `cubic-restart
 ## 6 · What would change the recommendation
 
 * **Item 2's run shows WT with its flags still above ×0.8 of the fill shape's ask**: then a GET path for asks alone is
-  the next structural draft, measured on a phone. One cloud run decides.
+  the next structural draft, measured on a phone. One cloud run decides. *Run 2026-11-24, unverdicted:* TW and PF
+  above ×0.8 on AD (§4, *For the owner*).
 * **A real radio's loss and reordering** (an enterprise Wi-Fi or LTE trace) where the TCP stacks' ENT and LOSS wins
   hold: the WebSocket earns more than a fallback. A device session decides.
 * **`network-mode.md` §6's check** shows a tap drop in a counted load: host networking becomes the recommendation. A
@@ -238,8 +250,8 @@ Moved here from §3 on 2026-11-25 (PAGES-PASS, §Review m13), unchanged.
 | PR | held default | recommended | why |
 | --- | --- | --- | --- |
 | #37 | 38 400 B initial window | **no**; close | item 5 |
-| #39 | asks first under a 6 MiB send window | **hold for item 2's run** | a trade-off: the ask ×0.18–0.31, the fill +2 to +44 % (row 211) |
+| #39 | asks first under a 6 MiB send window | **hold for item 2's run** | a trade-off: the ask ×0.18–0.31, the fill +2 to +44 % (row 211); item 2's run: "net on these cells", unverdicted (§4, *For the owner*) |
 | #40 | `cubic-classify` the controller | **no**; close | row 212: not the default in either reading; now compiled only under `lab-classify` |
 | #41 | 100 ms initial RTT; the repeated-Initial reply removed | **hold** | the owner's 2026-10-14 reading (H over R) is recorded; a run at the target's real RTT decides (`design.md` §Open) |
-| #96 | the one queue as product code, no flag | **hold for item 2's run** | its measurement (row 253) is not on the line; the flag form is what item 2 runs |
+| #96 | the one queue as product code, no flag | **hold for item 2's run** | its measurement (row 253) is not on the line; item 2's run: "#96 is not answered", its lever not in the rig (§4, *For the owner*) |
 | #88, #102, #103, #122, #123, #137, #139 | disk and design rows, no default | **no default to set** | each index line's open question stays where it is recorded |
