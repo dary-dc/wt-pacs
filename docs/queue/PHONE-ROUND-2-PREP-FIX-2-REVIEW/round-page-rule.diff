@@ -1,0 +1,22 @@
+diff --git a/lab/devices/round-page.js b/lab/devices/round-page.js
+index c2ebd2f62..8cbc46ed6 100644
+--- a/lab/devices/round-page.js
++++ b/lab/devices/round-page.js
+@@ -1,6 +1,6 @@
+ /** The round's hook in the viewer, `?round=<host>&at=<k>`: one load recorded, then the host's next. lab/devices/README.md §The round */
+ import { Cine, now } from "../../client/view/clock.js";
+-import { memoryWindow } from "../../client/view/controller.js";
++import { memoryWindow, wantFrom } from "../../client/view/controller.js";
+ import { beaconHooks } from "./beacon.js";
+ import { bench, exactFill } from "./bench.js";
+ import { TICK_MS, fillFailure, largestGap, losslessFailure, verdict } from "./round.mjs";
+@@ -52,7 +52,8 @@ export function roundHooks(q) {
+         const quality = document.getElementById("quality");
+         const lossless = document.getElementById("lossless");
+         const meta = await globalThis.viewerMetadata;
+-        const held = Math.min(meta.frameCount, q.has("budget") ? Number(q.get("budget")) : memoryWindow(meta));
++        const asked = q.has("budget") ? Number(q.get("budget")) : memoryWindow(meta);
++        const held = wantFrom(0, meta.frameCount, true, true, asked, meta.lossy?.g > 1 ? meta.lossy.g : 1).length;
+         recorder.record("memory", { budget: q.has("budget") ? Number(q.get("budget")) : null, window: held, received: ledger.frames?.length ?? 0, deviceMemory: navigator.deviceMemory ?? null, maxTextureSize: maxTextureSize() });
+         failure = fillFailure(ledger, held);
+         if (!failure && q.get("exactFill") === "1") {

@@ -1,0 +1,8 @@
+68c68
+<   check(loads.every((l, k) => of(k, "memory")[0]?.window === Math.min(20, l.budget) && of(k, "memory")[0]?.budget === l.budget && "maxTextureSize" in of(k, "memory")[0]), "each load records its window, budget and MAX_TEXTURE_SIZE");
+---
+>   check(loads.every((l, k) => of(k, "memory")[0]?.window === of(k, "memory")[0]?.received && of(k, "memory")[0]?.budget === l.budget && "maxTextureSize" in of(k, "memory")[0]), "each load records its window, budget and MAX_TEXTURE_SIZE");
+70c70
+<   check(loads.every((l, k) => l.cell !== "M" || of(k, "load")[0]?.received === Math.min(20, l.budget)), `each cell M load fills to its window: ${loads.map((l, k) => l.cell === "M" ? `${l.arm}:${of(k, "load")[0]?.received}` : "").filter(Boolean)}`);
+---
+>   check(loads.every((l, k) => l.cell !== "M" || of(k, "load")[0]?.received === of(k, "memory")[0]?.window), `each cell M load fills to its window: ${loads.map((l, k) => l.cell === "M" ? `${l.arm}:${of(k, "load")[0]?.received}` : "").filter(Boolean)}`);
