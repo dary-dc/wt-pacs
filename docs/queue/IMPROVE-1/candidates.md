@@ -106,7 +106,9 @@ MEASURE-3 in `findings.md`). The table is the model's, kept as such; the sizes a
 
 With four decoders the two that hold 16 frames end the fill; the fourth is idle from 1.05 to 1.37 s on. The span's
 floor is ⌈groups ÷ decoders⌉ groups, so the "effective time a frame" of the read (span ÷ 50) measures the series'
-group count as much as the phone. For this series: 18 frames at three decoders, 16 at four, 8 at seven. Whether
+group count as much as the phone. For this series: 18 frames at three decoders, 16 at four, 8 at seven. The phone
+binds too: a frame's median rose from three decoders to four (108–117 → 111–130 ms), eating most of the 18 → 16
+frames' −11 % (added 2026-11-25, §Review m2). Whether
 seven decoders at 8 frames each beat three is not known (M12 never ran past four); it is, at 150 ms a frame, 1.2 s
 against 2.0 s, and each decoder's memory is not measured.
 
@@ -124,7 +126,8 @@ low clock.
 
 **The exact frame.** Cell 2's C1 press, the first exact request of its load: 216.5 ms. Cell 3 (`round-page.js` at
 `f5252051`: "for (const busy of [false, true])") asks the idle one first: 201.3 and 196.4 ms; the busy one second:
-120.1 and 120.6 ms. The second request is 81 ms faster in both views. First against second explains it without the
+120.1 and 120.6 ms. The second request is 81 ms faster in the page view and 76 in the worker's (corrected
+2026-11-25, §Review nit: "81 ms in both"). First against second explains it without the
 busy page; the two are confounded in that harness and a swapped order would separate them.
 
 **A lone decoder is slower a frame than one of three** (176 against 110 ms, the read's "not explained"). A
@@ -172,8 +175,12 @@ the worker's share of a frame is *s*, a frame's time on a decoder falls from *t*
 not in any row (**theory**: a 25 MB copy, a pass over 8.5 M samples, a 17 MB hash: 20 to 35 ms of 110 ms, so
 *s* = 0.18 to 0.32). Fill: 18 frames × 110 × (0.68 to 0.82) + 0.25 s = 1.6 to 1.9 s against 2.2 s (**derived on
 theory**). On a request, the same change lets the target's frame be read back first and the frames before it after.
-It rests on the cores being free, which the round's rows support (at most 3.3 of 8 in use) and no other phone's do.
-*Serves:* "a fast full fill".
+The formula holds on **free cores only**: the round's rows show at least 3.3 of 8 in use (a partial sum, so a lower
+bound), and no other phone's rows exist. *Corrected 2026-11-25 (§Review m1):* this said "at most 3.3 of 8". Measured
+since (DECODE-OVERLAP, a 4-core cloud host): *s* = 0.39 to 0.46 at 1×, where the formula predicts −39 to −46 %; the
+fill fell −10 to −19 % (DECODE-OVERLAP-MEASURE), the decode and the read slowing each other with 2.9 to 3.6 of 4 cores
+busy. The −14 to −27 % above was met only because *s* was guessed low; contention is the missing term. *Serves:* "a
+fast full fill".
 
 **3 · The dial waits for nothing it does not need.** `client/viewer/viewer.js`: line 43 "const pair = await (async ()
 => {" fetches the exact series' metadata and transport file, and line 138 awaits `built("dav1d")`, both before the
@@ -181,7 +188,8 @@ connect at line 159. The pair's check gates what may be *labelled*, not what may
 bytes and the first decode can run while it is fetched, and the first paint waits for the check as today.
 `claude/work-ledger:docs/queue/FABLE-DESIGN.md` P2 named it ("The dial waits for nothing it does not need"); it was
 never built. One to two round trips: nothing on the round's link, 50 to 200 ms at an LTE round trip of 50 to 100 ms,
-0.4 to 0.8 s on the 400 ms profile. It is the only candidate here that is the link's, not the device's.
+0.4 to 0.8 s on the 400 ms profile; measured since at −2.0 to −2.3 round trips, at and just past the upper end
+(DIAL-BEFORE-PAIR-MEASURE, §Review m4). It is the only candidate here that is the link's, not the device's.
 *Serves:* "a fast first picture" on "unreliable wireless".
 
 **4 · The exact decoder warm before the first press.** §3: +42 ms on a decoder's first HTJ2K decode, and the first
@@ -192,11 +200,14 @@ load for a press that may not come. Not queued: fourth by effect, and its first 
 below, on the phone.
 
 **5 · A jump deep in a group is served by the exact frame.** `dbts_b1`: exact 17.19 Mbit, view 3.71 Mbit, so the
-view's prefix is more bytes from *k* + 1 > 4.63: offsets 4 to 7. Time, on one decoder: exact 17.19 ÷ G + 41 to 87 ms;
-view (*k* + 1) × (3.71 ÷ G + 110 to 176 ms). At *k* = 7 and 600 Mbit/s: 0.07 to 0.12 s against 0.93 to 1.46 s; at
-27 Mbit/s 0.68 to 0.72 s against 1.98 to 2.51 s. At *k* = 0 the view wins below 100 to 586 Mbit/s. On `dbts_a1`
-(exact 9.69 Mbit, view 0.66 Mbit) the bytes never cross within 8, and the time crosses above 13 Mbit/s at *k* = 7
-and 45 Mbit/s at *k* = 3 (**derived on theory**: its decodes scaled by the model's 0.347 and 0.247). It would show an
+view's prefix is more bytes from *k* + 1 > 4.63: offsets 4 to 7. Time, on one decoder, at a rate *R*: exact
+17.19 Mbit ÷ *R* + 41 to 87 ms; view (*k* + 1) × (3.71 Mbit ÷ *R* + 110 to 176 ms). At *k* = 7 and 600 Mbit/s: 0.07
+to 0.12 s against 0.93 to 1.46 s; at 27 Mbit/s 0.68 to 0.72 s against 1.98 to 2.51 s. At *k* = 0 the view wins below
+100 to 586 Mbit/s. On `dbts_a1` (exact 9.69 Mbit, view 0.66 Mbit) the bytes never cross within 8, and the exact frame
+is faster above 13 to 24 Mbit/s at *k* = 7 and 44 to 90 Mbit/s at *k* = 3 (**derived on theory**: its decodes scaled
+by the model's 0.347 and 0.247; the phone missed the 0.247 carry, A on `dbts_a1` ÷ `dbts_b1` measured 0.33,
+`next-round-results.md`). *Corrected 2026-11-25 (§Review m3, nit):* this said "13" and "45", one end of each range,
+and wrote *G* for the rate beside *G* the group length. It would show an
 exact frame nobody asked for: **it would reopen "the exact HTJ2K frame on an explicit Lossless request"**. Candidate
 1 removes most of the jumps it would serve (a scroll no longer jumps); what is left is the true jump, far from the
 window. For EXACT-UNASKED and FIT-ARM-PROTOCOL item (3) to size; nothing built.
