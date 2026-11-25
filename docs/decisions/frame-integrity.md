@@ -64,7 +64,8 @@ Each call's options, its numbers and their sources are in [§3 in full](#appendi
 **Each limitation, and what found it** (2026-11-25, PAGES-PASS):
 
 * Fixtures: the measured numbers come from the 18 demo series and three DBT volumes of one dataset (`dbts_a1`,
-  `dbts_b1`, `dbts_c1`). Found by the rows' own fixture lines (I1 in §3.5, I2-RUN, INTEGRITY-MODEL).
+  `dbts_b1`, `dbts_c1`). Found by the rows' own fixture lines (I1 in §3.5, I2-RUN); INTEGRITY-MODEL's own are four HTJ2K series and
+  three DBT volumes.
 * 4-core x86 cloud hosts without a GPU, headless Chromium (and Firefox for the ADR's cells), SwiftShader for the
   paint, loopback or a userspace relay, never a radio. Found by the same lines and the [ADR](../adr/exactness-in-production.md)'s cells.
 * No phone, no hardware decoder, no WebKit, no breast ultrasound cine in any cell. Found by INTEGRITY-PAGE's status
@@ -87,7 +88,7 @@ Each call's options, its numbers and their sources are in [§3 in full](#appendi
 * PR 368's base is the old demo tip and GitHub reports it unmergeable. Found by GitHub's merge state, as §3.5 says.
 * The 4:0:0 view failed at flush on the round's phone, at 256 × 256 only. Found by the phone round's measurement,
   [`phone-decode-route.md`](phone-decode-route.md) §3 4.7.
-* No source gives an outage distribution in seconds on a real wireless link. Found by [`link-profiles.md`](../transport/link-profiles.md) §2's survey (LINK-TARGETS).
+* No source gives an outage distribution in seconds on a real wireless link. Found by [`link-profiles.md`](../transport/link-profiles.md) §1's survey (LINK-TARGETS).
 * The phone's 30 s with no UDP is one load, its cause not shown; the 45 s blackout rig ran three rounds. Found by
   [`lossless-after-a-failed-ask.md`](../client/evidence/lossless-after-a-failed-ask.md) (its server logs and its rig).
 * The fault bench's cells (2, 3, 5, 6, 12 among them) are not run; item 5's "before every decode" waits on cell 2.
@@ -107,7 +108,7 @@ evidence about a device or a store, which is why the safety report and item 5 ma
 **Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). The check binds on no link: it runs after the
 decoder, on the client, whatever the wire (**theory**, §5). The link enters this page twice. Item 7: a lost exact ask
 is a link's outage, and every published one is inside the downloader's own resume (**source**, `link-profiles.md`
-§2; §3.6). And §6's DELIVERY-FIT-ARM, which asks whether a view is needed at all: by
+§1; §3.6). And §6's DELIVERY-FIT-ARM, which asks whether a view is needed at all: by
 [`delivery-per-link.md`](delivery-per-link.md) §4 (**derived**), the link binds B on every link below its class's
 *G*★, A on LTE, a far stream, LOSS-like links and public Wi-Fi below ~83 Mbit/s for `dbts_b1` on the round's phone,
 and C1's exact frame on every link; the decode binds A on clean links above that crossover. That the wire binds on
@@ -281,7 +282,7 @@ counts an ask whose own re-dial failed as lost (FIX-378-DIAL, reviewed, no block
 the downloader has already waited: a 3 s stall watch (doubling) or the frame's 15 s waiter, then up to five dials of
 at most 5 s, 1 s apart ([`downloader.js`](../../client/transport/downloader.js) `deadlines`); in the 45 s blackout rig the ask failed 28.2 s after the press
 (**measured**, three rounds, [`lossless-after-a-failed-ask.md`](../client/evidence/lossless-after-a-failed-ask.md)). So one ask and its re-ask ride out a silence of roughly 57 s (**derived**: 28 + 1 + 28).
-Against the published outages (**source**, [`link-profiles.md`](../transport/link-profiles.md) §2): LTE handover interruptions 24–29 ms on average,
+Against the published outages (**source**, [`link-profiles.md`](../transport/link-profiles.md) §1): LTE handover interruptions 24–29 ms on average,
 sometimes over 100 ms, about 40 ms median; 5G mmWave 30+ handoffs in 8 minutes walking, modelled as a drop to
 167 Mbit/s for 2 s, not a silence; the 5G target 0 ms. Every one is two orders of magnitude inside the downloader's
 own resume, before the re-ask is reached. The one long silence on record is the phone's 30 s with no UDP

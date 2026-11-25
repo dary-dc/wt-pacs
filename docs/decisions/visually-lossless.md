@@ -126,7 +126,7 @@ The theory's misses (all VL-READS, `vl-criterion.md` §5.1, unless named):
   was read on. Found by VL-READS' R6, computable on 12 volumes only.
 * R7 missed: the quantizer model describes AV1 from x 4 only and over-predicts r below. Found by VL-READS' R7.
 * R8 refuted on `dbts_b2` (D's x ≤ 2 at 0.594, over 0.55); and its Q is the highest rung read, not the highest Q
-  with x ≤ 2. Found by VL-READS' R8; the rung by VL-CRITERION-FIX-REVIEW's n1 (§5.1's limits).
+  with x ≤ 2. Found by VL-READS' R8; the rung by VL-READS' §5.1 limits (VL-CRITERION-FIX-REVIEW's n1 found it on `dbts_b3`, `dbts_b4` only).
 * R9 refuted: the label's N does not split by depth. Found by VL-READS' R9.
 * The quantizer model is not AV1: the 0.35 against 0.86 detectability is a model's, AV1's own unmeasured (D's "AV1's
   own T unmeasured"). Found by VL-CRITERION (its "Unverified" line).

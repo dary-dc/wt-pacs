@@ -106,7 +106,7 @@ lowered by the decode-bound phone (`README.md` §Premises item 1).
   DECISION-PAGES-REVIEW m6, its quote and "bytes on loopback" corrected by DECISION-PAGES-FIX-REVIEW r-n1.
 * #234's and PR 417's times are estimates from #154's five TCIA series and a synthetic 2 000-instance series. Found by
   PR 417's own label (**derived** from #234's estimates by #223's rule, §3).
-* #166 and #173 are warm, one host, saturating at 100 viewers. Found by #166 and #173, as this page reads them.
+* #166 measured cold and warm; #173 warm, one host, saturating at 100 viewers. Found by #166 and #173.
 * One 4-core cloud host for every gate. Found by this page's reading of the PRs' gates.
 * No DBT volume and no breast ultrasound cine went through the receive path, and no DBT or US study has been parsed by
   the PCS's parser in any row, so a stack's instance count is not known. Found by this page (the rows' fixtures);
@@ -116,7 +116,7 @@ lowered by the decode-bound phone (`README.md` §Premises item 1).
 * M-R1 to M-R3 and #222's §7 measurements are pre-registered and not run. Found by `rsync-updates.md` §7 and #222 §7.
 * The two readers of the parser's group file disagree on a duplicate key: read, not run. Found by COMPLEXITY-AUDIT
   item 5.
-* The PCS's frame files carry no hash, so (b) and (c) miss rot at rest at the PCS. Found by `rsync-delivery.md` §1.
+* The PCS's frame files carry no hash, so (b) and (c) miss rot at rest at the PCS. Found by the PCS's code at `e105214` (§9 item 5: "no hash in the name").
 * Group 0002 still lands in the instance group at `e105214`: read, not run (§9 item 8). Found in the note's sources
   (design state §15, `pcs-pacs-options.md` §6, metadata §Open 4); which of them is not recorded here.
 

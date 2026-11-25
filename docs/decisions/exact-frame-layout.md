@@ -81,7 +81,7 @@ that small is in the list below.
 [`delivery-per-link.md`](delivery-per-link.md) §4). An exact HTJ2K series is wire-bound on a phone on every profile but
 mmWave and the measured home Wi-Fi, a crossover of ~470–660 Mbit/s, "if its phone decode keeps the cloud's ratio to
 the view's, which is **unmeasured**" (**derived**, [`../transport/link-profiles.md`](../transport/link-profiles.md)).
-On this host `r5000` is link-bound (**measured**, the list below), `r20000` decode-bound only under the 4× cap. So the
+On this host `r5000` is link-bound (**measured**, the list below), `r20000` decode-bound on every volume under the 4× cap (the list below). So the
 strips, which shorten the decode, gain least where the link binds most, and a level picture, which shortens the bytes,
 acts on every link (**theory**, §5). On the one phone measured the exact series filled faster than the view in 15 of
 15 rounds, median 0.705 (`README.md` §Premises item 1; the premise itself untested); no transport row is lowered by

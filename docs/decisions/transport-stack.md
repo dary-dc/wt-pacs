@@ -160,7 +160,7 @@ answered". PAGES-AFTER-RUNS carries the verdict into items 1 and 2, #39 and §6.
 * The host did not saturate below 90 Mbit (busiest core's median 0.08–0.52 a cell, no visit `VOID` for CPU). Found by
   TRANSPORT-RUN's CPU sampler (§6.1).
 * The kernel's default controller is `bbr`; the TCP arms' sockets set to `cubic`, read back every visit. Found by
-  TRANSPORT-RUN (§5.7, §6).
+  TRANSPORT-BUILD-FIX (its §5.7 amendment), read back in TRANSPORT-RUN (§6).
 * FP not run. Found by TRANSPORT-RUN: the 12 h stop (§6.1).
 * ENT cut inside a period and unbalanced, its model uniform jitter, its fill ×18 the prediction. Found by
   TRANSPORT-VERDICT-REVIEW (§6.5 item 2) and TRANSPORT-RUN (§6.1, §6.3).
@@ -182,8 +182,8 @@ answered". PAGES-AFTER-RUNS carries the verdict into items 1 and 2, #39 and §6.
   TRANSPORT-AD-RERUN (§6.6); the absolute misses' omission from this page by DECISION-PAGES-REVIEW (§Review, nits).
 * Rootless publish's tap-ring drops are unmeasured in a forwarded mode, and the cloud's one container cannot place a
   client off the host. Found by `network-mode.md` §1–§2 and §6 (**sourced**, **derived**).
-* The 32-packet window's slowdown under BBR is unexplained. Found by PR 254's index (#37: rows 181 IWDEEP and 191
-  IWOPTIN); which row showed the slowdown is not recorded here.
+* The 32-packet window's slowdown under BBR is unexplained. Source not found: PR 254's index (#37: rows 181 IWDEEP
+  and 191 IWOPTIN) states nothing about BBR (PAGES-PASS-REVIEW m4); item 5 carries the claim unsourced.
 * Load 13's page is hidden only by the run's notes. Found by `hidden-page-decode.md`.
 * #41's 100 ms initial RTT and #96's one queue have no run at the target's real RTT or on the line. Found by
   `design.md` §Open (#41) and row 253 (#96), as the appendix's table says.
