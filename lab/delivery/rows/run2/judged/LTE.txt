@@ -1,0 +1,32 @@
+LTE dbts_a1 A     fill        predicted 758 ms, median ×1.059 (9/10 in 0.75–1.33): MISSES in; REGIME MISS (3 rounds); 2 VOID
+LTE dbts_a1 A'    fill        predicted 758 ms, median ×1.019 (10/11 in 0.75–1.33): HOLDS; REGIME MISS (3 rounds); 1 VOID
+LTE dbts_a1 B     fill        predicted 10976 ms, median ×1.023 (7/12 in 0.75–1.33): MISSES in
+LTE dbts_a1 C1    fill        predicted 758 ms, median ×1.100 (11/11 in 0.75–1.33): HOLDS; REGIME MISS (6 rounds); 1 VOID
+LTE dbts_a1 C1    latency     predicted 426 ms, median ×1.060 (10/11 in 0.6–1.67): HOLDS; 1 VOID
+LTE dbts_a1 C1    askLastByte predicted 391 ms, median ×1.019 (10/11 in 0.6–1.67): HOLDS; 1 VOID
+LTE dbts_a1 FIT   fill        predicted 10976 ms, median ×0.820 (5/8 in 0.75–1.33): CANNOT HOLD: 8 counted, median in; 4 VOID; round-paired ×0.765 misses
+LTE dbts_a1 FIT   zoom        predicted 17 ms, median ×0.040 (0/8 in 0.6–1.67): REPORTED, not judged; 4 VOID; round-paired ×0.041 misses
+LTE dbts_a1 SPLIT fill        predicted 758 ms, median ×1.017 (10/11 in 0.75–1.33): HOLDS; 1 VOID; x 0.00 (predicted 0.00)
+LTE dbts_b1 A     fill        predicted 2790 ms, median ×0.969 (10/12 in 0.75–1.33): HOLDS
+LTE dbts_b1 A'    fill        predicted 2790 ms, median ×0.941 (9/12 in 0.75–1.33): MISSES in
+LTE dbts_b1 B     fill        predicted 21373 ms, median ×1.026 (10/12 in 0.75–1.33): HOLDS
+LTE dbts_b1 C1    fill        predicted 2790 ms, median ×0.942 (9/12 in 0.75–1.33): MISSES in
+LTE dbts_b1 C1    latency     predicted 653 ms, median ×1.028 (12/12 in 0.6–1.67): HOLDS
+LTE dbts_b1 C1    askLastByte predicted 593 ms, median ×0.945 (12/12 in 0.6–1.67): HOLDS
+LTE dbts_b1 FIT   fill        predicted 2320 ms, median ×1.193 (7/12 in 0.75–1.33): MISSES in
+LTE dbts_b1 FIT   zoom        predicted 503 ms, median ×1.781 (5/12 in 0.6–1.67): MISSES above
+LTE dbts_b1 SPLIT fill        predicted 2790 ms, median ×0.947 (9/11 in 0.75–1.33): MISSES in; 1 VOID; x 0.00 (predicted 0.00)
+LTE dbts_c1 A     fill        predicted 831 ms, median ×0.993 (12/12 in 0.75–1.33): HOLDS; REGIME MISS (5 rounds)
+LTE dbts_c1 A'    fill        predicted 831 ms, median ×1.011 (11/11 in 0.75–1.33): HOLDS; REGIME MISS (5 rounds); 1 VOID
+LTE dbts_c1 B     fill        predicted 10083 ms, median ×0.771 (4/12 in 0.75–1.33): MISSES in
+LTE dbts_c1 C1    fill        predicted 831 ms, median ×1.073 (8/10 in 0.75–1.33): MISSES in; REGIME MISS (4 rounds); 2 VOID
+LTE dbts_c1 C1    latency     predicted 419 ms, median ×1.033 (9/10 in 0.6–1.67): MISSES in; 2 VOID
+LTE dbts_c1 C1    askLastByte predicted 388 ms, median ×0.989 (9/10 in 0.6–1.67): MISSES in; 2 VOID
+LTE dbts_c1 FIT   fill        predicted 10083 ms, median ×0.955 (5/12 in 0.75–1.33): MISSES in
+LTE dbts_c1 FIT   zoom        predicted 17 ms, median ×0.047 (0/12 in 0.6–1.67): REPORTED, not judged
+LTE dbts_c1 SPLIT fill        predicted 831 ms, median ×1.029 (9/10 in 0.75–1.33): MISSES in; 2 VOID; x 0.00 (predicted 0.00)
+the switch picked the view in every load
+A/A LTE/dbts_a1: A′ ÷ A median ×0.979
+A/A LTE/dbts_b1: A′ ÷ A median ×0.966
+A/A LTE/dbts_c1: A′ ÷ A median ×1.016
+predictions xxh3 d126fac79a8b2145; A/A input lab/delivery/rows/run2/LTE.aa.json: lab/scripts/aa_rule.py lab/delivery/rows/run2/LTE.aa.json --bar 0.05
