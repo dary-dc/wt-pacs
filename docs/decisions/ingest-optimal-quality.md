@@ -68,6 +68,7 @@ exclusive. The two that check quality cost ingest time; the budgets at which the
 
 **G**: at Q 8 a group barely pays on DBT, at Q 24 it halves the view's bytes (**measured**, PR 321, one run); no G is
 decided for DBT. The numbers, and why the Q 8 result is Q 8's and not G's: [§3 in full](#appendix-3-in-full).
+§1–§3 still run 60 lines, over one screen, after the move (PAGES-PASS-FIX, README §Pass review's nit).
 
 ## 4 · Where it holds
 
@@ -188,9 +189,11 @@ flight and §Waits for the owner; `docs/lines/codecs.md` §Open 1, 3, 5; `docs/l
 > **Subject: the group length of the optimal-quality view for cine-like series**
 >
 > Our ingest codes the view with any Q from 1 to 63 and any group length G ≥ 1, and the viewer decodes any G. G is
-> meant to be fixed per modality by measurement. On DBT at Q 8, a group of 8 saved at most 1.2 % of the view's bytes
-> against G 1 on three volumes (nothing on one), and on one volume longer groups saved 4–5 % but decoded about 20 % slower; we have no
-> measurement on ultrasound clips.
+> meant to be fixed per modality by measurement. On DBT at Q 8 (a rung below a byte cliff, not the noise rule's Q, and
+> at equal Q, not equal quality), a group of 8 saved at most 1.2 % of the view's bytes against G 1 on three volumes
+> (nothing on one), and on one volume longer groups saved 4–5 % but decoded about 20 % slower. On ultrasound at Q 8, a
+> group of 16 saved 23 % on two public sound sweeps (prostate, not breast) and 8–72 % on two lossy-sourced clips; we
+> have no measurement on a lossless-sourced breast clip.
 >
 > 1. Which modalities will you send as cine-like series (DBT slices, ultrasound clips), and at what frame rates?
 > 2. Do you intend to choose G yourselves, and pass it with Q in the trigger, or leave G to us?
@@ -228,4 +231,6 @@ one run). On `dbts_b1` an O G 8–32 arm saves 4.2–4.4 % and decodes about 20 
 *Corrected 2026-11-25 (PAGES-PASS, `README.md` §Review's nit), carrying `payload-format.md` §Optimal quality's
 correction of 2026-11-14 (from `claude/av1-corrections:docs/av1/corrections.md` §6, the quality audit of 2026-11-11):*
 the Q 8 result is not a property of G. Q 8 is the rung below a 2.4–4.2× byte cliff, and not the noise rule's Q on
-these volumes except `dbts_c1` at G 1.
+these volumes except `dbts_c1` at G 1; at the rule's Q the view is 0.10–0.28 of HTJ2K's bytes, not 0.07–0.22, and G's
+gains are at equal Q, "not equal quality, which this run did not measure" (carried in full 2026-11-25, PAGES-PASS-FIX,
+README §Pass review n2; the §9 note's G sentence and its ultrasound clause with it, as `pcs-note` B2).

@@ -77,8 +77,8 @@ smaller than that on every screen in the table there, so D+L★ gives them nothi
 that small is in the list below.
 
 **Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). For a Lossless ask, the link, on every link:
-"C1's exact frame on every link (round trips and slow start on an idle session)" (**derived**,
-[`delivery-per-link.md`](delivery-per-link.md) §4). An exact HTJ2K series is wire-bound on a phone on every profile but
+"C1's exact frame on every link (round trips and slow start on an idle session)" (unlabelled in its source,
+[`delivery-per-link.md`](delivery-per-link.md) §4; its wire part only, C1's decode not split there). An exact HTJ2K series is wire-bound on a phone on every profile but
 mmWave and the measured home Wi-Fi, a crossover of ~470–660 Mbit/s, "if its phone decode keeps the cloud's ratio to
 the view's, which is **unmeasured**" (**derived**, [`../transport/link-profiles.md`](../transport/link-profiles.md)).
 On this host `r5000` is link-bound (**measured**, the list below), `r20000` decode-bound on every volume under the 4× cap (the list below). So the
@@ -95,6 +95,9 @@ that decode-bound phone.
   Found by HTJ2K-A1-REVIEW m3.
 * One 4-core cloud host, no GPU, headless Chromium 157 (A1; stage 3 ran 153), software WebCodecs, a userspace relay, a
   4× cgroup cap standing in for a phone (*assumption*). Found by HTJ2K-A1-RUN's run line and HTJ2K-A1-REVIEW.
+* `dbts_c1` sideways, which reaches level 1 at a phone's fit, has no level-picture cell: the S★ rows give `dbts_c1`
+  upright only (it ran at `r5000` for D+T3, ×0.908). Found by `exact-frame-by-htj2k-layout.md` (its fixtures line and
+  S★'s table), read by PAGES-PASS-REVIEW's nit.
 * No breast ultrasound in any run: the sets are `dbts_*/phone` only. Found by HTJ2K-A1-RUN's readings of the registration.
 * **The host saturates**: at `r20000` every volume is decode-bound (D's fill at 4× is ×1.38–1.56 its 1×), so those
   cells (D+T3 ÷ D ×0.805–0.951) decide nothing; `r5000` is link-bound on every volume (×1.008–1.012). Found by

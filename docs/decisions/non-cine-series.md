@@ -91,8 +91,8 @@ clip's frames (0.5–1.6 Mpx) are under every limit. Item 4's fix therefore prot
 * No 50 µm frame, no generated 2D at its real depth from more than one vendor, no breast ultrasound exam with its
   original objects, no phone's `MAX_TEXTURE_SIZE`, no reader. Found by NON-CINE-OPTIONS (the file §Where it holds, and
   its limits; §7: "no 50 µm frame and no breast still with its original geometry exist here").
-* No radio: the links are `link-profiles.md`'s open-data goodputs, not ours. Found by this page's reading of the
-  file's §4.2 inputs; what found it first is not recorded.
+* No radio: the links are `link-profiles.md`'s open-data goodputs, not ours. Found by NON-CINE-OPTIONS §4.2 (its
+  inputs).
 * The phone decode is the device model's ranges; when NON-CINE-OPTIONS wrote them the model's own prediction was not
   read against the 2026-11-22 round (the file §Where it holds: "its 2026-11-22 round not yet read"), which
   `phone-decode-route` §4 reads since. Found by NON-CINE-OPTIONS; dated by PAGES-PASS-FIX (README §Pass review m8).

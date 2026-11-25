@@ -103,7 +103,7 @@ lowered by the decode-bound phone (`README.md` §Premises item 1).
   of PR 407's and PR 422's tests.
 * #223 counted one CT fix's bytes in the packages it built and derived its times: "Times come only from #156's
   arithmetic (`wire.transfer()`); nothing is timed on a link" (PR #223's body, fetched 2026-11-25). Found by
-  DECISION-PAGES-REVIEW m6, its quote and "bytes on loopback" corrected by DECISION-PAGES-FIX-REVIEW r-n1.
+  DECISION-PAGES-REVIEW m6, its quote and "bytes on loopback" named by DECISION-PAGES-FIX-REVIEW r-n1, corrected by PAGES-PASS.
 * #234's and PR 417's times are estimates from #154's five TCIA series and a synthetic 2 000-instance series. Found by
   PR 417's own label (**derived** from #234's estimates by #223's rule, §3).
 * #166 measured cold and warm; #173 warm, one host, saturating at 100 viewers. Found by #166 and #173.
@@ -116,9 +116,10 @@ lowered by the decode-bound phone (`README.md` §Premises item 1).
 * M-R1 to M-R3 and #222's §7 measurements are pre-registered and not run. Found by `rsync-updates.md` §7 and #222 §7.
 * The two readers of the parser's group file disagree on a duplicate key: read, not run. Found by COMPLEXITY-AUDIT
   item 5.
-* The PCS's frame files carry no hash, so (b) and (c) miss rot at rest at the PCS. Found by the PCS's code at `e105214` (§9 item 5: "no hash in the name").
-* Group 0002 still lands in the instance group at `e105214`: read, not run (§9 item 8). Found in the note's sources
-  (design state §15, `pcs-pacs-options.md` §6, metadata §Open 4); which of them is not recorded here.
+* The PCS's frame files carry no hash, so (b) and (c) miss rot at rest at the PCS. Found by the PCS's code at
+  `e105214` (§9 item 5: "no hash in the name").
+* Group 0002 still lands in the instance group at `e105214`: read, not run (§9 item 8). Found by
+  `pacs-receive-design.md` §15 ("*Checked 2026-10-28 at `e105214`:* group 0002 still lands in the instance group").
 
 ## 5 · The mechanism
 

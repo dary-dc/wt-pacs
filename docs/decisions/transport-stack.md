@@ -85,14 +85,14 @@ absolute time to a radio. Tested predictions (§6.1, §6.6), misses included: th
 of TCP (×1.03–1.15) **missed** and is retracted; the ask after a fill held the record's line at 5 s and missed it at
 1 s; the fill shapes' ask (×1.0–2.0) **missed** below the band; server CPU over TCP ×0.145 against ×0.5–0.9 **missed**.
 WT-TS's own times against §5.3's predictions (§6.1, §6.6; **measured** against **derived**; added 2026-11-25,
-PAGES-PASS): CLEAN 9.92 s, PUB 10.03 s, FF, AA, AD on PUB (743 ms against ~0.8 s) and LTE (24.0 s against 20–30 s)
-held; CR 35.0 s against ~20 s, AD on LTE 5 287 ms (5 664 the first run) against ~1.4 s, LOSS 24.4 s against ~46 s,
+PAGES-PASS): CLEAN 9.92 s, PUB 10.03 s, AD on PUB (743 ms against ~0.8 s) and LTE (24.0 s against 20–30 s) held,
+FF and AA not judged against an absolute; CR 35.0 s against ~20 s, AD on LTE 5 287 ms (5 664 the first run) against ~1.4 s, LOSS 24.4 s against ~46 s,
 HOL's p99 4.74 s against 1.4 s and ENT 176 s against ~9.6 s (×18) **missed**. §5's ~63 Mbit/s cap is the arithmetic behind
 CR's ~20 s; AD's mechanism is read from the ratios.
 
 **Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). This page's question is the link's: a stack, a
 window or a controller moves a fill or an ask only where the wire, not the phone's decode, sets it. On this rig the
-metric ends at a frame's last byte, so no decode enters it (§6, **measured**): every number in §3 is the link's and
+metric (§5.3's) ends at a frame's last byte, so no decode enters it (§6, **measured**): every number in §3 is the link's and
 the stack's. Per profile, for A (the view's fill), B (the exact series') and C1 (the exact frame on request), each
 **derived** in [`link-profiles.md`](../transport/link-profiles.md) §2 *Per profile and arm* on the round's phone unless
 marked:

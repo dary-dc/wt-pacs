@@ -71,7 +71,8 @@ The terms in use, each from its official source, and the terms this page generat
 T1–T5, in [§3 in full](#appendix-3-in-full) after §8 (moved there 2026-11-25 by PAGES-PASS, nothing changed). The
 verdicts (**theory**): *bench-verified* "**recommended, as the state**"; *evaluation release* "**kept, as the
 release's name**"; `0.y.z` "**keep beside the name**"; *bench-measured* "the fallback if 'verified' is refused (§6)";
-every other term refused, with its reason. Two open-source medical imaging projects state what the software is not,
+every other term not chosen, with its reason (two of them, Candidate Recommendation and *verified, not validated*,
+read as "the right idea" and "the right pair" but fail elsewhere). Two open-source medical imaging projects state what the software is not,
 in one sentence, and neither uses a maturity word (S16, quoted there).
 
 ## 4. Where it holds
@@ -79,8 +80,8 @@ in one sentence, and neither uses a maturity word (S16, quoted there).
 **Each limitation, and what found it** (2026-11-25, PAGES-PASS):
 
 * **Nothing measured.** The verdicts of §3 are reasoning over quoted definitions. No reader outside the project was
-  asked what a term makes them assume; §6 names that test. Found by FINAL-STATE's scope ("Sources and reasoning
-  only"), its status file `claude/work-ledger:docs/queue/FINAL-STATE.md`.
+  asked what a term makes them assume; §6 names that test. Found by this page's preamble ("Sources and reasoning
+  only") and FINAL-STATE's status file (`claude/work-ledger:docs/queue/FINAL-STATE.md`: "nothing built, run or timed").
 * **Sources not read**: ISO 9000:2015 (its terms 3.8.12 and 3.8.13, the origin of verification and validation; the
   online browsing platform answered 403), ISO 16290 (TRL), ISO/IEC/IEEE 24765 (the software vocabulary) and
   IEC 62304 are sold, not published. S13 is used in their place and says which standard it follows. The eCFR API

@@ -107,7 +107,7 @@ LTE (0.29–0.92), and decode-bound on entry phones (0.20–0.44) (**derived on 
 * Item 3's optimum at p = 1 (all behind while dwelling) has no simulated arm; the table supports only "centred is
   never beaten in the dwell rows". Found by ASK-MODEL-FIX-REVIEW (n4).
 * The `waitAhead` DBT cells that got worse at k = 2 and 4 are not explained. Found by the measurement
-  ([`ask-order-during-fill.md`](../client/evidence/ask-order-during-fill.md) §Run); left unexplained by ASK-MODEL (the
+  ([`ask-order-during-fill.md`](../client/evidence/ask-order-during-fill.md) §Experiment 2, *Run*, 2026-10-30); left unexplained by ASK-MODEL (the
   model §6, its own miss).
 * S6's body ("3.8 image slices", "sawtooth") is not verified: the article page answered an automated-client check.
   Found by ASK-MODEL (not refetched, a bot check) and ASK-MODEL-REVIEW (m1).

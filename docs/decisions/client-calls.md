@@ -178,7 +178,7 @@ is untested: on the one phone measured, the exact series filled faster than the 
 * §3.4: measured on the relay's modelled radio only (medians of 7, `dbts_a1`, `dbts_c1`); a phone's 0–100 ms is
   **theory**. Found by `wake-before-lossless.md`.
 * §3.5: every paint number past `lab/paint-floor`'s was taken on SwiftShader or llvmpipe, exactness on software only.
-  What found it is not recorded beyond this page's reading of the paint rows.
+  Found by §3.5 below ("exactness is shown on software only"), from the paint rows.
 * §3.6: no source here says WebGPU paints a grey frame better than WebGL2; B14 is "an option, not a plan". Found by
   `reviews-2026-11-18.md` §3 item 14 and this page's reading.
 * §3.7: one series (`dbts_a1-q8-g8-cut`), one host, Chromium on SwiftShader, loopback; mutant A survives in the page

@@ -125,7 +125,7 @@ faster* and came out *no difference shown*; the first picture was predicted *pag
 * The phone's +1 452 and +1 528 MiB after worker loads 26 and 27, unexplained; the cloud's cause is the page view's
   only. Found by MEMORY-LEAK-TRACE (§Result, corrected by PR 434's §Re-review).
 * The cloud memory arms ran in blocks, not interleaved load by load: six loads an arm, one browser each, page,
-  worker, transfer, the second round repeating that order (ABCABC); the phone's order in the cloud ran ABCD DCBA.
+  worker, transfer, the second round repeating that order (ABCABC); the cloud's `-g8` rows ran ABCD DCBA.
   Found by PR 434's §Re-review (MEMORY-LEAK-TRACE's corrected §Result); the rows, which carry no timestamp, are
   stored in those orders (`claude/memory-on-navigation:lab/viewer/rows/navigation-memory.jsonl`, `…-g8.jsonl`, read
   2026-11-25). Its omission here by DECISION-PAGES-REVIEW (§Review, nits).

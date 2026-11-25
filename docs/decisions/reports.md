@@ -126,7 +126,8 @@ same 64 KiB keepalive budget.
 **Phones.** None ran (the list above). The round of 2026-11-22 lost the harness's own ~45–110 KB end-of-load batch at
 unload in every cell-3 load, a fresh Chrome included (**measured**, one phone, lab code; the list above). The
 product's records are 2.2–2.65 KB here and at most 6.6 KB on the demo series, under that budget by an order of
-magnitude (**theory**). That is what the phone cells measure.
+magnitude (**theory**). Whether a record survives a phone's screen lock, app switch or force-stop (the list above)
+is what the phone cells measure.
 
 **US and DBT stacks** (amendment 27 item 6). The carrier, timing and receiver results do not depend on the modality.
 They depend on record size and on how the load ends, and every arm stayed under 16 KiB here. A record's size grows with

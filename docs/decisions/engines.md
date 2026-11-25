@@ -90,8 +90,8 @@ coded is not yet decided, so whether item 2 binds it is not yet known.
 behind a flag). Decided by the run: `getStats()` on Chromium.
 
 **Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). Most of this page's rows are not a link's: the
-decode route, the exact frame, the check, shared memory, workers, paint and the stores (rows 1–6, 8–10) were measured
-with no link timed. A link enters at row 7, the transport (which engines negotiate WebTransport at all: **source** and
+decode route, the exact frame, the check, shared memory, workers, paint and the stores (rows 1–6, 8–10) and the reports' carriers
+(row 11: whether a record is delivered; SESSION rides row 7's transport) were measured with no link timed. A link enters at row 7, the transport (which engines negotiate WebTransport at all: **source** and
 **measured**, by version), and row 12, `getStats()` (whether the client can see the link). Where the link binds the
 view and the exact frame is not an engine's: B on every link below its class's *G*★, A on LTE, a far stream,
 LOSS-like links and public Wi-Fi below ~83 Mbit/s for `dbts_b1` on the round's phone, C1's exact frame on every link,

@@ -153,7 +153,7 @@ every class's *G*\*, A on the wire-bound profiles, and C1's exact frame on all o
 * Lossy HTJ2K's 21.2–22.9 ms on the phone is **derived** on A from the cloud's 1.12–1.21; whether it carries is M17's.
   Found by MOBILE-DECODE-REJUDGE (`claude/mobile-decode:docs/decode/mobile/README.md` §2, §4).
 * Safari's `NV12` decoder unconfirmed (**theory**). Found by `other-codecs.md` §3 on `claude/mobile-decode`, as its
-  `README.md` §1 quotes it; which row wrote that line is not recorded here.
+  `README.md` §1 quotes it, written by `b6154b8d8` (2026-11-15, "other codecs … as the option's advocate").
 * The cloud ratios come from 4-core hosts without a GPU, headless Chromium, one host saturated for the option rows'
   cells. Found by MOBILE-DECODE-REJUDGE (`README.md` §8 on `claude/mobile-decode`).
 * No iPhone, no second engine on a phone, no entry or middle phone. Found by PHONE-READ's fixtures; item 8 asks the
