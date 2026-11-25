@@ -901,6 +901,13 @@ Chromium 158.0.8127.36 for every load and K3′, `claude/transport-arms` `9fad9d
   **measured**): A2.4's K3′ curves predict LTE and LOSS, as written, from 8 B loads a (form, volume); one LOSS `dbts_a1`
   load is `VOID` (the page's load timed out at 30 s), so that curve rests on 7.
 * `lab/delivery/predictions.json`, XXH3 `d126fac79a8b2145`, is pushed with this amendment, `inputs.json` beside it.
+* **R4 · The pilot** (2026-11-25 09:32Z–10:44Z; two rounds a cell, 180 loads, none counted; `rows/run2/<CELL>-pilot.jsonl`).
+  `VOID` 2 of 180 (CLEAN A′, LTE SPLIT), both the relay's guard: 2 of 150 view loads, under A2.6's 10 %, so **neither
+  escalation is applied** (for the record, `chrt -f 50` is refused inside the driver's user namespace, `EPERM`). No browser
+  process escaped cores 2–3; no load failed or stopped; every FIT `dbts_b1` load asked only prefixes until its zoom,
+  SPLIT asked groups of both forms on CLEAN, and LOSS's relay tally passed §6's 3× check (the pilot refused nothing). The
+  visit timeout stays 300 s (the longest pilot load, LOSS B `dbts_b1`, 37.5 s); the prefixes stand. Pilot medians for §6's
+  3× rule: `rows/run2/<CELL>-pilot.pilot-medians.json`. Nothing else is set from the pilot.
 
 ## Fixtures and limits
 
