@@ -30,6 +30,10 @@ rows appended (WINDOW-WHOLE-GROUPS, DECODE-OVERLAP, DIAL-BEFORE-PAIR). A model f
 shape); B1, the want's neighbour group flips mid-group, so rocking 19|20 still fetches a group a step (48 frames, the
 tip's); the timed cells wait. WINDOW-WHOLE-GROUPS-FIX, -FIX-REVIEW, -MEASURE-2 appended; findings in
 `docs/queue/WINDOW-WHOLE-GROUPS-MEASURE/findings.md` (PR 446's body edit refused).
+2026-11-25: DECODE-OVERLAP-MEASURE: PR 447 a non-regressor (decode bench, three decoders, 6 interleaved rounds with an A/A
+arm): the fill -10 to -19 % on three DBT volumes at 1x and 4x, a request at offset 7 -21 to -26 % at 4x and unchanged at
+1x; offset 0 at 4x not decided; the 4-core host near saturation at 1x. Findings in
+`docs/queue/DECODE-OVERLAP-MEASURE/findings.md` (PR 447's body edit refused).
 
 **The routines** (claude.ai routines; their prompts switch from the program to phase 2 on 11-24 00:00 and close
 after 11-27 23:59): queue workers (Opus) A `trig_01Y6vNmyv6K54Uqcs8RXV1Gu` at :45, B `trig_014L1Sgp7h8TW8qnzWMZ1HEQ`
