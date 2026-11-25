@@ -48,8 +48,9 @@ packets) and LTE (19 ms each way, 50 Mbit/s, 3 300 packets, 0.1 % loss; its 40 m
 the status line says "fill N ms" and 500 ms more, the browser's tree is slowed by `lab/scripts/cpu_throttle.mjs` at 1×
 or 4×, and the page steps 1 → 49 by ArrowDown, then 48 → 0 by ArrowUp, one step after each paint and a dwell of 300 ms.
 A step's time: the key's dispatch to the first overlay write once the stepped-to frame has reached the page (at once if
-it was held). Its bytes: the `wireBytes` of every frame a decoder hands the page during the step, read off the page's
-`MessagePort` messages. Arms `tip-a`, `tip-b` (`origin/claude/unified` `9170cdf39`) and `pr-a`, `pr-b` (`9170cdf39` with
+it was held). A pass's bytes: the `wireBytes` of every frame a decoder hands the page from its first key to its last
+dwell's end, read off the page's `MessagePort` messages (amended after the one smoke round, which counted only the frames
+landing inside a step and so missed those landing in the dwells; the smoke's rows are not kept as results). Arms `tip-a`, `tip-b` (`origin/claude/unified` `9170cdf39`) and `pr-a`, `pr-b` (`9170cdf39` with
 PR 446's `0e273ee92` merged locally, `--no-ff`, never pushed; its code diff is PR 446's seven files), in `lab/order.mjs`'s
 order per (form, rate, round); a fresh relay and Chromium per visit; one pair of series servers (PR 446 touches no
 server file).

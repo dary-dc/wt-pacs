@@ -133,6 +133,7 @@ async function visit(arm, form, rate) {
     stop = throttleTree(server.process().pid, rate);
     for (const [pass, key, from, to, d] of [["forward", "ArrowDown", 1, N - 1, 1], ["backward", "ArrowUp", N - 2, 0, -1]]) {
       const steps = [];
+      const at = await page.evaluate(() => globalThis.__frames.length);
       for (let i = from; d > 0 ? i <= to : i >= to; i += d) {
         const s = await step(page, key, i);
         if (s.error) throw new Error(`${pass} ${i}: ${s.error}`);
@@ -140,6 +141,9 @@ async function visit(arm, form, rate) {
         await page.waitForTimeout(DWELL_MS);
       }
       row[pass] = steps;
+      // The pass's frames: every one handed over from its first key to its last step's dwell, the dwells' included.
+      row[`${pass}Wire`] = await page.evaluate((at) => { const got = globalThis.__frames.slice(at);
+        return { frames: got.length, bytes: got.reduce((s, f) => s + f.b, 0), indices: got.map((f) => f.i) }; }, at);
     }
     stop();
     stop = () => {};
@@ -160,16 +164,15 @@ async function visit(arm, form, rate) {
 }
 
 const ARMS = [["tip", "tip-a"], ["tip", "tip-b"], ["pr", "pr-a"], ["pr", "pr-b"]];
-const sum = (xs, k) => xs.reduce((s, x) => s + x[k], 0);
 for (let round = FIRST; round < FIRST + ROUNDS; round++) {
   for (const form of FORMS_ASKED) for (const rate of RATES) {
     let prev = null;
     for (const [arm, label] of order(ARMS, round)) {
       const row = { round, label, prev, t: new Date().toISOString(), ...(await visit(arm, form, rate)) };
       appendFileSync(OUT, JSON.stringify(row) + "\n");
-      const f = row.forward ?? [], b = row.backward ?? [];
-      process.stderr.write(`${round} ${form} x${rate} ${label}: fwd ${sum(f, "frames")} fr ${(sum(f, "bytes") / 1e6).toFixed(1)} MB ` +
-        `max ${Math.max(0, ...f.map((s) => s.ms)).toFixed(0)} ms | back ${sum(b, "frames")} fr ${(sum(b, "bytes") / 1e6).toFixed(1)} MB ` +
+      const f = row.forward ?? [], b = row.backward ?? [], fw = row.forwardWire ?? {}, bw = row.backwardWire ?? {};
+      process.stderr.write(`${round} ${form} x${rate} ${label}: fwd ${fw.frames} fr ${(fw.bytes / 1e6).toFixed(1)} MB ` +
+        `max ${Math.max(0, ...f.map((s) => s.ms)).toFixed(0)} ms | back ${bw.frames} fr ${(bw.bytes / 1e6).toFixed(1)} MB ` +
         `max ${Math.max(0, ...b.map((s) => s.ms)).toFixed(0)} ms ${row.void ? "VOID " : ""}${row.error ?? ""}\n`);
       prev = label;
     }
