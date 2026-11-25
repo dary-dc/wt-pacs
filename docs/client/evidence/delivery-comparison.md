@@ -882,6 +882,26 @@ gate not run (docs only); `scripts/check_links.py` 0 unresolved. **No blocker op
 
 **Verdict.** Every finding of §Amendment 2 review closed; no blocker open. FIT-ARM-BUILD may start.
 
+### Amendment 2, the run's (2026-11-25, DELIVERY-RUN-2)
+
+*Written by DELIVERY-RUN-2, a session that wrote neither the protocol, §Amendment 2, the build nor any review, on its
+host, before any counted row. Host: one 4-core container (Intel Xeon @ 2.30 GHz, one thread a core, 15 GB), full
+Chromium 158.0.8127.36 for every load and K3′, `claude/transport-arms` `9fad9d9bf`'s runner for K3. Rows:
+`claude/delivery:lab/delivery/rows/run2/`; the 23rd's rows stay where they were.*
+
+* **R1 · K2 is read with the relay's guard waived**, as §11 A1 (the host forces it again): all 30 bench loads printed the
+  guard's `VOID` and no other reason (**measured**). `rows/run2/K2.guard-waived.jsonl` is `K2.jsonl` with that reason
+  removed and `guardVoid: true`; `inputs.json` is computed from it.
+* **R2 · The inputs against the 23rd's** (**measured**): the view's *d*₁ 54.4, 223.5, 57.2 ms (`dbts_a1`, `b1`, `c1`;
+  then 52.6, 207.1, 57.4), HTJ2K's *d*₁ 15.1, 43.9, 14.4 and *h*₁ 17.7, 43.2, 13.4, *S* and *G* on CLEAN, PUB and CR
+  within 2 % of §11's: every one within 25 %. **FIT's level decode is 24.7 ms a frame, ×0.56 of the whole frame's 43.9**,
+  not A2.7's ×0.29 (RESLEVEL's, Chromium 141) nor the build's smoke ×0.49: over 25 % from A2.7's input, so FIT's floor
+  is ~0.6 s, still under its ≥ 2.3 s of wire on every form; FIT stays wire-bound in every prediction (*derived*).
+* **R3 · The lossy forms' line is negative again** (LTE *S* −5 184 ms, *G* 9.07; LOSS −4 480 ms, 3.90 Mbit/s;
+  **measured**): A2.4's K3′ curves predict LTE and LOSS, as written, from 8 B loads a (form, volume); one LOSS `dbts_a1`
+  load is `VOID` (the page's load timed out at 30 s), so that curve rests on 7.
+* `lab/delivery/predictions.json`, XXH3 `d126fac79a8b2145`, is pushed with this amendment, `inputs.json` beside it.
+
 ## Fixtures and limits
 
 Three DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`; 56, 50, 69 frames), the view at Q 8 G 8 only, no
