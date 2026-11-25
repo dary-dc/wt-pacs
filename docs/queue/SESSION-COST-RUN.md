@@ -11,9 +11,12 @@ Asks held for B, FIT on CLEAN, every dbts_a1 cell, usb_cine; missed for the view
   (CLEAN) / 215.5 (CR) for 796, dbts_c1 A 119 / 94 for 177; on CR B and FIT on dbts_b1 also low (105, 114).
 Bytes follow the asks (within ±0.1 % where asks held). T1's "A dearest on dbts_b1" falls: B is dearest everywhere.
 Lowest bytes and CPU: A on dbts_a1 (x14.6 under B) and dbts_c1 (x8.1 / x10.2); FIT on dbts_b1 (x3.4 / x3.5).
-CPU: exact frames 5.3-5.8 ms a wire MB, above 4.6-5.1 (miss high); CR x0.80-1.07 for exact, not x1.05-1.7.
+CPU: exact frames 5.3-5.8 ms a wire MB, above 4.6-5.1 (miss high); CR, where asks held, exact x1.00-1.07 of CLEAN,
+  view x1.75-1.85 on dbts_a1 (corrected 2026-11-25, SESSION-COST-VERDICT-FIX m2; was "CR x0.80-1.07 for exact").
 Peak RSS 5.0-12.1 MB on every cell against 0-5: bounded (exact 10-12 MB at 70 or 292 MB), not growing with bytes.
-Against the frame retrieve (theory): lower server CPU only for dbts_a1's A.
+Against the frame retrieve (theory): lower server CPU only for dbts_a1's A on CLEAN; on CR not met (x14.8 against
+  x14.6) and no HTTP/2 rate on CR (corrected 2026-11-25, SESSION-COST-VERDICT-FIX B1). Bytes are delivered bytes:
+  egress the relay's queue dropped is unseen, at most 15 % on CLEAN's view cells (m1).
 Departures, §9 before counted rows: one server pair a session (the rig's, as the 11-23 rows); the relay's guard
   recorded not VOIDing (98/147 tripped; wake-from-idle hypothesis, not checked); ask count corrected to frames off
   the wire (19:20, rows running, no prediction moved). Client -> server bytes not recorded (relay counts packets).
