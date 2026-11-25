@@ -41,6 +41,7 @@ class Disk {
   swaps = new Set();
   inFlight = 0;
   maxInFlight = 0;
+  syncOpens = 0;
   writesDone = 0;
   root = this.dir();
   used = () => [...this.files, ...this.swaps].reduce((s, f) => s + f.bytes.length, 0);
@@ -147,6 +148,7 @@ class Disk {
         disk.alive();
         if (data.locked || data.writers) throw failure("NoModificationAllowedError");
         data.locked = true;
+        disk.syncOpens++;
         return {
           getSize: () => data.bytes.length,
           read(view, { at }) {
@@ -466,6 +468,29 @@ for (const lever of ["writeRefusals", "closeRefusals"]) {
   check(file === null || file.length === 0 || exact(file.subarray(0, FRAME), 0), "retry: group 0 never committed with frame 0 missing");
   const lost = await a.settle();
   check(lost.length === G || lost.length === 0, `retry: the group lost whole or kept whole (${lost.length})`);
+}
+
+/** A reopen read by sync handles opens one a group, not one a frame, and lets each go after the group's last frame or
+ *  at close, so no file stays locked (cache-plan.md §10.4 item 4). */
+{
+  fresh();
+  const w = opfsAsync(pilot("group=8MiB&read=sync"));
+  await w.open("A", meta(2 * G + 1), { create: true });
+  for (let i = 0; i <= 2 * G; i++) await w.write(i, frame(i), {});
+  await w.close();
+  const r = opfsAsync(pilot("group=8MiB&read=sync"));
+  const { present } = await r.open("A", meta(2 * G + 1), { create: false });
+  const into = new Uint8Array(FRAME);
+  let exactAll = present.length === 2 * G + 1;
+  for (const i of present) exactAll = (await r.read(i, into)) && exact(into, i) && exactAll;
+  check(exactAll, "one handle a group: every frame of a reopen read exact");
+  check(disk.syncOpens === 3, `one handle a group: 3 groups, ${disk.syncOpens} sync handles opened`);
+  disk.syncOpens = 0;
+  await r.read(0, into);
+  await r.close();
+  const r2 = opfsAsync(pilot("group=8MiB&read=sync"));
+  await r2.open("A", meta(2 * G + 1), { create: false });
+  check((await r2.read(1, into).catch(() => false)) && exact(into, 1), "one handle a group: a group read in part is let go at close");
 }
 
 if (failed) {

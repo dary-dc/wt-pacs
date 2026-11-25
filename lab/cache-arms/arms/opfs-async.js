@@ -83,20 +83,29 @@ export function opfsAsync(pilot = new URLSearchParams()) {
     if (e) throw e;
   };
 
+  /** One sync handle a group: opened at the group's first read, closed after its last or at any other call on its file
+   *  (cache-plan.md §10.4 item 4). */
+  let held = null;
+  const letGo = () => (held?.h.close(), (held = null));
+
   async function readFile(k, at, into) {
-    const handle = await dir.getFileHandle(String(k));
     const expected = groupSize(k) * slotBytes();
     if (!syncRead) {
-      const file = await handle.getFile();
+      const file = await (await dir.getFileHandle(String(k))).getFile();
       if (file.size !== expected) return false;
       into.set(new Uint8Array(await file.slice(at, at + into.length).arrayBuffer()));
       return true;
     }
-    const h = await handle.createSyncAccessHandle();
+    if (held?.k !== k) {
+      letGo();
+      held = { k, h: await (await dir.getFileHandle(String(k))).createSyncAccessHandle() };
+    }
     try {
-      return h.getSize() === expected && h.read(into, { at }) === into.length;
-    } finally {
-      h.close();
+      const ok = held.h.getSize() === expected && held.h.read(into, { at }) === into.length;
+      if (at + slotBytes() >= expected) letGo();
+      return ok;
+    } catch (e) {
+      throw (letGo(), e);
     }
   }
 
@@ -117,6 +126,7 @@ export function opfsAsync(pilot = new URLSearchParams()) {
   const a = {
     name: "opfs-async",
     async open(series, meta, { create }) {
+      letGo();
       const top = await root();
       try {
         dir = await top.getDirectoryHandle(key(series), { create });
@@ -151,6 +161,7 @@ export function opfsAsync(pilot = new URLSearchParams()) {
     /** Returns once the frame's write is issued, not done: the frame is on disk when its group's close resolves. */
     async write(i, bytes, { release = ignore } = {}) {
       if (!writer) throw new Error("a reading tab writes nothing");
+      letGo();
       throwRefused();
       for (const g of groups.values()) {
         if (!g.retry) continue;
@@ -182,8 +193,8 @@ export function opfsAsync(pilot = new URLSearchParams()) {
         throw e;
       }
     },
-    drop: async (i) => writer && dir.removeEntry(String(Math.floor(i / G))).catch(ignore),
-    evict: async (series) => (await root()).removeEntry(key(series), { recursive: true }),
+    drop: async (i) => (letGo(), writer && dir.removeEntry(String(Math.floor(i / G))).catch(ignore)),
+    evict: async (series) => (letGo(), (await root()).removeEntry(key(series), { recursive: true })),
     async list() {
       const out = [];
       for await (const [name, h] of (await root()).entries()) {
@@ -204,12 +215,14 @@ export function opfsAsync(pilot = new URLSearchParams()) {
     },
     /** As settle, then a group still short of frames is aborted, never committed; a refusal found is thrown. */
     async close() {
+      letGo();
       const lost = writer && dir ? await a.settle() : [];
       for (const g of groups.values()) await g.writable?.abort().catch(ignore);
       [groups, copies, spare, refused, dir] = [new Map(), new Map(), [], null, null];
       if (lost.length) throw Object.assign(new Error(`${lost.length} frames refused after their write returned`), { name: "QuotaExceededError", lost });
     },
     async damage(i) {
+      letGo();
       const k = Math.floor(i / G);
       const at = (i - k * G) * slotBytes() + 7;
       const handle = await dir.getFileHandle(String(k));
