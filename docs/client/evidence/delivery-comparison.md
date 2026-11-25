@@ -239,7 +239,7 @@ counted row (the judge refuses: its XXH3 differs from the rows').
 
 ## 11 · Amendments
 
-*Amendment 2 (FIT-ARM-PROTOCOL, 2026-11-24), for the next run, is below §Verdict review.*
+*Amendment 2 (FIT-ARM-PROTOCOL, 2026-11-24), for the next run, is below §Verdict review; that run's own amendment and §Results 2 follow it.*
 
 Written 2026-11-22 by DELIVERY-RUN (a session that wrote neither this protocol nor its build), on its host, before any
 counted row. Host: one 4-core container (Intel Xeon @ 2.10 GHz, 15 GB), full Chromium 153.0.8010.12 for the cells,
@@ -908,6 +908,142 @@ Chromium 158.0.8127.36 for every load and K3′, `claude/transport-arms` `9fad9d
   SPLIT asked groups of both forms on CLEAN, and LOSS's relay tally passed §6's 3× check (the pilot refused nothing). The
   visit timeout stays 300 s (the longest pilot load, LOSS B `dbts_b1`, 37.5 s); the prefixes stand. Pilot medians for §6's
   3× rule: `rows/run2/<CELL>-pilot.pilot-medians.json`. Nothing else is set from the pilot.
+
+## Results 2 (2026-11-25, DELIVERY-RUN-2)
+
+**Measured**, 2026-11-25 10:44Z–17:50Z, two Williams periods (12 rounds, 216 loads) a cell in §6's order, on the host
+of §Amendment 2, the run's (R1–R4) and the predictions file `d126fac79a8b2145`, pushed before the first counted row.
+Rows: `claude/delivery:lab/delivery/rows/run2/<CELL>.jsonl`; the judge's output `rows/run2/judged/<CELL>.txt`; §7's A/A
+`rows/run2/judged/<CELL>.aa.txt`, and the widened reading `rows/run2/judged/aa-widened.txt` (its script beside it, a
+reading aid, not a reviewed tool). By a session that wrote neither the protocol, its amendment, the build nor a review.
+
+No load stopped: every frame exact, every C1 painted *✓ Lossless*, every FIT level picture equal to its truth and every
+FIT zoom checked by the frame digest, every window read-back equal byte for byte; no cell printed `UNBALANCED`. A
+(cell, volume, arm, clock) holds when its median ratio is in its band and 10 of its 12 rounds are (A2.8); under 10
+counted rounds it is `CANNOT HOLD`. Each cell: ratio measured ÷ predicted, its median, counted rounds in band, verdict;
+SPLIT's *x* beside its prediction; FIT's zoom on the level-0 volumes reported, not judged (A2.5).
+
+| cell | arm | clock | `dbts_a1` | `dbts_b1` | `dbts_c1` |
+| --- | --- | --- | --- | --- | --- |
+| CLEAN | A | fill | ×0.932 12/12 holds | ×0.949 12/12 holds | ×1.054 12/12 holds |
+| CLEAN | A′ | fill | ×0.929 11/11 holds | ×0.991 12/12 holds | ×1.025 11/11 holds |
+| CLEAN | B | fill | ×1.000 11/11 holds | ×0.999 12/12 holds | ×1.000 12/12 holds |
+| CLEAN | C1 | fill | ×0.929 10/11 holds | ×0.997 12/12 holds | ×1.050 12/12 holds |
+| CLEAN | C1 | press → painted | ×1.165 11/11 holds | ×1.250 11/12 holds | ×1.281 10/12 holds |
+| CLEAN | C1 | ask → last byte | ×1.120 11/11 holds | ×1.076 12/12 holds | ×1.134 12/12 holds |
+| CLEAN | FIT | fill | ×1.000 12/12 holds | ×1.010 11/11 holds | ×1.000 12/12 holds |
+| CLEAN | FIT | zoom | ×0.044 0/12 reported | ×1.275 8/11 misses in | ×0.044 0/12 reported |
+| CLEAN | SPLIT | fill | ×1.122 10/11 holds, *x* 0.14 (0.16) | ×1.119 11/12 holds, *x* 0.29 (0.28) | ×1.109 10/11 holds, *x* 0.22 (0.19) |
+| PUB | A | fill | ×0.940 12/12 holds | ×0.975 10/10 holds | ×1.061 11/11 holds |
+| PUB | A′ | fill | ×0.904 10/11 holds | ×0.989 11/11 holds | ×1.026 12/12 holds |
+| PUB | B | fill | ×1.000 10/10 holds | ×1.000 11/11 holds | ×0.999 10/10 holds |
+| PUB | C1 | fill | ×0.934 12/12 holds | ×0.962 9/9 cannot hold | ×1.019 11/11 holds |
+| PUB | C1 | press → painted | ×1.167 12/12 holds | ×1.279 9/9 cannot hold | ×1.255 11/11 holds |
+| PUB | C1 | ask → last byte | ×1.118 12/12 holds | ×1.139 9/9 cannot hold | ×1.169 11/11 holds |
+| PUB | FIT | fill | ×1.000 11/11 holds | ×1.190 0/12 misses above | ×1.000 10/10 holds |
+| PUB | FIT | zoom | ×0.042 0/11 reported | ×1.288 10/12 holds | ×0.039 0/10 reported |
+| PUB | SPLIT | fill | ×1.223 0/11 misses above, *x* 0.14 (0.16) | ×1.166 4/10 misses above, *x* 0.29 (0.28) | ×1.355 0/11 misses above, *x* 0.33 (0.19) |
+| LTE | A | fill | ×1.059 9/10 misses in, regime miss | ×0.969 10/12 holds | ×0.993 12/12 holds, regime miss |
+| LTE | A′ | fill | ×1.019 10/11 holds, regime miss | ×0.941 9/12 misses in | ×1.011 11/11 holds, regime miss |
+| LTE | B | fill | ×1.023 7/12 misses in | ×1.026 10/12 holds | ×0.771 4/12 misses in |
+| LTE | C1 | fill | ×1.100 11/11 holds, regime miss | ×0.942 9/12 misses in | ×1.073 8/10 misses in, regime miss |
+| LTE | C1 | press → painted | ×1.060 10/11 holds | ×1.028 12/12 holds | ×1.033 9/10 misses in |
+| LTE | C1 | ask → last byte | ×1.019 10/11 holds | ×0.945 12/12 holds | ×0.989 9/10 misses in |
+| LTE | FIT | fill | ×0.820 5/8 cannot hold | ×1.193 7/12 misses in | ×0.955 5/12 misses in |
+| LTE | FIT | zoom | ×0.040 0/8 reported | ×1.781 5/12 misses above | ×0.047 0/12 reported |
+| LTE | SPLIT | fill | ×1.017 10/11 holds, *x* 0.00 (0.00) | ×0.947 9/11 misses in, *x* 0.00 (0.00) | ×1.029 9/10 misses in, *x* 0.00 (0.00) |
+| LOSS | A | fill | ×0.748 5/12 misses below | ×0.342 1/11 misses below | ×0.675 2/10 misses below |
+| LOSS | A′ | fill | ×0.748 4/12 misses below | ×0.488 2/12 misses below | ×0.710 2/11 misses below |
+| LOSS | B | fill | ×1.027 9/12 misses in | ×0.962 12/12 holds | ×1.094 10/12 holds |
+| LOSS | C1 | fill | ×0.731 2/12 misses below | ×0.481 3/12 misses below | ×0.695 2/11 misses below |
+| LOSS | C1 | press → painted | ×0.886 11/12 holds | ×0.930 10/12 holds | ×0.835 10/11 holds |
+| LOSS | C1 | ask → last byte | ×0.864 11/12 holds | ×0.883 10/12 holds | ×0.795 10/11 holds |
+| LOSS | FIT | fill | ×1.005 10/12 holds | ×0.838 4/11 misses in | ×1.065 8/12 misses in |
+| LOSS | FIT | zoom | ×0.040 0/12 reported | ×1.867 4/11 misses above | ×0.042 0/12 reported |
+| LOSS | SPLIT | fill | ×0.617 2/12 misses below, *x* 0.00 (0.00) | ×0.337 3/11 misses below, *x* 0.00 (0.00) | ×0.613 0/12 misses below, *x* 0.00 (0.00) |
+| CR | A | fill | ×0.954 12/12 holds | ×0.959 12/12 holds | ×0.972 11/11 holds |
+| CR | A′ | fill | ×0.952 12/12 holds | ×0.960 12/12 holds | ×0.974 12/12 holds |
+| CR | B | fill | ×0.994 12/12 holds | ×1.000 12/12 holds | ×0.996 12/12 holds |
+| CR | C1 | fill | ×0.955 12/12 holds | ×0.958 12/12 holds | ×0.973 12/12 holds |
+| CR | C1 | press → painted | ×1.107 12/12 holds | ×1.074 12/12 holds | ×1.084 12/12 holds |
+| CR | C1 | ask → last byte | ×1.105 12/12 holds | ×1.069 12/12 holds | ×1.082 12/12 holds |
+| CR | FIT | fill | ×0.994 12/12 holds | ×1.022 12/12 holds | ×0.995 12/12 holds |
+| CR | FIT | zoom | ×0.045 0/12 reported | ×0.839 12/12 holds | ×0.040 0/12 reported |
+| CR | SPLIT | fill | ×1.190 0/12 misses above, *x* 0.00 (0.00) | ×1.099 12/12 holds, *x* 0.00 (0.00) | ×1.198 0/12 misses above, *x* 0.00 (0.00) |
+
+**Counts.** Of 125 judged (cell, volume, arm, clock): **85 hold, 36 miss** (16 in band under 10 of 12 rounds, 12
+below, 8 above), **4 cannot hold**; 10 level-0 zooms reported. Six regime misses, all on LTE (`dbts_a1` and `dbts_c1`'s
+A, A′, C1: predicted wire-bound, read back near or decode-bound in 3–6 rounds). **`VOID`** 51 of 1 080 (CLEAN 7, PUB 21,
+LTE 15, LOSS 7, CR 1), none over 25 % of a cell: the relay's guard 44 (34 on view arms), past 3× the pilot's median 7.
+No browser process ran outside cores 2–3 (A2.6's `escaped`: none). The switch picked the view in every load (A2.3).
+
+**§7, the A/A pair.** A′ ÷ A is a **tie** on PUB `dbts_c1` and all three CR volumes; **not conclusive** elsewhere. Widened
+to the pair's own range, nothing moves on CLEAN or PUB (their ranges lie in the band); on LTE `dbts_b1` (×0.74–3.11) and
+all three LOSS volumes (×0.46–3.22) every miss becomes a hold. A band that wide no longer tests the model, so the strict
+reading is carried, as on the 23rd.
+
+### Against each prediction
+
+* **The decode side holds again** (CLEAN, PUB: A, A′, C1's fill, all predicted decode-bound): every one holds, but PUB
+  `dbts_b1` C1 (9 counted); medians ×0.90–1.06. §8's predicted direction (above) held on `dbts_c1` (×1.02–1.06) only,
+  not on `dbts_a1` (×0.90–0.94) nor `dbts_b1` (×0.95–1.00), as the 23rd's m4 found on `dbts_a1`.
+* **The wire side holds on clean forms**: B ×0.994–1.000 on CLEAN, PUB and CR (9 of 9 hold); the view's wire-bound
+  fills on CR ×0.95–0.97 (9 of 9).
+* **C1's exact frame now holds at short round trips** (press → painted ×1.17–1.28 on CLEAN and PUB, 5 hold, PUB
+  `dbts_b1` cannot hold; the 23rd: ×1.25–1.38, four misses), and on CR (×1.07–1.11), LTE (2 of 3) and LOSS (3 of 3). **A2.4's
+  theory missed**: it put the short-round-trip excess in ask → last byte, above its band; ask → last byte holds, ×1.08–1.17
+  on CLEAN and PUB. The excess is in the rest (press → painted less ask → last byte): 47–53 ms on `dbts_a1` and `dbts_c1`
+  and 108–112 ms on `dbts_b1`, against *h*₁ + 17 ms of 30–35 and 60 (*measured*, medians; the rest is reported, not
+  judged). By A2.4's own clause, the idle session's window growth is cleared: what C1 pays past §4.1 lies after the last
+  byte (decode, check, paint) and grows with the frame (*derived*; its part not isolated here).
+* **FIT, where it is B** (`dbts_a1`, `dbts_c1`, the build's control): ×0.994–1.000 on CLEAN, PUB and CR, all hold; on LTE
+  and LOSS it holds on LOSS `dbts_a1`, cannot hold on LTE `dbts_a1` (8 counted) and misses in band on the other two,
+  beside B's own draw (FIT ÷ B ×0.80–1.24, *measured*).
+* **FIT on `dbts_b1`** holds on CLEAN (×1.010) and CR (×1.022), **misses above on PUB** (×1.190, 0 of 12 in band: the
+  model's miss; the 50 prefix asks at a 20 ms round trip are a likely reading, *theory*, not isolated), and misses in
+  band on LTE (×1.19, 7/12) and LOSS (×0.84, 4/11). FIT ÷ A, measured against predicted: CLEAN ×0.47 (×0.44), PUB ×0.55
+  (×0.45), CR ×1.12 (×1.05), LTE ×1.02 (×0.83), LOSS ×2.35 (×0.96, A having missed low). Its zoom holds on PUB (×1.29)
+  and CR (×0.84), misses in band on CLEAN (×1.28, 8/11) and **above on LTE and LOSS** (×1.78, ×1.87): A2.7's
+  assumption that the session keeps its window over 1 s idle fits the clean forms, not the lossy ones.
+* **SPLIT**: *x* as predicted on the clean forms (CLEAN 0.14, 0.29, 0.22 against 0.16, 0.28, 0.19; PUB 0.14, 0.29, 0.33)
+  and 0 on CR, LTE and LOSS, as predicted (the named risk, exact groups early on LTE, did not occur). Its fill holds on
+  CLEAN (×1.11–1.12, at the band's top), **misses above on PUB** (×1.17–1.36) and on CR `dbts_a1`, `dbts_c1` (×1.19–1.20,
+  where it is A by *x*), misses in band on LTE `dbts_b1` and `dbts_c1`, and misses with A on LOSS. SPLIT ÷ A, measured against predicted: CLEAN ×1.07, ×0.93, ×0.91
+  (×0.89, ×0.79, ×0.86); PUB ×1.17, ×0.95, ×1.11; CR ×1.25, ×1.15, ×1.23 (×1.00). **The split's predicted gain did not
+  show on this host**: the lab fill (both sessions bytes-only, its `ahead` window; FIT-ARM-BUILD-REVIEW m5) costs
+  10–25 % over A even where it asks only the view.
+* **The lossy forms, through A2.4's curve.** LTE, every (volume) over the first point, predicted to hold: A, A′ and C1's
+  fill have medians ×0.94–1.10, 5 of 9 hold and 4 miss in band, so the curve's direction is shown on LTE where one goodput
+  missed every one on the 23rd (×0.47–0.70). LOSS `dbts_a1` and `dbts_c1`, under the first point, **miss low as
+  predicted** (×0.68–0.75), the curve's stated limit. **LOSS `dbts_b1`, over the first point and predicted to hold,
+  misses low** (A ×0.34, A′ ×0.49, C1 ×0.48): the model's miss. Its 8 view frames (3.66 MB) came in 2.09 s where B's
+  curve puts those bytes at 6.1 s, so on LOSS the wire time is not a function of the bytes alone, against A2.4's
+  premise (*theory* for why: an exact frame of 1.1–2.2 MB waits behind its own losses where a view frame of ~0.46 MB does
+  not; not isolated). B holds on LOSS `dbts_b1` and `dbts_c1`, misses in band on `dbts_a1` (×1.03, 9/12); on LTE it holds
+  on `dbts_b1` only (`dbts_c1` ×0.77, 4/12).
+
+**What this run lets the page carry** (strict; only through cells that held): the decode-bound view on CLEAN and PUB; the
+wire-bound exact series and views on CLEAN, PUB and CR; C1's exact frame on every form but LTE `dbts_c1` and PUB `dbts_b1` (cannot hold) (the
+short-round-trip excess as measured, after the last byte, not a constant); the view on LTE through the curve, as in band
+(5 of 9 hold); FIT's fill on CLEAN and CR, and its zoom on PUB and CR. Not through: FIT on PUB `dbts_b1`, SPLIT
+anywhere but CLEAN, any view fill on LOSS, FIT's zoom on lossy forms. Nothing here ranks the arms or decides which one
+the product serves (§8).
+
+**Where the host saturates**: the browser's two cores in every decode-bound load (A, A′, C1's fill and SPLIT on CLEAN and
+PUB), this host's decode, never a phone's; the relay's guard on 44 loads, 34 of them view arms (A2.6's escalations not
+needed, R4). Nothing is claimed above 90 Mbit/s or for a radio. **Where the link, not the decode, binds**: B and FIT on
+every form, A on CR, LTE and LOSS, C1's exact frame and FIT's zoom on every form (A2.9, as measured: the regimes held but
+LTE's six regime misses, where the view's fill read back near or decode-bound).
+
+**How it serves the value statement**: FIT gives an exact first picture on `dbts_b1` in ×0.47–0.55 of the lossy view's
+time on the clean short-round-trip forms and about A's time on CR and LTE, at ×1.25 its bytes; on the level-0 volumes it
+is the exact series and costs ×2.7–16 A's fill. The phone's place on it is not measured here (§9).
+
+**Fixtures and limits**: three DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`; 56, 50, 69 frames), the view
+at Q 8 G 8 only, only `dbts_b1` with a level to gain on the assumed 1080 × 2100 viewport; no breast ultrasound in any arm
+(`usb_cine` is lossy-sourced and fits at level 0); one 4-core cloud container (Intel Xeon @ 2.30 GHz) without a GPU,
+software decode, full Chromium 158 headless; a userspace TUN relay at ≤ 90 Mbit/s, its forms scaled and assumed, none a
+radio; two periods a cell; K2 read with the guard waived (R1); LOSS `dbts_a1`'s curve on 7 loads (R3).
 
 ## Fixtures and limits
 
