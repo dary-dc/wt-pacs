@@ -121,6 +121,10 @@ loads on one renderer, each view at the default window and twice it. Every load 
 `MAX_TEXTURE_SIZE`; every dev server runs `--revalidate`. Gate OK (full, 1027 s, skips named) and the headless dry run
 (`round_headless.sh --round2`) passes. Not carried, each needing a build: M17, M5 at a volume's size, P1 and P2, and
 the cache's cells (round-2.md §5). A review by another session is owed (PHONE-ROUND-2-PREP-REVIEW).
+Reviewed 2026-11-25 (PHONE-ROUND-2-PREP-REVIEW, round-2.md §Review): the re-run dry run holds every claim and cell M's
+window holds under the series in both views (*measured*, synthetic pair); one blocker, B1: cell M at *w* runs the window
+PR 446 found defective and the plan does not say so; m1, the `memory` record's `window` is the URL's (a dropped
+`?budget` seam passes, mutant M4). PHONE-ROUND-2-PREP-FIX next; the round waits on its re-review.
 
 ## Rules for a device run
 
