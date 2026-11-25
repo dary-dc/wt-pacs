@@ -40,6 +40,9 @@ in place by IMPROVE-1-FIX; m1 candidate 2's "at most 3.3 of 8" is a partial sum;
 arm): the fill -10 to -19 % on three DBT volumes at 1x and 4x, a request at offset 7 -21 to -26 % at 4x and unchanged at
 1x; offset 0 at 4x not decided; the 4-core host near saturation at 1x. Findings in
 `docs/queue/DECODE-OVERLAP-MEASURE/findings.md` (PR 447's body edit refused).
+2026-11-25: IMPROVE-1-FIX: `candidates.md` B1 closed in place: candidate 1's measured sizes (49.4 MB a tip pass, ÷ 1.3 to
+÷ 3.3 after the build) beside the model's 185 MB and ÷ 8, its backward wait and 260 MiB; m1–m4 and the nits; its
+re-review is IMPROVE-1-FIX-REVIEW.
 
 **The routines** (claude.ai routines; their prompts switch from the program to phase 2 on 11-24 00:00 and close
 after 11-27 23:59): queue workers (Opus) A `trig_01Y6vNmyv6K54Uqcs8RXV1Gu` at :45, B `trig_014L1Sgp7h8TW8qnzWMZ1HEQ`

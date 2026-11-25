@@ -338,3 +338,14 @@ refutes a row's premise before its build is done" does not apply); the sizes are
 Fixtures and limits of this review: the round's rows (one premium phone, one home Wi-Fi link, one evening, `dbts_b1`
 and `dbts_a1`'s cut, Q 8 G 8, software decode); the cloud rows are the measuring rows' (4-core host, no GPU, headless
 Chromium, software WebCodecs, a userspace relay); no ultrasound; nothing re-measured here.
+
+### Fix
+
+IMPROVE-1-FIX, 2026-11-25, by a session that wrote neither this file nor its review (`by:` in its status file); in
+place, each change dated. **B1**: §1 item 1, §2's *Bytes* and *Limits*, and §4 row 1 and item 1 give the product's
+measured counts and bytes beside the model's, kept as the model's, with why they differ (the stand-in delivers every
+miss whole); row 1's cost carries 260 MiB and the backward wait as MEASURE-3 leaves it (none on CLEAN or LTE 4×, four
+waits on LTE 1×, half the tip's). **m1**: item 2 "at least 3.3 (a partial sum)", the formula "free cores only", the
+measured *s* and fill beside the guessed. **m2**: §1 item 2 and §3 name both causes. **m3**: item 5's `dbts_a1`
+ranges and the 0.33. **m4**: item 3 and row 3. **Nits**: 81 and 76 ms; *R* for the rate. Nothing re-measured; the
+numbers are the cited rows', each recomputed (m3's ranges, 16 × 17.04 MB = 260 MiB).
