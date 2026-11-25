@@ -349,3 +349,56 @@ waits on LTE 1×, half the tip's). **m1**: item 2 "at least 3.3 (a partial sum)"
 measured *s* and fill beside the guessed. **m2**: §1 item 2 and §3 name both causes. **m3**: item 5's `dbts_a1`
 ranges and the 0.33. **m4**: item 3 and row 3. **Nits**: 81 and 76 ms; *R* for the rate. Nothing re-measured; the
 numbers are the cited rows', each recomputed (m3's ranges, 16 × 17.04 MB = 260 MiB).
+
+## Re-review
+
+IMPROVE-1-FIX-REVIEW, 2026-11-25 14:50–15:20 UTC, by a session that wrote none of this file, its review or its fix
+(`by:` in its status file). Read: this file at `79f0a19da` against `7703f2080` (the fix's diff, commits `e74bb5ffb`,
+`9da47713d`); the sources each fixed number cites, on `claude/work-ledger`: `docs/queue/WINDOW-WHOLE-GROUPS.md`,
+`-FIX.md`, `-FIX-2.md`, `docs/queue/WINDOW-WHOLE-GROUPS-MEASURE/findings.md` §Timed cells and §Timed cells again,
+`docs/queue/DECODE-OVERLAP.md`, `DECODE-OVERLAP-MEASURE.md`, `DIAL-BEFORE-PAIR-MEASURE.md`; `claude/phone-run`
+`8d77ba2b4:docs/phone-rows/next-round-results.md`. Arithmetic by hand; nothing run, nothing timed.
+
+**Each finding.**
+
+* **B1: closed.** §1 item 1 drops "eight times over" and gives 268/280 (stand-in wire) and 104–113 frames, 49.4 MB
+  (CLEAN) and 72–77, 33.7 MB (LTE) in the browser, each as in `WINDOW-WHOLE-GROUPS.md` ("268 frames on the wire for one
+  forward pass and 280") and §Timed cells ("the tip's 104–113 forward on CLEAN and 72–77 on LTE"); §2's *Bytes* keeps
+  185 MB as the model's and quotes the cause verbatim ("the real downloader replaces a want's unsent asks"); §2's
+  *Limits* names the rows that found it; §4 row 1 carries 260 MiB (2560 × 3328 × 2 × 16 = 272 629 760 B = 260.0 MiB,
+  recomputed; `WINDOW-WHOLE-GROUPS.md`: "260 MiB against 256") and the backward wait as MEASURE-3 leaves it (none on
+  CLEAN or LTE 4×; LTE 1× backward "4, 9.6–10.4 s → 4, 4.2–4.3 s"), both as §Timed cells again's table reads.
+* **m1: closed.** "at least 3.3 of 8 (a partial sum, so a lower bound)" matches the read ("3.32 over the load's opened →
+  ended (load 42)"); *s* 0.39–0.46 is DECODE-OVERLAP's "39.1-45.6 % at 1x"; the fill's −10 to −19 % and 2.9–3.6 of 4
+  cores are DECODE-OVERLAP-MEASURE's lines 12 and 16; the formula is labelled "free cores only".
+* **m2: closed.** Both causes named in §1 item 2 and §3, M12 left to read past four.
+* **m3: closed.** Recomputed at the inputs stated (exact 41–87 ms × 0.347, view 110–176 ms × 0.247, 9.69 and 0.66 Mbit):
+  *k* = 7 crosses at 4.41 Mbit ÷ (0.188 to 0.334 s) = 13.2 to 23.6 Mbit/s; *k* = 3 at 7.05 Mbit ÷ (0.079 to 0.160 s) = 44
+  to 90 Mbit/s. The 0.33 is the read's "1.20 ÷ 3.68 = 0.33 measured".
+* **m4: closed.** −2.0 to −2.3 round trips is DIAL-BEFORE-PAIR-MEASURE's line 10, "met, at its upper end".
+* **Nits: closed.** 201.3 − 120.1 = 81.2 and 196.4 − 120.6 = 75.8 ms; *R* for the rate; no "÷ G" left.
+
+**New, none a blocker** (no fix row: amendment 17 appends rows for blockers; each is for the file's next touch or
+BRIEF-WEEKEND's IMPROVE-1 line):
+
+* **r-m1. "After the build" is the first fix's measure, not the PR as it stands.** "÷ 1.3 to ÷ 3.3" (§1 item 1, §2, §4
+  row 1) and "its first build made a backward step … wait" (item 1) are MEASURE-2's, on `0e273ee92`, which is
+  WINDOW-WHOLE-GROUPS-FIX's head, not the first build (`e8a52cfe4`). PR 446 as it stands (`94d447835`) measured ÷ 1.4 to
+  ÷ 3.2 (§Timed cells again). The FIX brief prescribed the ÷ 1.3 to ÷ 3.3 itself, so the fix followed its brief; the
+  rank does not move. 49.4 and 33.7 MB are one tip arm of the 1× cells (MEASURE-2: 48.7–52.6 on CLEAN, 33.7–36.0 on LTE).
+* **r-m2. LTE 1× forward still waits.** Item 1 and row 1's cost name on LTE 1× only the backward pass's four waits;
+  MEASURE-3's LTE 1× forward is "25–27, 14.4–14.5 s → 1–2, 1.3–1.5 s (÷ 10)", with §Timed cells m1's refetch still there.
+  Row 1's jump column ("→ 0 on three of four cells") is right; the prose is short of it.
+* **r-n1.** §2 *Bytes*: "34 frames, 15.8 MB, in every cell but LTE 1× forward" is the forward pass's; backward is 40
+  frames, 18.7 MB, in every cell.
+* **r-n2.** §1 item 2 says the frame's rise eats "that gain", §3 "most of" it. *Derived*: 16 × 111 ÷ (18 × 108) = −8.6 %
+  at the lower medians, 16 × 118.8 ÷ (18 × 110.2) = −4.2 % at the read's: "most", not all.
+* **r-n3.** §8's "§2 is a model over two product modules, not a run" now sits beside §2's measured numbers: "§2's table".
+
+**Verdict.** No blocker open. B1, m1–m4 and the nits are closed; the fix loop of IMPROVE-1 closes after one round.
+BRIEF-WEEKEND's IMPROVE-1 line may be written from this file, with r-m1 and r-m2 in mind.
+
+Fixtures and limits of this re-review: as the cited rows': the 2026-11-22 round (one premium phone, one home Wi-Fi link,
+one evening, `dbts_b1` and `dbts_a1`'s cut, Q 8 G 8, software decode) and the measuring rows' cloud rows (one 4-core
+host, no GPU, headless Chromium, software WebCodecs, a userspace relay, `dbts_b1-q8-g8` for the window's cells); no
+ultrasound; nothing re-measured or re-run here.
