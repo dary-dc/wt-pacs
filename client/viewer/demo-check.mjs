@@ -36,6 +36,11 @@ const file = (name) => {
 const lossyMeta = JSON.parse(readFileSync(file(`${id}.metadata.json`)));
 const exactId = lossyMeta.exactSeries;
 const exactMetaPath = file(`${exactId}.metadata.json`);
+/** The frames of the groups that hold `frames`: what an on-demand view asks to show them. */
+const groupsOf = (frames) => {
+  const { lossy: { g = 1 } = {}, frameCount: n } = lossyMeta;
+  return [...new Set(frames.map((i) => Math.floor(i / g)))].reduce((s, k) => s + Math.min(g, n - k * g), 0);
+};
 
 const started = (child, re) => new Promise((resolve, reject) => {
   let out = "";
@@ -100,15 +105,24 @@ async function pass(browser, query) {
   const n = lossyMeta.frameCount;
   const filling = !query.includes("fill=0");
   const status = async () => (await log()).findLast((e) => e.id === "status")?.text;
+  const arrived = async () => Number((await status())?.match(/received (\d+)/)?.[1] ?? 0);
+  const ahead = [];
+  /** On demand, before a step: nothing arrived from a group the steps so far have not reached. */
+  const notAhead = async (shown) => {
+    const k = await arrived();
+    if (!filling && k > groupsOf(shown)) ahead.push(`${k} frames after frames 1 to ${shown.length}`);
+  };
   if (filling) must(await until((l) => /fill \d+ ms/.test(l.findLast((e) => e.id === "status")?.text), 120000), `${query}: the fill completes in 120 s: ${await status()}`);
   must(await shown(0, 0), `${query}: frame 1 painted`);
   const steps = [];
   for (let i = 1; i < (filling ? n : Math.min(n, 13)); i++) {
+    await notAhead([...Array(i).keys()]);
     const t = await now();
     await page.keyboard.press("ArrowRight");
     must(await shown(i, t), `${query}: frame ${i + 1} painted after its step`);
     steps.push(Math.round((await log()).findLast((e) => e.id === "overlay").t - t));
   }
+  await notAhead([...Array(filling ? n : Math.min(n, 13)).keys()]);
   const home = await now();
   await page.keyboard.press("Home");
   must(await shown(0, home), `${query}: Home painted frame 1`);
@@ -138,7 +152,7 @@ async function pass(browser, query) {
     while (received.length < k) received.push(Math.round(e.t));
   }
   return {
-    query, errors, steps, jumpMs, losslessMs,
+    query, errors, steps, jumpMs, losslessMs, ahead,
     labels: l.filter((e) => e.id === "quality" && e.text).map((e) => e.text).filter((t, k, a) => t !== a[k - 1]),
     firstPictureMs: Math.round(overlays[0]?.t), receivedMs: received,
     frames: Object.values(Object.fromEntries(overlays.filter((e) => !e.text.startsWith("htj2k")).map((e) => [e.frame, e.text]))),
@@ -155,6 +169,7 @@ function judge(r) {
   // The label and the overlay are written by one paint, the label first: the overlay after it names what was painted.
   check(r.paintedWithLossless?.startsWith("htj2k"), `${r.query}: Lossless written with ${r.paintedWithLossless ?? "no paint"}, not the exact frame's`);
   check(r.status?.includes(` · view ${VIEW} · `), `${r.query}: the frames held in ${r.status?.match(/view (\w+)/)?.[1]}, not ${VIEW}`);
+  check(r.ahead.length === 0, `${r.query}: on demand, frames arrived from a group no step had reached: ${r.ahead.join("; ")}`);
   check(r.errors.length === 0, `${r.query}: console errors ${JSON.stringify(r.errors)}`);
   for (const f of r.frames) {
     const m = routeOf(f);
@@ -173,9 +188,7 @@ try {
     judge(r);
     check(JSON.stringify(r.labels) === JSON.stringify(LABELS), `${query}: the label ran ${JSON.stringify(r.labels)}, not ${JSON.stringify(LABELS)}`);
     if (query) {
-      const g = lossyMeta.lossy.g;
-      const groups = new Set([...Array(13).keys()].map((i) => Math.floor(i / g))).add(Math.floor((lossyMeta.frameCount - 1) / g));
-      const want = [...groups].reduce((s, k) => s + Math.min(g, lossyMeta.frameCount - k * g), 0);
+      const want = groupsOf([...Array(13).keys(), lossyMeta.frameCount - 1]);
       check(r.status.includes(`received ${want},`), `${query}: on demand, 13 steps and a jump asked the whole groups, ${want} frames: ${r.status}`);
     }
     report.passes.push(r);
