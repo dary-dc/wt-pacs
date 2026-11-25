@@ -653,6 +653,44 @@ bash lab/cache-arms/rows/mutants.sh chromium && bash lab/cache-arms/rows/mutants
 bash lab/cache-arms/rows/counted.sh chromium L-2560-1x      # one cell a job; counted.sh's lines with --arms none,opfs-sync,opfs-sync-aa,opfs-async
 ```
 
+### §5 Amendment (CACHE-CELLS, 2026-11-25 12:18 UTC, before the first counted row)
+
+By the run row, a session that wrote none of this file. Nothing here changes a prediction above; it says what this
+container runs and how the record is kept.
+
+* **CACHE-DESIGN-1124 has no output** (no status file; nothing by `git log --all --since=2026-11-24T00:00Z` but the
+  rows of the phase 2 queue): the run goes ahead at its fallback, and its verdict is **provisional** on the store question.
+* **Firefox is not run here.** Fetching `firefox-159.0.1.tar.xz` from `archive.mozilla.org` was refused in this
+  container (the session's tool permission check, 2026-11-25 12:12 UTC: "Permission for this action was denied"), so
+  every Firefox cell, item 4's pre-registered one among them, is `blocked`; the commands for a run elsewhere are below.
+* **Chromium is Playwright's build 1243**, `--version` "Google Chrome for Testing 158.0.8127.36" (the run's build,
+  printed in each settings row; CACHE-RUN's was 153.0.8010.12). Headless, it runs as `chrome-headless-shell`. A probe
+  of its process tree (*run once*, 12:10, not a cell) found a browser, a network utility, two zygotes, a renderer and
+  a GPU process, and **no storage-service process**: on this build OPFS is served by the browser process, so the
+  `storage` kind cannot occur, and a growth there reads as the browser's.
+* **Item 4 on Chromium** (*derived* by this row from CACHE-RUN's rows, before any counted row; the pre-registered cell
+  is Firefox's): OPFS-ASYNC's O at S1 was 1.85 ms a frame warm (`rows/chromium/O-512-1x.jsonl`, median of 10) against
+  OPFS-SYNC's 0.36, which opens one handle a series. If the handle's open is the difference, one open a group
+  (*G* = 15 at S1: 8 MiB ÷ (512² × 2 + 28 B); 16 above is a rounding) predicts 0.36 + (1.85 − 0.36) ÷ 15 ≈ **0.46 ms,
+  under 1 ms**, refuted at ≥ 1 ms; S3 (*G* = 1) unchanged, its warm read 749 ms, refuted outside ×0.90–1.10.
+* **O's arms** are OPFS-SYNC, OPFS-SYNC′ and OPFS-ASYNC (the A/A ratio rule needs the pair), 6 rounds, one mirrored
+  Williams period of three. **T** runs OPFS-SYNC alone, 12 rounds (no order to balance).
+* **`verify`'s record**: every index's `[i, hit, why, xxh3, sha]` when a row has at most 256 (T, O), and past that (L
+  at S1, 2 389) the non-exact ones with the count of each class; an exact index is one with all three true.
+* **Mutants**: of `mutants.sh`'s seven, the four that reach these cells (slot-held and view-copy on L, drop-writes on
+  O, tab-writes on T), one round each, on the run's arms only. The builds' own mutants are in their unit tests
+  (`claude/cache-arms` `5766cfc53`, `dbccc29d3`, `8f2110c83`).
+
+Commands (this run, and Firefox's elsewhere):
+
+```bash
+bash lab/cache-arms/rows/cells-1125.sh chromium mutants     # then L-512, L-2560, T, O-512, O-3328: one job each
+# Firefox, on a host that can fetch it:
+curl -LO https://archive.mozilla.org/pub/firefox/releases/159.0.1/linux-x86_64/en-US/firefox-159.0.1.tar.xz
+tar xf firefox-159.0.1.tar.xz && Xvfb :99 & export FIREFOX_PATH=$PWD/firefox/firefox DISPLAY=:99
+for c in mutants L-512 L-2560 O-512 O-3328; do bash lab/cache-arms/rows/cells-1125.sh firefox $c; done
+```
+
 ## 6 · As time allows (each already pre-registered where named; the order and VOID rules here)
 
 These run only after §1–§5's runs are done or at their latest, in this order, each by a session that wrote none of
