@@ -139,3 +139,45 @@ from frame 0 after the window's fill. Bytes are the frames' coded bytes handed t
 
 *How it serves the value statement:* the branch cuts a pass's bytes by 1.3 to 3.3 and every forward wait on CLEAN; until
 B1 is fixed it makes the backward jump slower, which "low latency on every jump" does not allow.
+
+## FIX-2 (WINDOW-WHOLE-GROUPS-FIX-2)
+
+WINDOW-WHOLE-GROUPS-FIX-2, 2026-11-25 10:27–, by a session that wrote none of PR 446, its measures, fix or reviews (`by:`
+in its status file). §Timed cells B1 on `claude/window-whole-groups`.
+
+* **Which fix holds.** r-m2's wider margin cannot: with two groups (W = 15, G = 8) a margin *M* on the wanted group moves
+  the backward switch later, not earlier (*derived*: the group behind wins at position *p* of a group only when
+  *p* + 1 − *M* < 7 − *p*, so its lead is at most 3 − *M*/2). So the brief's own words: the neighbour the reader is moving toward.
+* **The failing test first (`d0b7adeb8`).** `window.test.mjs`, "a backward pass wants the group behind G − 1 steps ahead of
+  its last frame": after a forward pass, a backward pass at W = 15, G = 8 over 50 frames; each group's last frame must
+  cross the wire at least G − 1 steps before it is shown. On `0e273ee92`'s code: "frame 7, its group's last, on the wire
+  3 steps before it is reached" (*measured*, the stand-in transport).
+* **The change (`4bfc75247`, `client/view/controller.js`).** The controller keeps the last step's sign; `toward` is that
+  sign once two steps in a row agree, else 0, so a one-frame rock sets no direction. In `nearestGroups` the neighbour
+  `toward` ranks a whole group (`g`) nearer. With three groups or more both neighbours are in the window already, so only
+  the two-group case changes which groups are held.
+* **Measured** (node 22.23.5, 4-core cloud container): `window.test.mjs` 4/4 (the rocking test kept, unchanged);
+  `controller.test.mjs` 47/47. Mutants, each on a copy of `client/`: M14 the bonus dropped, M15 `toward` never set, M16
+  its sign flipped, M18 the bonus G − 2: each fails the new test (leads 3, 3, 0, 6); M17 one step sets the direction:
+  the sawtooth test fails (23|24: groups 4 and 2 by turns, 48 frames). The rocking test passes the rest.
+* **Derived** (`toward.mjs` here, `wantFrom` alone, on both commits), steps from a group's entering the want to its
+  frame reached:
+
+  | n / G / W | forward lead, 0e273ee92 → now | backward lead | reader turning back p frames into a group, the group behind |
+  | --- | --- | --- | --- |
+  | 50 / 8 / 15 | 4 → 8 | 3 → 7 | p 1–3: held → 1, 2, 3; p 4: 3 → 3; p 5–7: 3 → 4, 5, 6 |
+  | 50 / 8 / 24 | 8 → 8 | 7 → 8 | held → held |
+  | 69 / 8 / 54 | 20 → 20 | 19 → 19 | held → held |
+  | 50 / 16 / 40 | 8 → 16 | 7 → 15 | p 1–7: held → p; p 8–15: 7 → p − 1 |
+
+  **The cost:** a reader who turns back early in a group (p ≤ 3 at G = 8) finds the group behind let go (it went on
+  entering the group, where before it stayed to the group's middle) and asked p steps before reaching it. Its time,
+  and whether 7 steps cover a group's wire and decode at 4×, are MEASURE-3's.
+
+Fixtures and limits: synthetic 1×1 frames, 50 and 69, G = 8 and 16, the stand-in transport and decoders of
+`window.test.mjs`, each miss delivered before the next step; `toward.mjs` runs `wantFrom` alone, feeding it the controller's
+rule. Frames and steps counted; no time, no bytes on a link, no browser beyond the gate; no DBT volume or ultrasound clip
+opened. The cost of a reversal is derived, not timed. Rocks two frames wide (r-m2) not re-counted.
+
+*How it serves the value statement:* "low latency on every jump" on the commonest reversal, a backward pass, with the forward
+lead doubled; a reader turning back early in a group is the price, timed next.
