@@ -38,6 +38,6 @@ for form in ("CLEAN", "LTE"):
             arm = lambda a, k: med([by[x][k] for x in by if x.startswith(a)])
             if any(x.startswith("tip") for x in by) and any(x.startswith("pr") for x in by):
                 ratio = lambda k: arm("tip", k) / arm("pr", k) if arm("pr", k) else float("inf")
-                aa = lambda a, k: by[f"{a}-a"][k] / by[f"{a}-b"][k] if f"{a}-b" in by and by[f"{a}-b"][k] else float("nan")
+                aa = lambda a, k: by[f"{a}-a"][k] / by[f"{a}-b"][k] if f"{a}-a" in by and f"{a}-b" in by and by[f"{a}-b"][k] else float("nan")
                 print(f"      tip / pr: MB ÷{ratio('mb'):.2f}, waited sum ÷{ratio('sum'):.2f}, max ÷{ratio('max'):.2f}, pass ÷{ratio('all'):.2f}"
                       f"   A/A MB {aa('tip', 'mb'):.2f} {aa('pr', 'mb'):.2f}, waited sum {aa('tip', 'sum'):.2f} {aa('pr', 'sum'):.2f}")
