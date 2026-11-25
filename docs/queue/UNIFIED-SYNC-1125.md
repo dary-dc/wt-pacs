@@ -1,10 +1,11 @@
 state: started
 started: 2026-11-25T07:07Z
-heartbeat: 2026-11-25T12:46Z
+heartbeat: 2026-11-25T12:47Z
 by: SuzFofkv
 outputs: claude/unified 9170cdf39 (11 merges + one link fix), pushed; PR comments and closes next
 ## Resume
 Resumed 2026-11-25T12:46Z by SuzFofkv (stalled since 11:27): checking origin/claude/unified tip, CI on it, the gate, then comments and closes.
+2026-11-25T12:47Z: CI run 45596759058 (push, 8459a0a7b): job gate's scripts/gate.sh step GATE OK in 954 s, skipped the pair's invariants (no writer) and the viewer's cross-codec arm and Firefox; only the workflow's skip-list step failed, on the pair's invariants, as at b059388b6 (run 45345879478); deploy job green. Next: comment and confirm closed the 11 PRs.
 Resumed 2026-11-25T11:27Z by iBdmdVUA (stalled since 10:27): origin/claude/unified is at 8459a0a7b (pushed); checking CI and the gate on 8459a0a7b, then comment and close PRs 413 418 419 439 440 442 443 444 445 447 448.
 Resumed 2026-11-25T10:06Z by 22u6GUnd (stalled since 08:49): checking whether the gate ran, then the gate on origin/claude/unified, then comments and closes.
 2026-11-25T10:13Z: the deploy image builds with 8459a0a7b (docker compose build, BUILD_CA set to the proxy's CA); ingest/tools.sh done (meson 1.9.1 via pip); scripts/gate.sh running on 8459a0a7b.
