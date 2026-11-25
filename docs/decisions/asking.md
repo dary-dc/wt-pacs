@@ -88,20 +88,37 @@ order across the study's many clips (§4.2), for which no source was found. **Wh
 LTE (0.29–0.92), and decode-bound on entry phones (0.20–0.44) (**derived on theory**: the device model's decode and
 `link-profiles.md`'s goodputs; one phone measured). The rule's order is the same either way; ρ sets how long the waits are.
 
-**Each limitation and what found it:**
+**Each limitation and what found it** (completed 2026-11-25, PAGES-PASS: each item names what found it):
 
-* §3's numbers have no RTT, one fetch at a time, legs of one length (the model §5's own limits; the review's toy).
+* No fixture: the rule is theory and §3 a simulation of it; nothing built, run or timed. Found by ASK-MODEL (its
+  status file: "Theory and sources") and ASK-MODEL-FIX-REVIEW ("every number is derived ... none measured").
+* The measured numbers quoted are earlier rows' on relay links and 4-core cloud hosts without a GPU that voided up to
+  a third of their visits; one phone behind the decode ranges; no reader, no radio. Found by ASK-MODEL (the model's
+  fixtures paragraph, from those rows).
+* No breast ultrasound cine in the runs (`usb_cine` exists, lossy-sourced, none of these rows took it). Found by
+  DECISION-PAGES-REVIEW (§Review B3) against `docs/FIXTURES.md`.
+* §3's numbers have no RTT, one fetch at a time, a constant μ, legs of one length. Found by ASK-MODEL (the model §5's
+  own limits) and ASK-MODEL-REVIEW (the toy's parameters, `sawtooth.py`).
 * P2 as written predicts an order its model cannot show: on a one-way path the arms differ only by a start-up
-  transient (87.11 / 87.11 / 87.48 / 88.41 s over 600 frames at ρ 0.216, **derived**; the re-review's n1,
-  `claude/work-ledger:docs/queue/ASK-MODEL-FIX-REVIEW/one-way.py`). It must predict a tie (§6).
-* "The rule needs no estimate" is true of the hold only; the cine's gate needs μ (n2).
-* The closed form reads 0.04–0.44 s under the simulation, not 0.2–0.4 s (n3).
+  transient (87.11 / 87.11 / 87.48 / 88.41 s over 600 frames at ρ 0.216, **derived**). It must predict a tie (§6).
+  Found by ASK-MODEL-FIX-REVIEW (n1, `claude/work-ledger:docs/queue/ASK-MODEL-FIX-REVIEW/one-way.py`).
+* "The rule needs no estimate" is true of the hold only; the cine's gate needs μ. Found by ASK-MODEL-FIX-REVIEW (n2).
+* The closed form reads 0.04–0.44 s under the simulation, not 0.2–0.4 s. Found by ASK-MODEL-FIX-REVIEW (n3).
 * Item 3's optimum at p = 1 (all behind while dwelling) has no simulated arm; the table supports only "centred is
-  never beaten in the dwell rows" (n4).
-* The `waitAhead` DBT cells that got worse at k = 2 and 4 are not explained (the model §6, its own miss).
-* S6's body ("3.8 image slices", "sawtooth") is not verified: the article page answered an automated-client check
-  (ASK-MODEL-REVIEW m1).
-* What a phone gives a tab has no source, and `navigator.deviceMemory` is a W3C Discontinued Draft (S7).
+  never beaten in the dwell rows". Found by ASK-MODEL-FIX-REVIEW (n4).
+* The `waitAhead` DBT cells that got worse at k = 2 and 4 are not explained. Found by the measurement
+  ([`ask-order-during-fill.md`](../client/evidence/ask-order-during-fill.md) §Run); left unexplained by ASK-MODEL (the
+  model §6, its own miss).
+* S6's body ("3.8 image slices", "sawtooth") is not verified: the article page answered an automated-client check.
+  Found by ASK-MODEL (not refetched, a bot check) and ASK-MODEL-REVIEW (m1).
+* Readers' leg lengths, and whether they dwell before a turn, are unknown; only a reader's own log would give them,
+  and telemetry is off. Found by ASK-MODEL (the model's *unknown*, from S6's abstract alone).
+* The order across a study's many clips has no source. Found by ASK-MODEL's source search (the model §4.2).
+* What a phone gives a tab has no source, and `navigator.deviceMemory` is a W3C Discontinued Draft. Found by ASK-MODEL
+  (S7, the model §3.3).
+* ρ per link and phone is **derived on theory**, one phone measured. Found by ASK-MODEL-REVIEW (m4: ρ's label) and
+  ASK-MODEL-FIX (the ρ table derived on theory).
+* M3's numbers claim nothing past 103 Mbit/s. Found by row 253 (PR 96's body).
 
 ## 5 · The mechanism
 

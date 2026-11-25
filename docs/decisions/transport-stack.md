@@ -60,28 +60,12 @@ and scaled to ≤ 90 Mbit.
 
 n.c.: not conclusive (the A/A arm itself is not conclusive in that cell, §6.5). FP (a pooled connection) not run.
 
-**The stack per link profile** (**derived** from the table; LINK-TARGETS' profiles, `link-profiles.md`):
+**The stack per link profile** is in §4, under *Where the link, not the decode, binds* (moved there 2026-11-25,
+PAGES-PASS, unchanged).
 
-| profile | what binds | the stack that serves it |
-| --- | --- | --- |
-| home Wi-Fi, public Wi-Fi, 5G sub-6, clean | the wire or the phone's decode; every stack ties on the fill | WebTransport: no stack gains; WT and H3 keep their window through a reader's pause (AA at 5 s) |
-| enterprise Wi-Fi | reordering | not decided: ENT's model is uniform jitter, unbalanced, its fill ×18 the prediction (§6.3) |
-| LTE, one far stream, 0.1 % loss | the controller's loss slope | WebTransport: every arm not conclusive on the fill (LTE) |
-| LTE with a full queue (~0.8 s RTT) | the 6 MiB stream credit | H3-frame, by escaping the one stream's credit; WT's own `per-frame` flag is the untested equivalent (item 2) |
-| 5G mmWave | the stream credit or the decode | not measurable here (above 90 Mbit) |
-| any, an ask during a fill | what the ask waits behind | fill-shape fetch and WS ×0.47–0.74; WT's one-queue flag measured ×0.32–0.90 earlier on other rigs (`ask-during-a-fill.md`), never in this rig (item 2) |
-| any, a UDP-hostile network | the dial | the WebSocket fallback, as decided |
-
-**The server's held defaults** (PR 254's index, closed 2026-11-18; the line carries each result, no default changed):
-
-| PR | held default | recommended | why |
-| --- | --- | --- | --- |
-| #37 | 38 400 B initial window | **no**; close | item 5 |
-| #39 | asks first under a 6 MiB send window | **hold for item 2's run** | a trade-off: the ask ×0.18–0.31, the fill +2 to +44 % (row 211) |
-| #40 | `cubic-classify` the controller | **no**; close | row 212: not the default in either reading; now compiled only under `lab-classify` |
-| #41 | 100 ms initial RTT; the repeated-Initial reply removed | **hold** | the owner's 2026-10-14 reading (H over R) is recorded; a run at the target's real RTT decides (`design.md` §Open) |
-| #96 | the one queue as product code, no flag | **hold for item 2's run** | its measurement (row 253) is not on the line; the flag form is what item 2 runs |
-| #88, #102, #103, #122, #123, #137, #139 | disk and design rows, no default | **no default to set** | each index line's open question stays where it is recorded |
+**The server's held defaults** (PR 254's index; items 5 and 6): the table is in
+[*Appendix: the server's held defaults*](#appendix-the-servers-held-defaults), after §8 (moved 2026-11-25, PAGES-PASS,
+unchanged).
 
 ## 4 · Where it holds
 
@@ -100,6 +84,95 @@ family. What does not carry: ENT's reorder model, CR's credit numbers to other e
 absolute time to a radio. Tested predictions (§6.1, §6.6), misses included: the fill ties held; the cold-dial penalty
 of TCP (×1.03–1.15) **missed** and is retracted; the ask after a fill held the record's line at 5 s and missed it at
 1 s; the fill shapes' ask (×1.0–2.0) **missed** below the band; server CPU over TCP ×0.145 against ×0.5–0.9 **missed**.
+WT-TS's own times against §5.3's predictions (§6.1, §6.6; **measured** against **derived**; added 2026-11-25,
+PAGES-PASS): CLEAN 9.92 s, PUB 10.03 s, FF, AA, AD on PUB (743 ms against ~0.8 s) and LTE (24.0 s against 20–30 s)
+held; CR 35.0 s against ~20 s, AD on LTE 5 287 ms (5 664 the first run) against ~1.4 s, LOSS 24.4 s against ~46 s,
+HOL's p99 4.74 s against 1.4 s and ENT 176 s against ~9.6 s (×18) **missed**. §5's ~63 Mbit/s cap is the arithmetic behind
+CR's ~20 s; AD's mechanism is read from the ratios.
+
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). This page's question is the link's: a stack, a
+window or a controller moves a fill or an ask only where the wire, not the phone's decode, sets it. On this rig the
+metric ends at a frame's last byte, so no decode enters it (§6, **measured**): every number in §3 is the link's and
+the stack's. Per profile, for A (the view's fill), B (the exact series') and C1 (the exact frame on request), each
+**derived** in [`link-profiles.md`](../transport/link-profiles.md) §2 *Per profile and arm* on the round's phone unless
+marked:
+
+* **Home Wi-Fi, measured (≥ 600 Mbit/s):** the decode binds A (2.25 s against a wire of 0.31 s); B is near the line
+  (wire 1.43 s, its phone decode unmeasured); the link binds C1. The stacks tie on CLEAN's fill (**measured**).
+* **Home Wi-Fi, median (~218, p10 40):** the decode binds A at the median, the wire at p10 (4.6 s); the wire binds B
+  (3.9 s) and C1.
+* **Public Wi-Fi (~101):** A at the line (wire 1.84 s against decode 2.25 s); below ~83 Mbit/s, `link-profiles.md`
+  §2's crossover for `dbts_b1` on the round's phone, the wire binds it ([`delivery-per-link.md`](delivery-per-link.md)
+  §4); the wire binds B (8.5 s) and C1. The stacks tie on PUB's fill (**measured**).
+* **Enterprise Wi-Fi (unknown):** A on an unknown side of 83; the wire binds B unless above ~470 (on an unmeasured
+  decode); ENT's model decides nothing here (the table below).
+* **LTE, one far stream (27–85, lower quartile 7–26):** the wire binds A (2.2–6.9 s), B (10–32 s) and C1 (~0.5 s,
+  1–2.8 s behind a fill); every arm is not conclusive on LTE's fill (**measured**).
+* **LTE with a full queue (~0.8 s RTT, cell CR):** the link and the one stream's credit bind (WT-TS 35.0 s,
+  **measured**; the ~63 Mbit/s cap, **derived**, §5); no decode enters.
+* **LOSS-like links (GE 1 %):** the wire binds A and B ([`delivery-per-link.md`](delivery-per-link.md) §4); the
+  controller's loss slope sets it, not the framing (§5).
+* **5G sub-6 (> 100, a target):** the decode binds A; the wire binds B (1.1–3.0 s at a PHY of 284–771); goodput,
+  loss and loaded RTT not read.
+* **5G mmWave (~1 467):** the decode binds A (wire 0.13 s), and B if the cloud's ratio holds (1.3–1.8 s against a
+  wire of 0.59 s); Cubic's loss bound (~20 Mbit/s at 0.01 % and 56 ms) may make it the wire after all; above 90 Mbit,
+  so not measurable here.
+* **An ask, on any link:** the link binds it: what it waits behind during a fill (AD) and the window left after a
+  silence (AA), **measured**; C1's exact frame is round trips and slow start on an idle session on every link
+  ([`delivery-per-link.md`](delivery-per-link.md) §4).
+
+The premise under it is untested ([`README.md`](README.md) §Premises item 1): on the one phone measured, the exact
+series filled faster than the view in 15 of 15 rounds, median 0.705 (**measured**,
+[`phone-decode-route.md`](phone-decode-route.md) §4), so on that fast clean link the phone's decode bound the view.
+No transport row is lowered by it: where the decode binds A every stack already ties on the fill (CLEAN, PUB), and
+item 2's run asks about the ask, which the link binds on every profile.
+
+**The stack per link profile** (**derived** from the table; LINK-TARGETS' profiles, `link-profiles.md`):
+
+| profile | what binds | the stack that serves it |
+| --- | --- | --- |
+| home Wi-Fi, public Wi-Fi, 5G sub-6, clean | the wire or the phone's decode; every stack ties on the fill | WebTransport: no stack gains; WT and H3 keep their window through a reader's pause (AA at 5 s) |
+| enterprise Wi-Fi | reordering | not decided: ENT's model is uniform jitter, unbalanced, its fill ×18 the prediction (§6.3) |
+| LTE, one far stream, 0.1 % loss | the controller's loss slope | WebTransport: every arm not conclusive on the fill (LTE) |
+| LTE with a full queue (~0.8 s RTT) | the 6 MiB stream credit | H3-frame, by escaping the one stream's credit; WT's own `per-frame` flag is the untested equivalent (item 2) |
+| 5G mmWave | the stream credit or the decode | not measurable here (above 90 Mbit) |
+| any, an ask during a fill | what the ask waits behind | fill-shape fetch and WS ×0.47–0.74; WT's one-queue flag measured ×0.32–0.90 earlier on other rigs (`ask-during-a-fill.md`), never in this rig (item 2) |
+| any, a UDP-hostile network | the dial | the WebSocket fallback, as decided |
+
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
+* One series, `dbts_b1` as HTJ2K; one 4-core container; headless Chromium 157. Found by TRANSPORT-RUN (§6 *Fixtures
+  and limits*).
+* Every profile a relay's model, **assumed** and scaled to ≤ 90 Mbit, none a radio; nothing claimed above 90. Found by
+  TRANSPORT-PROTOCOL (§5.0) and TRANSPORT-RUN (§6).
+* The host did not saturate below 90 Mbit (busiest core's median 0.08–0.52 a cell, no visit `VOID` for CPU). Found by
+  TRANSPORT-RUN's CPU sampler (§6.1).
+* The kernel's default controller is `bbr`; the TCP arms' sockets set to `cubic`, read back every visit. Found by
+  TRANSPORT-RUN (§5.7, §6).
+* FP not run. Found by TRANSPORT-RUN: the 12 h stop (§6.1).
+* ENT cut inside a period and unbalanced, its model uniform jitter, its fill ×18 the prediction. Found by
+  TRANSPORT-VERDICT-REVIEW (§6.5 item 2) and TRANSPORT-RUN (§6.1, §6.3).
+* The A/A arm not conclusive in `ad-lte`'s first run, LOSS, HOL, LTE and CPU (§3's n.c.). Found by
+  TRANSPORT-VERDICT-REVIEW (§6.5).
+* AD's fill-shape arms in the first run measured the fill, not the ask (a build defect, struck). Found by
+  TRANSPORT-VERDICT-REVIEW (§6.5); re-run by TRANSPORT-AD-RERUN (§6.6).
+* AD's re-run has had no review of its own. Found by this page (TRANSPORT-PAGE), from the rows of §8.
+* Why the fill shape's ask is faster is **theory**, not traced. Found by TRANSPORT-AD-RERUN (§6.6).
+* WT's one-queue flag never measured on this rig, only on others (×0.32–0.90). Found by this page's reading of
+  `ask-during-a-fill.md` against §6 (TRANSPORT-PAGE).
+* No Firefox, no Safari, no phone, no Android `tcp_rmem`, no handover; Chromium's `net/` read, not traced. Found by
+  TRANSPORT-THEORY (`stacks.md` *Fixtures and limits*, "Not read").
+* ENT's reorder model, CR's credit numbers to other engines and every absolute time to a radio do not carry. Found by
+  this page's reading of §5.0 (TRANSPORT-PAGE).
+* The tested predictions' misses, and WT-TS's absolute misses, above. Found by TRANSPORT-RUN (§6.1, §6.2),
+  TRANSPORT-AD-RERUN (§6.6); the absolute misses' omission from this page by DECISION-PAGES-REVIEW (§Review, nits).
+* Rootless publish's tap-ring drops are unmeasured in a forwarded mode, and the cloud's one container cannot place a
+  client off the host. Found by `network-mode.md` §1–§2 and §6 (**sourced**, **derived**).
+* The 32-packet window's slowdown under BBR is unexplained. Found by PR 254's index (#37: rows 181 IWDEEP and 191
+  IWOPTIN); which row showed the slowdown is not recorded here.
+* Load 13's page is hidden only by the run's notes. Found by `hidden-page-decode.md`.
+* #41's 100 ms initial RTT and #96's one queue have no run at the target's real RTT or on the line. Found by
+  `design.md` §Open (#41) and row 253 (#96), as the appendix's table says.
 
 ## 5 · The mechanism
 
@@ -111,7 +184,8 @@ of TCP (×1.03–1.15) **missed** and is retracted; the ask after a fill held th
   why item 2 runs it before any second wire.
 * **An ask after a pause**: the kernel halves a TCP window once per RTO of idle, down to the initial window; quinn
   0.11.18 does not restart after idle. A 5 s reading pause therefore costs the TCP stacks ×1.35–1.70 and WT nothing.
-* **CR**: one stream's 6 MiB credit over 0.8 s caps a single stream at ~63 Mbit/s; a stream a frame escapes it.
+* **CR**: one stream's 6 MiB credit over 0.8 s caps a single stream at ~63 Mbit/s (**derived**: 6 × 2²⁰ × 8 bit ÷
+  0.8 s = 62.9 Mbit/s, §5.3's CR line, whose ~20 s for WT-TS missed at 35.0 s, §4); a stream a frame escapes it.
 * **CPU**: the kernel segments and encrypts TCP with offloads; quinn spends ~2 µs a datagram in userspace.
 
 **The defaults.** Rootless publish forwards each datagram through pasta and a 726 kB tap ring whose drops the
@@ -154,3 +228,18 @@ against the six octets) was closed by amendment 11: the six-octet reading is of 
   [`../transport/delivery-prior-art.md`](../transport/delivery-prior-art.md) §8;
   `claude/docs-client:docs/client/evidence/congestion-controller.md`, `lossless-after-a-failed-ask.md`,
   `hidden-page-decode.md`, `ask-during-a-fill.md`.
+
+## Appendix: the server's held defaults
+
+Moved here from §3 on 2026-11-25 (PAGES-PASS, §Review m13), unchanged.
+
+**The server's held defaults** (PR 254's index, closed 2026-11-18; the line carries each result, no default changed):
+
+| PR | held default | recommended | why |
+| --- | --- | --- | --- |
+| #37 | 38 400 B initial window | **no**; close | item 5 |
+| #39 | asks first under a 6 MiB send window | **hold for item 2's run** | a trade-off: the ask ×0.18–0.31, the fill +2 to +44 % (row 211) |
+| #40 | `cubic-classify` the controller | **no**; close | row 212: not the default in either reading; now compiled only under `lab-classify` |
+| #41 | 100 ms initial RTT; the repeated-Initial reply removed | **hold** | the owner's 2026-10-14 reading (H over R) is recorded; a run at the target's real RTT decides (`design.md` §Open) |
+| #96 | the one queue as product code, no flag | **hold for item 2's run** | its measurement (row 253) is not on the line; the flag form is what item 2 runs |
+| #88, #102, #103, #122, #123, #137, #139 | disk and design rows, no default | **no default to set** | each index line's open question stays where it is recorded |

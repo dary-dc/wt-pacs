@@ -124,22 +124,43 @@ rest does not depend on the modality), its numbers do not: a clip's 8-bit, often
 the view's ratio to the exact series and its decode time, so no *G*★ is known for US (no US clip in the run; `usb_cine` exists, lossy-sourced; US-DBT-CARRY,
 phase 2).
 
-**Every limitation, with what found it:**
+**Every limitation, with what found it** (completed 2026-11-25, PAGES-PASS: each item names what found it):
 
-* Lossy links have no model: one goodput per form does not predict a fill (DELIVERY-RUN's K3 line gave negative
-  starts, amendment A2; §Results: the first megabytes go at ~3× the late ones).
-* C1's short-round-trip excess (+43 to +117 ms) grows with the frame's bytes and the round trip, not fixed
-  (DELIVERY-VERDICT-REVIEW m2); its wire and decode parts cannot be split because §5's ask → last byte is not recorded.
-* C2's span was judged with the latency band; under the fill band LOSS `dbts_b1` misses (DELIVERY-VERDICT-REVIEW m1).
-  This page uses the fill band.
+* Three DBT volumes of one dataset, the view at Q 8 G 8 only; one 4-core container without a GPU, software decode,
+  Chromium 153 headless; one counted period of 10 rounds a cell; no Firefox or WebKit. Found by DELIVERY-RUN (its
+  status file's *Fixtures*; the protocol §1–§10).
+* The relay's forms scaled from the profiles and **assumed**, none a radio; nothing above 90 Mbit/s, the TUN's
+  ceiling at 100. Found by DELIVERY-PROTOCOL (§6, *Where the host saturates*), DELIVERY-RUN (§Results) and
+  `docs/rig-limits.md` §3.
+* CLEAN's and PUB's A is this host's two-core software decode, never a phone's; the browser's two cores saturate in
+  every decode-bound load. Found by DELIVERY-PROTOCOL (§6, §9) and DELIVERY-RUN (§Results).
+* The phone beside it is one premium phone, one home link, one evening. Found by PHONE-READ (`next-round-results.md`
+  §Cell 2); PHONE-READ-CODE-CHECK set no load apart.
+* No breast ultrasound cine in the run (`usb_cine` exists, lossy-sourced). Found by DECISION-PAGES-REVIEW (§Review B3)
+  against `docs/FIXTURES.md`.
+* No *G*★ is known for US: a clip's frames change the view's ratio and its decode time. Found by this page's reading
+  of the model (DELIVERY-PAGE, **theory**); US-DBT-CARRY is the row that would measure it.
+* Lossy links have no model: one goodput per form does not predict a fill. Found by DELIVERY-RUN (K3's line gave
+  negative starts, amendment A2; §Results: the first megabytes go at ~3× the late ones).
+* C1's short-round-trip excess (+43 to +117 ms) grows with the frame's bytes and the round trip, not fixed; its wire
+  and decode parts cannot be split because §5's ask → last byte is not recorded. Found by DELIVERY-VERDICT-REVIEW (m2).
+* C2's span was judged with the latency band; under the fill band LOSS `dbts_b1` misses; this page uses the fill
+  band. Found by DELIVERY-VERDICT-REVIEW (m1).
 * The relay's guard voided 52 loads, 51 on decoding view arms, with the relay already pinned to its own core: a pinned
-  core alone did not keep it (DELIVERY-RUN A1; DELIVERY-VERDICT-REVIEW m5; RESULTS-BRIEF §1.12); the voided fills were
-  not faster (median ×0.980 against ×1.000).
-* The view's per-frame decode at two decoders was ~2.1× the lone-decoder figure, cause not established (DELIVERY-RUN A3).
-* A container restart cut CLEAN's first pass at 89 loads, kept in no bar (DELIVERY-RUN A5).
-* Every *G*★ but the entry band's low end lies above 90 Mbit/s, the TUN's ceiling (`docs/rig-limits.md` §3): extrapolated.
-* The view's decode ranges per class were tested on one phone, and missed at one and four decoders
-  ([`phone-decode-route.md`](phone-decode-route.md) §4).
+  core alone did not keep it; the voided fills were not faster (median ×0.980 against ×1.000). Found by DELIVERY-RUN
+  (A1), DELIVERY-VERDICT-REVIEW (m5) and RESULTS-BRIEF (§1.12).
+* The view's per-frame decode at two decoders was ~2.1× the lone-decoder figure, cause not established. Found by
+  DELIVERY-RUN (A3).
+* A container restart cut CLEAN's first pass at 89 loads, kept in no bar. Found by DELIVERY-RUN (A5).
+* The predicted direction of decode-bound loads held on `dbts_b1`, not on `dbts_a1`, mixed on `dbts_c1`. Found by
+  DELIVERY-VERDICT-REVIEW (m4).
+* The misses listed under *Missed* above. Found by DELIVERY-RUN (§Results) and DELIVERY-VERDICT-REVIEW (§Verdict review).
+* Every *G*★ but the entry band's low end lies above 90 Mbit/s: extrapolated. Found by DELIVERY-VERDICT-REVIEW's *G*★
+  against `docs/rig-limits.md` §3.
+* The view's decode ranges per class were tested on one phone, and missed at one and four decoders. Found by
+  PHONE-READ against DEVICE-THEORY ([`phone-decode-route.md`](phone-decode-route.md) §4).
+* No measurement prices the trade of seconds against bytes and a checked picture (§1). Found by this page
+  (DELIVERY-PAGE); the owner's call.
 
 ## 5 · The mechanism
 

@@ -86,11 +86,58 @@ the fallback item 3 keeps until the Safari probe.
 **Links.** Both views share the downloader, decoders and wire, so a link moves both alike; the phone's fill showed no
 difference (**measured**, one link).
 
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). Neither, for this page's question: the view
+worker's win is the page's thread, and the cine it was measured on plays frames already held (§5, **theory**;
+§3, **measured**). The fill, the exact frame and a jump past the held frames are bound alike in both views: by the
+link where [`delivery-per-link.md`](delivery-per-link.md) §4 has the wire binding (B below its class's *G*★; A on
+LTE, a far stream, LOSS-like links and public Wi-Fi below ~83 Mbit/s for `dbts_b1` on the round's phone; C1's exact
+frame on every link, **derived**), by the decode above that crossover, the same in both (**derived**: one downloader,
+decoders and wire; the phone's fill no difference, **measured**, one link). No transport row is lowered by the
+decode-bound phone, and no link is a reason here to pick either view.
+
 **The predictions, misses included.** Of the protocol's eight lines six held. Busy frame-change was predicted *worker
 faster* and came out *no difference shown*; the first picture was predicted *page faster by < 52 ms* and came out
 *no difference shown*. The theory table's rows: busy frame-change "worker lower by ~one long task in some steps"
 *missed* (129 of the worker's 480 busy steps over 50 ms against the page's 114); the first picture "worker later by
 ≥ 16.7 ms" *not decided* (m2).
+
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
+* One Android 16 phone, one home 5 GHz Wi-Fi, one laptop, one evening, one series (`dbts_b1-q8-g8`), software decode.
+  Found by PHONE-READ-3D (its status file's *Fixtures*).
+* A synthetic busy page and dispatched key presses, not a reader's input or a real page's work; the real page's long
+  tasks unmeasured (§6). Found by the protocol (`next-round.md` §4) and this page (VIEW-PAGE).
+* Loads 0 and 16 open their runs without a fresh Chrome; pair 8 mixed (no verdict moves without pairs 0 and 8).
+  Found by PHONE-READ-3D-REVIEW (m1).
+* RUN_CODE the lab-only `f5252051` for cell 3; 18 of the round's 29 changed modules leave no field in the rows.
+  Found by PHONE-READ-3D (deviations) and PHONE-READ-CODE-CHECK.
+* The host's saturation on the phone not measured. Found by PHONE-READ-3D (*Fixtures*).
+* The guard is an **assumption** (52 ms, amendment 24), and its "not binding" rests mostly on pairs 8–23 (+5.8
+  against +26.0 ms, post hoc). Found by amendment 24 (the program) and PHONE-READ-3D-REVIEW (m3).
+* The rows have no first-picture field: the read uses the first label less the page's first record. Found by
+  PHONE-READ-3D.
+* The view worker ran **without** the start's fix on the phone (the plan's URLs carry no lab setting, **derived**).
+  Found by this page (VIEW-PAGE), from the round's plan.
+* The theory table's rows unstated in the read: busy frame-change missed, the first picture not decided. Found by
+  PHONE-READ-3D-REVIEW (m2); the protocol's two misses by PHONE-READ-3D.
+* No 4× cell of the start decided. Found by the start's cloud cells
+  ([`view-worker-start.md`](../client/evidence/view-worker-start.md)).
+* The phone's +1 452 and +1 528 MiB after worker loads 26 and 27, unexplained; the cloud's cause is the page view's
+  only. Found by MEMORY-LEAK-TRACE (§Result, corrected by PR 434's §Re-review).
+* The cloud memory arms ran in blocks, not interleaved load by load: six loads an arm, one browser each, page,
+  worker, transfer, the second round repeating that order (ABCABC); the phone's order in the cloud ran ABCD DCBA.
+  Found by PR 434's §Re-review (MEMORY-LEAK-TRACE's corrected §Result); the rows, which carry no timestamp, are
+  stored in those orders (`claude/memory-on-navigation:lab/viewer/rows/navigation-memory.jsonl`, `…-g8.jsonl`, read
+  2026-11-25). Its omission here by DECISION-PAGES-REVIEW (§Review, nits).
+* The cloud: 4-core hosts without a GPU, software WebCodecs, a userspace relay, a US series that is not breast
+  ultrasound; no breast ultrasound clip on a phone. Found by the cloud rows' fixtures
+  ([`view-worker-under-a-busy-page.md`](../client/evidence/view-worker-under-a-busy-page.md),
+  [`view-worker-start.md`](../client/evidence/view-worker-start.md)) and this page (VIEW-PAGE).
+* A clip's acquisition rate above 10 frames a second is an **assumption**. Found by this page (VIEW-PAGE, §4).
+* No model carries the result to other device classes. Found by DEVICE-THEORY (`device-model.md` §2: "adds nothing").
+* Safari never run; paint in a worker "**S** BCD 17". Found by the engines page ([`engines.md`](engines.md) §3).
+* The default window at `dbts_b1`'s size untested; "`fillFailure` does not fail it" is a reading of the code.
+  Found by PHONE-ROUND-2-PREP (`round-2.md` §6) and PHONE-CARRY-FIX-REVIEW (r-n1).
 
 ## 5 · The mechanism
 

@@ -75,35 +75,8 @@ the HTJ2K-only control of phase 2 (amendment 28), every frame of which is exact 
 | 4.8 hardware decodes the view, unchecked (the word) | the same 4:2:0 form | a hardware route; the check skipped for it | unmeasured: *d*_V on hardware not measured at a volume's size | as 4.7; on the round's phone 10-bit forms came back as 8-bit `RGBA` (cell 4, below), so the painter windows 8 bits a sample, not the stored 10 |
 
 **The threshold under every policy** (`route-policy.md` §3): the exact series fills faster when *G* > *b*_E ÷ *d*_V.
-
-| | *d*_E (ms) | *d*_V (ms) | *G*\* (Mbit/s) | *G*_B (Mbit/s) |
-| --- | --- | --- | --- | --- |
-| entry (**derived** on A) | 33–83 | 90–326 | 53–191 | 207–521 |
-| middle (**derived** on A) | 15–54 | 41–215 | 80–419 | 316–1146 |
-| premium (**derived** on A) | 14–31 | 33–78 | 220–521 | 550–1228 |
-| the round's phone, `dbts_b1` | 18.9 (**measured**), 25.8 (**derived**: 1.29 s ÷ 50) | 42.1 (**measured**), 68.6 (**derived**: (3.68 − 0.25) s ÷ 50) | 251–408 (**derived**) | 666–910 |
-| the round's phone, `dbts_a1`'s cut | 11.1 (**measured**) | 16.4 (**measured**) | 590 (**derived**) | 875 |
-
-**B1, the 8-bit question, both forms** (`reviews-2026-11-18.md` §2–§3; `README.md` §2 on `claude/mobile-decode`):
-
-| form | levels on screen | bytes against today's view | checked | where it runs | on the round's phone |
-| --- | --- | --- | --- | --- | --- |
-| today's view, software | the stored depth ≤ 10, the depth cut above | 1× | yes | every engine | 42.1 ms effective (**measured**) |
-| a hardware frame inverted, studio swing (needed only for a check, which the word drops) | 220 (7.78 bits), ~200 with the headroom luma needs; 4.67 source units a step at 10 bits, 18.70 at 12 (**derived**) | **1.16–2.49×** (**measured**, 19 volumes) | yes, against an 8-bit luma digest | Android Chromium and Firefox, if the map is one-to-one (a device fact) | an 8-bit full-range unit came back exact at 256 × 256; no volume-size frame tried (**measured**) |
-| the 8-bit cut, read back as `NV12` (likewise) | 256 | **1.14–1.86×** (**measured**, DEPTH8-MEASURE) | yes | desktop Chromium; Safari by `NV12` (its decoder unconfirmed, **theory**) | not on Android: frames come back as `RGBA` (**source**, **measured**) |
-| lossy HTJ2K (not 8-bit; the alternative for the same band) | the stored depth, no cut | median **1.05×** (0.85–1.47) at the noise rule's bar (**measured**) | yes, by the one WASM build's digest | every engine with WASM SIMD | 21.2–22.9 ms effective (**derived** on A: the cloud's 1.12–1.21 × lossless's 18.9) |
-
-Ten bits did not come back from hardware on that phone: the 10-bit forms returned as 8-bit `RGBA`, off by one on
-19 480–49 002 of 65 536 samples a channel (**measured**, cell 4, 256 × 256 only). So an unchecked hardware view of the
-10-bit stream (the word) puts 8 bits a sample on screen on that phone, and window/level would act on those; whether
-that is acceptable is a question the word does not answer, and item 6 waits on it with M5.
-
-**Real-device routes for cell 1** (`device-model.md` §7, **source** for costs): AWS Device Farm, "one-time free trial
-of 1,000 device minutes", "$0.17 per device minute"; cell 1 on 20 phones at 15 min ≈ $51 (**derived**), within the
-trial. Firebase Test Lab, "30 minutes of test time per day on physical devices" free, but built for apps (a wrapper
-not built). A public bench page opened by colleagues (no cost; uncontrolled state, needs a host and a consent line).
-The product's own load report (telemetry off, rate 0; `reports.md`). Each sends the page's address, the public
-fixtures and timings outside, no patient data.
+Its table per class, **B1's 8-bit forms** and the **real-device routes for cell 1** are in
+[*Appendix: §3 in full*](#appendix-3-in-full), after §8 (moved 2026-11-25, PAGES-PASS, §Review m13, unchanged).
 
 ## 4 · Where it holds
 
@@ -135,6 +108,59 @@ without hardware is not yet known.
 
 **Links** (`../transport/link-profiles.md` §2, other people's measurements and one standard's targets): the profiles'
 *G* sit across every class's *G*\*, which is why no fixed route is right everywhere (§5).
+
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). This page's question is where the line falls: the
+exact series fills faster once *G* > *b*_E ÷ *d*_V, i.e. once the link stops binding the view. Below its class's
+*G*\* the link binds and the view wins by its bytes; above it the phone's decode binds the view (**derived**, §5 and
+the appendix's table). From [`delivery-per-link.md`](delivery-per-link.md) §4: B is link-bound on every link below
+its class's *G*\* (public Wi-Fi, LTE, a far stream and the median home's p10 for every class); A on LTE, a far
+stream, LOSS-like links and public Wi-Fi below ~83 Mbit/s (`link-profiles.md` §2's crossover for `dbts_b1` on the
+round's phone, **derived**); C1's exact frame on every link; the decode binds A on clean links above that crossover,
+as on the round's home Wi-Fi at ≥ 568–595 Mbit/s, where B filled faster in 15 of 15 rounds, median 0.705
+(**measured**; `README.md` §Premises item 1: the wire-binds premise itself untested). The profiles' *G* fall on both
+sides of every class's *G*\* ([`transport-stack.md`](transport-stack.md) §4, per profile), so the switch (item 3)
+reads the link per session. No transport row is lowered by the decode-bound phone: the wire still binds B below
+every class's *G*\*, A on the wire-bound profiles, and C1's exact frame on all of them.
+
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
+* One premium phone, one home Wi-Fi at ≥ 568–595 Mbit/s (a lower bound), one evening; two DBT volumes of one dataset,
+  the view at Q 8 G 8 only, software decode. Found by PHONE-READ (its status file's *Fixtures*).
+* Cell 2's fills ran in a renderer that kept earlier loads' memory. Found by MOBILE-DECODE-REJUDGE (`README.md` §8 on
+  `claude/mobile-decode`), from PHONE-ROUND's per-load memory (RSS + swap after loads 23–28) that MEMORY-LEAK-TRACE
+  traced (`navigation-memory.md`, `claude/memory-on-navigation`).
+* No wire time recorded, so no fill's regime was read. Found by PHONE-READ; the ask for it is item 2's.
+* 18 of the round's 29 changed modules leave no field in the rows. Found by PHONE-READ-CODE-CHECK.
+* Cell 4 at 256 × 256 units only; 4:0:0 failed at flush; 10-bit forms came back as 8-bit `RGBA`. Found by PHONE-READ
+  (cell 4).
+* M5 at a volume's size cannot be built as it stands (`make_hw_units.py` at 2048² stops in `ingest.decode`); M17 needs
+  a bench arm; neither is in PHONE-ROUND-2. Found by PHONE-ROUND-2-PREP (`round-2.md` §5) and PHONE-CARRY-REVIEW (B1).
+* The view's bands missed at one and four decoders, so *d*_V is the least trusted input; HTJ2K's bands held. Found by
+  PHONE-READ against DEVICE-THEORY.
+* B against A: a tie predicted, B faster in 15 of 15. Found by PHONE-READ (cell 2) against DEVICE-THEORY.
+* The exact frame's 216.5 ms against 80–130 predicted is unexplained, so every latency is a floor; no cell asks it.
+  Found by PHONE-READ (cell 2); its falling through by PHONE-CARRY-REVIEW (m2).
+* `htj2k-software.md`'s 78–127 ms a frame missed (40.4 measured on one decoder). Found by PHONE-READ (cell 1).
+* The class table is **derived** on assumption A, its view column ×3.6–5.2 wide. Found by DEVICE-THEORY and
+  ROUTE-POLICY (`route-policy.md` §3).
+* The split (4.6) rests on one untested assumption, that two forms' decodes add. Found by ROUTE-POLICY (§4.6).
+* *d*_V on hardware not measured at a volume's size (4.8). Found by ROUTE-POLICY and PHONE-READ (cell 4's sizes).
+* No readable key orders phones by decode speed. Found by ROUTE-POLICY's sources S1–S3, checked by ROUTE-POLICY-REVIEW.
+* The view's one-decoder time is 2.6–4.3 × its effective time; `dbts_a1`'s cut is 0.0685 of exact; first-picture and
+  exact-frame latencies per policy not computed as ranges; the HTJ2K fill factor ×1.36 may be the receive path. Found
+  by ROUTE-POLICY-REVIEW (m1, m2, m3, m5; §8).
+* Lossy HTJ2K's 21.2–22.9 ms on the phone is **derived** on A from the cloud's 1.12–1.21; whether it carries is M17's.
+  Found by MOBILE-DECODE-REJUDGE (`claude/mobile-decode:docs/decode/mobile/README.md` §2, §4).
+* Safari's `NV12` decoder unconfirmed (**theory**). Found by `other-codecs.md` §3 on `claude/mobile-decode`, as its
+  `README.md` §1 quotes it; which row wrote that line is not recorded here.
+* The cloud ratios come from 4-core hosts without a GPU, headless Chromium, one host saturated for the option rows'
+  cells. Found by MOBILE-DECODE-REJUDGE (`README.md` §8 on `claude/mobile-decode`).
+* No iPhone, no second engine on a phone, no entry or middle phone. Found by PHONE-READ's fixtures; item 8 asks the
+  middle phone.
+* No breast ultrasound cine; no threshold known for US, and whether a clip's software decode is fast enough unknown.
+  Found by DECISION-PAGES-REVIEW (§Review B3, `usb_cine` lossy-sourced) and this page's reading (**theory**).
+* The default window at `dbts_b1`'s size is untested; at it, a fill fails `fillFailure`. Found by PHONE-CARRY-REVIEW
+  (theory, from the code) and PHONE-ROUND-2-PREP (`round-2.md` §6).
 
 ## 5 · The mechanism
 
@@ -228,6 +254,41 @@ page's `fillFailure` (`claude/phone-run:lab/devices/round.mjs`) fails a load tha
 (`claude/phone-run-2` `313ad1b55`, lab only; without it the product's default holds): cell 3's loads hold the whole
 series, "as on 2026-11-22", and cell M runs the window at *w* and 2*w* (`round-2.md` §2). The default window at
 `dbts_b1`'s size stays untested: it "is not exercised by the synthetic pair, whose 20 frames all fit" (`round-2.md` §6).
+
+## Appendix: §3 in full
+
+Moved here from §3 on 2026-11-25 (PAGES-PASS, §Review m13), unchanged.
+
+**The threshold under every policy** (`route-policy.md` §3): the exact series fills faster when *G* > *b*_E ÷ *d*_V.
+
+| | *d*_E (ms) | *d*_V (ms) | *G*\* (Mbit/s) | *G*_B (Mbit/s) |
+| --- | --- | --- | --- | --- |
+| entry (**derived** on A) | 33–83 | 90–326 | 53–191 | 207–521 |
+| middle (**derived** on A) | 15–54 | 41–215 | 80–419 | 316–1146 |
+| premium (**derived** on A) | 14–31 | 33–78 | 220–521 | 550–1228 |
+| the round's phone, `dbts_b1` | 18.9 (**measured**), 25.8 (**derived**: 1.29 s ÷ 50) | 42.1 (**measured**), 68.6 (**derived**: (3.68 − 0.25) s ÷ 50) | 251–408 (**derived**) | 666–910 |
+| the round's phone, `dbts_a1`'s cut | 11.1 (**measured**) | 16.4 (**measured**) | 590 (**derived**) | 875 |
+
+**B1, the 8-bit question, both forms** (`reviews-2026-11-18.md` §2–§3; `README.md` §2 on `claude/mobile-decode`):
+
+| form | levels on screen | bytes against today's view | checked | where it runs | on the round's phone |
+| --- | --- | --- | --- | --- | --- |
+| today's view, software | the stored depth ≤ 10, the depth cut above | 1× | yes | every engine | 42.1 ms effective (**measured**) |
+| a hardware frame inverted, studio swing (needed only for a check, which the word drops) | 220 (7.78 bits), ~200 with the headroom luma needs; 4.67 source units a step at 10 bits, 18.70 at 12 (**derived**) | **1.16–2.49×** (**measured**, 19 volumes) | yes, against an 8-bit luma digest | Android Chromium and Firefox, if the map is one-to-one (a device fact) | an 8-bit full-range unit came back exact at 256 × 256; no volume-size frame tried (**measured**) |
+| the 8-bit cut, read back as `NV12` (likewise) | 256 | **1.14–1.86×** (**measured**, DEPTH8-MEASURE) | yes | desktop Chromium; Safari by `NV12` (its decoder unconfirmed, **theory**) | not on Android: frames come back as `RGBA` (**source**, **measured**) |
+| lossy HTJ2K (not 8-bit; the alternative for the same band) | the stored depth, no cut | median **1.05×** (0.85–1.47) at the noise rule's bar (**measured**) | yes, by the one WASM build's digest | every engine with WASM SIMD | 21.2–22.9 ms effective (**derived** on A: the cloud's 1.12–1.21 × lossless's 18.9) |
+
+Ten bits did not come back from hardware on that phone: the 10-bit forms returned as 8-bit `RGBA`, off by one on
+19 480–49 002 of 65 536 samples a channel (**measured**, cell 4, 256 × 256 only). So an unchecked hardware view of the
+10-bit stream (the word) puts 8 bits a sample on screen on that phone, and window/level would act on those; whether
+that is acceptable is a question the word does not answer, and item 6 waits on it with M5.
+
+**Real-device routes for cell 1** (`device-model.md` §7, **source** for costs): AWS Device Farm, "one-time free trial
+of 1,000 device minutes", "$0.17 per device minute"; cell 1 on 20 phones at 15 min ≈ $51 (**derived**), within the
+trial. Firebase Test Lab, "30 minutes of test time per day on physical devices" free, but built for apps (a wrapper
+not built). A public bench page opened by colleagues (no cost; uncontrolled state, needs a host and a consent line).
+The product's own load report (telemetry off, rate 0; `reports.md`). Each sends the page's address, the public
+fixtures and timings outside, no patient data.
 
 ## Review (PHONE-CARRY-REVIEW, 2026-11-24)
 
