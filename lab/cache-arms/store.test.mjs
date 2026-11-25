@@ -1,6 +1,6 @@
 // node lab/cache-arms/store.test.mjs — the ring and the rules above the seam, on an arm kept in memory.
 import { ring as makeRing } from "./ring.js";
-import { readsFirst, store as makeStore } from "./store.js";
+import { readsFirst, store as makeStore, verifyRecord, verifySummary } from "./store.js";
 
 let failed = 0;
 const check = (ok, what) => {
@@ -363,6 +363,33 @@ for (const mutant of ["", "tab-writes"]) {
   check(armReads === 1 && !got.fromPending, "a let-go slot is not read: the arm answers");
   finish();
   await writing;
+}
+
+/** `verify`'s record tells the two ways an index is not exact apart: a failed re-read (`hit` false, its `why`) and a
+ *  frame whose XXH3 passed but SHA-256 differs, which the summary counts on its own (cache-plan.md §10.4 item 3). */
+{
+  const disk = new Map();
+  const locks = memoryLocks();
+  const one = rig({ disk, locks });
+  await one.s.open("A", meta());
+  for (const i of [0, 1, 2]) await one.s.write(i, one.feed(i));
+  const two = rig({ disk, locks });
+  await two.s.open("A", meta());
+  disk.get("A").frames.get(1)[0] ^= 1;
+  const into = new Uint8Array(FRAME);
+  const records = [];
+  for (const i of [0, 1, 3]) {
+    const got = await two.s.read(i, into);
+    records.push(verifyRecord(i, got, () => hash(into) === digests[i], () => into.every((x, k) => x === field(i)[k])));
+  }
+  const [r0, r1, r3] = records;
+  check(r0.hit && r0.xxh3 && r0.sha, "verify: a present frame is a hit, XXH3 and SHA-256 passing");
+  check(!r1.hit && r1.why === "recheck" && r1.xxh3 === false && r1.sha === false, "verify: a reading tab's failed re-check is a miss, why recheck");
+  check(!r3.hit && r3.why === "absent" && r3.xxh3 === null && r3.sha === null, "verify: an absent frame leaves no bytes to hash");
+  const sum = verifySummary([...records, { i: 4, hit: true, why: null, xxh3: true, sha: false }]);
+  check(sum.ok === 1 && sum.notOk === 3 && sum.shaAfterXxh3 === 1, `verify: one SHA-256 mismatch after a passing XXH3 counted apart (${JSON.stringify(sum.classes)})`);
+  check(sum.classes["miss:recheck"] === 1 && sum.classes["miss:absent"] === 1 && sum.classes["hit:sha-differs"] === 1, "verify: each class counted");
+  check(verifySummary(records, 2).records.length === 2 && verifySummary(records).records.length === 3, "verify: every record up to the limit, the non-exact past it");
 }
 
 if (failed) {

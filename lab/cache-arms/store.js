@@ -82,21 +82,21 @@ export function store({ arm, ring, check, locks, mutant = "", estimate = null, w
 
     /** Frame i into `into`, re-checked. A frame still pending is copied from its slot (§8.1). */
     async read(i, into) {
-      if (!s.cache) return { hit: false };
+      if (!s.cache) return { hit: false, why: "no cache" };
       const pendingSlot = s.pending.get(i);
       if (pendingSlot !== undefined) into.set(ring.bytes(pendingSlot, into.length));
       else {
         try {
-          if (!(await arm.read(i, into))) return { hit: false };
+          if (!(await arm.read(i, into))) return { hit: false, why: "absent" };
         } catch (e) {
           return { hit: false, why: e.name ?? String(e) };
         }
       }
       if (mutant === "no-recheck" || check(into, i)) return { hit: true, fromPending: pendingSlot !== undefined };
       // In a reading tab the writer may be mid-frame: a miss, never a damaged frame (§8.1).
-      if (!s.writer) return { hit: false };
+      if (!s.writer) return { hit: false, why: "recheck" };
       await arm.drop(i).catch(() => {});
-      return { hit: false, damaged: true };
+      return { hit: false, why: "recheck", damaged: true };
     },
 
     /** One series out, never `s.series` nor one open in any tab; then a bounded wait for `need` bytes of room. */
@@ -145,3 +145,19 @@ export const webLocks = (locks = navigator.locks) => ({
   }),
   names: async () => (await locks.query()).held.map((l) => l.name),
 });
+
+/** One index of `verify` (cache-plan.md §10.4 item 3): the re-read's `hit` and `why`, then XXH3 and SHA-256 each over
+ *  the bytes it left, `null` when it left none. `xxh3 && !sha` is the defect the record exists to find. */
+export const verifyRecord = (i, got, xxh3, sha) => {
+  const bytes = got.hit || got.why === "recheck";
+  return { i, hit: got.hit, why: got.why ?? null, xxh3: bytes ? xxh3() : null, sha: bytes ? sha() : null };
+};
+/** `verify`'s row: the counts, each class of non-exact index, and its records (all of them up to `all`). */
+export function verifySummary(records, all = 256) {
+  const classOf = (r) => (!r.hit ? `miss:${r.why}` : !r.xxh3 ? "hit:xxh3-fails" : "hit:sha-differs");
+  const wrong = records.filter((r) => !(r.hit && r.xxh3 && r.sha));
+  const classes = {};
+  for (const r of wrong) classes[classOf(r)] = (classes[classOf(r)] ?? 0) + 1;
+  return { ok: records.length - wrong.length, notOk: wrong.length, wrong: wrong.slice(0, 8).map((r) => r.i), classes,
+    shaAfterXxh3: records.filter((r) => r.xxh3 && r.sha === false).length, records: records.length <= all ? records : wrong };
+}

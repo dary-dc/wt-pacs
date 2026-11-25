@@ -3,7 +3,7 @@
 import { hasher } from "../../client/decode/xxh3.js";
 import { fieldBytes, fill, FIELDS, sha256 } from "./fields.js";
 import { ring as makeRing } from "./ring.js";
-import { readsFirst, store as makeStore, webLocks } from "./store.js";
+import { readsFirst, store as makeStore, verifyRecord, verifySummary, webLocks } from "./store.js";
 
 const now = () => performance.timeOrigin + performance.now();
 let c = null;
@@ -83,15 +83,14 @@ async function verify(indices) {
   const { slot } = await freeSlot();
   if (slot === -1) return { ok: 0, notOk: indices.length, wrong: [], why: "no free slot" };
   const bytes = ring.bytes(slot, c.frameBytes);
-  const wrong = [];
-  let ok = 0;
+  const records = [];
   for (const i of indices) {
     const got = await st.read(i, bytes);
-    if (got.hit && (await sha256(bytes)) === shas[i % FIELDS]) ok++;
-    else wrong.push(i);
+    const sha = got.hit || got.why === "recheck" ? (await sha256(bytes)) === shas[i % FIELDS] : null;
+    records.push(verifyRecord(i, got, () => check(bytes, i), () => sha));
   }
   ring.release(slot);
-  return { ok, notOk: wrong.length, wrong: wrong.slice(0, 8) };
+  return verifySummary(records);
 }
 
 /** Each present frame read and re-checked in turn, timed from this worker's start (the cell O's R) and from the end of
