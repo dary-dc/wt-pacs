@@ -33,6 +33,9 @@ tip's); the timed cells wait. WINDOW-WHOLE-GROUPS-FIX, -FIX-REVIEW, -MEASURE-2 a
 2026-11-25: WINDOW-WHOLE-GROUPS-FIX-REVIEW: B1 and m1 closed, no blocker open (`findings.md` §Re-review): the rocking
 test fails on `e8a52cfe4` and four mutants; r-m1, the cost is backward only (one frame), r-m2, a two-frame rock still
 refetches (18 of 192 starts); WINDOW-WHOLE-GROUPS-MEASURE-2 may run.
+2026-11-25: IMPROVE-1-REVIEW: `candidates.md` §Review: the model and the round's rows reproduced, every quote checks; B1, candidate
+1's size is the model's (÷ 8, 185 MB) where the product measured ÷ 1.3 to ÷ 3.3 (49.4 MB a tip pass on CLEAN): corrected
+in place by IMPROVE-1-FIX; m1 candidate 2's "at most 3.3 of 8" is a partial sum; no queued row's premise refuted.
 2026-11-25: DECODE-OVERLAP-MEASURE: PR 447 a non-regressor (decode bench, three decoders, 6 interleaved rounds with an A/A
 arm): the fill -10 to -19 % on three DBT volumes at 1x and 4x, a request at offset 7 -21 to -26 % at 4x and unchanged at
 1x; offset 0 at 4x not decided; the 4-core host near saturation at 1x. Findings in
