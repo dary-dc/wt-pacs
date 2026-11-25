@@ -53,7 +53,7 @@ export function roundHooks(q) {
         const lossless = document.getElementById("lossless");
         const meta = await globalThis.viewerMetadata;
         const held = Math.min(meta.frameCount, q.has("budget") ? Number(q.get("budget")) : memoryWindow(meta));
-        recorder.record("memory", { budget: q.has("budget") ? Number(q.get("budget")) : null, window: held, deviceMemory: navigator.deviceMemory ?? null, maxTextureSize: maxTextureSize() });
+        recorder.record("memory", { budget: q.has("budget") ? Number(q.get("budget")) : null, window: held, received: ledger.frames?.length ?? 0, deviceMemory: navigator.deviceMemory ?? null, maxTextureSize: maxTextureSize() });
         failure = fillFailure(ledger, held);
         if (!failure && q.get("exactFill") === "1") {
           const r = await exactFill(await globalThis.viewerMetadata, await globalThis.viewerTransport, decoders);

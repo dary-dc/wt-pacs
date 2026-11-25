@@ -16,6 +16,12 @@ test("a fill's failure is its error, a frame short, or its first error", () => {
   assert.equal(fillFailure({ frames, errors: [] }, 2), null);
 });
 
+/** A fill past the window fails: the store held more than the load records, so a budget the view dropped is not read as honoured. */
+test("a fill past the window fails", () => {
+  const frames = [{ i: 0 }, { i: 1 }, { i: 2 }];
+  assert.equal(fillFailure({ frames, errors: [] }, 2), "received 3, past the window of 2");
+});
+
 /** The gap is the largest between consecutive ticks, not the span, so a steady ticker over a long load has none. */
 test("the gap is the largest between consecutive ticks", () => {
   const steady = Array.from({ length: 400 }, (_, k) => k * TICK_MS);

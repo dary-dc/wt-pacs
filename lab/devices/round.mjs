@@ -4,10 +4,11 @@
 export const TICK_MS = 250;
 export const STOPPED_GAP_MS = 2000;
 
-/** Why a filled load failed, or null: every frame received and no error. */
-export function fillFailure({ error, frames = [], errors = [] }, frameCount) {
+/** Why a filled load failed, or null: exactly the frames the window holds received, and no error. */
+export function fillFailure({ error, frames = [], errors = [] }, held) {
   if (error) return error;
-  if (frames.length < frameCount) return `received ${frames.length} of ${frameCount}`;
+  if (frames.length < held) return `received ${frames.length} of ${held}`;
+  if (frames.length > held) return `received ${frames.length}, past the window of ${held}`;
   return errors[0] ?? null;
 }
 
