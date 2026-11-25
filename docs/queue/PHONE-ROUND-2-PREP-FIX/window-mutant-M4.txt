@@ -1,0 +1,24 @@
+warning: use of deprecated associated function `tokio::io::unix::AsyncFd::<T>::with_interest`: unsound due to lack of I/O safety; use `AsyncFd::register_with_interest` instead (see https://github.com/tokio-rs/tokio/pull/8587)
+  --> server/src/media/uring_reader.rs:41:31
+   |
+41 |             ring_fd: AsyncFd::with_interest(ring.as_raw_fd(), Interest::READABLE)
+   |                               ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+ok: one press runs the round's 12 loads to the end
+ok: cell 3: 4 of 4 loads ok
+FAIL: cell M: 4 of 8 loads ok; 6 page 12: received 20, past the window of 12; 7 page 6: received 20, past the window of 6; 10 page 12: received 20, past the window of 12; 11 page 6: received 20, past the window of 6
+ok: each cell 1 arm benches its codec on its decoder count
+ok: arm B fills the exact series alone
+ok: arms A, C1 and C2 fill the view
+ok: each C2 load fills the whole exact series, every frame exact
+ok: each C1 press reaches the exact frame
+ok: a relaunch after loads 0,1,2,3 (each before a load not on the same renderer), got 0,1,2,3
+ok: each load records its window, budget and MAX_TEXTURE_SIZE
+FAIL: each load runs its steps and cine, idle and busy, at its size
+FAIL: each cell M load fills to its window: worker 6:6,worker 12:12,page 12:20,page 6:20,worker 6:6,worker 12:12,page 12:20,page 6:20
+ok: every load's last batch posted
+ok: each load records one first picture, ms from its navigation
+ok: cell 3's worker loads, and only they, carry the start's fix
+round plan headless: 3 FAILED
