@@ -2,7 +2,7 @@
 // delays both planes (the sessions' UDP and the static host's TCP). README.md beside this file.
 //
 //   TIP=tree PR=tree DIR=demo-series ID=dbts_b1-q8-g8 RTTS=10,100,400 VIEWS=page,worker ROUNDS=4 OUT=rows.jsonl \
-//     NODE_PATH=$(npm root -g) node open.mjs
+//     NODE_PATH=$(npm root -g) taskset -c 0-2 node open.mjs
 import { spawn } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -14,6 +14,8 @@ const RTTS = (env.RTTS || "10,100,400").split(",").map(Number);
 const VIEWS = (env.VIEWS || "page,worker").split(",");
 const ROUNDS = Number(env.ROUNDS || 4);
 const OUT = env.OUT || "rows.jsonl";
+// The relay on a core of its own, the rest (`taskset -c 0-2 node open.mjs`) on the others: a preempted relay is VOID.
+const RELAY_CPU = env.RELAY_CPU || "3";
 const RELAY_ARGS = (env.RELAY_ARGS ?? "--rate-kbit 100000 --queue-pkts 1000").split(" ").filter(Boolean);
 const { order } = await import(path.join(PR, "lab/order.mjs"));
 const { chromium } = createRequire(import.meta.url)("playwright");
@@ -70,7 +72,7 @@ function watch() {
 }
 
 async function visit(arm, view, rtt) {
-  const relay = run("chrt", ["-f", "50", "python3", path.join(PR, "lab/scripts/link_impair.py"), "--self-timing",
+  const relay = run("taskset", ["-c", RELAY_CPU, "chrt", "-f", "50", "python3", path.join(PR, "lab/scripts/link_impair.py"), "--self-timing",
     "--udp", "5433:4433", "--udp", "5434:4434", "--tcp", `9700:${HOSTS[arm][1]}`, "--delay-ms", String(rtt / 2), ...RELAY_ARGS], PR);
   let tally = "";
   relay.stdout.on("data", (d) => (tally += d));
@@ -102,7 +104,7 @@ async function visit(arm, view, rtt) {
     }, EXACT);
     Object.assign(row, {
       firstPicture: first("overlay") && Math.round(first("overlay").t),
-      label: first("quality") && Math.round(first("quality").t),
+      labelAt: first("quality") && Math.round(first("quality").t),
       fill: filled && Math.round(filled.t),
       fillStatus: filled?.text.match(/fill (\d+) ms/)?.[1] && Number(filled.text.match(/fill (\d+) ms/)[1]),
       status: l.findLast((e) => e.id === "status")?.text, errors, ...nav,
@@ -113,6 +115,7 @@ async function visit(arm, view, rtt) {
   await browser.close();
   await new Promise((done) => (relay.exitCode != null ? done() : (relay.once("exit", done), process.kill(-relay.pid, "SIGTERM"))));
   row.void = /VOID/.test(tally);
+  row.relay = tally.match(/self-timing[^\n]*/)?.[0];
   return row;
 }
 
