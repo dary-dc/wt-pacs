@@ -352,7 +352,7 @@ numbers are the cited rows', each recomputed (m3's ranges, 16 × 17.04 MB = 260 
 
 ## Re-review
 
-IMPROVE-1-FIX-REVIEW, 2026-11-25 14:50–14:49 UTC, by a session that wrote none of this file, its review or its fix
+IMPROVE-1-FIX-REVIEW, 2026-11-25 14:46–14:50 UTC, by a session that wrote none of this file, its review or its fix
 (`by:` in its status file). Read: this file at `79f0a19da` against `7703f2080` (the fix's diff, commits `e74bb5ffb`,
 `9da47713d`); the sources each fixed number cites, on `claude/work-ledger`: `docs/queue/WINDOW-WHOLE-GROUPS.md`,
 `-FIX.md`, `-FIX-2.md`, `docs/queue/WINDOW-WHOLE-GROUPS-MEASURE/findings.md` §Timed cells and §Timed cells again,
