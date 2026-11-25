@@ -1,0 +1,32 @@
+LOSS dbts_a1 A     fill        predicted 976 ms, median ×0.748 (5/12 in 0.75–1.33): MISSES below
+LOSS dbts_a1 A'    fill        predicted 976 ms, median ×0.748 (4/12 in 0.75–1.33): MISSES below
+LOSS dbts_a1 B     fill        predicted 11905 ms, median ×1.027 (9/12 in 0.75–1.33): MISSES in
+LOSS dbts_a1 C1    fill        predicted 976 ms, median ×0.731 (2/12 in 0.75–1.33): MISSES below
+LOSS dbts_a1 C1    latency     predicted 826 ms, median ×0.886 (11/12 in 0.6–1.67): HOLDS
+LOSS dbts_a1 C1    askLastByte predicted 791 ms, median ×0.864 (11/12 in 0.6–1.67): HOLDS
+LOSS dbts_a1 FIT   fill        predicted 11905 ms, median ×1.005 (10/12 in 0.75–1.33): HOLDS
+LOSS dbts_a1 FIT   zoom        predicted 17 ms, median ×0.040 (0/12 in 0.6–1.67): REPORTED, not judged
+LOSS dbts_a1 SPLIT fill        predicted 976 ms, median ×0.617 (2/12 in 0.75–1.33): MISSES below; x 0.00 (predicted 0.00)
+LOSS dbts_b1 A     fill        predicted 6099 ms, median ×0.342 (1/11 in 0.75–1.33): MISSES below; 1 VOID
+LOSS dbts_b1 A'    fill        predicted 6099 ms, median ×0.488 (2/12 in 0.75–1.33): MISSES below
+LOSS dbts_b1 B     fill        predicted 25502 ms, median ×0.962 (12/12 in 0.75–1.33): HOLDS
+LOSS dbts_b1 C1    fill        predicted 6099 ms, median ×0.481 (3/12 in 0.75–1.33): MISSES below
+LOSS dbts_b1 C1    latency     predicted 1286 ms, median ×0.930 (10/12 in 0.6–1.67): HOLDS
+LOSS dbts_b1 C1    askLastByte predicted 1226 ms, median ×0.883 (10/12 in 0.6–1.67): HOLDS
+LOSS dbts_b1 FIT   fill        predicted 5859 ms, median ×0.838 (4/11 in 0.75–1.33): MISSES in; 1 VOID
+LOSS dbts_b1 FIT   zoom        predicted 966 ms, median ×1.867 (4/11 in 0.6–1.67): MISSES above; 1 VOID
+LOSS dbts_b1 SPLIT fill        predicted 6099 ms, median ×0.337 (3/11 in 0.75–1.33): MISSES below; 1 VOID; x 0.00 (predicted 0.00)
+LOSS dbts_c1 A     fill        predicted 1084 ms, median ×0.675 (2/10 in 0.75–1.33): MISSES below; 2 VOID
+LOSS dbts_c1 A'    fill        predicted 1084 ms, median ×0.710 (2/11 in 0.75–1.33): MISSES below; 1 VOID
+LOSS dbts_c1 B     fill        predicted 10144 ms, median ×1.094 (10/12 in 0.75–1.33): HOLDS
+LOSS dbts_c1 C1    fill        predicted 1084 ms, median ×0.695 (2/11 in 0.75–1.33): MISSES below; 1 VOID
+LOSS dbts_c1 C1    latency     predicted 782 ms, median ×0.835 (10/11 in 0.6–1.67): HOLDS; 1 VOID
+LOSS dbts_c1 C1    askLastByte predicted 752 ms, median ×0.795 (10/11 in 0.6–1.67): HOLDS; 1 VOID
+LOSS dbts_c1 FIT   fill        predicted 10144 ms, median ×1.065 (8/12 in 0.75–1.33): MISSES in
+LOSS dbts_c1 FIT   zoom        predicted 17 ms, median ×0.042 (0/12 in 0.6–1.67): REPORTED, not judged
+LOSS dbts_c1 SPLIT fill        predicted 1084 ms, median ×0.613 (0/12 in 0.75–1.33): MISSES below; x 0.00 (predicted 0.00)
+the switch picked the view in every load
+A/A LOSS/dbts_a1: A′ ÷ A median ×1.010
+A/A LOSS/dbts_b1: A′ ÷ A median ×1.113
+A/A LOSS/dbts_c1: A′ ÷ A median ×1.002
+predictions xxh3 d126fac79a8b2145; A/A input lab/delivery/rows/run2/LOSS.aa.json: lab/scripts/aa_rule.py lab/delivery/rows/run2/LOSS.aa.json --bar 0.05

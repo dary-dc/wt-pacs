@@ -1,0 +1,3 @@
+LOSS/dbts_a1 {"n": 12, "arm": 1.0095, "aa": 1.0095, "sd": 0.0575, "mdl": 0.0951, "verdict": "not conclusive"}
+LOSS/dbts_b1 {"n": 11, "arm": 1.1133, "aa": 1.1133, "sd": 0.3053, "mdl": 0.6487, "verdict": "not conclusive"}
+LOSS/dbts_c1 {"n": 9, "arm": 1.0024, "aa": 1.0024, "sd": 0.1738, "mdl": 0.3843, "verdict": "not conclusive"}
