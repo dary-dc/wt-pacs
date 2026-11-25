@@ -1,6 +1,6 @@
 # Client
 
-Last verified 2026-11-24 (the exact frame without a request, sized; the next AV1 unit sent while the last is read back, DECODE-OVERLAP), 2026-11-23 (the engines' path fix; the memory a navigation leaves; the view's default memory bound, its second fix and its re-review; stale client code), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
+Last verified 2026-11-24 (the dial before the pair; the exact frame without a request, sized; the next AV1 unit sent while the last is read back, DECODE-OVERLAP), 2026-11-23 (the engines' path fix; the memory a navigation leaves; the view's default memory bound, its second fix and its re-review; stale client code), 2026-11-22 (the README's *Frames*; the asking model, its fix and re-review; series that are not stacks, theory only, its review, fix and re-review), 2026-11-21 (the OpenJPH bump, #425; the engine review, its fix and the re-review), 2026-11-20 (the engine smoke), 2026-11-19 (the engine matrix), 2026-11-18 (the reports' verdict review), 2026-11-15 (the reports' protocol) and 2026-11-14 against `claude/unified-client` `e5b20cba` and
 `claude/direction`'s line doc of 2026-11-12; the owner's decisions of 2026-11-14 to 16 folded 2026-11-17 from
 `claude/work-ledger:docs/queue-client-2026-11-14.md`.
 The product: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product. The design, its rules, decisions and open
@@ -42,6 +42,16 @@ exact frame bit for bit, and only checked claims on screen.
   window's frames held; a test each, mutated. Re-reviewed 2026-11-23 (PR 435 §Re-review 2): every
   finding closed or argued, no blocker open; three minors (a progress test with a cache, `viewer.js` untested, a step
   during the page view's fill now ends the fill's run as the worker view's does).
+* **The dial before the pair** (DIAL-BEFORE-PAIR, 2026-11-24, `claude/dial-before-pair`, PR 448, a draft into
+  `claude/unified`; IMPROVE-1's candidate 3, `claude/work-ledger:docs/queue/IMPROVE-1/candidates.md` §4): the session
+  dials while an optimal-quality series' pair is fetched and checked, and the decoder manifest is fetched beside the
+  metadata; no frame is painted or labelled before the check passes, in either view, and a refused pair closes the
+  session and paints nothing ([`../../client/README.md`](../../client/README.md) §Optimal quality, exact on request).
+  Tested by `client/view/controller.test.mjs` and `client/viewer/demo-check.mjs`'s held-pair passes, mutated; its
+  effect on the first picture (predicted −1 to −2 round trips, nothing at 10 ms) is DIAL-BEFORE-PAIR-MEASURE's, not
+  measured here. *Measured 2026-11-25* (DIAL-BEFORE-PAIR-MEASURE, `dbts_b1-q8-g8` cold through a relay, both views,
+  7 interleaved rounds with the A/A pair): −2.0 to −2.3 round trips at 100 and 400 ms, nothing at 10 ms; the manifest
+  still precedes the dial, fetched with the pair rather than beside the metadata (PR 448's §DIAL-BEFORE-PAIR-MEASURE m1).
 * **The unified branch** `claude/unified-client` (the client, optimal-quality and native lines): the demo tip with the
   cleaning and the renames merged; one `info.path` left in `lab/faultbench/index.html` (now `info.route`), a finding in
   #382. Reaches `main` through #367 then #250, on the owner's word ([`release.md`](release.md)).

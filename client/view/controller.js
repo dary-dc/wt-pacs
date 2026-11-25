@@ -69,9 +69,12 @@ export class Controller {
   #exact = null;
   #exactAsks = new Map();
   #cutShift;
+  /** Nothing is painted, so nothing labelled, before it settles: under an optimal-quality series, the pair's check. */
+  #paintAfter;
 
   /** `paint(frame, display, { read })` draws a held frame; `emit(type, event)` tells the page; `size` is the canvas's CSS size and DPR; `budget` in frames. */
-  constructor({ meta, fillMode, paint, emit, size, budget = memoryWindow(meta) }) {
+  constructor({ meta, fillMode, paint, emit, size, budget = memoryWindow(meta), paintAfter = null }) {
+    this.#paintAfter = paintAfter;
     this.#window = budget;
     this.store = new FrameStore({ arrived: (i, frame) => this.#arrived(i, frame), budget });
     this.store.painted = () => this.#painting;
@@ -129,6 +132,8 @@ export class Controller {
     if (this.#looping) return this.#painting;
     this.#looping = true;
     this.#painting = (async () => {
+      if (this.#paintAfter) await this.#paintAfter;
+      this.#paintAfter = null;
       while (this.#dirty) {
         this.#dirty = false;
         const i = this.current;

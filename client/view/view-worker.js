@@ -24,6 +24,8 @@ let checks;
 let cine = null;
 /** Resolves once the paint module holds its WebGL2 context: at `start`, or under the lab's `glAfterDial` once the dial has gone. */
 const gl = Promise.withResolvers();
+/** Resolved by the page once the pair's check has passed: the controller paints nothing before it. */
+const paired = Promise.withResolvers();
 /** Steps on each play and pause, so a play whose clock is still loading starts no cine once overtaken. */
 let cues = 0;
 
@@ -50,9 +52,9 @@ function paint(frame, display, { read = false } = {}) {
 }
 
 /** Under the viewer check, `lab.check` its module, every cache write on this thread is counted from the start. */
-function start({ canvas, meta, fillMode, size, lab = {} }) {
+function start({ canvas, meta, fillMode, size, paintAfterPair = false, lab = {} }) {
   boot.viewStart = now();
-  controller = new Controller({ meta, fillMode, paint, emit, size });
+  controller = new Controller({ meta, fillMode, paint, emit, size, paintAfter: paintAfterPair ? paired.promise : null });
   settle = lab.settle;
   checks = lab.check && import(lab.check);
   checks?.then((m) => m.watchWrites());
@@ -135,6 +137,7 @@ const INTENTS = {
   play,
   tick: ({ t, vsync }) => cine?.tick(t, vsync),
   pause,
+  paired: () => paired.resolve(),
   show: ({ i }) => controller.show(i),
   exact: () => controller.showExact(),
   optimal: () => controller.showOptimal(),

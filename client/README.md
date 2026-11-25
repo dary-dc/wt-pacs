@@ -94,7 +94,10 @@ own server. `viewer/pair.js` reads its metadata at `/series/<id>/metadata` and i
 exact series that is not HTJ2K, is not of the same source (another frame count, width, height, `bitsStored` or
 `signed`, or a `sourceFingerprint` missing from either or not the same, [`docs/av1/payload-format.md`](../docs/av1/payload-format.md) §Source fingerprint), is read otherwise (another `photometric`,
 `rescale` or `perFrame`), or has no XXH3-64 digest for each frame, since a frame without one could
-then not be called lossless: a digest proves a frame is its own series', not that the series is this one's source. A
+then not be called lossless: a digest proves a frame is its own series', not that the series is this one's source.
+The pair is fetched and checked while the optimal-quality series dials: its frames may arrive first, but none is painted
+or labelled before the check passes (`Controller`'s `paintAfter`, in either view); a refused pair is said by name, the
+session closed, and nothing painted (*corrected 2026-11-24*: the refusal came before anything dialled). A
 second downloader, one decoder and no fill, dials it once the optimal-quality series is connected, in either view. The
 **lossless** button, or `l`, asks the controller for the current frame exact: frame *i* of the exact series is asked, held beside the frame store (never in it, never cached, nothing else asked or evicted), and
 painted in place of the optimal-quality frame once its digest matched; it stays until the reader steps off the frame or
@@ -198,7 +201,7 @@ series of a pair, under the default view (`?view=page`, no URL flags):
                               ── /series/<exactSeries>/metadata  /wt/<exactSeries>/dev-transport.json  (its exact series)
         │
  viewer/head.js            fetches the metadata and transport file, preloads the codec's code
- viewer/viewer.js          pair.js: pairOf + checkPair, or refused by name before anything dials
+ viewer/viewer.js          pair.js: pairOf + checkPair while the first dials; nothing painted before it passes
         │                                            │
         ▼ optimal-quality series (AV1)               ▼ exact series (HTJ2K), dialled once the first is connected
  transport/consumer.js     DownloaderClient          DownloaderClient: no fill, one decoder
@@ -500,7 +503,10 @@ it on a series: the root [`README.md`](../README.md) §The viewer on a DICOM ser
   has digests. The page preloads the TS client, `"ts"`, which a
   `/wt/dev-transport.json` without `client` means; the script reads that file, also preloaded, and preloads the WASM
   client's files when it names `"wasm"`, any other name refused by name ([`docs/CLIENTS.md`](../docs/CLIENTS.md) §Choosing the client). The module dials at once, with the whole series as the opening fill, while the
-  painter starts in parallel.
+  painter starts in parallel. The decoder manifest (`decode/wasm-glue.js`, one fetch a page) is fetched beside the
+  metadata, since the downloader's `start`, which the dial follows, carries the decoder; an optimal-quality series'
+  pair is fetched and checked while the session dials (*built 2026-11-24*, DIAL-BEFORE-PAIR; before it the dial waited
+  for the pair's two fetches and then the manifest, one round trip each).
 * **Frames.** Frames are kept in memory by index. There is no cache by default. *Corrected 2026-11-14:* this bullet
   said each frame checked `true` is also written to OPFS by a store worker (`view/store-worker.js`); no product module
   loads that worker (`viewer/viewer.js`: `writer = lab.writer`), so it is written only under the lab's `?writer=`
