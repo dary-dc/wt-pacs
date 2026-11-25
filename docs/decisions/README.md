@@ -541,7 +541,7 @@ paths. Each line checked against the source the review quotes, read again at tha
   is met and PR 417 is merged, so its yes now records a merge done.
 * **B2 closed.** `pcs-note` §4 and the draft: no measurement on a lossless-sourced breast clip; two sound sweeps
   (G 16 +23.0, +22.7 %) and two lossy-sourced clips (+8.3, +72.2 %) measured (`us-dbt-carry` §3, §4.1, from
-  `docs/av1/groups.md`; the review's "three lossy-sourced" counted `usb_cine_rgb`, which has no G cell). Item 1's yes
+  `docs/av1/groups.md`; `usb_cine_rgb` has no G cell). Item 1's yes
   names the draft's change. The same false clause in `ingest-optimal-quality`'s §9 note corrected with it.
 * **B3 closed.** `transport-stack` §4's limitation and :128 read TRANSPORT-FLAGS-RUN (TW ×0.993, ×1.037, ×1.000;
   unverdicted until PAGE-RUNS-VERDICT), the profile table's two "untested" cells too; a dated *For the owner and
