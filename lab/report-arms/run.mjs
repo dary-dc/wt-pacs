@@ -297,6 +297,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(spawnSync("unshare", ["-rn", "env", "REPORT_ARMS_NS=1", process.execPath, ...process.argv.slice(1)], { stdio: "inherit" }).status ?? 1);
   }
   cdp = { chromium, firefox }[o.engine];
+  // A Firefox that dies mid-load closes its socket under calls some step had dropped; the row records the error.
+  process.on("unhandledRejection", (e) => {
+    if (e?.message !== "BiDi socket closed") throw e;
+    console.error("dropped call after the BiDi socket closed");
+  });
   const at = await place(o.tun);
   const units = o.units.split(",");
   const out = join(WORK, `sink-${Date.now()}`);
