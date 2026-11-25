@@ -1,6 +1,6 @@
 # WINDOW-WHOLE-GROUPS-MEASURE: findings on PR 446
 
-Written here because editing PR 446's body was refused to this session (2026-11-25 06:2x UTC); the fix session copies this to the body if it can.
+Written here because editing PR 446's body was refused to this session (2026-11-25 06:11 UTC); the fix session copies this to the body if it can.
 
 Row **WINDOW-WHOLE-GROUPS-MEASURE** of `claude/work-ledger:docs/queue-2026-11-24.md`, 2026-11-25 06:06–06:20 UTC, by a session that wrote none of `candidates.md`, this PR or its build. Read: this PR at `e8a52cfe4` against `claude/unified` `b059388b6` (unmoved since the build), `candidates.md` §2, the row's brief. Run: the two test files, the mutants by hand, and two counting scripts built from `window.test.mjs`'s own harness (`claude/work-ledger:docs/queue/WINDOW-WHOLE-GROUPS-MEASURE/`, with every row). Not run: the gate (no code changed here), and the timed cells (below).
 

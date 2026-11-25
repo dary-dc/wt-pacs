@@ -26,6 +26,10 @@ so the staging merge would mark it merged): PHASE2-PLAN-FIX-2 moves the round's 
 2026-11-24: IMPROVE-1: `docs/queue/IMPROVE-1/candidates.md`, nine candidates ranked; three build rows and their measuring
 rows appended (WINDOW-WHOLE-GROUPS, DECODE-OVERLAP, DIAL-BEFORE-PAIR). A model finds the 15-frame window re-fetching
 8-frame groups on every step of `dbts_b1` (398 frames for 50); not run in the product. Its review is IMPROVE-1-REVIEW.
+2026-11-25: WINDOW-WHOLE-GROUPS-MEASURE: PR 446's passes measured (frames, stand-in wire: 268 → 34 forward on `dbts_b1`'s
+shape); B1, the want's neighbour group flips mid-group, so rocking 19|20 still fetches a group a step (48 frames, the
+tip's); the timed cells wait. WINDOW-WHOLE-GROUPS-FIX, -FIX-REVIEW, -MEASURE-2 appended; findings in
+`docs/queue/WINDOW-WHOLE-GROUPS-MEASURE/findings.md` (PR 446's body edit refused).
 
 **The routines** (claude.ai routines; their prompts switch from the program to phase 2 on 11-24 00:00 and close
 after 11-27 23:59): queue workers (Opus) A `trig_01Y6vNmyv6K54Uqcs8RXV1Gu` at :45, B `trig_014L1Sgp7h8TW8qnzWMZ1HEQ`
