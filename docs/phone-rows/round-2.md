@@ -334,3 +334,39 @@ only on PR 446's branch and the merged case is the only one that needs it.
 * **Limits**: nothing run in a browser by this row; the rule's fills are PR 446's code run on metadata, and "every
   load ok" under it is owed by whoever runs the merged case. Fixtures: `dbts_b1`'s metadata (50 × 2560 × 3328, 10
   bits, G = 8; no pixels read) and the synthetic 10-bit pair's (20 frames, G = 8).
+
+## Re-review 2 (PHONE-ROUND-2-PREP-FIX-2-REVIEW, 2026-11-25)
+
+By a session that wrote none of this file, its harness, its review, its fix, its re-review or its fix 2 (`by:` in its
+status file), 02:48–03:05 UTC; taken 18 minutes after the fix's last push (step 4 asks 20), nothing moved on this
+branch since. Read: fix 2's commit `add845288` (`git diff 73a6105d8 add845288`: this file and `docs/lines/devices.md`
+only, every hunk under R-B1 or r-n1); PR 446's `wantFrom` and `nearestGroups` at `e8a52cfe4`; `round_plan.mjs`'s
+`memoryCell` and `round-page.js`'s `viewSequence` on this branch. Run, in one 4-core cloud container, headless
+Chromium, no GPU, fake `adb`, no phone: a scratch tree, this branch at `add845288` merged `--no-ff` with `e8a52cfe4`
+(no conflict; local, not pushed), `round-page.js`'s `held` set by §1's rule as written, and §Review's variant at cell M
+budgets 6 and 19 of the synthetic pair's 20 frames, its checks comparing `window` with `received` (r-n1). Logs, the
+scratch diff and the script: `claude/work-ledger:docs/queue/PHONE-ROUND-2-PREP-FIX-2-REVIEW/`. Gate not run (docs).
+
+* **R-B1: open in part (blocker).** The fill half is closed: with `held` from PR 446's want, every cell M load records
+  `window` = `received` and fills to it ("each cell M load fills to its window: worker 6:16, worker 19:16, page 19:16,
+  page 6:16, …", *measured*), the re-review's "received 16 of 19" gone. But the same loads still fail, one check later:
+  "cell M: 4 of 8 loads ok; 5 worker 19: 16 frames: cell 3's 9 steps idle and busy need 19; 6 page 19: …; 9 worker 19:
+  …; 10 page 19: …" (*measured*). A load's steps come from `round_plan.mjs`'s `memoryCell`, `Math.floor((min(n, budget)
+  - 1) / 2)`, the budget, while `viewSequence` needs 2·steps + 1 of the frames held. On `dbts_b1-q8-g8` (*derived*, the
+  plan's own `memoryCell` and PR 446's `wantFrom` on its metadata): the *w* arms take 7 steps, need 15, hold 16, ok;
+  the 2*w* arms take 14 steps, need 29, hold 24, so **every 2*w* load fails, 4 of cell M's 8**, the outcome R-B1 was
+  to prevent. §1's "every load ok in both" cannot hold as §1 is written. Fix: in the merged case cell M's steps come
+  from the same held frames, `Math.floor((held - 1) / 2)` with `held` as §1 now gives it (`memoryCell` given the group,
+  or the round page clamping), 11 steps on the 2*w* arms; or the 2*w* arms argued out. The **else** case (PR 446 not
+  merged) is unaffected: there `held` = 30 and 29 frames fit.
+* **r-n1: closed.** §1's variant compares `window` with `received`; so does this run, and that check passes.
+* **r2-n1 (nit).** §1's and §Fix 2's "whole groups, *G* · max(2, ⌊*W*/*G*⌋)" holds only for *W* < *n*: at *W* ≥ *n*
+  `wantFrom` takes the whole series (the pair at budget 20: 20, not 16; fix 2's own `held.txt`). The rule §1 builds,
+  `wantFrom(…).length`, is right; the formula beside it needs "for a window under the series".
+
+**Verdict.** One blocker still open after two rounds (R-B1's step half): the row is `blocked` for the owner, and
+PHONE-ROUND-2 with it in the merged case. It binds only if a sync row merges PR 446 before the round; a one-line change
+(cell M's steps from the held frames) and the variant's re-run close it. Fixtures and limits: the synthetic 10-bit
+pair only (64 × 48, 20 frames, Q 8 G 8), loaded; `dbts_b1-q8-g8`'s steps and fills derived from the plan's and PR 446's
+code on its metadata, not loaded; PR 446 merged on a scratch tree only; the decoders' WASM not rebuilt (Docker Hub
+answered 429), the committed builds served; a fake `adb`, headless Chromium in one container, no phone, no radio.

@@ -137,6 +137,10 @@ Fixed 2026-11-25 (PHONE-ROUND-2-PREP-FIX-2, round-2.md §Fix 2): §1's merged ca
 (`wantFrom(0, n, true, true, asked, g).length`, whole groups: 16 and 24 on `dbts_b1-q8-g8`, *derived*), and its dry run
 adds §Review's variant at budgets 6 and 19 of 20, comparing `window` with `received`. Docs only.
 PHONE-ROUND-2-PREP-FIX-2-REVIEW next; the round waits on it.
+Re-reviewed 2026-11-25 (PHONE-ROUND-2-PREP-FIX-2-REVIEW, round-2.md §Re-review 2): R-B1 open in part, `blocked` for
+the owner. With PR 446 merged, the fill now matches `held` (*measured*, scratch merge), but cell M's steps still come
+from the budget (`memoryCell`), so the 2*w* arms take 14 steps on 24 held frames and fail `viewSequence` (*derived* on
+`dbts_b1-q8-g8`; *measured* on the pair at budget 19). Fix: steps from the held frames. Unmerged case unaffected.
 
 ## Rules for a device run
 
