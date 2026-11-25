@@ -1,0 +1,7 @@
+memoryWindow dbts_b1 15
+w=15 start 0: fill 16; fix's held max(W,2G)=16; store budget 16
+w=15 start 25: fill 16; fix's held max(W,2G)=16; store budget 16
+w=15 start 49: fill 10; fix's held max(W,2G)=16; store budget 16
+2w=30 start 0: fill 24; fix's held max(W,2G)=30; store budget 30
+2w=30 start 25: fill 24; fix's held max(W,2G)=30; store budget 30
+2w=30 start 49: fill 18; fix's held max(W,2G)=30; store budget 30

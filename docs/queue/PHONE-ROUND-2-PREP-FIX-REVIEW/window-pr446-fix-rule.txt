@@ -1,0 +1,16 @@
+ok: one press runs the round's 12 loads to the end
+ok: cell 3: 4 of 4 loads ok
+FAIL: cell M: 4 of 8 loads ok; 5 worker 19: received 16 of 19; 6 page 19: received 16 of 19; 9 worker 19: received 16 of 19; 10 page 19: received 16 of 19
+ok: each cell 1 arm benches its codec on its decoder count
+ok: arm B fills the exact series alone
+ok: arms A, C1 and C2 fill the view
+ok: each C2 load fills the whole exact series, every frame exact
+ok: each C1 press reaches the exact frame
+ok: a relaunch after loads 0,1,2,3 (each before a load not on the same renderer), got 0,1,2,3
+FAIL: each load records its window, budget and MAX_TEXTURE_SIZE
+FAIL: each load runs its steps and cine, idle and busy, at its size
+FAIL: each cell M load fills to its window: worker 6:16,worker 19:16,page 19:16,page 6:16,worker 6:16,worker 19:16,page 19:16,page 6:16
+ok: every load's last batch posted
+ok: each load records one first picture, ms from its navigation
+ok: cell 3's worker loads, and only they, carry the start's fix
+round plan headless: 4 FAILED

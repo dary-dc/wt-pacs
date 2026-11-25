@@ -1,0 +1,15 @@
+diff --git a/lab/devices/round-page.js b/lab/devices/round-page.js
+index c2ebd2f62..17c76ea85 100644
+--- a/lab/devices/round-page.js
++++ b/lab/devices/round-page.js
+@@ -52,7 +52,9 @@ export function roundHooks(q) {
+         const quality = document.getElementById("quality");
+         const lossless = document.getElementById("lossless");
+         const meta = await globalThis.viewerMetadata;
+-        const held = Math.min(meta.frameCount, q.has("budget") ? Number(q.get("budget")) : memoryWindow(meta));
++        const asked = q.has("budget") ? Number(q.get("budget")) : memoryWindow(meta);
++        const g = meta.lossy?.g > 1 ? meta.lossy.g : 1;
++        const held = Math.min(meta.frameCount, g > 1 ? Math.max(asked, 2 * g) : asked);
+         recorder.record("memory", { budget: q.has("budget") ? Number(q.get("budget")) : null, window: held, received: ledger.frames?.length ?? 0, deviceMemory: navigator.deviceMemory ?? null, maxTextureSize: maxTextureSize() });
+         failure = fillFailure(ledger, held);
+         if (!failure && q.get("exactFill") === "1") {
