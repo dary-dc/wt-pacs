@@ -147,7 +147,7 @@ in its status file). §Timed cells B1 on `claude/window-whole-groups`.
 
 * **Which fix holds.** r-m2's wider margin cannot: with two groups (W = 15, G = 8) a margin *M* on the wanted group moves
   the backward switch later, not earlier (*derived*: the group behind wins at position *p* of a group only when
-  *p* + 1 − *M* < 7 − *p*, so its lead is at most 3 − *M*/2). So the brief's own words: the neighbour the reader is moving toward.
+  *p* + 1 < 8 − *p* − *M*, so its lead is 3 at *M* = 1 and shrinks as *M* grows; G − 1 = 7 needs *p* = 6). So the brief's own words: the neighbour the reader is moving toward.
 * **The failing test first (`d0b7adeb8`).** `window.test.mjs`, "a backward pass wants the group behind G − 1 steps ahead of
   its last frame": after a forward pass, a backward pass at W = 15, G = 8 over 50 frames; each group's last frame must
   cross the wire at least G − 1 steps before it is shown. On `0e273ee92`'s code: "frame 7, its group's last, on the wire
