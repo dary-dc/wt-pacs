@@ -181,3 +181,58 @@ opened. The cost of a reversal is derived, not timed. Rocks two frames wide (r-m
 
 *How it serves the value statement:* "low latency on every jump" on the commonest reversal, a backward pass, with the forward
 lead doubled; a reader turning back early in a group is the price, timed next.
+
+## Re-review 2
+
+WINDOW-WHOLE-GROUPS-FIX-2-REVIEW, 2026-11-25 11:08–11:45 UTC, by a session that wrote none of PR 446, its measures, fixes
+or reviews (`by:` in its status file). Read: `0e273ee92..94d447835` (`git diff --stat`: `client/view/controller.js`,
+`client/view/window.test.mjs`, `docs/client/evidence/what-a-view-asks-for.md`, `docs/lines/client.md`; nothing else);
+PR 446's body at 11:30; §Timed cells and §FIX-2 above. Run (node 22.23.5, a 4-core cloud container): both test files on
+`94d447835`; the new test with `0e273ee92`'s `controller.js`; five mutants of this review's own; `toward.mjs` on both
+commits; `reach.mjs` and `reach-repeat.mjs` (here); `scripts/comment_budget.sh`, `scripts/check_links.py`. Not run: the
+gate (FIX-2's full gate at `94d447835`, GATE OK in 937 s, stands; this review changed no code).
+
+* **§Timed cells B1: closed (in the count; its time is MEASURE-3's).** *Measured:* `window.test.mjs` 4/4 in 58 s and
+  `controller.test.mjs` 47/47 on `94d447835`; with `0e273ee92`'s `controller.js` the new test fails, "frame 7, its group's
+  last, on the wire 3 steps before it is reached". The test is not vacuous: with a probe, all five group ends it checks (7,
+  15, 23, 31, 39) cross the wire during the backward pass, each exactly 7 steps ahead. *Derived, recomputed:* `toward.mjs`
+  reproduces §FIX-2's table on both commits, every cell. The fix is the brief's first option ("the neighbour group by the
+  direction of travel"); FIX-2's argument that r-m2's margin cannot give the lead holds (at W = 15, *M* moves the switch later).
+* **The invariant the types do not enforce, checked.** With a bonus of `g` a neighbour could in principle outrank the
+  frame's own group (unreachable sets give it: c = 15, toward −1, wanted {0, 2, 3, 4}). *Measured* over every state the rule
+  reaches from frame 0 (`reach.mjs`; one- and two-frame steps, and separately every jump; n/G/W 50/8/15, 50/8/24, 69/8/54,
+  50/16/40, 64/8/15, 20/8/15; 75–271 states each): the current frame is first in the want in every reached state, and
+  recomputing the want three times at a state (the page view's `#have()` calls `want()` again) never changes it.
+* **Mutants of this review** (each on a copy of `client/`, both test files): MF, a rock keeps the last direction
+  (`: 0` → `: this.#toward`), is caught by the sawtooth test (23|24, 48 frames). Survivors, each argued: MA, the
+  `toward !== 0 &&` guard dropped, is equivalent (with toward 0 the bonus lands on the frame's own group, which is always
+  held: r2-n1); MB, the sign without the modulo, differs only at a wrap, which no test steps (r2-n2); MC, `#fillSize` without
+  `toward`, differs only when a partial last group is chosen, so the fill's progress count, which no test reads there
+  (r2-n3); ME, a bonus of G − 1, passes, since the backward lead is 7 under either (below), and halves only the forward lead's
+  last step, which no test asserts (r2-n3).
+* **r2-n1 (nit, simplification).** `nearestGroups`'s `toward !== 0 &&` is redundant (MA): `ahead` is the own group when
+  `toward` is 0. Dropping it is one term less; keeping it reads as "no direction, no bonus". Either.
+* **r2-n2 (nit).** At a cine loop's wrap (49 → 0) the step's sign is −1, so `toward` is 0 for two steps after it. *Derived:*
+  harmless (at frame 0 the nearer neighbour is group 1, the direction anyway), and the window was never circular, so group 0
+  is not prefetched before the wrap, as on `0e273ee92`. Not this PR's to change.
+* **r2-n3 (nit, docs).** "So it is wanted on entering a group" (PR body §The change, `what-a-view-asks-for.md`) holds
+  forward only. *Derived* (`wantFrom`, W = 15, G = 8): backward, entering group 3 at 31 the want stays {3, 4} (a tie between
+  groups 2 and 4, to the later); group 2 joins at 30, one step in, hence the lead of G − 1, not G. The test's threshold is
+  G − 1, which is why ME survives. One clause in each place ("forward on entering, backward one frame in") or the tie broken
+  toward `toward` (lead G); not a blocker, the brief asks G − 1.
+* **The cost is stated** in the PR body (§What it costs: the forward lead doubled, a reader turning back *p* ≤ 3 frames
+  into a group), as the brief asks; memory unchanged (two groups).
+
+`scripts/comment_budget.sh` ok; `scripts/check_links.py` 0 unresolved (428 files) on `94d447835`.
+
+**Verdict.** No blocker open. WINDOW-WHOLE-GROUPS-MEASURE-3 may run (`steps.mjs`'s cells on `94d447835` against the tip);
+r2-n1 to r2-n3 are nits any later session on the branch may take. A sync row merges PR 446 only after MEASURE-3 finds it a
+non-regressor (its brief); PR 446 is `dirty` against `claude/unified` in `docs/lines/client.md`, for that sync row.
+
+Fixtures and limits: synthetic 1×1 frames in series of 20 to 69, G = 8 and 16, `window.test.mjs`'s stand-in transport and
+decoders, each miss delivered before the next step; `toward.mjs` and `reach.mjs` run `wantFrom` alone, fed the controller's
+rule, without the store or the downloader. Frames and steps counted; no time, no bytes on a link, no browser; no DBT volume
+or ultrasound clip opened. Whether 7 steps cover a group's wire and decode at 4× is MEASURE-3's, not claimed here.
+
+*How it serves the value statement:* the backward pass, the commonest reversal, keeps "low latency on every jump" in the
+count with the one-frame rock still free on the wire; its time is the next row's.
