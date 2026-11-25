@@ -1,0 +1,3 @@
+PUB/dbts_a1 {"n": 11, "arm": 0.9576, "aa": 0.9576, "sd": 0.0342, "mdl": 0.0603, "verdict": "not conclusive"}
+PUB/dbts_b1 {"n": 9, "arm": 1.0174, "aa": 1.0174, "sd": 0.0467, "mdl": 0.0919, "verdict": "not conclusive"}
+PUB/dbts_c1 {"n": 11, "arm": 0.9705, "aa": 0.9705, "sd": 0.0162, "mdl": 0.0287, "verdict": "tie"}

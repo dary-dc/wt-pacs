@@ -1,0 +1,32 @@
+PUB dbts_a1 A     fill        predicted 1937 ms, median ×0.940 (12/12 in 0.85–1.15): HOLDS
+PUB dbts_a1 A'    fill        predicted 1937 ms, median ×0.904 (10/11 in 0.85–1.15): HOLDS; 1 VOID
+PUB dbts_a1 B     fill        predicted 6399 ms, median ×1.000 (10/10 in 0.85–1.15): HOLDS; 2 VOID
+PUB dbts_a1 C1    fill        predicted 1937 ms, median ×0.934 (12/12 in 0.85–1.15): HOLDS
+PUB dbts_a1 C1    latency     predicted 236 ms, median ×1.167 (12/12 in 0.75–1.33): HOLDS
+PUB dbts_a1 C1    askLastByte predicted 202 ms, median ×1.118 (12/12 in 0.75–1.33): HOLDS
+PUB dbts_a1 FIT   fill        predicted 6399 ms, median ×1.000 (11/11 in 0.85–1.15): HOLDS; 1 VOID
+PUB dbts_a1 FIT   zoom        predicted 17 ms, median ×0.042 (0/11 in 0.75–1.33): REPORTED, not judged; 1 VOID
+PUB dbts_a1 SPLIT fill        predicted 1738 ms, median ×1.223 (0/11 in 0.85–1.15): MISSES above; 1 VOID; x 0.14 (predicted 0.16)
+PUB dbts_b1 A     fill        predicted 6283 ms, median ×0.975 (10/10 in 0.85–1.15): HOLDS; 2 VOID
+PUB dbts_b1 A'    fill        predicted 6283 ms, median ×0.989 (11/11 in 0.85–1.15): HOLDS; 1 VOID
+PUB dbts_b1 B     fill        predicted 10077 ms, median ×1.000 (11/11 in 0.85–1.15): HOLDS; 1 VOID
+PUB dbts_b1 C1    fill        predicted 6283 ms, median ×0.962 (9/9 in 0.85–1.15): CANNOT HOLD: 9 counted, median in; 3 VOID
+PUB dbts_b1 C1    latency     predicted 341 ms, median ×1.279 (9/9 in 0.75–1.33): CANNOT HOLD: 9 counted, median in; 3 VOID
+PUB dbts_b1 C1    askLastByte predicted 280 ms, median ×1.139 (9/9 in 0.75–1.33): CANNOT HOLD: 9 counted, median in; 3 VOID
+PUB dbts_b1 FIT   fill        predicted 2843 ms, median ×1.190 (0/12 in 0.85–1.15): MISSES above
+PUB dbts_b1 FIT   zoom        predicted 222 ms, median ×1.288 (10/12 in 0.75–1.33): HOLDS
+PUB dbts_b1 SPLIT fill        predicted 4968 ms, median ×1.166 (4/10 in 0.85–1.15): MISSES above; 2 VOID; x 0.29 (predicted 0.28)
+PUB dbts_c1 A     fill        predicted 2320 ms, median ×1.061 (11/11 in 0.85–1.15): HOLDS; 1 VOID
+PUB dbts_c1 A'    fill        predicted 2320 ms, median ×1.026 (12/12 in 0.85–1.15): HOLDS
+PUB dbts_c1 B     fill        predicted 6661 ms, median ×0.999 (10/10 in 0.85–1.15): HOLDS; 2 VOID
+PUB dbts_c1 C1    fill        predicted 2320 ms, median ×1.019 (11/11 in 0.85–1.15): HOLDS; 1 VOID
+PUB dbts_c1 C1    latency     predicted 217 ms, median ×1.255 (11/11 in 0.75–1.33): HOLDS; 1 VOID
+PUB dbts_c1 C1    askLastByte predicted 187 ms, median ×1.169 (11/11 in 0.75–1.33): HOLDS; 1 VOID
+PUB dbts_c1 FIT   fill        predicted 6661 ms, median ×1.000 (10/10 in 0.85–1.15): HOLDS; 2 VOID
+PUB dbts_c1 FIT   zoom        predicted 17 ms, median ×0.039 (0/10 in 0.75–1.33): REPORTED, not judged; 2 VOID
+PUB dbts_c1 SPLIT fill        predicted 2021 ms, median ×1.355 (0/11 in 0.85–1.15): MISSES above; 1 VOID; x 0.33 (predicted 0.19)
+the switch picked the view in every load
+A/A PUB/dbts_a1: A′ ÷ A median ×0.958
+A/A PUB/dbts_b1: A′ ÷ A median ×1.017
+A/A PUB/dbts_c1: A′ ÷ A median ×0.970
+predictions xxh3 d126fac79a8b2145; A/A input lab/delivery/rows/run2/PUB.aa.json: lab/scripts/aa_rule.py lab/delivery/rows/run2/PUB.aa.json --bar 0.05
