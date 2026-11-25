@@ -286,3 +286,37 @@ yes, which waited on this review, waits on nothing here.
 
 **Verdict.** One blocker (B1), four minor. US-DBT-CARRY-FIX and US-DBT-CARRY-FIX-REVIEW appended to
 `claude/work-ledger:docs/queue-2026-11-24.md`; BRIEF-WEEKEND's `us-dbt-carry` line waits on the re-review.
+
+## Fix
+
+US-DBT-CARRY-FIX, 2026-11-25 13:27–13:30 UTC, by a session that wrote neither the page nor its review (`by:` in
+`claude/work-ledger:docs/queue/US-DBT-CARRY-FIX.md`). Read: §Review; at `origin/claude/unified` `b7cc007f7`,
+`docs/av1/preview-noise.md` §2.1, `docs/av1/noise-point.md` §1 and §4, `lab/av1/metrics/rows/curves.tsv`,
+`lab/av1/profiles/results/lossless.jsonl`, `docs/FIXTURES.md`'s set table, `docs/transport/link-profiles.md` rows 76
+and 177; `phone-decode-route.md`, `visually-lossless.md` §3–§4 on this branch. Nothing run but `git` reads, one fetch
+of S1 (its sha256 equals §8's pin) and arithmetic. Each finding, in place:
+
+* **B1: fixed.** §2's lead, §4.1 row 4 and §4.3's `visually-lossless` row state the property as `preview-noise.md`
+  §2.1 does, quoted: σ near one 8-bit code step (1.65 codes), so the band "holds as much structure as noise",
+  **measured** on the two sound sweeps, shared by `mr9_ispy2` (1.60), so not shown to be ultrasound's. B–G now read
+  **not shown to hold**, with why: B's rule picks a rung too high on `ustrus_2` and no Q on lossy-sourced input
+  (`noise-point.md`); B, C, D and F are stated on the stored form's σ (`visually-lossless` §4: "x is defined on the
+  stored form's σ"), which here is about one code step; E and G are unknown on DBT too. This now agrees with
+  `visually-lossless` §4's own "not yet known for B–G". §5 and §4's limitation on the band follow; the old
+  limitation ("that readers read the fine band's texture is theory") is replaced, its claim withdrawn.
+* **m1: fixed.** The lead labels the decode **derived on theory**, "if a small frame's decode scales by pixels".
+  §4.1's decode row names 18.9 and 40.4 ms as the exact frame's (effective; one decoder), gives three samples
+  1.7–3.7 ms and the view's 42.1 ms as 1.3 ms at 512² (**derived**: × 0.262 ÷ 8.52 Mpx), and "the round's phone".
+* **m2: fixed.** §4.2 gains the six-octet reading of record (no ultrasound frame in that run, so no number carries)
+  and "nothing reaches `main` uncleaned" (holds; none of the modality's).
+* **m3: fixed.** The *moot* row names `PALETTE COLOR` (8 or 16 bits, a palette index, not a sample depth; the
+  product ingest refuses it); §8's S1 quote of Table C.8-20 is completed, checked against the fetch. The *moot*
+  verdicts stand.
+* **m4: fixed.** "Most field clips" (item 2, §4.3) reads "most of the archive's clips read"; the lead and §5 say
+  "in the archive read".
+* **Nits: fixed.** `dbts_a1` reads 0.069 as shipped (`top10`, 4 655 594 B, `curves.tsv`), so §4.1 row 1 is
+  0.069–0.219 and 4.6–14.5×; §3 keeps 0.074 for `12bit` beside it. The link paragraph cites row 76's "one TCP
+  stream, any access". DBT's 2.22–4.96 recomputed over the 19 volumes (`lossless.jsonl` HTJ2K means against
+  `FIXTURES.md`'s frame sizes and bits stored: `dbts_a4` 2.22 to `dbts_b1` 4.96): holds.
+
+`scripts/check_links.py`: 17 unresolved before and after (0 new). The yes waits on US-DBT-CARRY-FIX-REVIEW.
