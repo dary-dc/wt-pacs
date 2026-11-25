@@ -499,6 +499,65 @@ schedstat rows.
 * **m4: fixed.** **m5: fixed**: one range, 5.3–7.0 ms a MB, with its split per volume.
 * **n1: fixed.** **n2: fixed**, in *Not recorded*: 77 rows, −34 to −168 µs (the review's −83 is not the minimum).
 
+## Verdict re-review
+
+SESSION-COST-VERDICT-FIX-REVIEW, 2026-11-25 09:50–10:20 UTC, by a session that wrote none of this file, its run, its
+verdict review or its fix (`by: wJ8nwiav` in `claude/work-ledger:docs/queue/SESSION-COST-VERDICT-FIX-REVIEW.md`).
+Read: §Results and §Verdict fix at `7baa78b6a` (`git diff 9b918f790 7baa78b6a`), `claude/work-ledger:docs/queue/SESSION-COST-RUN.md`'s
+Result. Recomputed, *measured*, by a script of my own (not `session-summary.mjs`) over `claude/session-cost-rig`
+`8dcc345f5`'s four counted row files: 149 rows, 147 counted; per cell the median server → client UDP bytes and packets
+of the series servers' flows, the relay's `down.overflowed`, both servers' schedstat sum, each session's peak RSS over
+its before-the-load value, and every negative `cpuNs`.
+
+* **B1: closed.** *Lowest*, *How it serves the value statement* and the status file's Result each scope the CPU claim
+  to CLEAN and name CR's `dbts_a1` A as not met with no HTTP/2 rate on CR. CR `dbts_a1` A: 0.0603 s for 4.829 MB,
+  12.48 ms a wire MB, ×14.86 of 0.84, against B ÷ A 70.35 ÷ 4.83 = ×14.57: not met, as written (r-n1 for the rounding).
+* **m1: closed.** Every overflow share and bound in the bullet reproduces to the stated digit (CLEAN `dbts_a1` A
+  15.1 %, ≤ 0.73 MB … `usb_cine` 13.0 %, ≤ 0.67; CR ≤ 0.2 % by median); CR overflowed in 7 of 48 sessions (4, 11, 17,
+  117, 277, 469, 1 800 packets; A+C1 3, B 4, all `dbts_b1`), as the fix says against the review's 3; `down.lost` is 0
+  in every counted row, so the overflow is the only egress the flows miss. The guard inference is withdrawn.
+* **m2: open, R-B1 below.** The reading used is stated and both are given; one of the six verdicts is wrong.
+* **m3: closed.** Per session: exact series 10.09–12.12 MB, `dbts_b1` FIT/15 9.27–10.78, the view 5.06–8.74; both
+  explanations *not checked*.
+* **m4: closed.** **m5: open, r-m1 below.** **n1: closed.** **n2: closed** (75 counted rows and 77 in all, −33.4 to
+  −167.6 µs; r-n2).
+
+**Blocker.**
+
+* **R-B1. A miss is reported as held.** The CPU-on-CR bullet says "`dbts_a1` A ×1.75 held by both". On the reading
+  used (×1.05–1.7 of the cell's CLEAN median, `session-summary.mjs`'s `CR_CPU`) it misses: 0.0603 ÷ 0.0345 = ×1.748,
+  over 1.7, and the table's own row reads 0.060 (0.036–0.059) MISS cpu. It holds only per form (view ×1.35–1.8). A
+  cell's verdict against its prediction is the thing this section exists to record (§7; phase 2's measurement rule,
+  misses included), and the corrected bullet now contradicts the table. Fix: "`dbts_a1` A ×1.75 missed on the reading
+  used, held per form"; the rest of the bullet stands (A+C1 ×1.85, B ×1.02, FIT ×1.07, `dbts_c1` B ×1.00, FIT ×1.02
+  each reproduce, with their verdicts).
+
+**Minor.**
+
+* **r-m1. m5's one range is wrong at its top.** The fix changed "5.3–7.1" to "5.3–7.0", "6.5–7.1" to "6.5–7.0" and
+  "×6.3–8.5", "×8.5" to "×6.3–8.4", "×8.4". The rows give CLEAN `dbts_a1` A 0.03448 s for 4.8293 MB, **7.14 ms a MB,
+  ×8.50** (A+C1 7.04, `dbts_c1` 6.51–6.74, `dbts_b1` 5.29–5.46): the review's 7.1 and ×8.5 were right, and the 7.0
+  looks taken from the rounded 0.034 s. No conclusion moves (×14.6 against ×8.5 still clears). Fix: 5.3–7.1, 6.5–7.1,
+  ×6.3–8.5, ×8.5, in the two bullets and §Verdict fix.
+
+**Nits.** r-n1: CR `dbts_a1` A is 12.48 ms a wire MB and ×14.86, so "12.4" and "×14.8" are truncated (12.5, ×14.9);
+the verdict, not met, only strengthens. r-n2: the negative schedstat deltas start at −33.4 µs, not −34; the peak-RSS
+floor in the bullet's "5.0–12.1" and the status file's Result is 5.06 MB per session (5.1). r-n3: the bar is read two
+ways with different megabytes: as ratios of wire MB (×14.6 against ×8.5) and, in B1's *derived*, as ms against B's
+payload (67.81 MB × 0.84), 3.7 % apart. It decides nothing written here, but on CLEAN `dbts_c1` A's own rate is ×7.75
+against ×8.13 saved (clears by the ratio) and 72.3 ms against 73.2 (payload, 1.2 %): "a tie" stands as the cautious
+word, while its spread ×7.7–8.5 is borrowed from `dbts_a1`'s cells; say which megabyte the 0.84 is.
+
+**Verdict.** One blocker (R-B1), one minor, three nits; B1, m1, m3, m4, n1 and n2 closed; the table, every lowest arm
+and the CLEAN-only CPU claim stand. By amendment 17, round two: SESSION-COST-VERDICT-FIX-2 and -FIX-2-REVIEW are
+appended to `claude/work-ledger:docs/queue-2026-11-24.md`, and PAGES-AFTER-RUNS waits on the second re-review. How it
+serves the value statement: it keeps every cell behind "the lowest server and network cost" reported against its
+prediction as measured, misses included. Fixtures and limits of this re-review: recomputation of SESSION-COST-RUN's
+rows only (`dbts_a1`, `dbts_b1`, `dbts_c1` of one dataset; `usb_cine` lossy-sourced, a function check; one 4-core
+cloud host, headless Chromium 158, software decode; a userspace relay, CLEAN and CR, one session at a time on an
+assumed trace); nothing rerun; HTTP/2's 0.84 ms a MB is the frame retrieve's *theory* from `claude/transport-arms`'
+CLEAN rows. Gate not run (docs only).
+
 ## Fixtures and limits
 
 Three timed DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`, as `claude/delivery:lab/delivery/series.sh` codes them);
