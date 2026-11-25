@@ -1,0 +1,5 @@
+dbts_b1 w: budget 15; held by the want, start 0: 16, start 49: 10; max(W, 2G) 16
+dbts_b1 2w: budget 30; held by the want, start 0: 24, start 49: 18; max(W, 2G) 30
+pair 6: budget 6; held by the want, start 0: 16, start 19: 12; max(W, 2G) 16
+pair 19: budget 19; held by the want, start 0: 16, start 19: 12; max(W, 2G) 19
+pair 20: budget 20; held by the want, start 0: 20, start 19: 20; max(W, 2G) 20
