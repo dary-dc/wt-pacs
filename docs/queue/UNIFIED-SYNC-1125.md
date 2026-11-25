@@ -1,9 +1,10 @@
-state: started
+state: done
 started: 2026-11-25T07:07Z
-heartbeat: 2026-11-25T13:48Z
+heartbeat: 2026-11-25T13:49Z
 by: NXVRXPBP
-outputs: claude/unified 9170cdf39 (11 merges + one link fix), pushed; PR comments and closes next
+outputs: claude/unified 8459a0a7b (11 merges, the link fix, the deploy fix), then 07f700b78 (line doc); comments on PRs 413 418 419 439 440 442 443 444 445 447 448
 ## Resume
+2026-11-25T13:49Z: done. Comments posted on all 11 PRs; each confirmed closed (none in the open list into claude/unified); `docs/lines/release.md` entry pushed as 07f700b78 (check_links 0 unresolved). Nothing to continue.
 Resumed 2026-11-25T13:48Z by NXVRXPBP (stalled since 12:47): CI on 8459a0a7b was green but for the skip-list step (12:47 entry); next: comment "Merged into claude/unified at <sha>" on PRs 413 418 419 439 440 442 443 444 445 447 448 and confirm each closed.
 Resumed 2026-11-25T12:46Z by SuzFofkv (stalled since 11:27): checking origin/claude/unified tip, CI on it, the gate, then comments and closes.
 2026-11-25T12:47Z: CI run 45596759058 (push, 8459a0a7b): job gate's scripts/gate.sh step GATE OK in 954 s, skipped the pair's invariants (no writer) and the viewer's cross-codec arm and Firefox; only the workflow's skip-list step failed, on the pair's invariants, as at b059388b6 (run 45345879478); deploy job green. Next: comment and confirm closed the 11 PRs.
@@ -24,3 +25,16 @@ Found while the gate runs: CI on 9170cdf39 (run 45568976556, push) fails its dep
 `lab/noise-ingest` as a workspace member (added by PR 413's merge 86b439238) but deploy/Containerfile and its
 .dockerignore copy no such crate; the same job passed at b059388b6 (run 45345879478). PRs already show merged on GitHub (head reached base); no comment yet.
 ## Result
+* Merged `--no-ff` onto `b059388b6`, in order: 413, 418, 419, 439, 440, 442, 443, 444, 445, 447, 448; then `9170cdf39`
+  (`defaults.md`'s link to the folded `optimal-quality.md`) and `8459a0a7b` (the deploy image copies `lab/noise-ingest`,
+  a workspace member since 413's merge; CI's deploy job had failed on `9170cdf39`). Conflicts named in each merge message.
+* Gate: CI run 45596759058 on `8459a0a7b`, `scripts/gate.sh` GATE OK in 954 s; skipped the pair's invariants (no
+  writer), the viewer's cross-codec arm and Firefox; the workflow's skip-list step failed on the pair's invariants only,
+  as at `b059388b6` (known gap, `ingest-optimal-quality` item 1). Deploy job green. A local full gate was started by
+  earlier resumes; its outcome is not recorded, so CI's run is the gate quoted.
+* Skipped: 438 (code conflict: `client/view/controller.js`, `client/viewer/viewer.js`), left open; the rest as
+  UNIFIED-SYNC-1124 left them (structural 411 412 424, rigs 406 408, do-not-merge 404 405 409, reviews owed).
+* Each merged PR commented "Merged into claude/unified at <its merge sha>"; GitHub had closed them as merged.
+* Line doc: `docs/lines/release.md` (`07f700b78`, docs only, after the gated tip).
+* Fixtures and limits: CI's 4-core cloud host, no GPU, headless Chromium, software WebCodecs; the gate's own fixtures.
+* Owner: none.
