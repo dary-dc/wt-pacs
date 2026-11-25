@@ -1154,7 +1154,7 @@ asks reaching the servers" and "the lowest server and network cost per reading s
 the frame exact and within the tab's memory: on Chromium, OPFS-SYNC's re-reads are exact and its failures misses, and
 its memory cost is a constant ~90 MiB, which the bar prices against S1's small frames.
 
-**Fixtures and limits.** The rig's four synthetic 16-bit fields (`lab/cache-arms/fields.js`) at S1 512², S2 2560 ×
+**Fixtures and limits.** The rig's four synthetic 16-bit fields (`claude/cache-arms:lab/cache-arms/fields.js`) at S1 512², S2 2560 ×
 3328, S3 3328 × 4096, no DBT or ultrasound pixels (no fixture enters a cell); one 4-vCPU, 16 GiB cloud container
 without a GPU; headless Chromium 158.0.8127.36 (Playwright's `chrome-headless-shell`), not the run's 153 (found by the
 settings rows); no Firefox (found by the refused fetch, §5 Amendment); O's 6 rounds against CACHE-RUN's 10, and its
