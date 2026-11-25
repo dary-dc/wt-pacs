@@ -1,8 +1,8 @@
 state: started
 started: 2026-11-25T08:27Z
-heartbeat: 2026-11-25T08:47Z
+heartbeat: 2026-11-25T09:32Z
 by: 3ZzgE9v4
 outputs: claude/delivery (rows; docs/client/evidence/delivery-comparison.md §Results 2)
 ## Resume
-K2 done (claude/delivery d0c86cbe6, rows/run2/K2.jsonl + K2.guard-waived.jsonl). Running K3: lab/delivery/k3.sh /home/user/series lab/delivery/rows/run2 (log in scratch). Next: K3' (node lab/delivery/run.mjs --k3-prime --cell LTE|LOSS --series /home/user/series --out lab/delivery/rows/run2/K3P-<CELL>.jsonl), inputs.mjs over rows/run2, predict.mjs -> lab/delivery/predictions.json (git add -f, push), then pilots and counted cells to rows/run2/<CELL>.jsonl. Setup if the container is fresh: apt-get install -y iproute2; pip install meson==1.9.1; lab/delivery/series.sh /home/user/series; README Quick start 1; cargo build --release -p series-server -p pack-series.
+K1-K3' done; predictions.json d126fac79a8b2145 pushed (claude/delivery edbb8ce19) with §Amendment 2, the run's R1-R3. Running the pilots: scratch pilots.sh = for c in CLEAN PUB LTE LOSS CR: node lab/delivery/run.mjs --cell $c --series /home/user/series --predictions lab/delivery/predictions.json --pilot --out lab/delivery/rows/run2/$c-pilot.jsonl; each pushed. Next: judge each pilot (node lab/delivery/judge.mjs lab/delivery/predictions.json rows/run2/<CELL>-pilot.jsonl -> pilot medians), A2.6's escalation if the guard voids >10 % of view loads (chrt -f 50 is refused in the user namespace: EPERM, so (i) cannot be applied; (ii) relay on cores 0-1 needs a run.mjs change), amendment R4, then counted cells: node lab/delivery/run.mjs --cell <CELL> --series /home/user/series --predictions lab/delivery/predictions.json --pilot-medians lab/delivery/rows/run2/<CELL>-pilot.pilot-medians.json --out lab/delivery/rows/run2/<CELL>.jsonl (CR detached).
 ## Result
