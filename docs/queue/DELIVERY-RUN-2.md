@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-25T08:27Z
-heartbeat: 2026-11-25T14:25Z
+heartbeat: 2026-11-25T14:45Z
 by: 3ZzgE9v4
 outputs: claude/delivery (rows; docs/client/evidence/delivery-comparison.md §Results 2)
 ## Resume
