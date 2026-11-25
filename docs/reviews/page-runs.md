@@ -322,6 +322,21 @@ throughout (no round over 90 %). Rows `claude/report-arms:lab/report-arms/rows/r
   noise. Left to PAGE-RUNS-VERDICT; both readings stand above.
 * The driver learned of each fault 5–8 ms after it (p50; max 21 ms), so 1–5 delays an arm were sent late (§2 Amendment).
 
+**Lbusy** (`r3-chromium-Lbusy.jsonl`, 18 rounds × 9 units, Williams-balanced, 20 later faults a load, none lost, no
+error). A container restart cut the cell at round 14; rounds 0–13 were kept, round 14's two rows set apart
+(`r3-chromium-Lbusy.cut-round14.jsonl`, in no reading) and the cell went on from round 14 in its own Williams order
+(`run.mjs --from-round`, `0092cf5e6`; the cell line carries `fromRound: 14`). **Measured**, against §2(b):
+
+| cell | measured: per-load p99, median of 18 loads (pooled p99 of 360) | predicted | |
+| --- | --- | --- | --- |
+| **absolute A/A**: BEACON-H's floor, even rounds ÷ odd | 1.790 ÷ 1.722 ms = **1.040** | 0.95–1.05 | pass (REPORT-RUN-2's 1.095 failed on the whole-ms clock) |
+| `off`, `off′`, BEACON-H, BEACON-Y | 51.4, 51.0, 50.9, 51.4 ms (52.5, 52.5, 52.3, 52.3) | 45–55 ms | hit |
+| KEEPALIVE-H, KEEPALIVE-Y | 2.81, 2.72 ms (4.10, 3.30) | ≤ 5 ms | hit |
+| SESSION-1, SESSION-Y, SESSION-H | 1.92, 2.13, 1.98 ms (5.79, 2.38, 2.54) | ≤ 5 ms | hit per load; SESSION-1's pooled p99 5.79 over |
+
+The page-thread carriers hand a report off after the long task (p99 ≈ the 50 ms task); the worker carriers do not.
+Read with D5a busy above: a kill inside that wait takes the report (b)'s race exists, and Lbusy places its size.
+
 ## 3 · Engines (`engines` items 3 and 4) → ENGINE-CELLS
 
 **Firefox builds.** No script installs a pinned Firefox: `scripts/wtcompat.py --fetch` takes only the latest release
