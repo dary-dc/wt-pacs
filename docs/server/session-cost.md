@@ -295,7 +295,8 @@ as amended in §9 before any counted row. **Measured** unless labelled. Rig `cla
 limit after step 30, `--skip 31` ran the rest without a second warm-up), `session-CLEAN-usb_cine.jsonl` (3); the
 smoke and the mutants beside them. 147 counted, 0 `VOID`, 0 flagged; Chromium 158.0.8127.36; the servers' core at
 most 46 % busy, so the host did not saturate on any cell. `claude/session-cost-rig:lab/delivery/session-summary.mjs` reads the table below off
-the rows. Medians; asks are frames off the wire (§9's correction), MB server → client UDP, CPU both series servers'
+the rows. Medians; asks are frames off the wire (§9's correction), MB server → client UDP **as the relay delivered it**
+(packets its queue dropped are not counted: *What held* below; m1, *corrected 2026-11-25, SESSION-COST-VERDICT-FIX*), CPU both series servers'
 schedstat, RSS the larger server's peak over its value before the load. Predictions in brackets (§3, §4, T1).
 
 | form | volume | arm | n | guard late | asks | MB | CPU s | peak RSS MB | §7 |
@@ -333,42 +334,76 @@ schedstat, RSS the larger server's peak over its value before the load. Predicti
   `dbts_b1` A asks 305.5 frames on CLEAN and 215.5 on CR, not 796 (−62 %, −73 %); `dbts_c1` A 119 and 94, not 177;
   A+C1 the same plus its three. The view does re-ask (`dbts_b1`: 6.1 asks a frame of the series on CLEAN), but a
   third of T1's thrash: §3's caveat ("a slower decode leaves misses pending when the window moves on") is the
-  likely cause, *not checked*. On CR the exact series miss too (`dbts_b1` B 105 for 132, FIT 114 for 135): the round
-  trip leaves fewer frames asked ahead to be let go.
+  likely cause, *not checked*. On CR the exact series miss too (`dbts_b1` B 105 for 132, FIT 114 for 135): that the round
+  trip leaves fewer frames asked ahead to be let go is the likely cause, *not checked* (m4; it was written as fact
+  before, *corrected 2026-11-25, SESSION-COST-VERDICT-FIX*).
 * **Bytes follow the asks**: within ±0.1 % of the table wherever the asks held (`dbts_a1` 4.83, 8.54, 70.34;
   `dbts_c1` B 90.37; `dbts_b1` FIT 84.98, B 291.87 at −1.1 %; `usb_cine` 5.19), so wire ÷ payload stood at 1.037–1.04;
   a miss in asks is a miss in bytes by the same share. CR's bytes equal CLEAN's (±2 %) only where the asks did.
+* **The bytes are delivered bytes, not the server's egress** (m1, *corrected 2026-11-25, SESSION-COST-VERDICT-FIX*). `link_impair.py` drops a packet on
+  its queue's overflow before it counts the flow, so a dropped packet's bytes are in no flow. CLEAN's 300-packet
+  queue overflowed in every session; CR's 1 875-packet queue in 7 of 48 (11–1 800 packets, all on `dbts_b1`: A+C1 3, B 4).
+  The overflow counter also holds the page's TCP packets, so per cell it is an **upper bound** on server egress
+  unseen (*measured* median dropped packets ÷ the server's delivered UDP packets, × its 1 469–1 480 B a packet):
+  CLEAN `dbts_a1` A 15.1 % (≤ 0.73 MB), A+C1 13.2 % (≤ 1.13), B and FIT 1.0 % (≤ 0.68); `dbts_b1` A 1.3 % (≤ 2.04),
+  A+C1 1.8 % (≤ 2.84), B 0.6 % (≤ 1.61), FIT/15 1.1 % (≤ 0.96); `dbts_c1` A 9.0 % (≤ 1.01), A+C1 11.4 % (≤ 1.62),
+  B and FIT 1.3 % (≤ 1.19); `usb_cine` 13.0 % (≤ 0.67); CR every cell ≤ 0.2 % by median (`dbts_b1` B one session
+  ≤ 2.65 MB). At the bound no lowest arm and no order below changes (*derived*: `dbts_a1` A ≤ 5.56 against B's
+  70.34; `dbts_c1` A ≤ 12.13 against 90.37).
 * **Server CPU, exact frames: missed high on CLEAN**, 5.3–5.8 ms a wire MB against 4.6–5.1 (§4's 4.8–5.3 a MB
   asked): `dbts_a1` B 0.410 s (0.33–0.37), `dbts_b1` B 1.544 (1.37–1.52), FIT 0.481 (0.40–0.45), `dbts_c1` 0.516–0.523
-  (0.42–0.48). The view's held on `dbts_a1` (A 0.034, A+C1 0.060) and, at its measured bytes, sits at 5.3–7.1 ms a
-  MB (§4: 5.5–6.6). **CR's ×1.05–1.7 missed for the exact series** (×0.80–1.07 of CLEAN), held for the view on
-  `dbts_c1`, high on `dbts_a1` (A ×1.76, A+C1 ×1.85).
+  (0.42–0.48). The view's held on `dbts_a1` (A 0.034, A+C1 0.060) and, at its measured bytes, sits at 5.3–7.0 ms a
+  MB (§4: 5.5–6.6; `dbts_b1` 5.3–5.5, `dbts_a1` and `dbts_c1` 6.5–7.0; m5, *corrected 2026-11-25, SESSION-COST-VERDICT-FIX*).
+* **CPU on CR** (m2, *corrected 2026-11-25, SESSION-COST-VERDICT-FIX*). The reading used: each CR cell against ×1.05–1.7 of *its own* measured CLEAN
+  median, one range for every arm (`session-summary.mjs`'s `CR_CPU`); PR 441's re-review r-m1 asked per form, exact
+  ×1.05–1.2 and view ×1.35–1.8, and it was neither applied nor said in §9 before the first CR row. Both readings, on
+  the cells whose asks held on CR (*measured* CR ÷ CLEAN): `dbts_a1` A ×1.75 held by both; A+C1 ×1.85 missed by both;
+  B ×1.02 missed low by both; FIT ×1.07 held by both; `dbts_c1` B ×1.00 and FIT ×1.02 missed low by both. So the
+  exact series' CPU on CR is CLEAN's (×1.00–1.07) on `dbts_a1` and `dbts_c1`, not the ×1.05–1.2 predicted, and the
+  view's rises ×1.75–1.85 on `dbts_a1`. Where CR's asks missed (`dbts_b1` every arm, ×0.80–1.04; `dbts_c1` A ×1.43
+  and A+C1 ×1.60) a CPU ratio mixes fewer asks with the rate and decides nothing, under either reading. This
+  replaces "CR's ×1.05–1.7 missed for the exact series (×0.80–1.07 of CLEAN)", which `dbts_a1` FIT's held ×1.07
+  contradicted.
 * **Peak memory: missed on every cell**, 5.0–12.1 MB against 0–5. It is bounded, not growing with bytes (*derived*):
-  the exact series' sessions sit at 10.3–12.1 MB whether they move 70 or 292 MB, the view's at 5.1–8.7. That is
-  §4's own theory, quinn's 10 MB send window, with its number taken from the other host's 1–4.8 MB rows.
-* **The guard** tripped in 98 of 147 sessions (§9); no byte cell whose asks held moved past ±1.1 %, so no
-  retransmission it caused shows in the bytes.
+  the exact series' sessions sit at 10.1–12.1 MB whether they move 70 or 292 MB, `dbts_b1` FIT/15's at 9.3–10.8, the
+  view's at 5.1–8.7 (*measured*, per session; m3, *corrected 2026-11-25, SESSION-COST-VERDICT-FIX*: the range left out FIT/15). Two explanations fit, both
+  *not checked*: §4's own theory, quinn's 10 MB send window, with its number taken from the other host's 1–4.8 MB
+  rows; and §9's fresh server pair a session, so each peak over its before-the-load value holds a new process's
+  first-session growth (quinn's endpoint and buffers, the allocator's first arenas), which §4's floor, reasoned for
+  one pair a run, did not include.
+* **The guard** tripped in 98 of 147 sessions (§9). What it did to the bytes is not shown: delivered bytes carry one
+  copy of each packet whatever was dropped or late before it, so the bytes' ±1.1 % is not evidence either way (m1,
+  *corrected 2026-11-25, SESSION-COST-VERDICT-FIX*; the line said "so no retransmission it caused shows in the bytes").
 
 **Lowest** (§7: below every other measured arm in its form and volume, bytes and CPU alike, *measured*): on
 `dbts_a1` **A** (4.83 MB, ×14.6 under B; CPU 0.034 s CLEAN, 0.060 CR); on `dbts_b1` **FIT** (84.98 MB CLEAN, ×3.4
 under B; 72.27 CR, ×3.5; CPU 0.481 and 0.500); on `dbts_c1` **A** (11.12 MB CLEAN, ×8.1 under B; 8.85 CR, ×10.2).
-**T1's `dbts_b1` conclusion does not hold**: A and A+C1 are not the dearest there; **B is the dearest arm on every
-volume and form**, A ×1.9–2.3 under it on `dbts_b1`. The order on `dbts_b1` is FIT, A, A+C1, B on both forms.
+**T1's `dbts_b1` conclusion does not hold**: A and A+C1 are not the dearest there; **B, and FIT where it is B
+(`dbts_a1`, `dbts_c1`), is the dearest arm on every volume and form** (n1, *corrected 2026-11-25, SESSION-COST-VERDICT-FIX*: the two tie in bytes there,
+and FIT's CPU is B's within its spread, 0.523 against 0.516 s on CLEAN `dbts_c1`), A ×1.9–2.3 under B on `dbts_b1`. The order on `dbts_b1` is FIT, A, A+C1, B on both forms.
 Against the frame retrieve (§5, *theory*, its bytes B's within 1 %): "lowest bytes a session" holds for each lowest
 arm above. "Lowest server CPU" needs the bytes saved to outweigh WebTransport's CPU a MB over HTTP/2's 0.84; at the
-rates measured here (view 6.5–7.1, exact 5.3–5.8 ms a MB, ×6.3–8.5) only **`dbts_a1`'s A** clears it (×14.6 against
-×8.5); `dbts_c1`'s A on CLEAN is a tie within the rates' spread (×8.1 against ×7.7–8.5), on CR not met (×10.2
+rates measured on CLEAN (view 5.3–7.0, exact 5.3–5.8 ms a MB, ×6.3–8.4), **on CLEAN only `dbts_a1`'s A** clears it
+(×14.6 against ×8.4). On CR it does not: `dbts_a1` A spends 0.060 s for 4.83 MB, 12.4 ms a wire MB, ×14.8 HTTP/2's
+0.84 against bytes saved ×14.6 (*derived*: 60 ms against 67.81 MB × 0.84 = 57 ms for B's frames by HTTP/2), and the
+0.84 is itself a CLEAN rate, so on CR the comparison has no HTTP/2 row at all (B1, *corrected 2026-11-25, SESSION-COST-VERDICT-FIX*; the line gave the
+CLEAN result without its form). `dbts_c1`'s A on CLEAN is a tie within the rates' spread (×8.1 against ×7.7–8.5), on CR not met (×10.2
 against ×14); `dbts_b1`'s FIT does not (×3.4 against ×6.7). Nothing is claimed against rendered frames.
 
 **Not recorded as §6 asked** (each found by this run): client → server bytes (the relay's tally counts that
 direction's packets, 1.5–24 k a session, not its bytes by flow); the host's softirq is recorded per core
 (`softirqJiffies`, 1.0–3.5 s a session over all four cores) but includes the relay's TUN and the browser, so it
-does not bound HTTP/2's seventh (§5) either way. The session's length is not a result (§6 *Forms*).
+does not bound HTTP/2's seventh (§5) either way. The idle series server's schedstat delta is negative in 77 rows
+(75 counted; −34 to −168 µs, *measured*): the sum over `/proc/<pid>/task/*` loses an exited thread's time, so a
+session's CPU is a lower bound by up to that; on the busy server ticks ÷ schedstat is 0.971–1.005 over 96 sessions
+above 0.2 s (SESSION-COST-VERDICT), so no CPU cell moves (n2, *corrected 2026-11-25, SESSION-COST-VERDICT-FIX*). The session's length is not a result (§6 *Forms*).
 
 **How it serves the value statement.** The first measured row behind "the lowest server and network cost per reading
 session": on this trace and these three volumes the view (A) is cheapest where its window holds the series or most
 of it, FIT where it does not (`dbts_b1`), and the exact series alone (B) is dearest everywhere; against a DICOMweb
-frame retrieve, lower server CPU is shown (by theory) on `dbts_a1` only. The link, not the decode, bound none of
+frame retrieve, lower server CPU is shown (by theory) on CLEAN `dbts_a1` only; on CR it is not met (×14.8 against
+×14.6), and no HTTP/2 rate was measured on CR (B1, *corrected 2026-11-25, SESSION-COST-VERDICT-FIX*). The network's cost is delivered bytes, server egress
+up to the overflow bound above. The link, not the decode, bound none of
 these cells' costs: bytes and CPU are link-independent where the asks are (§6), and CR moved the asks, not the rates.
 
 ## Verdict review
@@ -444,6 +479,25 @@ Fixtures and limits of this review: recomputation and reading of SESSION-COST-RU
 one dataset; `usb_cine` lossy-sourced, a function check; one 4-core cloud host, headless Chromium 158, software
 decode; a userspace relay, CLEAN and CR, one session at a time on an assumed trace); nothing rerun in a browser; the
 HTTP/2 rate is the frame retrieve's *theory* from `claude/transport-arms`' CLEAN rows. Gate not run (docs only).
+
+## Verdict fix
+
+SESSION-COST-VERDICT-FIX, 2026-11-25 09:05–09:40 UTC, by a session that wrote none of this protocol, its run or its
+verdict review (`by: dMbLdL4P` in `claude/work-ledger:docs/queue/SESSION-COST-VERDICT-FIX.md`). Docs only, §Results in
+place, each changed line marked with the finding. Recomputed from `claude/session-cost-rig` `8dcc345f5`'s four counted
+row files (147 sessions): the overflow per cell, CR ÷ CLEAN per cell, the memory ranges per session, the negative
+schedstat rows.
+
+* **B1: fixed.** *Lowest* and *How it serves the value statement* scope the CPU claim to CLEAN, CR's `dbts_a1` A named
+  (×14.8 against ×14.6, not met, no HTTP/2 rate on CR); the status file's Result the same.
+* **m1: fixed.** The bytes are named delivered bytes; a bullet gives the overflow per cell as an upper bound on egress
+  unseen; the guard's inference is withdrawn. Two counts differ from the review's: CR overflowed in 7 of 48 sessions,
+  not 3 (all on `dbts_b1`, four of them under 120 packets), and the view cells' bound is 9.0–15.1 %, not 8–13 %
+  (`dbts_a1` A is 15.1 %, as the review's own "≤ 15 %" has it). No lowest arm moves.
+* **m2: fixed.** The reading used is stated, both readings given per cell, the bullet corrected.
+* **m3: fixed.** Both explanations, *not checked*; the ranges per session, FIT/15 among them.
+* **m4: fixed.** **m5: fixed**: one range, 5.3–7.0 ms a MB, with its split per volume.
+* **n1: fixed.** **n2: fixed**, in *Not recorded*: 77 rows, −34 to −168 µs (the review's −83 is not the minimum).
 
 ## Fixtures and limits
 
