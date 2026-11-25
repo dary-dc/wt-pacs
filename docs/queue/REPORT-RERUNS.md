@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-24T19:35Z
-heartbeat: 2026-11-25T08:55Z
+heartbeat: 2026-11-25T09:14Z
 by: xigw9LEm
 outputs: claude/report-arms 958644318 (Firefox driver), 60578e891 (µs clock), f23fb35e6 (KEEPALIVE-Y°, D5a-busy); rows lab/report-arms/rows/r3-*.jsonl; results to claude/page-runs docs/reviews/page-runs.md §Reports
 
@@ -22,7 +22,8 @@ round 14's two rows kept apart (rows/r3-chromium-Lbusy.cut-round14.jsonl), the c
 Lbusy complete 02:19Z, read in §2 Results (claude/page-runs edeeb39f6): A/A 1.040 pass, every band hit. C complete 06:03Z (a second restart after round 26; resumed from 27), read in §2 Results (claude/page-runs 2bb4b8734): VOID
 by its A/A (1.053). Firefox D5a ended at round 2 (06:29Z): an unhandled rejection of a dropped BiDi call at
 the socket's close (my step-0 fix); fixed e9b0e0a9b with its test. D1 running from 06:29Z (old code loaded), then L, D6;
-then /home/user/log/again.sh runs run.sh once more, which resumes D5a (and any other cut cell) at its round boundary.
+D1 and L were cut the same way (a call after the close, unobserved; fixed 712a3fc67), D6 failed for want of
+`ip` (iproute2 installed). From 09:14Z run.sh passes (at most 3) resume each cut cell at its round boundary.
 In a fresh container, run run.sh until every r3-*.jsonl holds its {"cell"} line.
 Running since 19:34Z: docs/queue/REPORT-RERUNS/run.sh (chromium D5a-busy, Lbusy, C; firefox D5a, D1, L; D6 --tun),
 push.sh pushing rows every 10 min. Next: when each cell's {"cell"} line lands, its reading in page-runs.md §Reports
