@@ -113,7 +113,7 @@ def firefox(e):
         by[r["unit"]].append(r)
     for u, xs in by.items():
         void = sum(1 for r in xs if (r["error"] or "").startswith("VOID"))
-        nofill = sum(1 for r in xs if r["reached"] == "starting")
+        nofill = sum(1 for r in xs if r.get("reached") == "starting")
         print(f"  {u:12} loads {len(xs)} safety {sum(1 for r in xs if r['safety'] >= 1)} fill record "
               f"{sum(1 for r in xs if r['fill'])} VOID:driver {void} no fill {nofill} errors "
               f"{sum(1 for r in xs if r['error'] and not r['error'].startswith('VOID'))}")
