@@ -86,6 +86,20 @@ test("a sawtooth across a group boundary fetches no group twice", async () => {
   assert.ok(once(rocking), `rocking over 23|24: ${rocking}`);
 });
 
+/** A reader rocking one frame back and forth over any adjacent pair, reached from either side, fetches no frame twice: at W = 15 and 24 over 50 frames (two and three groups), and at `dbts_c1`'s W = 54 over 69 (six, an even count over two). */
+test("rocking over any adjacent pair fetches no frame twice", async () => {
+  for (const [n, budget] of [[50, 15], [50, 24], [69, 54]]) {
+    const w = await world(`rock-${budget}`, { n, g: 8, budget });
+    for (const pairs of [Array.from({ length: n - 1 }, (_, i) => [i, i + 1]), Array.from({ length: n - 1 }, (_, i) => [n - 1 - i, n - 2 - i])]) {
+      for (const [from, to] of pairs) {
+        await walk(w, [from]);
+        const rocking = await walk(w, [to, from, to, from, to, from]);
+        assert.ok(once(rocking), `W = ${budget}, rocking over ${from}|${to}: ${rocking}`);
+      }
+    }
+  }
+});
+
 for (const [name, fn] of tests) {
   await fn();
   console.log(`ok ${name}`);
