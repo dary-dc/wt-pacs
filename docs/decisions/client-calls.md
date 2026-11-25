@@ -144,6 +144,50 @@ Fixtures: 19 DBT volumes of one dataset, three timed (`dbts_a1`, `dbts_b1`, `dbt
 4-core cloud hosts without a GPU, software WebCodecs, headless Chromium; loopback, a userspace relay or netem, not a
 radio. No phone, no GPU, no WebKit in any cell here.
 
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). A link enters three items. §3.2: `readMin`'s cost
+is a re-dial of any session slower than 16 KB per `stallMs` (< 44 kbit/s, **derived**), a stretch that occurs on a
+phone over unreliable wireless and was measured on no radio. §3.4: the wake pays for an idle radio's promotion, a
+property of the cellular link, not the decode (**theory**, `wake-before-lossless.md`). §3.3: dav1d's fetch competes
+with the fill only where the link binds; on the rig the static host's TCP did not compete, which understates (c)'s
+gain (**measured**, `dav1d-fetched-on-need.md`). The rest (§3.1, §3.5–§3.9) are memory, paint and checks, with no link
+in the question. Where the link binds the view and the exact frame: A on LTE, a far stream, LOSS-like links and public
+Wi-Fi below ~83 Mbit/s for `dbts_b1` on the round's phone, C1's exact frame on every link, the decode binding A on
+clean links above that crossover (**derived**, [`delivery-per-link.md`](delivery-per-link.md) §4). That the wire binds
+is untested: on the one phone measured, the exact series filled faster than the view in 15 of 15 rounds, median 0.705
+(**measured**, [`README.md`](README.md) §Premises item 1). No transport row is lowered by the decode-bound phone.
+
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
+* All items: three DBT volumes of one dataset (§3.7–§3.8 one series); 4-core cloud hosts, no GPU, headless Chromium,
+  software WebCodecs; loopback, a relay or netem, no radio; no phone, no WebKit; no breast ultrasound cine, every US
+  statement **theory**. Found by CLIENT-CALLS-PAGE's fixtures line (its status file), from the rows' own.
+* §3.1: built and mutated, never run; cell W needs the store's window under a want, which is not built; the US
+  bound is untested **theory**. Found by `transferred-buffer-per-frame.md` ("Pre-registered, built, not run").
+* §3.2: the fix was merged at `82db21c4` and lost from the tree at `dd681539`. Found by CLIENT-CALLS-PAGE, from
+  `git`; restored since in PR 439 (READMIN-RESTORE, draft), where the mutant "head parsed before 8 bytes" survives
+  (no clause cuts inside the head). Found by READMIN-RESTORE's mutants.
+* §3.2: `readMin`'s numbers are the workstation's (RMD4, Chrome 148), not a cloud host's; on loopback and a relay, no
+  phone, no radio; how often a phone stays under 44 kbit/s is unmeasured. Found by DECISION-PAGES-REVIEW m7 for the
+  host; the rest by `CLIENTS.md` §Reading a frame whole and this page.
+* §3.3: 5 of 9 registered rounds; rule (3) not met on its letter, (a) varying by one to five frames between its own
+  rounds; three DBT volumes, one host, headless Chromium; the gain understated; no phone's WebCodecs AV1 probed.
+  Found by P6 (`dav1d-fetched-on-need.md`).
+* §3.3: −0.24 to −0.64 MB is the source's assumption, **theory**. Found by DECISION-PAGES-REVIEW m7.
+* §3.3: WebKit taking 8-bit 4:2:0 is stated in the evidence file without a quote; the source is owed. Found by
+  CLIENT-CALLS-PAGE.
+* §3.4: measured on the relay's modelled radio only (medians of 7, `dbts_a1`, `dbts_c1`); a phone's 0–100 ms is
+  **theory**. Found by `wake-before-lossless.md`.
+* §3.5: every paint number past `lab/paint-floor`'s was taken on SwiftShader or llvmpipe, exactness on software only.
+  What found it is not recorded beyond this page's reading of the paint rows.
+* §3.6: no source here says WebGPU paints a grey frame better than WebGL2; B14 is "an option, not a plan". Found by
+  `reviews-2026-11-18.md` §3 item 14 and this page's reading.
+* §3.7: one series (`dbts_a1-q8-g8-cut`), one host, Chromium on SwiftShader, loopback; mutant A survives in the page
+  view (equivalent there); no review row queued. Found by DEMO-CHECK-MUTANTS (its status file).
+* §3.8: one series, 1 failure in 100 runs (95 % interval 0.03–5.4 %), Chromium 157 on SwiftShader. Found by
+  WORKER-FLAKE (its status file).
+* §3.9: S5's ~10 lines is OPT-SIMPLIFY's estimate, **theory**. Found by OPT-SIMPLIFY.
+* §5 and §6 are one line each for 3.4–3.8. Found by DECISION-PAGES-REVIEW m9.
+
 ## 5 · The mechanism
 
 Given in place for 3.1–3.3 and 3.9; one line each for the rest (added 2026-11-23, `README.md` §Review m9):

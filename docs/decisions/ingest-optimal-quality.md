@@ -36,7 +36,7 @@ nothing here asks the PCS to change its layout.
 | 5 | The pair's id grammar (F1): `pairOf` follows the serving grammar (`0-9 A-Z _ a-z ~`, even length ≤ 44, `<Study>/<Series>`) | **yes, once `pacs-sync`'s item 7 (D10) is yes** | one row: the fix, which flips PR 421's two F1 marks to "gap closed" | `pairOf` refuses every PCS-coded id containing `~` (**measured**, PR 421's F1) |
 | 6 | F2, the view's own id: a role in the URL (`/<Study>/<Series>/oq`) or a second grammar for derived series | **open; decide with the store layout** (design state §8) | — | stays open; the pair cannot be served by UID until it is answered |
 | 7 | F3: a late instance writes both series again, the view coded whole | **yes** | the rule is written into `docs/ingest/`; the client's fingerprint refusal between the two writes is the check working | a partial re-code, not worth it until additions prove frequent (INGEST-OQ §6) |
-| 8 | A decode-back **guard**: the ingest refuses a view frame whose error against the source exceeds a bound set above the worst Q 63 frame of the committed rows | **yes, queued** (a re-read of `lab/av1/` rows sets the number; nothing encoded) | a decoder showing the wrong picture is refused at the ingest, not only by `lossy_test.py` | both ingests check the decoded **shape** only (`ingest.py`, `optimal.rs:137`, **measured** by reading; INGEST-REVIEW's owner line) |
+| 8 | A decode-back **guard**: the ingest refuses a view frame whose error against the source exceeds a bound set above the worst Q 63 frame of the committed rows | **yes, queued** (a re-read of `lab/av1/` rows sets the number; nothing encoded) | a decoder showing the wrong picture is refused at the ingest, not only by `lossy_test.py`; against it, its ingest time: the full check set measured +48 to +60 % (I2-RUN), so it fails a 10 % or 25 % budget (§4) | both ingests check the decoded **shape** only (`ingest.py`, `optimal.rs:137`, **measured** by reading; INGEST-REVIEW's owner line) |
 | 9 | Merge PR 413: σ_min's Rust port (`lab/noise-ingest`, not a default member) and its measured section | **yes** | the port and its rows stay for phase 2; σ_min enters `code()` only when phase 2's parser carries the window | the port lives on a branch only |
 | 10 | Merge PR 421: the pair contract as tests, known gaps marked (T2, T3, F1) | **yes**, its m1 (a known gap accepts any failure, not the stated one) fixed in one line first | the gaps are in the gate and turn red when fixed unmarked | the contract is prose only |
 | 11 | Send the σ_min note (`noise-point.md` §Note to the PCS team, four questions) and the G note in §9 here | **yes** | the window, which side encodes, the lossy-source flag and the G for cine can be decided | σ_min and G stay open |
@@ -47,16 +47,9 @@ based on `claude/unified-client`; its content is on `claude/unified`, so item 1'
 
 ## 3 · The options
 
-**Which ingest** (INGEST-OQ §3; numbers **source** unless labelled).
-
-| | reads | the view's encode | state | parity with the reference |
-| --- | --- | --- | --- | --- |
-| **R** Rust phase 2 | the PCS's directory output (the input contract) | aomenc 3.15.1 as a subprocess, `lossy_args` | built (#390), off by default | byte-identical on 6 synthetic sets at `--jobs` 1, 2, 4, and on `dbts_a1` Q 8 G 8 cut: 56 payloads, 4 640 828 B, fingerprint `e07bb02c751a271d` (**measured**, #390) |
-| **P** Python DICOM | DICOM Part 10 through pydicom | `ingest.coded(lossy=)` | not built, ~40 lines | by construction |
-
-The encoder is 94–99 % of an AV1 ingest's time (`docs/FIXTURES.md` §A compiled ingest, **measured** there), so R's
-language costs nothing in time; what it owes is phase 2 (display keys, several instances a series), which the exact
-series owes too.
+**Which ingest** (INGEST-OQ §3): **R**, the Rust phase 2, built (#390, off by default), byte-identical to the reference
+on 6 synthetic sets and `dbts_a1` (**measured**, #390); or **P**, the Python DICOM ingest, not built, ~40 lines
+(**source**). The table, and why R's language costs nothing in time: [§3 in full](#appendix-3-in-full).
 
 **The signed gap** (INGEST-OQ §5): S1 codes c = cut(v + offset) and the client's window table maps c to
 c · 2^(D′−10) − offset; S2 writes the exact series alone. No count of a site's signed series over 10 bits exists.
@@ -65,31 +58,23 @@ c · 2^(D′−10) − offset; S2 writes the exact series alone. No count of a s
 site file (G only). P1 holds while the ingest runs where the trigger fires; if the PACS ingests after delivery, the
 package must carry them (`metadata.md` §Open 1, who builds the `.sbnd`).
 
-**σ_min at the ingest** (`noise-point.md` §Measured, NOISE-INGEST-MEASURE, all **measured** on `dbts_a1` · `b1` · `c1`):
-
-| | value | prediction | |
-| --- | --- | --- | --- |
-| the port equals `quality.sigma` | 875 / 875 frames bit for bit | all | held |
-| cost, CPU s/Mpx | 0.0033 · 0.0022 · 0.0025 | 0.004–0.012 | missed, low (safe side) |
-| share of the exact path a frame | 20.0 · 11.9 · 14.6 % (6.5 · 16.7 · 6.0 ms of 32.6 · 140.8 · 40.7) | 7–42 · 17–99 · 10–60 % | held · missed low · held |
-| all-samples σ_min against in-window | 6.593 · 1.402 · 4.519, all lower; rule Q at G 8 4→4 · 8→2 · 4→2 | lower or equal | held: so σ_min waits for the window |
+**σ_min at the ingest** (NOISE-INGEST-MEASURE, **measured** on `dbts_a1` · `b1` · `c1`): the port equals
+`quality.sigma` on 875 / 875 frames; over all samples it is lower on all three, so it waits for the window. The
+table: [§3 in full](#appendix-3-in-full).
 
 **The decode-back check**: shape only (today), a closeness bound (item 8), or the reconstruction digest (#368's,
 the `frame-integrity` page's), which lets the client check the decoded samples; the bound and the digest are not
-exclusive.
+exclusive. The two that check quality cost ingest time; the budgets at which they pass are §4's.
 
-**G**: at Q 8 a group barely pays on DBT: G 1 → G 8 moves the view from 0.0740 · 0.2186 · 0.0959 to
-0.0742 · 0.2161 · 0.0948 of HTJ2K's bytes; at Q 24 it halves them, 0.0057 → 0.0026 on `dbts_a1` (**measured**, PR 321,
-one run). On `dbts_b1` an O G 8–32 arm saves 4.2–4.4 % and decodes about 20 % slower in WebCodecs (**measured**,
-`docs/av1/groups.md` §Settings shard 1). No G is decided for DBT (codecs §Open 1); groups shard 2 is held.
+**G**: at Q 8 a group barely pays on DBT, at Q 24 it halves the view's bytes (**measured**, PR 321, one run); no G is
+decided for DBT. The numbers, and why the Q 8 result is Q 8's and not G's: [§3 in full](#appendix-3-in-full).
 
 ## 4 · Where it holds
 
-**Fixtures and limits.** #390 and PR 421: synthetic sets (3 frames at 40 × 24; 9 frames at 64 × 48), and one DBT volume
-(`dbts_a1`) for parity; nothing timed; no browser run on a pair the product ingest wrote (INGEST-OQ's T5 not run);
-one instance a series (phase 1). σ_min: three of the 19 DBT volumes of one dataset (EA1141, systems A–C), one 4-core
-cloud Xeon, one thread, five rounds not balanced; nothing claimed for `--jobs` over 1 or another CPU. No real PCS
-package or trigger anywhere; no breast ultrasound cine.
+**Fixtures.** #390 and PR 421: synthetic sets (3 frames at 40 × 24; 9 frames at 64 × 48), and one DBT volume
+(`dbts_a1`) for parity. σ_min: three of the 19 DBT volumes of one dataset (EA1141, systems A–C), one 4-core cloud
+Xeon, one thread, five rounds not balanced. The checks' cost (I2-RUN): the same three volumes, one 4-core cloud host,
+no GPU, on `scripts/demo-series.sh` at `--cpu-used=6`, 21 ingests a run, three rounds interleaved off/on, on/off, off/on.
 
 **DBT stacks** carry by property: unsigned 10- or 12-bit grey, so the cut applies (D > 10) or the series is coded at
 its depth, and S2 never fires (**theory**, from the form rules in `optimal.rs`, which the tests hold). σ_min's rule
@@ -99,6 +84,64 @@ is calibrated for systems A–C only; another vendor's DBT needs its own x\* (`n
 **theory** from the code); if stored as colour, both ingests refuse the view by name (RGB is refused)
 and the exact series is served alone (**measured** by #390's RGB test, on synthetic frames). No run of a US clip tests
 either (`usb_cine` exists, lossy-sourced), and the σ rule has no US calibration.
+
+**At which budget a quality check passes** (2026-11-25, PAGES-PASS; amendment 28, "budgets are ranges"). I2-RUN timed
+only the full set (`--integrity`: the reconstruction digest and the coding error), **measured** at +48 to +60 % of
+the ingest's time (`claude/oq-integrity-build:lab/oq-integrity/rows/i2-cost/`: 704 ÷ 462, 740 ÷ 461 and 683 ÷ 462 s,
+rounds 0–2: +52.4, +60.5 and +47.8 %, **derived**); the checks alone 0.09–0.20 CPU s a megapixel. Per volume
+(**derived** from the same files, each volume's seven view series' whole-second times summed): `dbts_a1` +28 %,
+`dbts_c1` +35 to +46 %, `dbts_b1` +67 to +86 %. Item 8's guard and #368's digest are each a part of the full set and neither is timed alone,
+so each is read at the full set's cost, an upper bound (**derived**).
+
+| option that leans on a quality check | 10 % | 25 % | 50 % | 75 % |
+| --- | --- | --- | --- | --- |
+| the full set, as I2 ran it (+48 to +60 %) | fails | fails | passes on round 2 only (+47.8 %), on `dbts_a1` and `dbts_c1`; fails on rounds 0 and 1 and on `dbts_b1` | passes on every run; per volume all but `dbts_b1` in round 1 (+86 %) |
+| item 8's guard (a closeness bound), at most the full set's | fails at that bound; not measured alone | fails at that bound; not measured alone | as the full set, at that bound | passes on every run, at that bound |
+| #368's reconstruction digest, at most the full set's | fails at that bound; not measured alone | fails at that bound; not measured alone | as the full set, at that bound | passes on every run, at that bound |
+
+The cost is a point against every option that leans on a quality check: at a 10 % or 25 % budget none passes at
+the only cost measured, and at 50 % only some runs and volumes do. No recommendation changes: item 8 queues a re-read
+of rows that sets the bound, and which budget applies is phase 2's (§5).
+
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS): no link enters the ingest's own question. It runs
+at the PCS host before any delivery, and nothing here is timed on a link. The view it writes exists for the links
+where the link binds: A, the view, on LTE, a far stream, LOSS-like links and public Wi-Fi below ~83 Mbit/s for
+`dbts_b1` on the round's phone; the decode binds A on clean links above that crossover (**derived**,
+[`delivery-per-link.md`](delivery-per-link.md) §4, from `link-profiles.md` §2). That premise is untested: on the one
+phone measured, the exact series filled faster than the view in 15 of 15 rounds, median 0.705 (**measured**,
+[`README.md`](README.md) §Premises item 1). No transport row is lowered by the decode-bound phone.
+
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
+* #390 and PR 421 time nothing. Found by INGEST-PAGE's reading of the two PRs.
+* No browser run on a pair the product ingest wrote. Found by INGEST-OQ's test plan, T5 (`../reviews/ingest-oq.md`
+  §7), which no row has run.
+* One instance a series (phase 1); several instances and display keys are phase 2's. Found by INGEST-OQ §3.
+* σ_min: three volumes of one dataset, one host, one thread, five rounds not balanced; nothing claimed for `--jobs`
+  over 1 or another CPU. Found by NOISE-INGEST-MEASURE (`noise-point.md` §Measured, its fixtures and limits).
+* σ_min's cost prediction missed low (safe side) and its share of the exact path missed low on `dbts_b1`. Found by
+  NOISE-INGEST-MEASURE's P2 and P3 (§3 in full).
+* σ_min over all samples reads below in-window, so it waits for phase 2's window. Found by NOISE-INGEST-MEASURE's P4.
+* σ_min's rule is calibrated for systems A–C only; another vendor's DBT needs its own x\*. Found by the noise-point
+  study (`noise-point.md` §4).
+* No real PCS package or trigger anywhere. What found it is not recorded beyond this page's reading (INGEST-PAGE).
+* No breast ultrasound clip run (`usb_cine` exists, lossy-sourced); the σ rule has no US calibration. Found by
+  DECISION-PAGES-REVIEW B3 for the fixture (corrected by DECISION-PAGES-FIX), and `docs/FIXTURES.md`'s rule.
+* The US colour refusal is measured on synthetic frames only. Found by #390's RGB test.
+* Both ingests check the decoded **shape** only. Found by INGEST-REVIEW (#342, its owner line), and by reading
+  `optimal.rs:137` (INGEST-PAGE).
+* A quality check's ingest time: the full set +48 to +60 %, the guard and the digest not timed alone. Found by I2-RUN's
+  rule (2); its omission here by DECISION-PAGES-REVIEW m10.
+* The cost is on `demo-series.sh` at `--cpu-used=6` on one 4-core host, three volumes. Found by I2-RUN (its fixtures
+  and limits).
+* G at Q 8 read as a property of G; it is Q 8's. Found by the quality audit of 2026-11-11
+  (`claude/av1-corrections:docs/av1/corrections.md` §6), carried into `payload-format.md` 2026-11-14; its omission
+  here by §Review's nit (`README.md`).
+* The flag's G 8 default was chosen by no measurement. Found by INGEST-PAGE against 2026-11-09's decided approach (§7).
+* No G is decided for DBT; groups shard 2 is held. Found by `docs/lines/codecs.md` §Open 1.
+* No count of a site's signed series over 10 bits exists. Found by INGEST-OQ §5.
+* `pairOf` refuses every PCS-coded id containing `~`. Found by PR 421's F1 (INGEST-OQ-TESTS).
+* PR 421's known-gap marks accept any failure, not the stated one. Found by its review (m1).
 
 ## 5 · The mechanism
 
@@ -152,3 +195,36 @@ flight and §Waits for the owner; `docs/lines/codecs.md` §Open 1, 3, 5; `docs/l
 > 2. Do you intend to choose G yourselves, and pass it with Q in the trigger, or leave G to us?
 > 3. Can you share one anonymised breast ultrasound clip in your output layout, so G and the view's bytes are measured
 >    on it before a default is set?
+
+## Appendix: §3 in full
+
+Moved here from §3 on 2026-11-25 (PAGES-PASS, `README.md` §Review m13), unchanged.
+
+**Which ingest** (INGEST-OQ §3; numbers **source** unless labelled).
+
+| | reads | the view's encode | state | parity with the reference |
+| --- | --- | --- | --- | --- |
+| **R** Rust phase 2 | the PCS's directory output (the input contract) | aomenc 3.15.1 as a subprocess, `lossy_args` | built (#390), off by default | byte-identical on 6 synthetic sets at `--jobs` 1, 2, 4, and on `dbts_a1` Q 8 G 8 cut: 56 payloads, 4 640 828 B, fingerprint `e07bb02c751a271d` (**measured**, #390) |
+| **P** Python DICOM | DICOM Part 10 through pydicom | `ingest.coded(lossy=)` | not built, ~40 lines | by construction |
+
+The encoder is 94–99 % of an AV1 ingest's time (`docs/FIXTURES.md` §A compiled ingest, **measured** there), so R's
+language costs nothing in time; what it owes is phase 2 (display keys, several instances a series), which the exact
+series owes too.
+
+**σ_min at the ingest** (`noise-point.md` §Measured, NOISE-INGEST-MEASURE, all **measured** on `dbts_a1` · `b1` · `c1`):
+
+| | value | prediction | |
+| --- | --- | --- | --- |
+| the port equals `quality.sigma` | 875 / 875 frames bit for bit | all | held |
+| cost, CPU s/Mpx | 0.0033 · 0.0022 · 0.0025 | 0.004–0.012 | missed, low (safe side) |
+| share of the exact path a frame | 20.0 · 11.9 · 14.6 % (6.5 · 16.7 · 6.0 ms of 32.6 · 140.8 · 40.7) | 7–42 · 17–99 · 10–60 % | held · missed low · held |
+| all-samples σ_min against in-window | 6.593 · 1.402 · 4.519, all lower; rule Q at G 8 4→4 · 8→2 · 4→2 | lower or equal | held: so σ_min waits for the window |
+
+**G**: at Q 8 a group barely pays on DBT: G 1 → G 8 moves the view from 0.0740 · 0.2186 · 0.0959 to
+0.0742 · 0.2161 · 0.0948 of HTJ2K's bytes; at Q 24 it halves them, 0.0057 → 0.0026 on `dbts_a1` (**measured**, PR 321,
+one run). On `dbts_b1` an O G 8–32 arm saves 4.2–4.4 % and decodes about 20 % slower in WebCodecs (**measured**,
+`docs/av1/groups.md` §Settings shard 1). No G is decided for DBT (codecs §Open 1); groups shard 2 is held.
+*Corrected 2026-11-25 (PAGES-PASS, `README.md` §Review's nit), carrying `payload-format.md` §Optimal quality's
+correction of 2026-11-14 (from `claude/av1-corrections:docs/av1/corrections.md` §6, the quality audit of 2026-11-11):*
+the Q 8 result is not a property of G. Q 8 is the rung below a 2.4–4.2× byte cliff, and not the noise rule's Q on
+these volumes except `dbts_c1` at G 1.

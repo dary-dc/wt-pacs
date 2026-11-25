@@ -18,7 +18,9 @@ pre-registered with a rule; the rule found no store that passes (§9, §10.2), s
 ## 2 · The recommendation, and the owner's yes or no
 
 **Keep the cache off. Queue one more interleaved cloud run of the two OPFS stores (§10.4, items 1, 3 and 4, plus the
-unjudged-round rule below), then the phone's P2 and P1, before any store is chosen.**
+unjudged-round rule below), then the phone's P2 and P1, before any store is chosen.** P3, the phone's third test
+("the other survivors, only those that pass the cloud cells: their P1 and P2", §6), has no store to run on, since none
+passed (§10.2); it waits on §10.4's run (named 2026-11-25, PAGES-PASS, `README.md` §Review's nit).
 
 | # | the owner's yes or no | recommended | a yes changes | a no leaves |
 | ---: | --- | --- | --- | --- |
@@ -54,7 +56,7 @@ Firefox 159.0 on Xvfb; synthetic 16-bit frames at 512², 2560 × 3328 (17.0 MB) 
 not decoders, so a pass is an upper bound on a phone (§8.4); a warm page cache (a *cold* reopen is a new browser
 process, not the disk); the reopen's fresh fill F is M1's measured number, not rerun (§8.8 5). Saturated, so
 claiming nothing: Chromium 3328 × 4096 at 4× CPU throttle; Firefox 2560 × 3328 and 3328 × 4096 at 4× (§9, corrected
-by §10.1). No phone, no Safari, no breast ultrasound cine.
+by §10.1). Every limit of these is in the list below.
 
 **Engines.** Chromium and Firefox measured. **WebKit: nothing measured.** WebKitGTK 2.52.6 has no `SharedArrayBuffer`
 and no OPFS on this host, so every cell is *not run* (§9). **Theory** (§8.3, untested): under a busy page, OPFS-SYNC
@@ -75,6 +77,47 @@ cache stays off" (PHONE-RUN-OWNER's status file).
 priced, fails every arm at 512² on both engines**; T on Chromium's OPFS-SYNC, unpredicted; IndexedDB and Cache Storage,
 "at risk at S3", passed it on Chromium and failed at S2 as well on Firefox; Cache Storage's busy read, predicted at
 "up to one put", was +16 / +22 ms and failed; OPFS-ASYNC's "Chromium S1 marginal" did not happen (that cell is VOID).
+
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS): no link enters which store keeps decoded frames;
+a store's writes, reads and reopens are the device's, and every cell ran on one host with no link. A link enters only
+what the cache saves: a reopen that hits the store fetches nothing, so the cache's worth is largest where the link
+binds, on LTE, a far stream, LOSS-like links and public Wi-Fi below ~83 Mbit/s for `dbts_b1` on the round's phone,
+and C1's exact frame on every link (**derived**, [`delivery-per-link.md`](delivery-per-link.md) §4); that saving is
+not measured here (**theory**). That the wire binds is untested: on the one phone measured, the exact series filled
+faster than the view in 15 of 15 rounds, median 0.705 (**measured**, [`README.md`](README.md) §Premises item 1). No
+transport row is lowered by the decode-bound phone.
+
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
+* One 4-vCPU cloud container, no GPU; Chromium 153 headless, Firefox 159 on Xvfb. Found by CACHE-RUN's fixtures line.
+* Synthetic 16-bit frames, fed, not decoded, so a pass is an upper bound on a phone. Found by CACHE-RUN and §8.4.
+* A warm page cache: a *cold* reopen is a new browser process, not the disk. Found by CACHE-RUN's fixtures line.
+* The reopen's fresh fill F is M1's measured number, not rerun. Found by CACHE-RUN ("O's F from M1"), §8.8 5.
+* Saturated, so nothing claimed: Chromium 3328 × 4096 at 4×, Firefox 2560 × 3328 and 3328 × 4096 at 4×. Found by
+  CACHE-RUN (Chromium S3 4×) and CACHE-VERDICT-REVIEW's correction (Firefox S2 and S3 at 4×).
+* L's PSS bar is finer than the rig resolves: OPFS-SYNC's Firefox failure is 7 MiB in a cell whose A/A copy differs
+  by up to 23 MiB. Found by CACHE-VERDICT-REVIEW.
+* T on Chromium's OPFS-SYNC: 3 re-reads not exact over 4 rounds; `verify()` lumps a failed re-read with a SHA
+  mismatch, so no row shows a wrong frame painted; a probe did not reproduce it; cause open. Found by CACHE-RUN; the
+  lumping and the probe by CACHE-VERDICT-REVIEW.
+* VOID cells: Chromium W at S1 (A/A 0.890); Firefox T for OPFS-SYNC and IndexedDB (mutant not caught). Found by
+  CACHE-RUN.
+* Not run: Firefox E and Q (Gecko's quota lever does not hold). Found by CACHE-RUN.
+* Cache Storage's Firefox K (2 of 4 errored) and T (4 of 4 timed out), cause open. Found by CACHE-RUN.
+* OPFS's ~100 MiB on Chromium, open; IndexedDB's ~1.2 GiB on Chromium the build's by **theory** only. Found by
+  CACHE-VERDICT-REVIEW.
+* WebKit: nothing measured (WebKitGTK 2.52.6 has no `SharedArrayBuffer`, no OPFS); its §8.3 prediction untested.
+  Found by CACHE-RUN (`webkit-probe.mjs`).
+* No Safari. Found by CACHE-RUN's fixtures line.
+* No phone: cell 5 of the 11-21 round (P2, P1) not run. Found by PHONE-RUN-OWNER ("no cache arms in the runner").
+* Phones' write rates are **derived** from the device model, not measured. Found by the device model
+  (`claude/device-theory`, `device-model.md` §4–§5, PR 414, reviewed and fixed).
+* No breast ultrasound cine. Found by CACHE-PAGE's fixtures line.
+* The unjudged-round rule moves no verdict of this run; `none` rounds were first counted 66, then 72. Found by
+  CACHE-PAGE (BRIEF-WED item 13); the count by DECISION-PAGES-REVIEW m1.
+* Encryption's 64–179 ms decrypt is measured on a saturated host. Found by `what-the-cache-leaves-on-a-device.md`.
+* The predictions' misses (PSS unpriced, T, IndexedDB and Cache Storage at S2, Cache Storage's busy read). Found by
+  §9's *Against the predictions* (CACHE-RUN).
 
 ## 5 · The mechanism
 

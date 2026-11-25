@@ -31,7 +31,7 @@ is the original, bit for bit, and checked" — the one promise the product makes
 | 3 | **The exact frame without a request** (on a dwell, a narrow window, or the whole series behind the view, arm C2) | **yes to the direction; which trigger is the `asking` and `delivery-per-link` pages'** | nothing built now; those two pages size it | the exact frame stays on an explicit Lossless request only, as decided |
 | 4 | 0.1 *One bar of 1.03 for the noise anchor?* | **no**: no bar under A | the bar question closes; the rule stays a lab reading, not a default | a bar on a plateau: the anchor resolves to one Q on 4 of 19 volumes (**measured**) |
 | 5 | 0.2 *Keep Q 8 hard-coded, labelled?* | **yes**, labelled lossy with its ratio, not "a candidate not confirmed by readers" | the demo stands; the Q is the PCS's trigger argument (`ingest-optimal-quality` item 3) | the rule's Q per series, a criterion that cannot confirm itself (§1.1) |
-| 6 | 0.3 *Quote bytes at the rule's Q instead of Q 8?* | **no**: Q 8's as Q 8's, with the exact frames a reader fetches | 0.07–0.24 over 19 volumes, from their rows; `codecs.md` and `optimal-quality-bytes.md` hold 0.07–0.22, the three timed only (corrected 2026-11-23, `README.md` §Review m4) | a headline at a Q nobody serves |
+| 6 | 0.3 *Quote bytes at the rule's Q instead of Q 8?* | **no**: Q 8's as Q 8's, with the exact frames a reader fetches | 0.07–0.24 over 19 volumes, from their rows (`claude/unified:lab/av1/metrics/rows/shard-{1,2,3,4}.jsonl`: Q 8 G 1, stored form, against the `control` rows' HTJ2K bytes; named 2026-11-25, PAGES-PASS, `README.md` §Re-review r-n2); `codecs.md` and `optimal-quality-bytes.md` hold 0.07–0.22, the three timed only (corrected 2026-11-23, `README.md` §Review m4) | a headline at a Q nobody serves |
 | 7 | 0.4 *May the view be temporally denoised?* | **no, for now** (A allows it later) | — | lag 0 and G 1 for DBT stay; the gain is −5 to −6 % at equal PSNR on one volume (**measured**, `codecs.md` §Open 0.4), and every G result was taken without alt-ref |
 | 8 | 0.9 *Stop saying "also for diagnosis"?* | **yes** | the design statement and the demo's wording (with item 1's row) | a claim the US rule closes whatever a study shows (§1.4) |
 | 9 | **D**, the task-bounded step (x ≤ 2 at the quietest frame), as the view's Q if a bounded promise is wanted | **no** | — | D costs 0.26–0.59 of HTJ2K's bytes (**measured**, R8) against Q 8's 0.07–0.24, for a bound on a model's quantizer, not on AV1 |
@@ -57,9 +57,7 @@ not split by depth as predicted).
 ## 4 · Where it holds
 
 **Fixtures:** 19 DBT volumes of one dataset (EA1141; three systems, 12-bit A and C, 10-bit B), three timed; stored
-form, lag 0, libaom 3.15.1 at speed 6; one 4-core cloud host. No second vendor, no denoising reconstruction, no breast
-ultrasound cine, no phone, no calibrated display, no reader. Every read of §5.1 is a re-read of committed rows;
-nothing was encoded for this question.
+form, lag 0, libaom 3.15.1 at speed 6; one 4-core cloud host. Every limit of these is in the list below.
 
 **The population.** A's recommendation needs no fitted constant: it claims a fact measured per series (the ratio)
 and the exact frame's availability, so it carries to any modality, vendor or link by construction (**theory**). The
@@ -69,12 +67,83 @@ volume at the rows' resolution (r and ν are not a function of x alone). Their c
 dataset. Two of the five DBT systems a national QC protocol lists reconstruct iteratively (**source**, NHSBSP 1407),
 where a noise-relative criterion has nothing to stand on.
 
-**US and DBT stacks.** DBT: as above. Breast ultrasound cine: **not yet known** for B–G; no ultrasound cine fixture
-was read, and whether its fine band is noise in the sense σ assumes is unexamined. A holds for it as for DBT.
+**US and DBT stacks.** DBT: as above. Breast ultrasound cine: **not yet known** for B–G (the list below says why).
+A holds for it as for DBT.
 
 **The theory's tested predictions** (§5.1): R2 and R3 held (the rule's Q removes noise; error white where x ≤ 2, so C
-and D stand as derived bounds); R1, R4 and R7 missed without refutation; R5 (the window matters: the quietest
-decile's ratio 3–52 % above the frame's), R6, R8 on `dbts_b2` and R9 were refuted.
+and D stand as derived bounds); R1, R4 and R7 missed without refutation; R5, R6, R8 on `dbts_b2` and R9 were
+refuted. Each miss is in the list below, with what it showed.
+
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS): no link enters what the view may claim; the
+label's facts and option A hold on every link (**theory**). A's safety argument leans on the exact frame arriving
+after a dwell (§6), and the exact frame is link-bound on every link: C1's exact frame on every link, from round trips
+and slow start on an idle session (**derived**, [`delivery-per-link.md`](delivery-per-link.md) §4). The view itself,
+A, is link-bound on LTE, a far stream, LOSS-like links and public Wi-Fi below ~83 Mbit/s for `dbts_b1` on the round's
+phone, decode-bound on clean links above that crossover (**derived**, the same §4, from `link-profiles.md` §2). That
+the wire binds is untested: on the one phone measured, the exact series filled faster than the view in 15 of 15
+rounds, median 0.705 (**measured**, [`README.md`](README.md) §Premises item 1). No transport row is lowered by the
+decode-bound phone.
+
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS). Fixtures and setup:
+
+* One dataset, EA1141, 19 DBT volumes of three systems; three of them timed. Found by VL-CRITERION's and VL-READS'
+  fixtures lines (`claude/work-ledger:docs/queue/VL-CRITERION.md`, `VL-READS.md`).
+* Stored form only; S's `top10` and `window` cells not read (x is defined on the stored form's σ). Found by VL-READS
+  (`vl-criterion.md` §5.1).
+* Lag 0, libaom 3.15.1 at speed 6, one 4-core cloud host. Found by VL-READS' fixtures line.
+* Nothing encoded or decoded for this question: every read is a re-read of committed rows, and the streams are not
+  committed, so E (only noise removed) cannot be tested. Found by VL-READS (§5.1) and `vl-criterion.md` §6.
+* Δ, the quantizer step, is in no row: it is taken from the AV1 specification fetched the same day, and
+  `b-summary.json`'s x is the median frame's, not the quietest's. Found by VL-CRITERION-REVIEW's B1.
+* Bytes over all 19 volumes, time on three only (0.07–0.22 on those three). Found by VL-CRITERION-REVIEW's
+  arithmetic check; the page's link for it by DECISION-PAGES-REVIEW m4, its rows' file by r-n2.
+
+Population:
+
+* No second vendor and no denoising (iterative or learned) reconstruction; two of five DBT systems a national QC
+  protocol lists reconstruct iteratively. Found by VL-CRITERION §1.2 and §6 (audit F8) and NHSBSP 1407 (**source**).
+* The noise criteria's form carries only over dose and gain on one detector and one filtered-back-projection-like
+  reconstruction, and that reconstructed slices keep a contrast fixed while σ scales is assumed, unverified. Found by
+  VL-CRITERION §1.2 (theory).
+* Their constants are per system of this dataset: ν at equal x differs across systems by 0.11–0.13. Found by
+  VL-CRITERION §1.2 (its A3, refuted).
+* A's carry to any modality, vendor or link is **theory** by construction; no row tests it. What found it is not
+  recorded beyond VL-PAGE's own label.
+* Breast ultrasound cine: no clip was read, and whether its fine band is noise in the sense σ assumes is unexamined.
+  Found by VL-CRITERION's fixtures line ("no second vendor, ultrasound cine, phone, display or reader"); the
+  unexamined premise by VL-PAGE.
+* No phone, no calibrated display, no reader. Found by VL-CRITERION's fixtures line; that readers are the only route
+  to *visually lossless* by `vl-criterion.md` §1.4.
+
+The theory's misses (all VL-READS, `vl-criterion.md` §5.1, unless named):
+
+* R1 missed: ν resolves the anchor to one Q on 15 of 19 (predicted ≥ 17), r on 4; the bar sits on a plateau. Found by
+  VL-READS' R1; the plateau by VL-CRITERION §1.1.
+* R4 missed on 2: L 0.781 on `dbts_b3` and `dbts_b4`, over 0.75. Found by VL-READS' R4.
+* R5 refuted on `dbts_c1` G 1: the window matters on every cell read, the quietest decile's ratio 3–52 % above the
+  frame's, so B's sentence holds for the tiles' mix, not the quiet band. Found by VL-READS' R5.
+* R6 refuted: within a volume neither r nor ν is a function of x alone, which confines even the form to the volume it
+  was read on. Found by VL-READS' R6, computable on 12 volumes only.
+* R7 missed: the quantizer model describes AV1 from x 4 only and over-predicts r below. Found by VL-READS' R7.
+* R8 refuted on `dbts_b2` (D's x ≤ 2 at 0.594, over 0.55); and its Q is the highest rung read, not the highest Q
+  with x ≤ 2. Found by VL-READS' R8; the rung by VL-CRITERION-FIX-REVIEW's n1 (§5.1's limits).
+* R9 refuted: the label's N does not split by depth. Found by VL-READS' R9.
+* The quantizer model is not AV1: the 0.35 against 0.86 detectability is a model's, AV1's own unmeasured (D's "AV1's
+  own T unmeasured"). Found by VL-CRITERION (its "Unverified" line).
+* Temporal denoising: −5 to −6 % at equal PSNR on one volume, and every G result taken without alt-ref. Found by
+  `codecs.md` §Open 0.4.
+
+Not measured, and what each needs (all `vl-criterion.md` §6):
+
+* E's and G's bytes are unknown; G, the model observer, is held (about 460 encodes). Found by VL-CRITERION §6.
+* The narrowest window the viewer allows, in the lowest signal decile, is unread. Found by `vl-metrics.md` §4 items
+  1 and 4, carried in `vl-criterion.md` §6.
+* Alternation needs a reader study, no agent's, and at the rule's Q is not expected to pass. Found by
+  `noise-ratio.md` §5.7 and `vl-criterion.md` §1.4.
+* A's time from a dwell to *✓ Lossless* on a phone, and what counts as a dwell, are unmeasured. Found by
+  `vl-criterion.md` §6.
+* No measurement opens lossy primary interpretation of a mammogram in the United States. Found by VL-CRITERION's
+  sources (FDA 2022, §VIII, **source**), each quote fetched again by VL-CRITERION-REVIEW.
 
 ## 5 · The mechanism
 

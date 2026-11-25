@@ -66,13 +66,11 @@ Contradiction 6, **measured** (`frame-memory-ownership.md`), growth in MiB, medi
 
 ## 4 · Where it holds
 
-**Fixtures and limits.** One 4-vCPU cloud container without a GPU; software decode only; Firefox 159.0.1 and
-160.0.1 from `archive.mozilla.org` (each checked against `SHA256SUMS`), 163.0a1 for the transport; Chrome for Testing
-153.0.8010.12 and, for the transport, 158, 159, 160.0.8173.0; Firefox's WebGL on llvmpipe under Xvfb, Chromium's on
-SwiftShader; one round per cell, no timing claimed; `dbts_a1` only, 1 of 19 DBT volumes of one dataset; no breast
-ultrasound cine; no Safari, no phone. Sources at `main` of 2026-11-19 (Chromium `fb1f1ab4`, WebKit `4c0a9cbe`, Gecko
-`d5236b13`), not at the releases run; BCD `70a51a12` is a secondary record. The ring's rows: the same host class, 80
-frames of one series, 7 rounds per arm, Firefox 155.0 (Playwright 1.63's) and 159.0.
+**Fixtures.** One 4-vCPU cloud container; Firefox 159.0.1 and 160.0.1 from `archive.mozilla.org` (each checked
+against `SHA256SUMS`), 163.0a1 for the transport; Chrome for Testing 153.0.8010.12 and, for the transport, 158, 159,
+160.0.8173.0; `dbts_a1`. Sources at `main` of 2026-11-19 (Chromium `fb1f1ab4`, WebKit `4c0a9cbe`, Gecko `d5236b13`);
+BCD `70a51a12`. The ring's rows: the same host class, 80 frames of one series, 7 rounds per arm, Firefox 155.0
+(Playwright 1.63's) and 159.0. Every limit of these is in the list below.
 
 **The population.** Desktop Chromium and Firefox: carried only to the versions named; nothing past them. Chrome for
 Android: rows 1–3 and 8 are the phone round's (`next-round.md`), not this page's; its hardware route returns RGB
@@ -90,6 +88,57 @@ coded is not yet decided, so whether item 2 binds it is not yet known.
 **Predictions against the runs** (cells 1–7). Held: cells 1, 4, 5, 7, and cell 2's pair. Missed: cell 2's `dispatch`
 (predicted 3/3, measured 764/781), and cell 3's "-07 on Chromium", a mis-stated prediction (-07 was only ever measured
 behind a flag). Decided by the run: `getStats()` on Chromium.
+
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). Most of this page's rows are not a link's: the
+decode route, the exact frame, the check, shared memory, workers, paint and the stores (rows 1–6, 8–10) were measured
+with no link timed. A link enters at row 7, the transport (which engines negotiate WebTransport at all: **source** and
+**measured**, by version), and row 12, `getStats()` (whether the client can see the link). Where the link binds the
+view and the exact frame is not an engine's: B on every link below its class's *G*★, A on LTE, a far stream,
+LOSS-like links and public Wi-Fi below ~83 Mbit/s for `dbts_b1` on the round's phone, C1's exact frame on every link,
+the decode binding A on clean links above that crossover (**derived**, [`delivery-per-link.md`](delivery-per-link.md)
+§4); per link profile, WebTransport where any stack serves and the WebSocket fallback on a UDP-hostile network
+(**derived**, [`transport-stack.md`](transport-stack.md) §4). That the wire binds at all is untested: on the one phone
+measured, the exact series filled faster than the view in 15 of 15 rounds, median 0.705 (**measured**,
+[`README.md`](README.md) §Premises item 1). No transport row is lowered by the decode-bound phone, nor by Firefox's
+view decoding by dav1d, which is untimed here.
+
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
+* One 4-vCPU container, no GPU, software decode only; Firefox's WebGL on llvmpipe under Xvfb, Chromium's on
+  SwiftShader. Found by ENGINE-SMOKE (`engines.md` §Measured; its fixtures line in ENGINE-REVIEW-FIX-REVIEW).
+* One round per cell, no timing claimed. Found by ENGINE-SMOKE ("one round each").
+* `dbts_a1` only, 1 of 19 DBT volumes of one dataset; no breast ultrasound cine. Found by ENGINE-SMOKE's fixtures,
+  as ENGINE-REVIEW and its fix review restate them.
+* No Safari and no phone: no Safari row is measured. Found by ENGINE-MATRIX (Safari's rows source or device only).
+* Sources read at `main` of 2026-11-19, not at the releases run; BCD a secondary record. Found by ENGINE-MATRIX's
+  pins; ENGINE-REVIEW fetched E1–E26 at them, all verbatim.
+* Results carried only to the versions named, nothing past them. Found by ENGINE-PAGE (§4's population).
+* Chrome for Android's hardware route returns RGB, so the page claims nothing for it. Found by ENGINE-MATRIX's E24.
+* Safari's view needs AV1 hardware, its transport OS 26 with Network.framework's functions (unconditional from 27),
+  its shared memory the embedder's call per global; which 26.x is unknown. Found by ENGINE-MATRIX (E5–E12); 26 as
+  runtime-gated by ENGINE-REVIEW's m3.
+* Safari 10-bit `format` `null` rests on one report. Found by ENGINE-MATRIX's E25.
+* Nothing measured on WebKitGTK 2.52.6 (no `SharedArrayBuffer`, no OPFS, no AV1) carries to Safari. Found by
+  ENGINE-SMOKE's cell 7.
+* Firefox's 8-bit G = 8 groups come back inexact on frames 1–7, the WebCodecs route only, cause not traced here.
+  Found by ENGINE-SMOKE (dispatch 17 of 781 failing on 160, 18 on 159); the route by ENGINE-REVIEW (the dav1d variant
+  passes). Traced since by ENGINE-CELLS (§6).
+* A US colour clip coded as 8-bit 4:2:0 would meet that failure: **derived**, no ultrasound frame run. Found by
+  ENGINE-PAGE.
+* Cell 2's `dispatch` missed its prediction (3/3 predicted, 764/781 measured), and cell 2's command cannot serve a
+  pair, so it ran through `demo-pair.sh`. Found by ENGINE-SMOKE.
+* Cell 3's "-07 on Chromium" was a mis-stated prediction: -07 only ever behind a flag. Found by ENGINE-SMOKE;
+  the matrix left uncorrected by ENGINE-REVIEW's B1, fixed by ENGINE-REVIEW-FIX.
+* Chromium's reports carriers deliver in one of two interleaved D1 runs; in the other SESSION and KEEPALIVE failed to
+  open. Found by ENGINE-REVIEW-FIX-REVIEW's n3.
+* Firefox's `off` carrier delivers its safety record only. Found by ENGINE-REVIEW-FIX-REVIEW's n1.
+* `getStats()` is present on Chromium 160.0.8173.0, a pre-release build, without byte counts; stable 160 not
+  measured. Found by ENGINE-SMOKE's cell 3; pre-release by ENGINE-REVIEW's m2.
+* BCD's "throws a not-implemented error" for Firefox's `getStats()` is stale. Found by ENGINE-REVIEW's m1.
+* Safari's view worker (row 9) never run. Found by ENGINE-MATRIX.
+* Contradiction 6: the ring's Firefox verdict rests on 155.0, not the 159.0 its bar was set on; the fill bar under
+  its amendment is not measured on 159 or later; §5's "not expected to move" is **theory**. Found by `design.md`
+  §Open, contradiction 6, from `frame-memory-ownership.md`. Measured since by ENGINE-CELLS on 160.0.1 (§6).
 
 ## 5 · The mechanism
 
@@ -117,6 +166,12 @@ from 1.23 to 0.85 × `today`, and 159.0 was read only by the struck bar (1.30). 
   the owner for Firefox. One cloud run shows it.
 * **Item 1, Safari:** the probe page on one device (item 5) showing `SharedArrayBuffer` absent on a cross-origin
   isolated page: then the client does not run on Safari as built, whatever the other rows say.
+* **Named for the owner (PAGES-PASS, 2026-11-25):** ENGINE-CELLS (done 2026-11-24, `claude/engines` `7048b6534`,
+  `cc2b4c22d`, `9881d90dd`; its verdict row, which reads `page-runs.md` §3, has not run) reports for item 3 that "the
+  G = 8 inter frames never reach a VideoDecoder. av1-payload.js layouts() reads a delta unit's layout from a sequence
+  header it lacks", "the client's" fault, and for item 4 that "ring does not qualify on Firefox 160.0.1" (fill ÷
+  `today` 1.24, predicted 0.80–0.95), both on synthetic sets. Once verdicted, item 2 would read as a client fix, item 3 as done, and item 4 as
+  choice 2 returning to the owner for Firefox. Not changed here.
 * **Row 12:** stable Chromium 160 without `getStats()`: the link from the client stays Firefox's only. A run on a stable
   build shows it; the `reports` page reads this row.
 
