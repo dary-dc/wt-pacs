@@ -1,9 +1,10 @@
 state: started
 started: 2026-11-25T07:07Z
-heartbeat: 2026-11-25T10:27Z
-by: 22u6GUnd
+heartbeat: 2026-11-25T11:27Z
+by: iBdmdVUA
 outputs: claude/unified 9170cdf39 (11 merges + one link fix), pushed; PR comments and closes next
 ## Resume
+Resumed 2026-11-25T11:27Z by iBdmdVUA (stalled since 10:27): origin/claude/unified is at 8459a0a7b (pushed); checking CI and the gate on 8459a0a7b, then comment and close PRs 413 418 419 439 440 442 443 444 445 447 448.
 Resumed 2026-11-25T10:06Z by 22u6GUnd (stalled since 08:49): checking whether the gate ran, then the gate on origin/claude/unified, then comments and closes.
 2026-11-25T10:13Z: the deploy image builds with 8459a0a7b (docker compose build, BUILD_CA set to the proxy's CA); ingest/tools.sh done (meson 1.9.1 via pip); scripts/gate.sh running on 8459a0a7b.
 2026-11-25T10:27Z: README's prerequisites installed (wasm target, wasm-pack 0.15.0, openjph, xxh3, .venv, client/transport/wasm/build.sh); the full gate restarted on 8459a0a7b with PYTHON=.venv/bin/python, log in the scratchpad. If this stalls: the same, then push 8459a0a7b if green, comment and confirm closed PRs 413 418 419 439 440 442 443 444 445 447 448 (GitHub already shows them merged and closed, no comment yet).
