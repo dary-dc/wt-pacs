@@ -265,3 +265,45 @@ By a session that wrote none of this file, its harness or its review (`by:` in i
   Logs: `claude/work-ledger:docs/queue/PHONE-ROUND-2-PREP-FIX/`.
 * **Limits**: the window on `dbts_b1-q8-g8` still not exercised (15 frames, *theory*); no DBT volume or ultrasound clip
   opened; PR 446's effect on the round is argued from its body, not run here.
+
+## Re-review (PHONE-ROUND-2-PREP-FIX-REVIEW, 2026-11-25)
+
+By a session that wrote none of this file, its harness, its review or its fix (`by:` in its status file), 01:54–02:20
+UTC. Read: the fix's commits `c1a88f1dc`, `6b6d1dbe5`, `77bfaf590`, `70b4fc7ab` (`git diff 5a4532dcf 70b4fc7ab`: this
+file, `docs/lines/devices.md`, `lab/devices/round.mjs`, `round-page.js`, `round.test.mjs`, every hunk under B1, m1, m2 or
+n1); PR 446's branch `claude/window-whole-groups` `e8a52cfe4` (`client/view/controller.js`, `store.js`). Run, in one
+4-core cloud container, headless Chromium, no GPU, fake `adb`, no phone, on the synthetic 10-bit pair (64 × 48, 20
+frames, Q 8 G 8): `round.test.mjs` 9/9 and with the fix's new line removed 8/9; PR 446's `wantFrom` imported for
+`dbts_b1`'s metadata (50 × 2560×3328, 10 bits; no pixels read); §Review's variant on a scratch tree, this branch at
+`70b4fc7ab` merged `--no-ff` with `e8a52cfe4` (no conflict; local, not pushed), with the round page's `held` taken by
+§1's rule. Logs and the scratch diff: `claude/work-ledger:docs/queue/PHONE-ROUND-2-PREP-FIX-REVIEW/`. The gate not run
+(lab and docs only; §6's run cited).
+
+* **B1: open in part (R-B1, blocker).** §1 names PR 446 as not landed and says what the round does either way, as
+  §Review asked. But the rule §1 gives for the merged case, "take the round page's `held` from the same rule as the
+  store (PR 446 raises the store's budget to max(*W*, 2*G*) …)", is the store's **budget**, not what the fill asks.
+  PR 446's `want()` asks `wantFrom(…, window, g)`, whole groups: *G* · max(2, ⌊*W*/*G*⌋) frames, fewer near the
+  series' end (`nearestGroups`). On `dbts_b1-q8-g8` (*W* = 15, *G* = 8; *derived*, PR 446's code run on the metadata):
+  the *w* arms fill 16, which max(15, 16) matches; the 2*w* arms (budget 30) fill **24**, against a `held` of 30. Every
+  2*w* load, worker and page, would fail `fillFailure` "received 24 of 30": 4 of cell M's 8 loads. *Measured* on the
+  scratch tree, the variant at budgets 6 and 19 of 20 frames (19: max(19, 16) = 19, whole groups 16): "cell M: 4 of 8
+  loads ok; 5 worker 19: received 16 of 19; 6 page 19: received 16 of 19; 9 worker 19: …; 10 page 19: …", the
+  budget-6 loads ok (16 of 16). And the check §1 names for that case, `round_headless.sh --round2`, cannot see it: its
+  pair's 20 frames all fit the window (§6, "whose 20 frames all fit"), so no grouped window is exercised. Fix: in the
+  merged case `held` is what the want asks (PR 446's `wantFrom(current, n, true, ascending, budget, g).length`, or its
+  formula with the series' end), not max(*W*, 2*G*); and the merged case's dry run includes §Review's variant with a
+  cell M budget at or over 2*G* that is not a multiple of *G* (19 of 20 does), every load ok, named in §1. Or argue
+  the 2*w* arms out of the merged case.
+* **m1: closed.** `received` is `ledger.frames.length`, and the ledger is the `Controller`'s store (`ledger()` walks
+  `this.store.keys()`), so the record now carries what the store holds; a fill over the window fails. The test fails
+  without the new line (8/9), mutated here. The variant's mutant M4 kill is the fix's, read from its log.
+* **m2: closed.** §0: 72 min + 8 × 70 s ≈ 1 h 21 min. **n1: closed.** §5's row for the exact frame's 216.5 ms.
+* **r-n1 (nit).** §Review's variant asserts "each load records its window … budget" as `window == budget`; under a
+  grouped window that claim fails by construction (the scratch run's fourth FAIL), so a merged-case variant compares
+  `window` with `received` instead.
+
+**Verdict.** One blocker open (R-B1), round two: PHONE-ROUND-2-PREP-FIX-2 and -FIX-2-REVIEW appended to the queue;
+PHONE-ROUND-2 waits on the second re-review. It binds only if a sync row merges PR 446 before the round, which the
+queue makes likely (WINDOW-WHOLE-GROUPS-MEASURE from 11-25 06:00, UNIFIED-SYNC-1125 by 23:00). Fixtures and limits:
+the synthetic pair only; `dbts_b1-q8-g8`'s fill sizes derived from PR 446's code, not loaded; PR 446 merged on a
+scratch tree only; a fake `adb`, headless Chromium in one container, no phone, no radio.

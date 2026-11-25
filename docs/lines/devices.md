@@ -129,6 +129,10 @@ Fixed 2026-11-25 (PHONE-ROUND-2-PREP-FIX, round-2.md §Fix): §1 names PR 446 as
 (re-merge if a sync row has merged it, else cell M's *w* arms read as "before PR 446"); a fill past its window now fails
 the load and the record carries `received` (`c1a88f1dc`), killing M4 in the round's own verdicts; the length is
 1 h 21 min. PHONE-ROUND-2-PREP-FIX-REVIEW next; the round waits on it.
+Re-reviewed 2026-11-25 (PHONE-ROUND-2-PREP-FIX-REVIEW, round-2.md §Re-review): m1, m2, n1 closed; B1 open in part
+(R-B1): if PR 446 is merged, §1's `held` = max(*W*, 2*G*) is the store's budget, not the fill's whole groups, so the 2*w*
+arms (budget 30, fill 24) would fail every load (*measured* on a scratch merge, budget 19 of 20: 16 of 19), and
+`--round2`'s pair cannot show it. PHONE-ROUND-2-PREP-FIX-2 next; the round waits on its re-review.
 
 ## Rules for a device run
 
