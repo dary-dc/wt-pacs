@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { firefoxAt, marionetteMessages, staticHost } from "./browser.mjs";
+import { firefoxAt, marionetteMessages, processType, staticHost } from "./browser.mjs";
 
 const frame = (v) => { const b = Buffer.from(JSON.stringify(v)); return Buffer.concat([Buffer.from(`${b.length}:`), b]); };
 
@@ -31,6 +31,21 @@ const frame = (v) => { const b = Buffer.from(JSON.stringify(v)); return Buffer.c
   assert.deepEqual(messages, [[1, 2, null, { value: "frame 1 · received 0" }], [1, 3, null, { value: 2 }]]);
 }
 console.log("marionette framing: ok");
+
+/** Each process's kind, from the command lines Chromium 158 and Firefox write to /proc (Chromium's as one string). */
+{
+  const chrome = "/opt/chrome --type=utility --utility-sub-type=storage.mojom.StorageService --lang=en-US";
+  assert.equal(processType(chrome), "storage");
+  assert.equal(processType(chrome.replace("storage.mojom.StorageService", "network.mojom.NetworkService")), "utility");
+  assert.equal(processType("/opt/chrome --type=renderer --no-sandbox"), "renderer");
+  assert.equal(processType("/opt/chrome --type=gpu-process --no-sandbox"), "gpu");
+  assert.equal(processType("/opt/chrome --type=zygote --no-sandbox"), "zygote");
+  assert.equal(processType("/opt/chrome\0--no-sandbox\0--headless\0"), "browser");
+  assert.equal(processType("/opt/firefox/firefox-bin\0-contentproc\0-isForBrowser\0{a}\0x3\0tab\0"), "renderer");
+  assert.equal(processType("/opt/firefox/firefox-bin\0-contentproc\0{a}\0x4\0socket\0"), "utility");
+  assert.equal(processType("/opt/firefox/firefox-bin\0--no-remote\0--marionette\0"), "browser");
+}
+console.log("process kinds: ok");
 
 /** Under the driver, a worker starts 300 workers one after another: none hangs (under a WebDriver BiDi session one did within 22–73). */
 if (process.env.FIREFOX_PATH) {

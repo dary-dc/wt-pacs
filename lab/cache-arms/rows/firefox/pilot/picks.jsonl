@@ -1,0 +1,7 @@
+{"arm": "opfs-sync", "cell": "R-busy-2560", "measure": "piece", "a": "", "b": "piece=2MiB", "costA": 53.39990234375, "costB": 50.699951171875, "roundsA": 3, "roundsB": 3, "bExact": true, "pick": ""}
+{"arm": "opfs-async", "cell": "W-512", "measure": "write", "a": "", "b": "group=8MiB", "costA": 10.419921875, "costB": 0.5, "roundsA": 3, "roundsB": 3, "bExact": true, "pick": "group=8MiB"}
+{"arm": "opfs-async", "cell": "W-2560", "measure": "write", "a": "group=8MiB", "b": "group=8MiB&inflight=3", "costA": 35.900146484375, "costB": 24.300048828125, "roundsA": 3, "roundsB": 3, "bExact": true, "pick": "group=8MiB&inflight=3"}
+{"arm": "opfs-async", "cell": "R-idle-2560", "measure": "miss50", "a": "group=8MiB&inflight=3", "b": "group=8MiB&inflight=3&read=sync", "costA": 100.079833984375, "costB": 34.059814453125, "roundsA": 3, "roundsB": 3, "bExact": true, "pick": "group=8MiB&inflight=3&read=sync"}
+{"arm": "idb", "cell": "W-2560", "measure": "write", "a": "", "b": "value=buffer", "costA": 73.2998046875, "costB": 116.619873046875, "roundsA": 3, "roundsB": 3, "bExact": true, "pick": ""}
+{"arm": "cachestorage", "cell": "R-idle-2560", "measure": "writeread", "a": "", "b": "inflight=3", "costA": 192.92005859375058, "costB": 122.0600683593766, "roundsA": 3, "roundsB": 3, "bExact": true, "pick": "inflight=3"}
+{"arm": "cachestorage", "cell": "R-idle-2560-body", "measure": "writeread-streamed", "a": "inflight=3", "b": "inflight=3&body=streamed", "costA": 124.51998046874905, "costB": 168.60000976562515, "roundsA": 3, "roundsB": 3, "bExact": true, "pick": "inflight=3"}
