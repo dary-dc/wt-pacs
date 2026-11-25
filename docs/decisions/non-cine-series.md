@@ -68,7 +68,8 @@ Chromium 141 and 153, software decode. What is missing is in the list below.
 
 **The population.** Phone decode is scaled by the device model's ranges for an HTJ2K frame on one fast core
 (×1.75–2.50 entry, ×0.81–1.65 middle, ×0.65–1.03 premium against the cloud host, **derived** on its theory; that
-model's own phone prediction is not yet read against the 2026-11-22 round). Links are `link-profiles.md`'s open-data
+model's own phone prediction not read against the 2026-11-22 round when NON-CINE-OPTIONS wrote it; the round is read
+in [`phone-decode-route.md`](phone-decode-route.md) §4). Links are `link-profiles.md`'s open-data
 goodputs, not ours.
 
 **Where the link, not the decode, binds** (amendment 28; labelled and completed 2026-11-25, PAGES-PASS): for one frame
@@ -92,8 +93,9 @@ clip's frames (0.5–1.6 Mpx) are under every limit. Item 4's fix therefore prot
   its limits; §7: "no 50 µm frame and no breast still with its original geometry exist here").
 * No radio: the links are `link-profiles.md`'s open-data goodputs, not ours. Found by this page's reading of the
   file's §4.2 inputs; what found it first is not recorded.
-* The phone decode is the device model's ranges, the model's own prediction not yet read against the 2026-11-22
-  round. Found by NON-CINE-OPTIONS (the file §Where it holds: "its 2026-11-22 round not yet read").
+* The phone decode is the device model's ranges; when NON-CINE-OPTIONS wrote them the model's own prediction was not
+  read against the 2026-11-22 round (the file §Where it holds: "its 2026-11-22 round not yet read"), which
+  `phone-decode-route` §4 reads since. Found by NON-CINE-OPTIONS; dated by PAGES-PASS-FIX (README §Pass review m8).
 
 * Level 1 on `ffdm_d` (the level a phone's 1080 × 2400 device pixels need) is carried from the nine level-1 series
   (25.8–29.0 %), not measured on this frame: NON-CINE-REVIEW B1, fixed by labelling it, still unmeasured.

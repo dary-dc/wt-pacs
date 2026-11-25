@@ -33,7 +33,7 @@ fill), before any second wire is considered.**
 | 3 | The WebSocket stays built and off, a fallback only (decided 2026-10-02, kept 2026-11-11) | **yes** | nothing; its wins recorded (§3) | a WebSocket-first or a race design, against its ×1.35–1.70 ask after a 5 s silence |
 | 4 | Host networking stays a proposal: `deploy/compose.yml` keeps publishing until `network-mode.md` §6's check runs from a client off the host | **yes** | the check queued for a session with two hosts (the cloud's one container cannot place a client off the host) | an override with `network_mode: host` written now, unmeasured in a forwarded mode |
 | 5 | The initial window stays quinn's 12 000 B; 32 packets (38 400 B) stays opt-in (PR 37: close) | **yes** | PR 254's #37 answered no | 38 400 B the default, on −28 to −33 % at one RTT and a slowdown under BBR nobody explained |
-| 6 | PR 254's other held defaults, as §3's last table reads them | **as that table** | each line's answer recorded | the index's open column stays open |
+| 6 | PR 254's other held defaults, as the [appendix's table](#appendix-the-servers-held-defaults) reads them | **as that table** | each line's answer recorded | the index's open column stays open |
 | 7 | `bbr` is **not** withdrawn by loads 6 and 13; it stays an option, never the default | **yes** | contradiction 3's second half closes | `bbr` withdrawn from what the next runs try (the 2026-11-11 Amendment's rule read literally) |
 
 ## 3 · The options
@@ -139,7 +139,7 @@ which reopens item 1; "#39: net on these cells" (WT-AF ×0.780, ×0.535 on AD, a
 appendix's "hold for item 2's run"; and "CR is answered within WebTransport" by `per-frame` (×0.571). #96 "is not
 answered". PAGES-AFTER-RUNS carries the verdict into items 1 and 2, #39 and §6.
 
-**The stack per link profile** (**derived** from the table; LINK-TARGETS' profiles, `link-profiles.md`):
+**The stack per link profile** (**derived** from §3's table; LINK-TARGETS' profiles, `link-profiles.md`):
 
 | profile | what binds | the stack that serves it |
 | --- | --- | --- |

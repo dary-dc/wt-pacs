@@ -26,7 +26,7 @@ reader what the project claims.
 
 They are two names because they name two things (**theory**): *release* names an artifact, the tree that goes into
 `main`, and *evaluation* says what a reader may do with it, §5's third axis; *bench-verified* names the state of its
-claims, §5's first two axes. Each says what the other does not (§3): *evaluation release* has no official definition
+claims, §5's first two axes. Each says what the other does not ([§3 in full](#appendix-3-in-full)): *evaluation release* has no official definition
 and says nothing of its evidence (T3, T4; its T5 is weak because DICOM, which the code touches, has *release* as
 A-RELEASE, judged harmless), and *bench-verified* says what was shown but not what the artifact is for.
 Kept, the provisional term renames nothing (§7). "For technical evaluation" is there because medical-device law uses
@@ -52,7 +52,7 @@ bench, for the stated scope, and no further.
   measurement. For technical evaluation: ..." (the unmet conditions at the tip: §5's last list). One docs-only row
   does the edits (not queued here: it waits for the yes).
 * **No**: UNIFIED-PAGE still uses §5's conditions, as "the state of `final-state.md` §5", with no name; "production
-  ready" and "demo ready" stay unused; the owner names another row of §3, or a word of their own, for either name,
+  ready" and "demo ready" stay unused; the owner names another row of [§3's table](#appendix-3-in-full), or a word of their own, for either name,
   and §5 stands under it unchanged (§7 lists what a new release name renames). The status line's second sentence is
   recommended whatever the names (§6).
 
@@ -104,8 +104,9 @@ in one sentence, and neither uses a maturity word (S16, quoted there).
 * **The status line's "every default chosen by measurement"** is met by a table whose rows may say "not measured";
   and the line's *stacks* scope is narrower than the value statement's *study*. Found by PROGRAM-CLOSE, `README.md`
   §Contradictions 3 and 6.
-* **Two homonyms judged harmless, not tested on a reader**: DICOM's Verification Service Class, and *bench* as a
-  project word (§6). Found by this page (the first) and FINAL-STATE-REVIEW m3 (the second).
+* **Three homonyms judged harmless, not tested on a reader**: DICOM's Verification Service Class, DICOM's A-RELEASE
+  and *bench* as a project word (§6). Found by this page (the first), FINAL-STATE-FIX (S15, the second) and
+  FINAL-STATE-REVIEW m3 (the third).
 * **Not a regulatory opinion.** Whether software like this is a medical device in a given country is decided by
   that country's rules and the use its maker states, and by no word on this page. Found by FINAL-STATE's reading
   of S11, S12 and S18, which tie the label to an intended use.
@@ -236,7 +237,7 @@ by its fetch date.
 | S17 | Microsoft Learn, *Evaluation Versions and Upgrade Options for Windows Server 2012* (practice, not a definition) | "Evaluation versions of Windows Server 2012"; a previous-versions page, cited by its fetch date | `https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/jj574204(v=ws.11)` |
 | S18 | Regulation (EU) 2017/745 (MDR) and Regulation (EU) 2017/746 (IVDR) | Article 2, points 44; the text as adopted, 5 April 2017 | EUR-Lex, the official publication: `https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32017R0745`, `https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32017R0746`; the quotations were fetched from the UK's copy, the same text (FINAL-STATE-FIX-REVIEW): `https://www.legislation.gov.uk/eur/2017/745/article/2/adopted`, `https://www.legislation.gov.uk/eur/2017/746/article/2/adopted` |
 
-The quotations of §3 in full, where the table shortened them:
+The quotations in full, where §3's table ([in the appendix](#appendix-3-in-full)) shortened them:
 
 * S1, TRL 5, software: "End-to-end software elements implemented and interfaced with existing systems/simulations
   conforming to target environment. End-to-end software system tested in relevant environment, meeting predicted

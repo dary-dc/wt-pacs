@@ -72,7 +72,7 @@ the HTJ2K-only control of phase 2 (amendment 28), every frame of which is exact 
 | 4.5 the fill measures itself, one switch | nothing | the rule on the first group | the better of the two plus at most one group (8 frames, 3.7 MB) at the view's rate (**derived**) | a margin *m* (A) to choose; *G* under credits is a floor |
 | 4.6 a split fill | nothing | **structural**: a form chosen per group from two queues | **1.4–1.8 s** (**derived**, on assumption A: decode times add) | no worse than the better pure route if A fails |
 | 4.7 hardware paints, software confirms | a 4:2:0 form (+0.20–0.23 % bytes instead of 4:0:0, or the view's bytes again beside it, **source**) | a hardware route, an unchecked paint | the checked fill unchanged; the first paint unmeasured | the decoder refusing size or form; 4:0:0 failed at flush (**measured**, 256 × 256) |
-| 4.8 hardware decodes the view, unchecked (the word) | the same 4:2:0 form | a hardware route; the check skipped for it | unmeasured: *d*_V on hardware not measured at a volume's size | as 4.7; on the round's phone 10-bit forms came back as 8-bit `RGBA` (cell 4, below), so the painter windows 8 bits a sample, not the stored 10 |
+| 4.8 hardware decodes the view, unchecked (the word) | the same 4:2:0 form | a hardware route; the check skipped for it | unmeasured: *d*_V on hardware not measured at a volume's size | as 4.7; on the round's phone 10-bit forms came back as 8-bit `RGBA` (cell 4, [the appendix](#appendix-3-in-full)), so the painter windows 8 bits a sample, not the stored 10 |
 
 **The threshold under every policy** (`route-policy.md` §3): the exact series fills faster when *G* > *b*_E ÷ *d*_V.
 Its table per class, **B1's 8-bit forms** and the **real-device routes for cell 1** are in

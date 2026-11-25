@@ -169,7 +169,9 @@ REPORTS-PAGE. Fault-bench cells 2, 3, 5, 6, 12 as cloud rows.
 
 ## Appendix: §3 in full
 
-Moved here from §3 on 2026-11-25 (PAGES-PASS, §Review m13), unchanged.
+Moved here from §3 on 2026-11-25 (PAGES-PASS, §Review m13); nine lines differ from §3 as it stood: eight citations
+made links and one source added ([`lossless-after-a-failed-ask.md`](../client/evidence/lossless-after-a-failed-ask.md)),
+each checked right (README §Pass review m5).
 
 ### 3.1 The label's states
 
