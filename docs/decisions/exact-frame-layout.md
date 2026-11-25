@@ -57,21 +57,16 @@ time at 4× (×0.45–0.52 at 1×), and in ×0.98–1.04 on one worker: the stri
 
 ## 4 · Where it holds
 
-**Fixtures and limits.** Three timed DBT volumes of one dataset (EA1141: `dbts_a1`, `dbts_b1`, `dbts_c1`); the deciding
-reading is one cell of one volume, from 4 and 5 paired rounds; one 4-core cloud host, no GPU, headless Chromium 157
-(A1; stage 3 ran 153), software WebCodecs, a userspace relay, a 4× cgroup cap standing in for a phone (*assumption*);
-no breast ultrasound. **The host saturates**: at `r20000` every volume is decode-bound (D's fill at 4× is ×1.38–1.56
-its 1×), so those cells (D+T3 ÷ D ×0.805–0.951) decide nothing; `r5000` is link-bound on every volume (×1.008–1.012).
+**Fixtures and limits.** Three timed DBT volumes of one dataset (EA1141: `dbts_a1`, `dbts_b1`, `dbts_c1`) on one
+cloud host; every limit, and where the host saturates, is in the list at the end of this section.
 
 **A1's rule, as registered and applied** (`htj2k-tiles.md` §A1, recomputed in §A1 review, all 36 medians to the third
 decimal): Layout 1 stays proposed for D+T3 when the strips' effect is ≤ ×0.95 × (1 + s) = ×0.963 at 4× on `dbts_b1`
 `r5000`. It is ×0.943, so it stays. §Verdict's "R3's pass rests on a part that is not the strips" is corrected there to:
 mostly the strips, about a quarter the lab page's path.
 
-**Phones.** Nothing is measured. The one phone measured filled `dbts_b1` decode-bound on AV1 at 133–135 ms a frame
-(`htj2k-preview.md` §5); no HTJ2K frame has been timed on a phone, and the round of 2026-11-22 carries an HTJ2K decode
-per frame (cell 1) but no Lossless-request arm and none of P1–P3 (`claude/phone-run:docs/phone-rows/SATURDAY.md`).
-**Theory:** where the Lossless wait is the decode, not the link, the strips' ×0.43–0.48 decode applies more fully,
+**Phones.** Nothing is measured (the list below). The one phone measured filled `dbts_b1` decode-bound on AV1 at
+133–135 ms a frame (`htj2k-preview.md` §5). **Theory:** where the Lossless wait is the decode, not the link, the strips' ×0.43–0.48 decode applies more fully,
 so a decode-bound phone would gain more than this cell's ×0.923, if three decoders are idle when the reader asks (an
 *assumption*: on a phone they may be busy with the fill). P1 says which a phone is; P2 measures it.
 
@@ -79,7 +74,52 @@ so a decode-bound phone would gain more than this cell's ×0.923, if three decod
 by its decode time, and from a level picture only where it is at least twice the screen's side
 (`htj2k-tiles.md` §Theory 3, **derived**). DBT systems A and C (up to 1147 × 2585) and breast ultrasound frames are
 smaller than that on every screen in the table there, so D+L★ gives them nothing; whether three strips pay for frames
-that small is not measured (the stage-2 rows are on `dbts_*` only).
+that small is in the list below.
+
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). For a Lossless ask, the link, on every link:
+"C1's exact frame on every link (round trips and slow start on an idle session)" (**derived**,
+[`delivery-per-link.md`](delivery-per-link.md) §4). An exact HTJ2K series is wire-bound on a phone on every profile but
+mmWave and the measured home Wi-Fi, a crossover of ~470–660 Mbit/s, "if its phone decode keeps the cloud's ratio to
+the view's, which is **unmeasured**" (**derived**, [`../transport/link-profiles.md`](../transport/link-profiles.md)).
+On this host `r5000` is link-bound (**measured**, the list below), `r20000` decode-bound only under the 4× cap. So the
+strips, which shorten the decode, gain least where the link binds most, and a level picture, which shortens the bytes,
+acts on every link (**theory**, §5). On the one phone measured the exact series filled faster than the view in 15 of
+15 rounds, median 0.705 (`README.md` §Premises item 1; the premise itself untested); no transport row is lowered by
+that decode-bound phone.
+
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
+* The deciding reading is one cell (`dbts_b1` `r5000` 4×) of one volume of one dataset, from 4 and 5 paired rounds.
+  Found by HTJ2K-A1-RUN (`htj2k-tiles.md` §A1, measured), restated in HTJ2K-A1-REVIEW's fixtures line.
+* The readings outside that cell rest on fewer than six pairs (down to 1, `dbts_a1` `r20000` 4×) and decide nothing.
+  Found by HTJ2K-A1-REVIEW m3.
+* One 4-core cloud host, no GPU, headless Chromium 157 (A1; stage 3 ran 153), software WebCodecs, a userspace relay, a
+  4× cgroup cap standing in for a phone (*assumption*). Found by HTJ2K-A1-RUN's run line and HTJ2K-A1-REVIEW.
+* No breast ultrasound in any run: the sets are `dbts_*/phone` only. Found by HTJ2K-A1-RUN's readings of the registration.
+* **The host saturates**: at `r20000` every volume is decode-bound (D's fill at 4× is ×1.38–1.56 its 1×), so those
+  cells (D+T3 ÷ D ×0.805–0.951) decide nothing; `r5000` is link-bound on every volume (×1.008–1.012). Found by
+  HTJ2K-A1-RUN by stage 3's test, reproduced by HTJ2K-A1-REVIEW.
+* The strips' prediction ×0.96–0.99 **missed** (×0.943). Found by HTJ2K-A1-RUN, reading 1.
+* R3 held on this host only with s (×0.923 against 0.92 × 1.016). Found by HTJ2K-VERDICT (`htj2k-tiles.md` §Verdict).
+* §Verdict's "R3's pass rests on a part that is not the strips" was wrong (mostly the strips). Found by HTJ2K-A1-RUN,
+  checked by HTJ2K-A1-REVIEW.
+* No HTJ2K frame has been timed on a phone; the round of 2026-11-22 carries an HTJ2K decode per frame (cell 1) but no
+  Lossless-request arm and none of P1–P3. Found by this page's reading of `claude/phone-run:docs/phone-rows/SATURDAY.md`.
+* Three decoders idle when a phone's reader asks is an *assumption* (they may be busy with the fill). Found by this
+  page (§4's theory); P2 tests it.
+* Whether three strips pay for frames smaller than `dbts_*`'s (systems A and C, breast ultrasound) is not measured.
+  Found by this page: the stage-2 rows are on `dbts_*` only (`htj2k-tiles.md` §Improve, measured: stages 0–2).
+* A level picture is 46.9 dB from the original resampled to the screen and failed the visually lossless proxy.
+  Found by the resolution ladder (`htj2k-progressive-delivery.md`, `8a55ee8e`), as `htj2k-preview.md` quotes it.
+* "Never a reduced-resolution preview" has no reason written beside it. Found by HTJ2K-PREVIEW-MOBILE's documentation
+  finding (`htj2k-preview.md` §2).
+* The kept level picture's +213–215 MB and D+L★'s reach (1 of 19 volumes upright on a 1080 × 2400 phone) are
+  **derived**, not measured (§3's labels); what found it is not recorded beyond those labels.
+* Whether a reader reads anything from a level picture before the original lands: no reader, and no agent runs a
+  reader study. Found by this page (§6); `README.md` §Premises item 5.
+* `target.md` names Layout 1's series "over 12 bits"; `dbts_b1` is 10. Found by this page (§7).
+* Whether the PCS's planned HTJ2K already follows the RPCL syntax is not known. Found by PCS-NOTE-FIX (`pcs-note.md`
+  §Review B1, §9's lead).
 
 ## 5 · The mechanism
 
@@ -118,6 +158,11 @@ DICOM frame is one codestream, so a series stored as strips is reassembled (deco
   is about the fill, and D+T3 changes only how the exact frame is stored. But `target.md` §Layout 1 names its series
   as "over 12 bits", and `dbts_b1` is 10 bits; R3 itself proposes "Layout 1 for DBT". So a build widens that line,
   the owner's to confirm with item 2.
+* **Why the strips keep "the exact HTJ2K frame, bit for bit"** (2026-11-25, PAGES-PASS; `README.md` §Review's nit):
+  in its samples, not its codestream. Each strip is encoded losslessly from the decoded frame, and "the three level-0
+  tiles together are the frame exactly: their samples, stacked, hash to the frame's digest of today …, which the
+  packer checks before it publishes" (`target.md` §Layout 1); a frame that does not match stops the series
+  (§Migration step 1). Today's whole-frame codestream is not kept, and an export re-encodes one (§5).
 
 ## 8 · Rows and links
 

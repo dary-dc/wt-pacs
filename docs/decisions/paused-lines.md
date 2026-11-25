@@ -75,12 +75,9 @@ Eight of 19 DBT volumes need AV1 level 5.x; 17 of 19 exceed the portrait 1080p A
 
 ## 4 · Where it holds
 
-**Fixtures and limits.** Native: containers on lavapipe, no GPU, no phone; the M2 rows on loopback and a userspace
-relay. The viewer: the seam's synthetic 24 slices of 128 × 96, 16-bit HTJ2K, headless Chromium on SwiftShader, 4-core
-cloud hosts without a GPU, CPU throttled 4× and 6× as a phone proxy; no viewer run on a phone, a GPU, Firefox or a DBT
-volume. The device model: 19 DBT volumes of one dataset, three timed (`dbts_a1`, `dbts_b1`, `dbts_c1`); one Android 16
-phone (Chrome 157) on one home link; one benchmark's single-thread rating standing for a decoder's speed; price bands
-of shipments standing for readers' phones. No breast ultrasound cine.
+**Fixtures and limits.** Native: containers on lavapipe. The viewer: the seam's synthetic 24 slices of 128 × 96,
+16-bit HTJ2K. The device model: 19 DBT volumes of one dataset, three timed (`dbts_a1`, `dbts_b1`, `dbts_c1`), and one
+Android 16 phone (Chrome 157). Every limit is in the list at the end of this section.
 
 **The population.** B3 is carried by the platforms' own documents (**source**, `hardware-10bit.md` §8): every native
 API returns 10-bit planes; no shipped browser path does. It holds for every engine and phone as of the sources' dates,
@@ -94,7 +91,44 @@ does not arise, a frame within 1080p falls inside what class V promises (**sourc
 Chrome still reaches the page as RGB with no samples to check (`hardware-10bit.md` §7, **source**), so native would be
 the only *checked* hardware route for US on a phone as well, at 8 bits; under the owner's word of 2026-11-23 ~02:00 a browser's hardware
 route may show it unchecked. Whether a US clip's software decode is fast enough that no hardware route is needed is
-not yet known (no US clip run).
+in the list below.
+
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). Native's case is a decode route, so it can only
+pay where the decode binds. For the view (arm A) on `dbts_b1` on the round's phone that is clean links above ~83 Mbit/s;
+on LTE, a far stream, LOSS-like links and public Wi-Fi below it the link binds, and a hardware route moves nothing
+(**derived**, `link-profiles.md` §2's crossover, as [`delivery-per-link.md`](delivery-per-link.md) §4 carries it). The
+exact frame is wire-bound on a phone below ~470–660 Mbit/s, "if its phone decode keeps the cloud's ratio to the view's,
+which is **unmeasured**" ([`../transport/link-profiles.md`](../transport/link-profiles.md)). On desktop M2 agrees:
+"on a clean link a native client buys nothing on desktop … its clear gain is where client CPU binds" (**measured**,
+lavapipe, `docs/native/README.md` §Status). On the one phone measured the exact series filled faster than the view in
+15 of 15 rounds, median 0.705 (`README.md` §Premises item 1: the view decode-bound there, the premise itself untested).
+No link enters the viewer's question: it adds tools to a client that already shows the frame. No transport row is
+lowered by any of this, nor by the decode-bound phone.
+
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
+* Native was measured only in containers on lavapipe, no GPU, no phone; the M2 rows on loopback and a userspace relay.
+  Found by the native rows (M1–M2, `native-client-milestones.md`, `native-window-against-browser.md`), as
+  `docs/native/README.md` §Status records them.
+* The native design run is designed, never run. Found by `docs/native/README.md` §Status ("Designed, never run").
+* Rank 1's decode time is **unknown** (no device run); browser ranks 5–7 are **blocked**. Found by HW10-ROUTES
+  (`hardware-10bit.md` §9).
+* B3 holds as of the sources' dates, and one browser shipping a `P010` `VideoPixelFormat` or WebGPU plane access
+  refutes it. Found by HW10-ROUTES (`hardware-10bit.md` §8, §9's upstream list).
+* No Android class promises a hardware AV1 decoder that takes a DBT frame whole, so the route's value is a device
+  fact. Found by AV1-HW-CHIPS (`av1-chips.md` §5, from the Android 16 CDD).
+* No phone had answered whether it lists a hardware AV1 Main 10 decoder when this page was written. Found by this
+  page's header (PHONE-ROUND, running 2026-11-22).
+* The software view's per-class ranges are **theory**; on the one phone measured the view's ranges missed at one and
+  at four decoders. Found by the round of 2026-11-22, as [`phone-decode-route.md`](phone-decode-route.md) §4 reads it.
+* The device model stands one benchmark's single-thread rating for a decoder's speed and price bands of shipments for
+  readers' phones, on one phone and one home link. Found by DEVICE-THEORY and its re-review (PR 414).
+* The viewer ran headless Chromium on SwiftShader, 4-core cloud hosts without a GPU, CPU throttled 4× and 6× as a
+  phone proxy; never on a phone, a GPU, Firefox or a DBT volume; its desktop proxy is "indicative only". Found by
+  the viewer seam (PRs 297, 300), as `viewer.md` §4 item 3 records it.
+* No breast ultrasound cine; that a US clip is 8-bit and often colour is **theory** here, and whether its software
+  decode is fast enough that no hardware route is needed is not yet known. Found by this page (§4); US-DBT-CARRY §4.3.
+* Dropping native and M5 as lab are not counted (§3). Found by this page.
 
 ## 5 · The mechanism
 

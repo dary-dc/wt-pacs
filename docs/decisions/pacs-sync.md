@@ -75,11 +75,8 @@ team's proposal of 10-28, and under it `incoming/` cleared or a kept mirror turn
 
 ## 4 · Where it holds
 
-**Fixtures and limits.** No real PCS package and no deployed store anywhere: PR 407 and PR 422 ran the receiver's
-synthetic test packages (one study, one or two series, 100-byte frames; stand-in AV1 units, nothing decoded); #223
-measured one CT fix's bytes on loopback, its times on emulated links derived, not timed (corrected 2026-11-23, `README.md` §Review m6); #234's and PR 417's times are estimates from #154's five TCIA series
-and a synthetic 2 000-instance series; #166 and #173 are warm, one host, saturating at 100 viewers. One 4-core cloud
-host for every gate. No DBT volume and no breast ultrasound cine went through the receive path.
+**Fixtures and limits.** The receiver's synthetic test packages (PR 407, PR 422), #223's packages built from #154's
+five TCIA series and a synthetic 2 000-instance series, and one 4-core cloud host; every limit is in the list below.
 
 **US and DBT stacks.** The receive path never reads a pixel: it carries coded bytes and checks hashes (PR 422: "the
 receiver never types a sample"), so modality enters only through the instance and group counts, which set E's
@@ -88,8 +85,40 @@ instances a DBT or ultrasound series has in the PCS's layout is **not known here
 by the PCS's parser in any row). If a stack is one multi-frame instance, E's cost sits at the small end of the table
 above (**theory**, untested); if it is one instance per frame, a long clip approaches the 2 000-instance cells.
 
-**The predictions against the runs.** #223's pre-registered rule held E for its CT event (**measured**). PR 422's
-prediction ("passes: say so, no fix") held. M-R1 to M-R3 and #222's §7 measurements are pre-registered and not run.
+**The predictions against the runs.** #223's pre-registered rule held E for its CT event (**measured**: its bytes
+counted). PR 422's prediction ("passes: say so, no fix") held. M-R1 to M-R3 and #222's §7 are in the list below.
+
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). No decode enters this question: the receive path
+never reads a pixel (PR 422, above). The link that enters is the PCS's to the PACS, not a reader's, and only through a
+correction's extra cost: satellite, fiber and rural ADSL in §3, every figure **theory** or **derived** by #156's
+arithmetic, none timed on a link (#223's body, below). On satellite E costs +0.7 s to +4 s a correction; on rural
+ADSL at 0.5 Mbit/s P3 against E turns on M-R2, not run. No transport row of a reader's link is touched, and none is
+lowered by the decode-bound phone (`README.md` §Premises item 1).
+
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
+* No real PCS package and no deployed store anywhere: PR 407 and PR 422 ran the receiver's synthetic test packages
+  (one study, one or two series, 100-byte frames; stand-in AV1 units, nothing decoded). Found by this page's reading
+  of PR 407's and PR 422's tests.
+* #223 counted one CT fix's bytes in the packages it built and derived its times: "Times come only from #156's
+  arithmetic (`wire.transfer()`); nothing is timed on a link" (PR #223's body, fetched 2026-11-25). Found by
+  DECISION-PAGES-REVIEW m6, its quote and "bytes on loopback" corrected by DECISION-PAGES-FIX-REVIEW r-n1.
+* #234's and PR 417's times are estimates from #154's five TCIA series and a synthetic 2 000-instance series. Found by
+  PR 417's own label (**derived** from #234's estimates by #223's rule, §3).
+* #166 and #173 are warm, one host, saturating at 100 viewers. Found by #166 and #173, as this page reads them.
+* One 4-core cloud host for every gate. Found by this page's reading of the PRs' gates.
+* No DBT volume and no breast ultrasound cine went through the receive path, and no DBT or US study has been parsed by
+  the PCS's parser in any row, so a stack's instance count is not known. Found by this page (the rows' fixtures);
+  US-DBT-CARRY §4.3 says the same ("instance and object counts **not known**").
+* The synchronization shapes' scores and the second-writer policies are **theory**. Found by #222 and #220, which
+  label them so.
+* M-R1 to M-R3 and #222's §7 measurements are pre-registered and not run. Found by `rsync-updates.md` §7 and #222 §7.
+* The two readers of the parser's group file disagree on a duplicate key: read, not run. Found by COMPLEXITY-AUDIT
+  item 5.
+* The PCS's frame files carry no hash, so (b) and (c) miss rot at rest at the PCS. Found by `rsync-delivery.md` §1.
+* Group 0002 still lands in the instance group at `e105214`: read, not run (§9 item 8). Found in the note's sources
+  (design state §15, `pcs-pacs-options.md` §6, metadata §Open 4); which of them is not recorded here.
+* PR 417 has no review. Found by DECISION-PAGES-REVIEW B2.
 
 ## 5 · The mechanism
 

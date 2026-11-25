@@ -72,10 +72,8 @@ What a clip could be given, with the numbers that separate them. Bytes are whole
 verdict", `groups.md`), six sets of eight colour stills (`usrgb_*`), and three grey liver clips of one series, 21–28
 frames of 552 × 421 at `CineRate` 32 (`uscine_crc*`), **in no result**; **lossy-sourced** — `usb_cine`,
 `usb_cine_rgb` (breast, MPEG-4 video files), `us_liver` (a DICOM clip flagged lossy), which by the rule "enter no
-bytes, time or inter verdict": their numbers above stand as measured, provisional. No breast ultrasound in DICOM, no
-ABUS, no ultrasound frame on any phone, in any transport, delivery or cache run. The header counts are one public
-research archive (IDC v25), four collections, none breast, 917 of the 1 000 from one; they say what scanners wrote
-there, not what the PCS delivers.
+bytes, time or inter verdict": their numbers above stand as measured, provisional. The header counts are one public
+research archive (IDC v25). What is missing is in the list at the end of this section.
 
 ### 4.1 · Premise 2, tested where the fixtures allow
 
@@ -140,13 +138,35 @@ Against `link-profiles.md`: one far LTE stream is 27–85 Mbit/s, its lower quar
 exact 512² grey clip at 25 frames/s (15.6) plays on the median and not on the quartile's low end, an exact 512²
 colour clip (44.3) on neither's low half, and the Q 8 view (4.5 and 7.8 Mbit/s, **derived**: 0.291 × 15.6,
 0.177 × 44.3) on all of them. The view's case is strongest for the clip and weakest for DBT on a fast link, the
-reverse of how the pages carry it. Transport rows are lowered by none of this.
+reverse of how the pages carry it. Transport rows are lowered by none of this, nor by the decode-bound phone
+(`README.md` §Premises item 1; 2026-11-25, PAGES-PASS).
 
-**Every limitation, with what found it.** No sound breast clip exists (the data searches, `FIXTURES.md`). The sweeps
-are spatial neighbours on one device (`groups.md` §Limits). `usb_cine`'s inter gain is "the recorder's
-predictability, not the scanner's" (`frame-groups.md`). The pixel scaling of decode ignores a frame's fixed cost
-(this page; `decode/README.md` notes small frames read "the throttle's quantum" at 4×). The header counts are one
-archive's (this page's reading). The ingest lines were read, not run.
+**Each limitation, and what found it** (made a list and completed 2026-11-25, PAGES-PASS):
+
+* No sound breast clip exists. Found by the data searches (`FIXTURES.md` §The ultrasound data search).
+* No breast ultrasound in DICOM, no ABUS, no ultrasound frame on any phone, in any transport, delivery or cache run.
+  Found by this page's reading of the 20 pages and their rows (§4.3).
+* `uscine_crc1`…`3`, the one sound cine, are in no result. Found by this page (item 7), from `FIXTURES.md` and the rows.
+* `usb_cine`, `usb_cine_rgb` and `us_liver` are lossy-sourced, so their numbers are provisional. Found by
+  `FIXTURES.md`'s provenance rule ("enter no bytes, time or inter verdict").
+* The sweeps are spatial neighbours on one device, "never an ABUS or breast-cine verdict". Found by `groups.md` §Limits.
+* `usb_cine`'s inter gain is "the recorder's predictability, not the scanner's". Found by `frame-groups.md`.
+* The header counts are one public research archive (IDC v25), four collections, none breast, 917 of the 1 000 from
+  one; they say what scanners wrote there, not what the PCS delivers. Found by this page's reading of `FIXTURES.md`'s
+  table.
+* Whether the PCS's parser turns a colour-typed clip into `RGB` frames before us is not known. Found by this page (4.1).
+* The ingest lines (`main.rs:249–251`, `optimal.rs:34`) were read, not run. Found by this page.
+* A small frame's decode is scaled by pixels (**derived on theory**; no small frame on a phone), which ignores a
+  frame's fixed cost. Found by this page; `decode/README.md` notes small frames read "the throttle's quantum" at 4×.
+* The hash on a colour clip is **theory** by construction, not run. Found by this page (4.2).
+* Whether a clip's fill behaves under the retransmit rule and `cubic-restart` is **not known** (**theory** only).
+  Found by this page (4.2).
+* That readers read the fine band's texture is **theory**, no source read. Found by this page (4.3, `visually-lossless`).
+* No transport cell is clip-sized; a clip's record size in `reports`, the stores' behaviour in `cache`, and instance
+  counts in `pacs-sync` are **not known**. Found by this page (4.3).
+* Not read: which phones' hardware decoders take the High profile; how a browser decodes a JPEG stream and whether two
+  do so alike; any source on what a reader takes from speckle. Found by this page (§8, "Not read").
+* S3 is the AV1 specification's working document, not the approved version. Found by this page's fetch (§8, S3's row).
 
 ## 5 · The mechanism
 

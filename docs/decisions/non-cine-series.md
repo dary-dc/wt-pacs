@@ -64,16 +64,20 @@ is the PCS's contract (the file §5).
 **Fixtures** (earlier rows'; none used here): `ffdm_d` (four For Presentation views of one earlier 70 µm detector, 12
 bits), nine level-1 series, six sets of eight colour ultrasound stills that are not breast stills, three DBT volumes of
 one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`) for the view's ratios; 4-core x86 cloud hosts without a GPU, headless
-Chromium 141 and 153, software decode. No 50 µm frame, no breast ultrasound exam with its original objects, no
-phone's `MAX_TEXTURE_SIZE`, no reader, no radio.
+Chromium 141 and 153, software decode. What is missing is in the list below.
 
 **The population.** Phone decode is scaled by the device model's ranges for an HTJ2K frame on one fast core
 (×1.75–2.50 entry, ×0.81–1.65 middle, ×0.65–1.03 premium against the cloud host, **derived** on its theory; that
 model's own phone prediction is not yet read against the 2026-11-22 round). Links are `link-profiles.md`'s open-data
-goodputs, not ours. **Where the link binds, not the decode** (amendment 28): for one frame the fill's law does not
-apply, first picture ≈ wire **+** decode; the wire is the larger term on every class up to the mobile median, and it
-equals the decode at 151–239 Mbit/s on entry phones, 229–517 middle, 366–644 premium (**derived**, the file §4.2). So
-below about 150 Mbit/s bytes decide the first picture of a single frame on any phone, and only item 2 moves it.
+goodputs, not ours.
+
+**Where the link, not the decode, binds** (amendment 28; labelled and completed 2026-11-25, PAGES-PASS): for one frame
+the fill's law does not apply, first picture ≈ wire **+** decode; the wire is the larger term on every class up to the
+mobile median, and it equals the decode at 151–239 Mbit/s on entry phones, 229–517 middle, 366–644 premium
+(**derived**, the file §4.2). So below about 150 Mbit/s bytes decide the first picture of a single frame on any phone,
+and only item 2 moves it. No link here is measured (the list below), and no transport row is lowered by this or by
+the decode-bound phone (`README.md` §Premises item 1: on the one phone measured, the exact series filled faster than
+the view in 15 of 15 rounds, median 0.705; the premise untested).
 
 **To breast ultrasound and DBT stacks:** this page is their complement, not a result about them. Its bounds carry to a
 DBT slice by pixel count and depth (a slice is a frame of the same matrices, **theory**); the texture bound applies to
@@ -81,7 +85,15 @@ a stack's frames unchanged: a `dbts_b1` slice (2560 × 3328) fits a 4096 limit a
 OpenGL ES 3.0 minimum of 2048 and Android's Vulkan baseline 4096, sources quoted in the file §4.3). An ultrasound
 clip's frames (0.5–1.6 Mpx) are under every limit. Item 4's fix therefore protects stacks as well.
 
-**Each limitation and what found it:**
+**Each limitation and what found it** (completed 2026-11-25, PAGES-PASS):
+
+* No 50 µm frame, no generated 2D at its real depth from more than one vendor, no breast ultrasound exam with its
+  original objects, no phone's `MAX_TEXTURE_SIZE`, no reader. Found by NON-CINE-OPTIONS (the file §Where it holds, and
+  its limits; §7: "no 50 µm frame and no breast still with its original geometry exist here").
+* No radio: the links are `link-profiles.md`'s open-data goodputs, not ours. Found by this page's reading of the
+  file's §4.2 inputs; what found it first is not recorded.
+* The phone decode is the device model's ranges, the model's own prediction not yet read against the 2026-11-22
+  round. Found by NON-CINE-OPTIONS (the file §Where it holds: "its 2026-11-22 round not yet read").
 
 * Level 1 on `ffdm_d` (the level a phone's 1080 × 2400 device pixels need) is carried from the nine level-1 series
   (25.8–29.0 %), not measured on this frame: NON-CINE-REVIEW B1, fixed by labelling it, still unmeasured.
@@ -97,8 +109,12 @@ clip's frames (0.5–1.6 Mpx) are under every limit. Item 4's fix therefore prot
   (the file §4.3; NON-CINE-REVIEW read it; at `origin/claude/unified` today the one `texStorage2D` call, line 97, has
   no limit test before it, and no file under `client/` names `MAX_TEXTURE_SIZE`).
 * The level picture fell short of the visually lossless proxy at display scale on `dbts_b1` (46.9 dB, measured,
-  `claude/mobile-decode:docs/decode/mobile/htj2k-preview.md`); no mammogram was in that run.
-* Coded sizes other than `ffdm_d`'s are scaled by pixel count (**assumed**); a finer detector's noise differs.
+  `claude/mobile-decode:docs/decode/mobile/htj2k-preview.md`); no mammogram was in that run. Found by the resolution
+  ladder, as HTJ2K-PREVIEW-MOBILE quotes it.
+* Coded sizes other than `ffdm_d`'s are scaled by pixel count (**assumed**); a finer detector's noise differs, "so they
+  may be off in either direction". Found by NON-CINE-OPTIONS (the file §Where it holds, and its limits).
+* V's bytes are DBT's view ratio carried to a mammogram (**assumed**: no mammogram's view was measured). Found by
+  NON-CINE-OPTIONS (the file §7's predictions: "V's 0.10–0.28 from DBT").
 * Not found by any source read (the file §10): a share of single-frame series in an archive; a count of stills an
   exam; a distribution of `MAX_TEXTURE_SIZE` over phones in use. "Differ by decoder" for lossy JPEG is unquoted theory.
 

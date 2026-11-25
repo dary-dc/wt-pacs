@@ -74,13 +74,30 @@ is a tie, not a ranking (§Verdict review 2, rule 5).
 
 ## 4 · Where it holds
 
-**Fixtures and limits.** One 4-vCPU cloud container without a GPU. Headless Chromium 153.0.8010.12. The fixture is the
-rig's grey-16 frame ×32, not a demo volume (`dbts_c1`'s fill is not on this host). The faults are the fault bench's
-forced mismatch, not a real decoder fault. The links are loopback, or under `--tun` a userspace relay at 10 ms each way
-and 50 Mbit, not a radio. nginx is 1.31.8. R's bodies are 1.7 KB, against PR 370's 4.9–6.6 KB on the demo series
-(PR 370's test, **measured** there). The host never saturated (CPU at most 38 %).
+**Fixtures and limits.** One 4-vCPU cloud container without a GPU, headless Chromium 153.0.8010.12, the rig's grey-16
+frame ×32, nginx 1.31.8. The host never saturated (CPU at most 38 %, REPORT-VERDICT-2 from `r2-cpu.log`). Every limit
+is in the list below.
 
-**Each limitation, and what found it:**
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). Neither binds a report: a record is 2.2–2.65 KB
+here and at most 6.6 KB on the demo series (**measured**, §3 and PR 370's test), and no decode is in its path. The link
+enters as whether it is there: the session fails with it, so a load whose session never opens delivers no SESSION
+safety report (D8, **measured**), which is why item 4 sends the safety report over HTTP. The fill cost C was read on
+loopback, not on a link that binds a fill. No transport row is lowered by this, nor by the decode-bound phone
+(`README.md` §Premises item 1).
+
+**Each limitation, and what found it** (completed 2026-11-25, PAGES-PASS):
+
+* **The fixture is the rig's grey-16 frame ×32, not a demo volume** (`dbts_c1`'s fill is not on this host). Found by
+  REPORT-RUN's amendment (`report-plan.md` §7.8), kept by REPORT-RUN-2 (§7.9).
+* **The faults are the fault bench's forced mismatch, not a real decoder fault.** Found by REPORT-PROTOCOL (§4, §7.2),
+  restated in §7.9's fixtures line.
+* **The links are loopback, or under `--tun` a userspace relay at 10 ms each way and 50 Mbit, not a radio**; REPORT-RUN
+  ran no relay. Found by §7.8 (REPORT-RUN) and §7.9 (REPORT-RUN-2).
+* **One nginx, 1.31.8.** Found by the re-review's n4 (§7.9's nginx row).
+* **R's bodies are 1.7 KB**, against PR 370's 4.9–6.6 KB on the demo series (PR 370's test, **measured** there). Found
+  by REPORT-RUN-2 (§7.9's R row).
+* **Each arm's gap over its floor (0.0–0.7 ms) is below the receiver clock's whole millisecond**: a tie, not a
+  ranking. Found by REPORT-VERDICT-2 (§Verdict review 2, rule 5).
 
 * **C's bar cannot be met on this host.** `off′` met it against `off` in only 3 of 18 rounds, and `off`'s fill varies by
   7.3 % from round to round. Found by REPORT-VERDICT-2.
@@ -91,19 +108,25 @@ and 50 Mbit, not a radio. nginx is 1.31.8. R's bodies are 1.7 KB, against PR 370
   not the carrier alone. Found by REPORT-VERDICT-2.
 * **SESSION's floor, KEEPALIVE's worker floor and the server's receiver row are not built.** Found by REPORT-CELLS.
 * **D6 tested a 30 s blackout, never a link that does not come back.** Found by REPORT-VERDICT-2.
+* **Only Chromium is counted**; Firefox 160.0.1 caught every mutant but ran no counted cell, its `bidi.mjs` hangs about
+  once in 70–100 loads and leaks a ~108 MB profile a load. Found by REPORT-RUN-2.
+* **Firefox observes no long tasks**, so C's long-task bar judges nothing there. Found by REPORT-CELLS.
+* **WebKitGTK did not run** ("not on this host"), and nothing is claimed for Safari. Found by REPORT-RUN (§7.8) and
+  REPORT-RUN-2 (§7.9).
+* **No report cell has run on a phone**, and whether a record survives a phone's screen lock, app switch or
+  force-stop is not known. Found by REPORT-PROTOCOL (§7.7) and this page's reading of `next-round-results.md` §Cells.
+* **The phone harness's batch was lost at unload** with lab code, not the product; the keepalive quota it met is for
+  BEACON-LOSS to verify (amendment 28). Found by the round of 2026-11-22 (`next-round-results.md`).
+* **A clip's record size is not known**: no US clip was run, and a clip of a few hundred frames may pass 16 KiB or the
+  64 KiB budget (**theory**). Found by this page (§4, *US and DBT stacks*); US-DBT-CARRY §4.3 agrees.
 
-**Engines.** Only Chromium is counted. On Firefox 160.0.1 every mutant was caught, but no counted cell ran.
-`bidi.mjs` hangs about once in 70–100 loads and leaks a ~108 MB profile per load (REPORT-RUN-2). Firefox also observes
-no long tasks, so C's long-task bar cannot be judged there (REPORT-CELLS). WebKitGTK did not run, and nothing is claimed
-for Safari. **Theory** (§2, BCD): all three engines ship `sendBeacon`, keepalive `fetch` and WebTransport, under the
+**Engines.** Only Chromium is counted (the list above). **Theory** (§2, BCD): all three engines ship `sendBeacon`, keepalive `fetch` and WebTransport, under the
 same 64 KiB keepalive budget.
 
-**Phones.** No report cell has run on a phone (§7.7). The 2026-11-22 round did not include them (`next-round-results.md`
-§Cells). That round did show something nearby, **measured** on one phone with lab code, not the product: the
-harness's own end-of-load batch was lost at unload in every cell-3 load, a fresh Chrome included. The batch was ~45–110
-KB, against a keepalive quota the BEACON-LOSS row is to verify (amendment 28). The product's records are 2.2–2.65 KB
-here and at most 6.6 KB on the demo series, under that budget by an order of magnitude (**theory**). Whether one
-survives a phone's screen lock, app switch or force-stop is not known. That is what the phone cells measure.
+**Phones.** None ran (the list above). The round of 2026-11-22 lost the harness's own ~45–110 KB end-of-load batch at
+unload in every cell-3 load, a fresh Chrome included (**measured**, one phone, lab code; the list above). The
+product's records are 2.2–2.65 KB here and at most 6.6 KB on the demo series, under that budget by an order of
+magnitude (**theory**). That is what the phone cells measure.
 
 **US and DBT stacks** (amendment 27 item 6). The carrier, timing and receiver results do not depend on the modality.
 They depend on record size and on how the load ends, and every arm stayed under 16 KiB here. A record's size grows with
