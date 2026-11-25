@@ -142,3 +142,84 @@ session or a later fix.
 
 Fixtures and limits: unit tests on synthetic rows and the plan's 150 LTE draws; the smoke rows not re-run; one 4-core
 cloud container; nothing measured.
+
+## Fit arm
+
+FIT-ARM-BUILD-REVIEW, 2026-11-25, of `claude/delivery` `4819f8ffb..854372707` (FIT-ARM-BUILD, 14 commits, 25 files)
+against `delivery-comparison.md` §Amendment 2 (A2.2–A2.8), by a session that wrote none of the protocol, its fix or
+the build.
+
+**Method.** Every changed file read against A2.8's build list. The three unit suites run (`inputs`, `judge`,
+`predict`: pass). 13 source mutants of `judge.mjs` and `predict.mjs` run against them: 10 killed. On this 4-core
+container, `dbts_b1` fetched (`lab/av1/data.json`), its HTJ2K series coded (`ingest/tools.sh`, `ingest_coded.py`),
+`fit_truth.py` and `fit.mjs` run (level 1, 1280 × 1664, prefixes 26.9–27.3 % of a frame, as the build's README), and
+one CLEAN FIT load on `dbts_b1` driven by `run.mjs` unmutated and under each FIT mutant, the view stood in by the
+exact series as in the build's smoke. Rows: `claude/work-ledger:docs/queue/FIT-ARM-BUILD-REVIEW/*.jsonl`. **Not
+re-run**: `escaped`, `k3-from-a`, `split-view-only` and SPLIT's smoke (they need the AV1 view or a lossy form);
+their outputs are taken from the README. `scripts/check_lab_absent.sh` and the comment budget green; the gate as
+under *Verdict*.
+
+### What holds
+
+* **A2.8's list is built**: FIT's series (2F entries, every level-1 prefix first, each checked whole, at the level
+  from the prefix, and one byte short); the `fit` lever (FIT's worker decodes the level by the shipped package,
+  clamps, checks it against `ll.py`'s truth by XXH3, joins the rest and checks the frame digest); the zoom (the rest
+  asked on the fill's session, the whole frame painted only when `exact === true`); the `split` lever; K3′ from B
+  loads only and its curve; A2.5's records (C1's ask → last byte, FIT's zoom with its ask → last byte, SPLIT's
+  forms and *x*, every load's `Cpus_allowed_list`, NET_RX softirqs and the relay's involuntary switches); the
+  switch's reading in the judge from what every view load records.
+* **The stops bite, re-run here** (*measured*, one load each): unmutated, fill 2 760 ms, the window read-back equal
+  byte for byte (1280 × 1664, `unequal: -1`), the zoom 257 ms with its ask → last byte 148 ms, every browser process
+  on 2-3; `flip-level` → `STOP … received 49 of 50`; `no-clamp` → `received 45 of 50`; `canvas-readback` → `window
+  read-back of frame 0: 8946720 bytes for 2129920 samples`; `fit-ignored` → the load passes and `judge.mjs` refuses
+  (`frame 0 carried 2063.7 KiB, its level prefix 556.9 KiB`). Each is the README's line.
+* **The read-back compares values**, not only sizes: a mutant of this review's, the table looked up one code high
+  (`table[samples[k] + offset + 1]`), stops at sample 134 399. The page compares the decoded level, not the truth
+  file, which is the same samples once the worker's XXH3 against the truth has passed.
+* **A2.7 and A2.3 reproduce**: `predict.test.mjs` pins `dbts_b1`'s A, B, FIT and zoom row for every form and SPLIT
+  ÷ A and *x* to the printed digit; the K3′ refusal, the 10-of-12 rule, calibration loads uncounted, the level-0
+  zoom reported and `escaped` are each killed when broken.
+* **The fills end alike**: A's at the controller's last frame received (`controller.js:93`), SPLIT's at its last
+  frame out of a decoder; neither waits on a paint.
+
+### Blockers
+
+None.
+
+### Minors (none blocks DELIVERY-RUN-2)
+
+* **m1. The build's smoke and mutant runs left no rows.** README §Checks cites seven page-level mutant outputs and
+  §What FIT-ARM-BUILD found its smoke numbers; none of their rows is on the branch (`rows/smoke/` is DELIVERY-BUILD's,
+  2026-11-20). The four FIT ones are re-run above with rows; `escaped`, `k3-from-a` and `split-view-only` rest on the
+  README alone. Push them, or say in README that they were not kept.
+* **m2. Three unit mutants survive.** `switchReading`'s `.slice(0, group)` taken one frame longer; FIT's regime unit
+  (`["B", "FIT"].includes(r.arm)` → `["B"]`, so FIT would be judged in groups of 8); and its `f.form !== "exact"`
+  filter, which is dead: `beacon.js`'s `frameRow` drops `form`, so no recorded frame carries one, and SPLIT's reading
+  is right only because its first group is always the view. One check each, or drop the filter and say why.
+* **m3. The device kit now imports the delivery rig.** `lab/devices/bench.js` and `round-page.js` import
+  `lab/delivery/fit-page.js` and `split.js` statically, so the phone round's page (kept, `docs/queue-2026-11-24.md`
+  §Standing rules) breaks if `lab/delivery` is removed, and loads SPLIT's module on every round load. Import them
+  only under `?fit` and `?split`, or name the dependency in `lab/devices/README.md` and `lab-list.md`.
+* **m4. `canvas-readback` stops on the size alone.** Its line reads 8 946 720 bytes against 2 129 920 samples, so
+  the build ran no mutant of the comparison of values; the one above (m-table, stop at 134 399) belongs in README's
+  table.
+* **m5. SPLIT is a lab fill outside the viewer.** Its load never dials the viewer (no store, no label, no paint per
+  frame), and A's fill is the product viewer's; README names the start clocks' difference only. The main-thread work
+  A does per frame and SPLIT does not is a bias toward SPLIT, not measured: say so beside A2.3's ×0.81–0.90.
+* **m6. A product file changed for the lab.** `client/paint/paint-worker.js`'s `readPicture` and `painter.js`'s
+  `picture` option are A2.2's "lab-only read beside `readback`", reached only from `lab/delivery/fit-page.js`;
+  `client/paint/README.md` §The contract, which the painter's comment points to, does not name `picture`.
+
+**Nits.** n1: README §What FIT-ARM-BUILD found says "the view series stood in by the exact one" while its SPLIT and A
+smoke loads ran on the Q 8 G 8 view; say which loads. n2: A2.5 asks per-core softirq counts; only NET_RX is recorded
+(the receive path A2.6 names): say so. n3: `flip-level` flips a decoded sample, not a byte of the prefix as A2.8
+words it; the check it kills is the same.
+
+### Observations for the run (not the build's)
+
+* The level decode reads ×0.49 of the whole frame's here, not A2.7's ×0.29: K2 decides the run's prediction.
+* The zoom is timed at the paint's issue (README), while its prediction carries 17 ms of paint; on CLEAN that is
+  ~8 % of 0.20 s, toward low. This load read 257 ms (×1.28 of 0.20, inside 0.75–1.33). C1's latency has the same
+  convention since the 23rd.
+
+### Verdict
