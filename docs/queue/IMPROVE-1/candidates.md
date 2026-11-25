@@ -236,3 +236,78 @@ between same-origin loads, so their absolute times are that evening's. No breast
 other engine, no cellular link: every number for another device or link is the model's. §2 is a model over two
 product modules, not a run. Candidates 2, 4, 7 and 8 rest on shares no row holds. Each limitation above names where
 it was found: §2 by `window-model.mjs`, §3 by `rows.py` over the round's rows, the rest by the files quoted.
+
+## Review
+
+IMPROVE-1-REVIEW, 2026-11-25 13:10–13:40 UTC, by a session that wrote none of this file (`by:` in its status file).
+Read: this file whole at `7703f2080`; `window-model.mjs` and `rows.py`; the code quoted at `origin/claude/unified`
+`b059388b6`; `claude/phone-run` `8d77ba2b4:docs/phone-rows/next-round-results.md` and the raw rows at `618dd9cd`;
+`docs/decode/mobile/device-model.md` at `b059388b6`; `round-page.js` at `f5252051`; the measuring rows of the three
+queued candidates (`docs/queue/WINDOW-WHOLE-GROUPS-MEASURE/findings.md` §The count and §Timed cells,
+`docs/queue/DECODE-OVERLAP{,-MEASURE}.md`, `docs/queue/DIAL-BEFORE-PAIR-MEASURE.md`). Run: `window-model.mjs` against a
+`b059388b6` checkout and `rows.py` over the raw rows (node 22, a 4-core cloud container); the arithmetic of §2–§4 by
+hand. Nothing timed; no browser. The review runs after the three builds and their measures (its latest was 11-25
+20:00; it was first due 11-25 08:00), so it checks the premises against what those rows measured.
+
+**Reproduced.** `window-model.mjs` prints §2's table exactly (398/234, 267/140, 218/112, 50/50, 50/50). `rows.py`
+prints §3's per-decoder table, both first-decode lines (HTJ2K +42.0, 19.6–65.5; the view +26.2, −5.8–81.6) and both
+view-fill lines (315/262/173 ms; 139/88/49 ms). Every code quote of §2, §4 items 2, 3, 8 and 9 is at the cited file
+(`controller.js:7,33`, `store.js:53`, `downloader.js:92,544,666`, `decoder.js:72`, `viewer.js:43,138,159`, `av1.js:35`),
+and `round-page.js` asks idle first (`for (const busy of [false, true])`, lines 87, 99, 103). Recomputed and right:
+W = 15 (2560 × 3328 × 2 = 17.04 MB; ⌊268.4 / 17.04⌋), the step's 4.5 frames, 16.7 Mbit, 0.50–0.79 s and 1.1–1.4 s;
+the decoder shares 26/24, 18/16/16, 16/16/10/8; candidate 2's 1.6–1.9 s and −14 to −27 %; candidate 5's offsets 4–7
+(17.19 ÷ 3.71 = 4.63) and its `dbts_b1` times at 600 and 27 Mbit/s.
+
+* **B1 (blocker). Candidate 1's size is the model's, and the product measured it two to six times smaller; the file
+  still states the model's as the effect.** §1 item 1 ("a scroll pays for it eight times over"), §2 (398 frames,
+  "185 MB for one forward pass") and §4 row 1 ("bytes of a scroll ÷ 8 (model)") are what the ranking and
+  WINDOW-WHOLE-GROUPS-MEASURE's prediction ("÷ 4 to ÷ 8") rest on. *Measured* since: the real downloader behind a
+  stand-in transport put 268 frames forward and 280 back on the tip (`WINDOW-WHOLE-GROUPS.md`; the model said 398 and
+  234, so backward is under-, forward over-stated); in the browser, `dbts_b1-q8-g8`, the tip's forward pass was 104–113
+  frames on CLEAN and 72–77 on LTE (49.4 and 33.7 MB, not 185), because "the real downloader replaces a want's unsent
+  asks, which the stand-in delivers whole" (`findings.md` §Timed cells); bytes fell ÷ 1.3 to ÷ 3.3 after the build,
+  "a miss in every cell". The defect and the rank hold (forward waits 1–24 steps a pass → 0 on three of four cells),
+  but the number a reader of this file takes away is refuted and not corrected, and two rows' costs are missing
+  from §4 row 1: the backward step into a group's last frame now waits for the group (MEASURE-2 B1, 0.67–0.84 s a pass
+  at 1×, 4.8–5.0 s at 4×), and the memory is 260 MiB (272.6 MB), not "273 MiB" (`WINDOW-WHOLE-GROUPS.md`'s Result).
+  Fix: §1 item 1, §2 and §4 row 1 corrected in place, dated, the model's numbers kept as the model's beside the
+  product's measured ones with why they differ (the stand-in's whole delivery), §2's *Limits* naming the rows that
+  found it, §4 row 1's cost carrying the backward wait (as MEASURE-3 leaves it) and 260 MiB.
+* **m1. Candidate 2's premise "the cores are free" is not supported as written, and its formula missed where the share
+  was measured.** §4 item 2: "which the round's rows support (at most 3.3 of 8 in use)". The read says the opposite
+  bound: "3.32 over the load's opened → ended (load 42) … the renderer is often a new process within a load, so the
+  sum is partial" (`next-round-results.md`): 3.3 is a lower bound, not "at most". DECODE-OVERLAP measured the share at
+  *s* = 0.39–0.46 at 1× (cloud), where max(1 − *s*, *s*) predicts −39 to −46 %; the fill fell −10 to −19 %
+  (DECODE-OVERLAP-MEASURE), the decode and the read slowing each other on a 4-core host (2.9–3.6 of 4 busy). The
+  −14 to −27 % was met only because *s* was guessed low. Fix: "at least 3.3 (a partial sum)", and the formula given a
+  contention term or labelled "free cores only, not met on a 4-core host", the measured *s* beside the guessed.
+* **m2. "The view saturates at three" is refuted only in part.** §1 item 2's first bullet and §3 put the plateau on the
+  group count; the rows show both causes: the group count bounds four decoders' gain at 18 → 16 frames (−11 %), and a
+  frame's median rose from three decoders to four (108–117 → 111–130 ms; the read's 110.2 → 118.8), eating it. "The
+  cores were not the limit (Chrome used at most 3.3 of 8)" rests on the partial sum of m1. Fix: say both, and that
+  which binds past four is M12's to read (candidate 6 already says "unknown sign").
+* **m3. Candidate 5's `dbts_a1` crossings quote one end of their range, on a ratio the phone missed.** At the inputs
+  stated (exact 41–87 ms × 0.347, view 110–176 ms × 0.247, `device-model.md:88`) the exact frame is faster above
+  13–24 Mbit/s at *k* = 7 and 44–90 Mbit/s at *k* = 3 (*derived*, here), not "13" and "45"; and the read found the
+  view's 0.247 carry missed on the phone (A on `dbts_a1` ÷ `dbts_b1` 0.33, `next-round-results.md`). Fix: the ranges,
+  and the 0.33 named. Moves no row (candidate 5 is not queued).
+* **m4. Candidate 3 measured at, and just past, its upper end** (−2.0 to −2.3 round trips against −1 to −2,
+  DIAL-BEFORE-PAIR-MEASURE); §4 row 3 can say so in one clause. Moves nothing.
+* **Nits.** §3 "81 ms faster in both views": 81 (page, 201.3 → 120.1) and 76 (worker, 196.4 → 120.6). §4 item 5's
+  "17.19 ÷ G" uses *G* for Gbit/s beside *G* the group length; write the rate.
+
+**Premises checked and holding.** §2's mechanism (the window cuts two groups, the store lets go single frames, the
+downloader asks whole groups) is the product's (WINDOW-WHOLE-GROUPS's failing test on `b059388b6`). §3's first-against-
+second reading of the exact frame holds on the harness's order (idle is always first). Candidate 3's "the pair gates
+the label, not the dial" was built and held (no frame painted before the check, both views). Candidate 2's mechanism
+(the next unit sent once the last frame is out) was built and is a non-regressor; only its size and its "free cores"
+are off (m1). Candidates 4–9 are not queued; their premises are quotes that check, and their effects are labelled
+theory or hypothesis as they should be.
+
+**Verdict.** One blocker (B1), docs only on this branch. IMPROVE-1-FIX and IMPROVE-1-FIX-REVIEW appended to §Opus rows
+of `docs/queue-2026-11-24.md`. No build stops: each queued row's premise holds (the brief's "if IMPROVE-1-REVIEW
+refutes a row's premise before its build is done" does not apply); the sizes are corrected, not the rows.
+
+Fixtures and limits of this review: the round's rows (one premium phone, one home Wi-Fi link, one evening, `dbts_b1`
+and `dbts_a1`'s cut, Q 8 G 8, software decode); the cloud rows are the measuring rows' (4-core host, no GPU, headless
+Chromium, software WebCodecs, a userspace relay); no ultrasound; nothing re-measured here.
