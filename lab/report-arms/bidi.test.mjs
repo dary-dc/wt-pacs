@@ -1,6 +1,7 @@
 // node lab/report-arms/bidi.test.mjs — a BiDi remote value read as plain JSON: numbers, strings, booleans, null and
 // undefined as null, arrays and objects element by element, as run.mjs reads rig's fields; a closed socket rejects
-// every pending and later call (the driver hang of REPORT-RUN-2); a closed browser leaves no profile behind; no
+// every pending and later call (the driver hang of REPORT-RUN-2), and one no caller awaits any more is no unhandled
+// rejection; a closed browser leaves no profile behind; no
 // Firefox runs without FIREFOX_PATH.
 import { EventEmitter } from "node:events";
 import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -27,6 +28,17 @@ const fakeSocket = () => ({ sent: [], send(m) { this.sent.push(m); }, close() { 
   check(await pending === "BiDi socket closed", "Bidi: a call pending when the socket closes is rejected");
   check(await bidi.send("browsingContext.create").then(() => "answered", (e) => e.message) === "BiDi socket closed",
     "Bidi: a call after the close is rejected at once");
+}
+{
+  let unhandled = 0;
+  const count = () => unhandled++;
+  process.on("unhandledRejection", count);
+  const ws = fakeSocket();
+  new Bidi(ws).send("script.evaluate");
+  ws.close();
+  await new Promise((ok) => setTimeout(ok, 20));
+  process.off("unhandledRejection", count);
+  check(unhandled === 0, "Bidi: a dropped call rejected at the close is no unhandled rejection");
 }
 {
   const ws = fakeSocket();
