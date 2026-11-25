@@ -1,0 +1,35 @@
+168 visits, 20 VOID, 0 failed, 148 kept
+
+firstPicture, ms from navigation: median (visits); PR − tip per round, median [range] (rounds), and in round trips; A/A tip-b − tip-a
+| view | RTT | tip | PR 448 | PR − tip | round trips | A/A |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| page | 10 | 637 (14) | 632 (13) | -12 [-48, 10] (7) | -1.15 | -10 (7) |
+| page | 100 | 2730 (14) | 2526 (9) | -230 [-264, -169] (6) | -2.30 | -15 (7) |
+| page | 400 | 9722 (13) | 8934 (12) | -794 [-818, -777] (7) | -1.98 | -8 (6) |
+| worker | 10 | 702 (11) | 679 (13) | -10 [-48, 6] (7) | -1.05 | +4 (4) |
+| worker | 100 | 3144 (12) | 2934 (12) | -206 [-270, -132] (7) | -2.06 | +4 (5) |
+| worker | 400 | 11340 (12) | 10550 (13) | -790 [-858, -753] (7) | -1.98 | -6 (5) |
+
+fill, ms from navigation: median (visits); PR − tip per round, median [range] (rounds), and in round trips; A/A tip-b − tip-a
+| view | RTT | tip | PR 448 | PR − tip | round trips | A/A |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| page | 10 | 2548 (14) | 2536 (13) | +2 [-200, 471] (7) | +0.25 | -108 (7) |
+| page | 100 | 4825 (14) | 4457 (9) | -278 [-524, -128] (6) | -2.77 | -141 (7) |
+| page | 400 | 12149 (13) | 11390 (12) | -833 [-952, -639] (7) | -2.08 | -68 (6) |
+| worker | 10 | 2657 (11) | 2647 (13) | -39 [-214, 510] (7) | -3.90 | +62 (4) |
+| worker | 100 | 5125 (12) | 4974 (12) | -34 [-384, 74] (7) | -0.34 | +128 (5) |
+| worker | 400 | 13791 (12) | 12990 (13) | -834 [-868, -616] (7) | -2.08 | +35 (5) |
+
+the fetches, ms from navigation, medians: /series/metadata end, exact metadata [start, end], manifest [start, end]
+page 10 tip: metadata 78, exact [188, 209], manifest [214, 236]
+page 10 PR: metadata 77, exact [186, 207], manifest [185, 206]
+page 100 tip: metadata 436, exact [1268, 1468], manifest [1474, 1676]
+page 100 PR: metadata 436, exact [1269, 1470], manifest [1268, 1469]
+page 400 tip: metadata 1638, exact [4872, 5673], manifest [5679, 6481]
+page 400 PR: metadata 1638, exact [4870, 5673], manifest [4869, 5672]
+worker 10 tip: metadata 78, exact [190, 212], manifest [217, 237]
+worker 10 PR: metadata 78, exact [188, 209], manifest [187, 208]
+worker 100 tip: metadata 438, exact [1270, 1471], manifest [1476, 1678]
+worker 100 PR: metadata 438, exact [1270, 1471], manifest [1268, 1470]
+worker 400 tip: metadata 1638, exact [4869, 5670], manifest [5674, 6476]
+worker 400 PR: metadata 1638, exact [4873, 5674], manifest [4871, 5673]

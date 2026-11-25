@@ -27,3 +27,9 @@ paint waits for the pair's check, which lands about a round trip after the metad
 * `fill`: the same shift (candidates.md §1's table), unless the fill is decode-bound on this host (then still the same
   shift from navigation: the decode starts that much earlier).
 * Both views alike. The A/A pair within the 10 ms cells' spread.
+
+## Result
+
+Run 2026-11-25 06:33–06:53 UTC, 7 rounds, 168 visits, 20 VOID, 148 kept: `summary.txt`. The first picture −2.0 to −2.3
+round trips at 100 and 400 ms in both views, nothing at 10 ms: the prediction met at its upper end. Findings:
+`findings.md`.
