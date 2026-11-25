@@ -1,13 +1,13 @@
 state: started
 started: 2026-11-25T07:07Z
-heartbeat: 2026-11-25T07:08Z
+heartbeat: 2026-11-25T07:12Z
 by: VH6DHVDQ
 outputs: claude/unified (pending)
 ## Resume
-Eligible (latest review by another session, no blocker open, nothing after it but the reviewer's own line-doc entry):
-413, 418 then 419 (DEMO-CHECK-REVIEW's order; 419's demo-check.mjs = docs/queue/DEMO-CHECK-REVIEW/demo-check.merged.mjs),
-439, 438 (code conflict with unified expected: controller.js, viewer.js -> skip if so), 440, 442, 443, 444, 445, 447, 448.
-Skipped: 441 (SESSION-COST-RUN's rows after its last review; SESSION-COST-VERDICT owed), 420 (VL-READS commits unreviewed),
-446 (WINDOW-WHOLE-GROUPS-FIX running), 411 412 424 (structural), 406 408 (rigs), 404 405 409 (do not merge).
-Next: merges in /tmp worktree of claude/unified (--no-ff, in that order), then scripts/gate.sh, push, comment, close.
+Merged locally (not pushed) onto b059388b6, --no-ff, in order: 413 418 419 439 440 442 443 444 445 447 448, then 9170cdf39
+(defaults.md's link to the folded optimal-quality.md); conflicts named in each merge message. 438 skipped: code conflict
+(client/view/controller.js, client/viewer/viewer.js). check_links 0 unresolved, comment budget ok.
+Next: scripts/gate.sh on 9170cdf39 (log in the session's scratchpad); if green push claude/unified, comment
+"Merged into claude/unified at <sha>" and close each PR; a resume with nothing pushed redoes the merges from the eligible list:
+git checkout -B claude/unified origin/claude/unified; git merge --no-ff origin/claude/<branch> for each, resolving line docs by keeping both entries.
 ## Result
