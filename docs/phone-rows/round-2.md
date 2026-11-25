@@ -43,10 +43,19 @@ frames, G = 8, W = 15: 268 frames on the wire for one forward pass, 280 for one 
 on every turn), which is cell M's *w* arms on `dbts_b1-q8-g8` (15 frames, G = 8, *theory*). What the round does:
 
 * **If a sync row has merged PR 446 into `claude/unified` before the round**: merge `origin/claude/unified` into this
-  branch again (`--no-ff`, each conflicted file named), take the round page's `held` from the same rule as the store
-  (PR 446 raises the store's budget to max(*W*, 2*G*): 16 frames on `dbts_b1-q8-g8`, else every *w* load fails its fill
-  by the check of §2), re-run `round_headless.sh --round2` and the gate, and name the merge here; the run commit is the
-  new tip.
+  branch again (`--no-ff`, each conflicted file named), and take the round page's `held` from what PR 446's want asks,
+  not from the store's budget: `lab/devices/round-page.js`'s `held` becomes `wantFrom(0, meta.frameCount, true, true,
+  asked, g).length` (`asked` the load's `?budget` or `memoryWindow(meta)`; `g` the controller's group, `meta.lossy?.g >
+  1 ? meta.lossy.g : 1`; the fill starts at frame 0). That is whole groups, *G* · max(2, ⌊*W*/*G*⌋) frames, fewer
+  within a group of the series' end. On `dbts_b1-q8-g8` the *w* arms fill **16** and the 2*w* arms (budget 30) **24**
+  (*derived*: PR 446's `wantFrom` at `e8a52cfe4` run on `dbts_b1`'s metadata); the store's max(*W*, 2*G*) is 16 and 30,
+  so with it every 2*w* load would fail "received 24 of 30" (§Re-review R-B1; corrected 2026-11-25 from "the same rule
+  as the store"). Then re-run `round_headless.sh --round2` **and §Review's variant with cell M at budgets 6 and 19 of
+  the pair's 20 frames** (19 is over 2*G* = 16 and not a multiple of *G*; `--round2` alone cannot show the rule, as its
+  pair's 20 frames all fit), the variant comparing each load's `window` with its `received`, not with its budget
+  (§Re-review r-n1): every load ok in both, each run named here. The variant's `held` is 16 at both budgets (*derived*,
+  the same `wantFrom`), what the re-review's scratch tree received at both (*measured*, "received 16 of 19"). Then the
+  gate, and the merge named here; the run commit is the new tip.
 * **Else** the round runs as written, and the read labels cell M's *w* arms **before PR 446**: they measure the window
   and memory of the defective bound, and their steps may put refetched groups on the phone's link. They cannot answer
   the memory the shipped window holds (16 frames, 260 MiB, PR 446's body) nor a step's time at its edge; the 2*w* arms
@@ -307,3 +316,21 @@ PHONE-ROUND-2 waits on the second re-review. It binds only if a sync row merges 
 queue makes likely (WINDOW-WHOLE-GROUPS-MEASURE from 11-25 06:00, UNIFIED-SYNC-1125 by 23:00). Fixtures and limits:
 the synthetic pair only; `dbts_b1-q8-g8`'s fill sizes derived from PR 446's code, not loaded; PR 446 merged on a
 scratch tree only; a fake `adb`, headless Chromium in one container, no phone, no radio.
+
+## Fix 2 (PHONE-ROUND-2-PREP-FIX-2, 2026-11-25)
+
+By a session that wrote none of this file, its harness, its review, its fix or its re-review (`by:` in its status
+file), from 02:30 UTC. Docs only: the rule is not built into `round-page.js` now, since `wantFrom`'s grouped form exists
+only on PR 446's branch and the merged case is the only one that needs it.
+
+* **R-B1: fixed.** §1's merged case takes `held` from what PR 446's want asks, `wantFrom(0, n, true, true, asked,
+  g).length`, whole groups (*G* · max(2, ⌊*W*/*G*⌋), fewer near the series' end), not the store's max(*W*, 2*G*);
+  `dbts_b1-q8-g8`'s *w* and 2*w* fills stated, 16 and 24 (*derived*: `wantFrom` at `e8a52cfe4` on `dbts_b1`'s metadata;
+  from frame 49 they would be 10 and 18, which no cell M load starts at). The merged case's dry run names §Review's
+  variant at budgets 6 and 19 of 20 frames, every load ok; its `held` there is 16 at both (*derived*), which the
+  re-review's scratch tree received at both (*measured*). The 2*w* arms are kept: they are the bound's second size
+  that VIEW-MEMORY-BOUND asks for.
+* **r-n1: fixed.** The merged case's variant compares `window` with `received`, not with the budget (§1).
+* **Limits**: nothing run in a browser by this row; the rule's fills are PR 446's code run on metadata, and "every
+  load ok" under it is owed by whoever runs the merged case. Fixtures: `dbts_b1`'s metadata (50 × 2560 × 3328, 10
+  bits, G = 8; no pixels read) and the synthetic 10-bit pair's (20 frames, G = 8).
