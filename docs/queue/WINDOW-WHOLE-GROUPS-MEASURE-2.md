@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-25T08:07Z
-heartbeat: 2026-11-25T08:42Z
+heartbeat: 2026-11-25T08:52Z
 by: S8Un381p
 outputs: (pending) rows in claude/work-ledger docs/queue/WINDOW-WHOLE-GROUPS-MEASURE/
 ## Resume
