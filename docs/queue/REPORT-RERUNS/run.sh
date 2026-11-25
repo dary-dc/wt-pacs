@@ -38,5 +38,5 @@ cell chromium D5a-busy "$ALL" 18
 cell chromium Lbusy "$ALL" 18
 cell chromium C "$C_UNITS" 28
 for E in ${FIREFOX:-D5a D1 L}; do cell firefox $E "$ALL" 18; done
-cell firefox D6 "$ALL" 18 --tun
+# Firefox D6 under --tun: every load's WebTransport to the relay's address timed out (NS_ERROR_NET_TIMEOUT); unrun.
 echo done > "$LOG/finished"
