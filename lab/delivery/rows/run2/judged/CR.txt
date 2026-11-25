@@ -1,0 +1,32 @@
+CR dbts_a1 A     fill        predicted 9394 ms, median ×0.954 (12/12 in 0.85–1.15): HOLDS
+CR dbts_a1 A'    fill        predicted 9394 ms, median ×0.952 (12/12 in 0.85–1.15): HOLDS
+CR dbts_a1 B     fill        predicted 24869 ms, median ×0.994 (12/12 in 0.85–1.15): HOLDS
+CR dbts_a1 C1    fill        predicted 9394 ms, median ×0.955 (12/12 in 0.85–1.15): HOLDS
+CR dbts_a1 C1    latency     predicted 5763 ms, median ×1.107 (12/12 in 0.75–1.33): HOLDS
+CR dbts_a1 C1    askLastByte predicted 5728 ms, median ×1.105 (12/12 in 0.75–1.33): HOLDS
+CR dbts_a1 FIT   fill        predicted 24869 ms, median ×0.994 (12/12 in 0.85–1.15): HOLDS
+CR dbts_a1 FIT   zoom        predicted 17 ms, median ×0.045 (0/12 in 0.75–1.33): REPORTED, not judged
+CR dbts_a1 SPLIT fill        predicted 9394 ms, median ×1.190 (0/12 in 0.85–1.15): MISSES above; x 0.00 (predicted 0.00)
+CR dbts_b1 A     fill        predicted 14231 ms, median ×0.959 (12/12 in 0.85–1.15): HOLDS
+CR dbts_b1 A'    fill        predicted 14231 ms, median ×0.960 (12/12 in 0.85–1.15): HOLDS
+CR dbts_b1 B     fill        predicted 35041 ms, median ×1.000 (12/12 in 0.85–1.15): HOLDS
+CR dbts_b1 C1    fill        predicted 14231 ms, median ×0.958 (12/12 in 0.85–1.15): HOLDS
+CR dbts_b1 C1    latency     predicted 6611 ms, median ×1.074 (12/12 in 0.75–1.33): HOLDS
+CR dbts_b1 C1    askLastByte predicted 6551 ms, median ×1.069 (12/12 in 0.75–1.33): HOLDS
+CR dbts_b1 FIT   fill        predicted 14967 ms, median ×1.022 (12/12 in 0.85–1.15): HOLDS
+CR dbts_b1 FIT   zoom        predicted 1255 ms, median ×0.839 (12/12 in 0.75–1.33): HOLDS
+CR dbts_b1 SPLIT fill        predicted 14231 ms, median ×1.099 (12/12 in 0.85–1.15): HOLDS; x 0.00 (predicted 0.00)
+CR dbts_c1 A     fill        predicted 9789 ms, median ×0.972 (11/11 in 0.85–1.15): HOLDS; 1 VOID
+CR dbts_c1 A'    fill        predicted 9789 ms, median ×0.974 (12/12 in 0.85–1.15): HOLDS
+CR dbts_c1 B     fill        predicted 25599 ms, median ×0.996 (12/12 in 0.85–1.15): HOLDS
+CR dbts_c1 C1    fill        predicted 9789 ms, median ×0.973 (12/12 in 0.85–1.15): HOLDS
+CR dbts_c1 C1    latency     predicted 5717 ms, median ×1.084 (12/12 in 0.75–1.33): HOLDS
+CR dbts_c1 C1    askLastByte predicted 5687 ms, median ×1.082 (12/12 in 0.75–1.33): HOLDS
+CR dbts_c1 FIT   fill        predicted 25599 ms, median ×0.995 (12/12 in 0.85–1.15): HOLDS
+CR dbts_c1 FIT   zoom        predicted 17 ms, median ×0.040 (0/12 in 0.75–1.33): REPORTED, not judged
+CR dbts_c1 SPLIT fill        predicted 9789 ms, median ×1.198 (0/12 in 0.85–1.15): MISSES above; x 0.00 (predicted 0.00)
+the switch picked the view in every load
+A/A CR/dbts_a1: A′ ÷ A median ×1.001
+A/A CR/dbts_b1: A′ ÷ A median ×1.001
+A/A CR/dbts_c1: A′ ÷ A median ×1.001
+predictions xxh3 d126fac79a8b2145; A/A input lab/delivery/rows/run2/CR.aa.json: lab/scripts/aa_rule.py lab/delivery/rows/run2/CR.aa.json --bar 0.05
