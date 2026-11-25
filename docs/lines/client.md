@@ -33,7 +33,9 @@ exact frame bit for bit, and only checked claims on screen.
   session and paints nothing ([`../../client/README.md`](../../client/README.md) §Optimal quality, exact on request).
   Tested by `client/view/controller.test.mjs` and `client/viewer/demo-check.mjs`'s held-pair passes, mutated; its
   effect on the first picture (predicted −1 to −2 round trips, nothing at 10 ms) is DIAL-BEFORE-PAIR-MEASURE's, not
-  measured here.
+  measured here. *Measured 2026-11-25* (DIAL-BEFORE-PAIR-MEASURE, `dbts_b1-q8-g8` cold through a relay, both views,
+  7 interleaved rounds with the A/A pair): −2.0 to −2.3 round trips at 100 and 400 ms, nothing at 10 ms; the manifest
+  still precedes the dial, fetched with the pair rather than beside the metadata (PR 448's §DIAL-BEFORE-PAIR-MEASURE m1).
 * **The unified branch** `claude/unified-client` (the client, optimal-quality and native lines): the demo tip with the
   cleaning and the renames merged; one `info.path` left in `lab/faultbench/index.html` (now `info.route`), a finding in
   #382. Reaches `main` through #367 then #250, on the owner's word ([`coordination.md`](coordination.md)).
