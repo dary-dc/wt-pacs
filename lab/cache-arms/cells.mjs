@@ -69,24 +69,52 @@ export async function backlogAt5s({ due, posted, progress, now, sleep, timeoutMs
   return { at: now(), ...(await progress()) };
 }
 
-/** The tree's peak PSS growth over a load, from a baseline taken once the page's floor probe is done. */
-export async function pssGrowth({ load, floorDone, pss, everyMs = 500 }) {
+/** The tree's peak PSS growth over a load, from a baseline taken once the page's floor probe is done; with
+ *  `byProcess` (→ [{pid, type, pssMiB}]) also each process's baseline and peak (cache-plan.md §10.4 item 1). */
+export async function pssGrowth({ load, floorDone, pss, byProcess = null, everyMs = 500 }) {
+  const sample = () => (byProcess ? byProcess() : [{ pid: "tree", type: "tree", pssMiB: pss() }]);
+  const total = (procs) => procs.reduce((t, p) => t + p.pssMiB, 0);
   let row = null;
   const loading = load().then((r) => (row = r));
   const wait = () => Promise.race([loading, new Promise((r) => setTimeout(r, everyMs))]);
   while (!row && !(await floorDone().catch(() => false))) await wait();
-  const baseline = pss();
+  const first = sample();
+  const each = new Map(first.map((p) => [p.pid, { pid: p.pid, type: p.type, baseMiB: p.pssMiB, peakMiB: p.pssMiB }]));
+  const baseline = total(first);
   let peak = baseline;
-  while (!row) (peak = Math.max(peak, pss())), await wait();
-  return { row: await loading, pssGrowthMiB: peak - baseline };
+  while (!row) {
+    const now = sample();
+    peak = Math.max(peak, total(now));
+    for (const p of now) {
+      const e = each.get(p.pid) ?? each.set(p.pid, { pid: p.pid, type: p.type, baseMiB: 0, peakMiB: 0 }).get(p.pid);
+      e.peakMiB = Math.max(e.peakMiB, p.pssMiB);
+    }
+    await wait();
+  }
+  return { row: await loading, pssGrowthMiB: peak - baseline, ...(byProcess && { pssByProcess: [...each.values()] }) };
+}
+
+/** L's PSS bar is VOID when the A/A pair's median |ΔPSS| over its rounds exceeds 32 MiB (cache-plan.md §10.4 item 1). */
+export function pssAA(rows, limitMiB = 32) {
+  const twin = [...new Set(rows.map((r) => r.unit))].find((u) => u.endsWith("-aa"));
+  if (!twin) return null;
+  const at = (unit, round) => rows.find((r) => r.unit === unit && r.round === round && !r.error);
+  const deltas = [...new Set(rows.map((r) => r.round))].map((k) => [at(twin, k), at(twin.slice(0, -3), k)])
+    .filter(([a, b]) => a && b).map(([a, b]) => Math.abs(a.pssGrowthMiB - b.pssGrowthMiB)).sort((x, y) => x - y);
+  const m = deltas.length % 2 ? deltas[(deltas.length - 1) / 2] : (deltas[deltas.length / 2 - 1] + deltas[deltas.length / 2]) / 2;
+  return { pair: twin, rounds: deltas.length, medianMiB: deltas.length ? m : null, void: !deltas.length || m > limitMiB };
 }
 
 const NO_BAR_MET = { missed: false, delayP99: false, delivered: false, backlog: false, pss: false, exact: false };
 
-/** L's bars against the same round's `none` (§8.3), each met in ≥ 75 % of rounds, every frame exact in every round. */
+/** L's bars against the same round's `none` (§8.3), each met in ≥ 75 % of rounds, every frame exact in every round. A
+ *  round whose `none` errored makes the cell VOID until its period is rerun whole (`cache` item 3); a VOID PSS bar
+ *  (`pssAA`) judges no arm on PSS. */
 export function lBars(rows, { frameBytes, pilot }) {
   const ref = new Map(rows.filter((r) => r.unit === "none" && !r.error).map((r) => [r.round, r]));
   const units = [...new Set(rows.map((r) => r.unit))];
+  const noneErrored = [...new Set(rows.filter((r) => r.unit === "none" && r.error).map((r) => r.round))];
+  const aa = pssAA(rows);
   const out = {};
   for (const unit of units.filter((u) => u !== "none")) {
     const mine = rows.filter((r) => r.unit === unit);
@@ -103,9 +131,9 @@ export function lBars(rows, { frameBytes, pilot }) {
       };
     });
     const share = Object.fromEntries(Object.keys(NO_BAR_MET).map((k) => [k, met.filter((m) => m[k]).length / met.length]));
-    const pass = met.length > 0 && share.exact === 1 && Object.values(share).every((v) => v >= 0.75);
-    const unjudged = [...new Set(mine.filter((r) => !ref.has(r.round)).map((r) => r.round))];
-    out[unit] = { rounds: met.length, share, pass, unjudged, balanced: balanced(rows, unit, units) };
+    const judged = Object.entries(share).filter(([k]) => !(k === "pss" && aa?.void));
+    const pass = noneErrored.length ? null : met.length > 0 && share.exact === 1 && judged.every(([, v]) => v >= 0.75);
+    out[unit] = { rounds: met.length, share, pass, void: noneErrored.length > 0, noneErrored, pssAA: aa, balanced: balanced(rows, unit, units) };
   }
   return out;
 }

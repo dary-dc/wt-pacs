@@ -1,5 +1,5 @@
 // node lab/cache-arms/cells.test.mjs — each row check fails on the row its mutant leaves, and the cells' sizes.
-import { backlogAt5s, checks, E_STEPS, inflightOf, keptOnReopen, lBars, moduleOf, params, pageQuery, pilotOf, pssGrowth, sameSet } from "./cells.mjs";
+import { backlogAt5s, checks, E_STEPS, inflightOf, keptOnReopen, lBars, moduleOf, params, pageQuery, pilotOf, pssAA, pssGrowth, sameSet } from "./cells.mjs";
 
 let failed = 0;
 const check = (ok, what) => ok || (failed++, console.error(`FAIL ${what}`));
@@ -92,7 +92,7 @@ check(pageQuery({ arm: "opfs-sync" }, "view-copy", "").mutant === "view-copy" &&
   const one = bars([0]);
   check(!one.pass && one.share.delivered === 0.75 && one.share.exact === 0.75, "L: an errored round is never exact, so one of 4 fails the arm");
   const noRef = lBars([0, 1, 2, 3].flatMap((r) => [r === 1 ? failed(r, "none") : row(r, "none"), row(r, "stub")]), { frameBytes: 1, pilot: "" }).stub;
-  check(noRef.pass && noRef.rounds === 3 && noRef.unjudged?.join() === "1", `L: a round whose none errored judges no arm and is named (${JSON.stringify(noRef)})`);
+  check(noRef.void && noRef.pass === null && noRef.noneErrored.join() === "1", `L: a round whose none errored makes the cell VOID (cache item 3) (${JSON.stringify(noRef)})`);
 }
 
 /** The PSS window opens once the page's floor probe is done: the floor's memory counts in no arm's growth (review,
@@ -113,6 +113,36 @@ check(pageQuery({ arm: "opfs-sync" }, "view-copy", "").mutant === "view-copy" &&
   };
   const g = await pssGrowth({ load, floorDone: async () => floorDone, pss: () => pss, everyMs: 5 });
   check(g.row.ok && g.pssGrowthMiB === 60, `the growth from after the floor (${g.pssGrowthMiB} MiB)`);
+}
+
+/** L's PSS bar is VOID when the A/A pair's median |ΔPSS| exceeds 32 MiB: an arm failing PSS alone then passes, one
+ *  failing another bar still fails (cache-plan.md §10.4 item 1). */
+{
+  const row = (round, unit, pssGrowthMiB, extra = {}) => ({ cell: "L", round, unit, shown: { missedShare: 0.02, paintDelayP99: 8 },
+    deliveredMBps: 124, unwrittenAt5s: 0, pssGrowthMiB, verify: { ok: 50, notOk: 0 }, ...extra });
+  const cell = (aaGap) => [0, 1, 2, 3].flatMap((r) => [row(r, "none", 25), row(r, "opfs-sync", 125), row(r, "opfs-sync-aa", 125 + aaGap[r])]);
+  const tight = lBars(cell([2, 4, 6, 40]), { frameBytes: 2 ** 19, pilot: "" });
+  check(!tight["opfs-sync"].pssAA.void && tight["opfs-sync"].pssAA.medianMiB === 5 && !tight["opfs-sync"].pass, "L: an A/A pair within 32 MiB judges PSS, 100 MiB over none fails");
+  const loose = lBars(cell([30, 34, 40, 2]), { frameBytes: 2 ** 19, pilot: "" });
+  check(!loose["opfs-sync"].pssAA.void && loose["opfs-sync"].pssAA.medianMiB === 32, "L: an A/A median of exactly 32 MiB is not over the line");
+  const over = lBars(cell([33, 34, 40, 2]), { frameBytes: 2 ** 19, pilot: "" });
+  check(over["opfs-sync"].pssAA.void && over["opfs-sync"].pass, `L: an A/A median over 32 MiB voids the PSS bar (${JSON.stringify(over["opfs-sync"].pssAA)})`);
+  const slow = lBars(cell([33, 34, 40, 2]).map((r) => (r.unit === "opfs-sync" ? { ...r, deliveredMBps: 60 } : r)), { frameBytes: 2 ** 19, pilot: "" });
+  check(!slow["opfs-sync"].pass, "L: a VOID PSS bar leaves the others judged");
+  check(pssAA([row(0, "none", 1), row(0, "stub", 1)]) === null, "L: no A/A pair, no PSS rule");
+}
+
+/** Each process's PSS baseline and peak, a process born after the baseline from 0; the tree's growth unchanged. */
+{
+  let t = 0;
+  const load = async () => { await new Promise((r) => setTimeout(r, 60)); return { ok: true }; };
+  const byProcess = () => (t++ === 0 ? [{ pid: 1, type: "browser", pssMiB: 100 }, { pid: 2, type: "renderer", pssMiB: 50 }]
+    : t === 2 ? [{ pid: 1, type: "browser", pssMiB: 110 }, { pid: 2, type: "renderer", pssMiB: 150 }, { pid: 3, type: "storage", pssMiB: 20 }]
+      : [{ pid: 1, type: "browser", pssMiB: 105 }, { pid: 2, type: "renderer", pssMiB: 60 }, { pid: 3, type: "storage", pssMiB: 10 }]);
+  const g = await pssGrowth({ load, floorDone: async () => true, byProcess, everyMs: 5 });
+  const p = Object.fromEntries(g.pssByProcess.map((x) => [x.type, x]));
+  check(g.pssGrowthMiB === 130 && p.renderer.peakMiB - p.renderer.baseMiB === 100 && p.storage.baseMiB === 0 && p.storage.peakMiB === 20,
+    `PSS by process: each baseline and peak (${JSON.stringify(g.pssByProcess)})`);
 }
 
 if (failed) process.exit(1);

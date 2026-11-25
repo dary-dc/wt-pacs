@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { chromiumAt, chromiumPath, firefoxAt, parent, staticHost, tree, treePss } from "../opfs-cache/browser.mjs";
+import { chromiumAt, chromiumPath, firefoxAt, parent, processPss, staticHost, tree } from "../opfs-cache/browser.mjs";
 import { order, williams } from "../order.mjs";
 import { throttleTree } from "../scripts/cpu_throttle.mjs";
 import { checks, E_STEPS, keptOnReopen, lBars, pageQuery, params, pilotOf, pssGrowth, sameSet, SIZES } from "./cells.mjs";
@@ -141,9 +141,9 @@ async function once(origin, arm, round) {
     b = await fresh({ priv: CELL === "P" });
     const unthrottle = throttleTree(b.pid, THROTTLE);
     try {
-      const { row: r, pssGrowthMiB } = await pssGrowth({ load: () => load(b.page, origin, p), floorDone: () => b.page.evaluate(() => globalThis.floorDone === true),
-        pss: () => treePss(b.pid) });
-      return { ...r, pssGrowthMiB, checks: checks(CELL, r) };
+      const { row: r, pssGrowthMiB, pssByProcess } = await pssGrowth({ load: () => load(b.page, origin, p),
+        floorDone: () => b.page.evaluate(() => globalThis.floorDone === true), byProcess: () => processPss(b.pid) });
+      return { ...r, pssGrowthMiB, pssByProcess, checks: checks(CELL, r) };
     } finally {
       unthrottle();
     }

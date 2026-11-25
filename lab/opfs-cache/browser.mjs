@@ -47,6 +47,28 @@ export function treePss(root) {
   return kib / 1024;
 }
 
+/** A process's kind from /proc's cmdline (NUL-separated, or one string: Chromium rewrites its argv): Chromium's
+ *  `--type=` and utility sub-type, Firefox's `-contentproc` kind; neither flag is the browser process. */
+export function processType(cmdline) {
+  const args = cmdline.split(/[\0 ]/).filter(Boolean);
+  const type = args.find((a) => a.startsWith("--type="))?.slice(7);
+  if (type === "utility") return args.some((a) => a.startsWith("--utility-sub-type=storage.")) ? "storage" : "utility";
+  if (type) return { "gpu-process": "gpu" }[type] ?? type;
+  if (!args.includes("-contentproc")) return "browser";
+  return { tab: "renderer", gpu: "gpu" }[args.at(-1)] ?? "utility";
+}
+/** Each process of the tree: pid, kind and PSS in MiB. */
+export function processPss(root) {
+  const out = [];
+  for (const p of tree(root)) {
+    try {
+      const pssMiB = parseInt(/^Pss:\s+(\d+)/m.exec(readFileSync(`/proc/${p}/smaps_rollup`, "utf8"))[1], 10) / 1024;
+      out.push({ pid: Number(p), type: processType(readFileSync(`/proc/${p}/cmdline`, "utf8")), pssMiB });
+    } catch {}
+  }
+  return out;
+}
+
 /** Chromium on a profile of its own, and the browser process's pid, for PSS, a throttle or a kill. */
 export async function chromiumAt(profile, args = []) {
   const before = new Set(readdirSync("/proc"));
