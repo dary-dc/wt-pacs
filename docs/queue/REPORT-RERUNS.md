@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-24T19:35Z
-heartbeat: 2026-11-25T01:07Z
+heartbeat: 2026-11-25T01:27Z
 by: xigw9LEm
 outputs: claude/report-arms 958644318 (Firefox driver), 60578e891 (µs clock), f23fb35e6 (KEEPALIVE-Y°, D5a-busy); rows lab/report-arms/rows/r3-*.jsonl; results to claude/page-runs docs/reviews/page-runs.md §Reports
 
@@ -16,7 +16,9 @@ Built instead: the decoder worker POSTs `{load, at}` to the sink's `/fault`, the
 drawn delay (measured mid-task: Page.crash lands in ~20 ms). Smoke (not counted): learned 2-12 ms after the fault, so a
 delay under it is `late`; recorded per row.
 D5a-busy complete 22:18Z, its reading in page-runs.md §2 Results (claude/page-runs 4e8f5d9e8): the race exists
-(BEACON-* 9/18 each, KEEPALIVE-* 18/18). Lbusy running from 22:18Z, then C.
+(BEACON-* 9/18 each, KEEPALIVE-* 18/18). Lbusy running from 22:18Z, then C. A container restart (~01:20Z) killed the run at Lbusy round 14: rounds 0-13 kept,
+round 14's two rows kept apart (rows/r3-chromium-Lbusy.cut-round14.jsonl), the cell resumed from round 14 at 01:27Z
+(run.mjs --from-round, claude/report-arms 0092cf5e6); after a restart, run the three scripts again as below.
 Running since 19:34Z: docs/queue/REPORT-RERUNS/run.sh (chromium D5a-busy, Lbusy, C; firefox D5a, D1, L; D6 --tun),
 push.sh pushing rows every 10 min. Next: when each cell's {"cell"} line lands, its reading in page-runs.md §Reports
 on claude/page-runs, against §2's predictions.
