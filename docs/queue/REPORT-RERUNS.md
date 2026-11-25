@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-24T19:35Z
-heartbeat: 2026-11-25T07:25Z
+heartbeat: 2026-11-25T07:55Z
 by: xigw9LEm
 outputs: claude/report-arms 958644318 (Firefox driver), 60578e891 (µs clock), f23fb35e6 (KEEPALIVE-Y°, D5a-busy); rows lab/report-arms/rows/r3-*.jsonl; results to claude/page-runs docs/reviews/page-runs.md §Reports
 
