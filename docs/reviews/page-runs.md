@@ -335,7 +335,7 @@ error). A container restart cut the cell at round 14; rounds 0–13 were kept, r
 | SESSION-1, SESSION-Y, SESSION-H | 1.92, 2.13, 1.98 ms (5.79, 2.38, 2.54) | ≤ 5 ms | hit per load; SESSION-1's pooled p99 5.79 over |
 
 The page-thread carriers hand a report off after the long task (p99 ≈ the 50 ms task); the worker carriers do not.
-Read with D5a busy above: a kill inside that wait takes the report (b)'s race exists, and Lbusy places its size.
+Read with D5a busy above: a kill inside that wait takes the report, so the race (b) asks for exists, and Lbusy gives its size.
 
 ## 3 · Engines (`engines` items 3 and 4) → ENGINE-CELLS
 
