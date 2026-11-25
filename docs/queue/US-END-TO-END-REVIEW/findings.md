@@ -81,7 +81,7 @@ pointer).
 
 ## Re-review
 
-US-END-TO-END-FIX-REVIEW, 2026-11-25 00:20–01:00 UTC, by a session that wrote none of PR 445, its review or its fix
+US-END-TO-END-FIX-REVIEW, 2026-11-25 00:17–00:25 UTC, by a session that wrote none of PR 445, its review or its fix
 (`by:` in `docs/queue/US-END-TO-END-FIX-REVIEW.md`). Read: `git diff f4d78465d..cf09b9d38` (five files, only the
 fix), `scripts/gate.sh`'s step and its skip condition, `lab/av1/fetch_data.py`'s paths, `docs/FIXTURES.md` §SBND
 series bundle. Run (**measured**, 4-core cloud host, no GPU, headless Chromium/SwiftShader, loopback, HTJ2K, ts

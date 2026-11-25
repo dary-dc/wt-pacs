@@ -1,5 +1,5 @@
 state: done
-started: 
+started: 2026-11-25T00:17Z
 heartbeat: 2026-11-25T00:24Z
 by: xW44iJBj
 outputs: claude/work-ledger docs/queue/US-END-TO-END-REVIEW/findings.md §Re-review; claude/us-end-to-end cf09b9d38 (PR 445) reviewed, unchanged
