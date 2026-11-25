@@ -23,9 +23,9 @@ and each page's recommendation: does it hold for both, and by which property? It
 **For DBT stacks every page stands as written. For ultrasound, stop carrying "by theory": the premise is refuted on
 the ultrasound pixels the fixtures hold, and it fails first at the door, not at the codec. Treat a clip as its own
 case, decided by three properties: what its source is (lossy and colour-typed, in the archive's clips read), that its
-decode does not bind if a small frame's decode scales by pixels (**derived on theory**; then its frame rate and the
+decode does not bind if a small frame's decode scales by pixels (*derived on theory*; then its frame rate and the
 wire decide), and that its noise lies near one code step of 8 bits, so its fine band "holds as much structure as
-noise" (**measured** on the two sound sweeps, shared by a breast MR series; `preview-noise.md` §2.1).**
+noise" (*measured* on the two sound sweeps, shared by a breast MR series; `preview-noise.md` §2.1).**
 
 | # | the owner's yes or no | recommended | a yes changes | a no leaves |
 | ---: | --- | --- | --- | --- |
