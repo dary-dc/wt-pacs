@@ -47,72 +47,51 @@ commitment's run ([`asking`](asking.md) row 4); **M5** (the viewer line) stays o
 
 ## 3 · The options
 
-### 3.1 The track's PRs, in the order to merge
+The three tables are in [§3 in full](#appendix-3-in-full), after §8 (moved there 2026-11-25 by PAGES-PASS, nothing
+changed). In short:
 
-Order and conflicts are **measured** here: one sequential `git merge --no-ff` of each branch onto
-`origin/claude/unified` `4a2b4277f`, in the order listed, a conflicting merge aborted and the next taken (so a later
-"clean" is clean without the aborted ones). Not run: the gate at any of these tips.
-
-| order | PR | what | latest review (by a session that wrote none of it) | gate on its branch | test merge here | merged by |
-| ---: | --- | --- | --- | --- | --- | --- |
-| 1 | 415 | three line docs in the work-state form | UNIFIED-DOCS-REVIEW-FIX-REVIEW: no blocker | docs only | clean | sync row |
-| 2 | 416 | AV1 audits' corrections applied | the same re-review: no blocker; merge after 415 | docs only (5 `lab/**/*.md`) | clean | sync row |
-| 3 | 428 | `client/README.md` *Frames*: no frame leaves memory | CLIENT-README-CACHE-FIX-REVIEW: no blocker | docs only | clean | sync row |
-| 4 | 432 | README opens with the value statement | VALUE-STATEMENT-REVIEW: no blocker, m1–m6 | docs only | clean | DOCS-SYNC-1123 |
-| 5 | 412 | remove `handoff/` | UNIFIED-REMOVALS-REVIEW: no blocker | OK (811 s or 477 s, UNIFIED-REMOVALS, which does not say which branch took which); the review's merge gate `--quick` OK, 292 s | clean | sync row (item 1) |
-| 6 | 411 | remove the frame clock (`git revert 24b80bcd`) | the same: no blocker, m1 m2 in docs | OK (the other of 811 s and 477 s); the review's merge gate full, OK 790 s | clean | sync row (item 1) |
-| 7 | 423 | lab levers set on `Sessions` by one call | UNIFIED-BUILDS-REVIEW: no blocker | OK, 58 steps | clean | sync row |
-| 8 | 424 | the five lab crates in a workspace of their own | the same: no blocker; m1 the two locks unchecked | OK 754 s | conflict: `docs/lines/coordination.md` | sync row (item 1), the line doc resolved |
-| 9 | 425 | OpenJPH 0.31.0 → 0.33.0 in the decoder | the same: no blocker | `--quick` OK | conflict: `docs/lines/client.md` | sync row |
-| 10 | 426 | P9's moves (depth cut, one clock, store worker) | UNIFIED-SIMPLIFY-REVIEW: no blocker, m1 m2 | full OK | clean | sync row |
-| 11 | 427 | NAMES-1's leftovers | the same: no blocker; m1 no gate step runs `r3_arm.test` | OK 883 s | conflict: `docs/lines/coordination.md` | sync row |
-| 12 | 433 | SELinux build flag restored | **owed**: SELINUX-BUILD-RESTORE-REVIEW (latest 11-23 16:00) | full OK 727 s | conflict: `docs/lines/coordination.md` | sync row, after its review |
-| 13 | 410 | which client results hold in which engine | ENGINE-REVIEW-FIX-REVIEW: no blocker; **gate fails** on two personal paths | `--quick` fails (UNIFIED-SYNC-1122) | conflict: `docs/lines/client.md` | sync row, after ENGINES-PATH-FIX and its review |
-
-Every conflict but one is a line doc that two PRs each dated; the one in code is outside the track: PR 419 against
-PR 418 in `client/viewer/demo-check.mjs` (both from [`client-calls`](client-calls.md), "after one review"). Rows 1–7
-merge in sequence with no conflict at all.
-
-The other PRs into `claude/unified` are decided by their own pages, not here: 407, 417, 422 ([`pacs-sync`](pacs-sync.md):
-yes, 417 after its review; each conflicts in `docs/lines/metadata.md` after 415), 413 and 421 ([`ingest-optimal-quality`](ingest-optimal-quality.md):
-yes; 413 conflicts in `docs/lines/codecs.md` after 415, 421 clean), 418 and 419; the theory PRs 420, 429, 430, 431
-(each re-reviewed with no blocker open, so rule 1 merges them); 434 (MEMORY-LEAK-TRACE, review owed). Never merged:
-402, 405, 409 ("do not merge"); 406 and 408 are the delivery and A1 rigs, read on their branches.
-
-### 3.2 M6: proposals in product paths
-
-| PR | what merging adopts | its state on `claude/unified` | decided by | recommended |
-| --- | --- | --- | --- | --- |
-| 368 | the view's reconstruction digest and coding error (I1–I3) | not carried, 73 commits ahead; base the old demo tip, unmergeable as is | [`frame-integrity`](frame-integrity.md) row 6 | port, review, merge (**provisional**, §6) |
-| 370 | the telemetry module (off by default) | not carried | [`reports`](reports.md) row 11: "no; keep it open" | open |
-| 372 | the demo room's network check (`scripts/demo-network.py`, README §Demo) | not carried, 5 commits | no page; the demo is suspended (coordination §Decisions, 2026-11-11 evening) | open |
-| 376 | the hidden-page decode deadline given again | **carried** (`claude/hidden-page-decode` is an ancestor of the tip) | adopted by the unification | nothing to do; the PR's close is the owner's |
-| 378 | a lost exact ask asked again once, 1 s later | not carried, 23 commits; "carries lab code, fix first" (M6) | [`frame-integrity`](frame-integrity.md) row 7: once is enough, "PR 378 as it stands" | port without its lab code, review, merge |
-| 390 | the optimal-quality ingest behind `--optimal-quality` | **carried** (`claude/oq-ingest` an ancestor) | [`ingest-optimal-quality`](ingest-optimal-quality.md): kept, off by default | nothing to do |
-| 309 | a reduced-depth view painted at its own depth, behind a flag | not carried, 6 commits | no page; nothing timed (SwiftShader), its GPU protocol owed on the owner's machine | open |
-| 265 | `waitAhead` k = 8 | not carried, 14 commits; its downloader fix `52bfb33a` **is** carried | [`asking`](asking.md): `waitAhead` off | open (nothing left in it the product needs) |
-
-### 3.3 The seven conditions at the tip
-
-Each condition of [`final-state.md`](final-state.md) §5, checked at `4a2b4277f` (**read, not run**, except where a
-row's gate log is quoted).
-
-| # | condition | at the tip | what closes it |
-| ---: | --- | --- | --- |
-| 1 | the scope written | **not met**: README §Purpose is on PR 432 | DOCS-SYNC-1123 merges 432 |
-| 2 | complete, end to end, DBT and ultrasound | **not met**: the gate serves its small fixtures, no DBT volume (UNIFIED-SIMPLIFY-REVIEW: "no DBT volume served"; `demo-check.mjs` on `dbts_*` runs by hand, no gate step); `fixtures/us_cine_smoke/` is "3 frames, 19-byte placeholders … not HTJ2K" (`docs/FIXTURES.md`) | §4 row 2 |
-| 3 | every default chosen by measurement | **not met**: no table; `docs/reviews/understand/defaults.md` (2026-11-11, the demo tip) lists defaults with no measurement each | §4 row 1 |
-| 4 | lean | **partly**: `check_lab_absent.sh` and the comment budget pass on every track branch; 411 and 412 open; 47 `lab/` directories (26 391 code lines) read by no gate step (this page's reading: `final-state.md` §5's condition 4 names no `lab/` directory; it rests on §Decided's "`lab/` on `main` is the harness only") | §3.1 rows 5–6, item 4 |
-| 5 | gate green, full, only the allowed skip | **not shown**: `gate.yml` runs on PRs into `claude/av1-unified-mainbase`, `claude/core` and `main`, not `claude/unified`; every cloud gate on the track skipped the native painter and window and the web host's check besides the allowed "the viewer's cross-codec arm and Firefox" | §4 row 3 |
-| 6 | reviewed, no blocker open | **met** for rows 1–11 of §3.1; owed for 433, 410's path fix, 434 | their review rows |
-| 7 | every number names its bench | **not checked** across `docs/`; the decision pages meet it | DECISION-PAGES-REVIEW, for the pages |
+* [**3.1 The track's PRs, in the order to merge**](#31-the-tracks-prs-in-the-order-to-merge): thirteen PRs, order and
+  conflicts **measured** by one sequential test merge onto `4a2b4277f`; rows 1–7 merge in sequence with no conflict
+  at all; every conflict but one is a line doc; 433 waits on its review, 410 on ENGINES-PATH-FIX and its review.
+* [**3.2 M6: proposals in product paths**](#32-m6-proposals-in-product-paths): 368 and 378 ported, reviewed, merged
+  (368 **provisional**); 376 and 390 already carried; 370, 372, 309 and 265 left open.
+* [**3.3 The seven conditions at the tip**](#33-the-seven-conditions-at-the-tip) (**read, not run**): 1, 2, 3 not
+  met, 4 partly, 5 not shown, 6 met for rows 1–11 of §3.1, 7 not checked.
 
 ## 4 · Where it holds
 
-Fixtures and limits: one tree (`4a2b4277f`) and the 20 branches of §3.1's test merge; conflicts measured, nothing
-built or run on the merged tree; the gate figures are each row's own, on 4-core cloud hosts without a GPU, headless
-Chromium, the gate's tracked fixtures (the track's PRs ran no DBT volume but UNIFIED-SIMPLIFY's two by hand). No
-device, engine or link enters this page.
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
+* One tree (`4a2b4277f`) and the 20 branches of §3.1's test merge; conflicts measured, nothing built or run on the
+  merged tree. Found by UNIFIED-PAGE's own test merge (its status file: "no build, no gate on the merged tree").
+* The gate figures are each row's own, on 4-core cloud hosts without a GPU, headless Chromium, the gate's tracked
+  fixtures. Found by the rows' status files (UNIFIED-REMOVALS, UNIFIED-BUILDS-REVIEW, UNIFIED-SIMPLIFY-REVIEW, …).
+* The track's PRs ran no DBT volume but UNIFIED-SIMPLIFY's two by hand. Found by UNIFIED-SIMPLIFY-REVIEW ("no DBT
+  volume served").
+* 425's decoder was checked on 80 synthetic 8–16-bit frames, not on a DBT or ultrasound frame. Found by
+  UNIFIED-BUILDS-REVIEW's status file (fixtures: "synthetic HTJ2K frames, no DBT volume").
+* Neither modality is run end to end by the gate; the tracked ultrasound fixture is "3 frames, 19-byte placeholders
+  … not HTJ2K". Found by `docs/FIXTURES.md` and UNIFIED-SIMPLIFY-REVIEW (§3.3 condition 2).
+* `usb_cine` is lossy-sourced, so its run's numbers stay provisional. Found by `docs/FIXTURES.md`'s rule, through
+  §Review B3 (`README.md`).
+* 811 s and 477 s are not assigned to 411 and 412 in their source. Found by §Review m8 (`README.md`); UNIFIED-REMOVALS'
+  status file gives both without saying which.
+* CI does not run the gate on `claude/unified`, and every cloud gate on the track skipped more than the allowed
+  skip (§3.3 condition 5). Found by reading `.github/workflows/gate.yml`'s branch lists and the rows' gate logs.
+* Condition 4's 47 `lab/` directories are this page's reading; `final-state.md` §5 names no `lab/` directory.
+  Found by §Review m8.
+* Condition 7 is **not checked** across `docs/`. Found by this page (UNIFIED-PAGE), which checked only the decision
+  pages.
+* The merge-readiness hole is closed and `'unsafe-eval'` stays, **read, not run** (§5). Found by UNIFIED-PAGE
+  reading `client/viewer/head.js` and the nginx template.
+* Twelve more commits `dd681539d`'s rule dropped are not judged (§6). Found by PR 433's body (SELINUX-BUILD-RESTORE).
+* The open PRs are as GitHub returned them on 2026-11-23 about 02:10 UTC, and `claude/unified` has not moved since
+  2026-11-20 06:35. Found by the read-only GitHub queries and `git log` of this page's header.
+
+No device or engine enters this page. **Where the link, not the decode, binds** (2026-11-25, PAGES-PASS): no link
+enters the question either, since the page orders merges and reads conditions on a tree, none timed on a link; where
+the link binds for the release's speed claim is [`delivery-per-link.md`](delivery-per-link.md) §4's, and no
+transport row is lowered by the decode-bound phone.
 
 For US and DBT stacks (amendment 27 item 6): the track's PRs are layout, docs and build changes, so whether they
 hold does not depend on the modality (**theory**: no PR here changes what a frame carries or how it is decoded,
@@ -178,3 +157,67 @@ review owed; FINAL-STATE and its fix loop ([`final-state.md`](final-state.md)). 
 twelve commits `dd681539d` left (from PR 433's body); and, from the reviews, 424's lock check (m1), a test or the
 removal of `--advise-tile-names` (423; the removal recommended, the lever never adopted), and the ingest's encoder at
 OpenJPH 0.33.0 (425, "a separate call").
+
+## Appendix: §3 in full
+
+Moved here from §3 on 2026-11-25 (PAGES-PASS, §Review m13), unchanged.
+
+### 3.1 The track's PRs, in the order to merge
+
+Order and conflicts are **measured** here: one sequential `git merge --no-ff` of each branch onto
+`origin/claude/unified` `4a2b4277f`, in the order listed, a conflicting merge aborted and the next taken (so a later
+"clean" is clean without the aborted ones). Not run: the gate at any of these tips.
+
+| order | PR | what | latest review (by a session that wrote none of it) | gate on its branch | test merge here | merged by |
+| ---: | --- | --- | --- | --- | --- | --- |
+| 1 | 415 | three line docs in the work-state form | UNIFIED-DOCS-REVIEW-FIX-REVIEW: no blocker | docs only | clean | sync row |
+| 2 | 416 | AV1 audits' corrections applied | the same re-review: no blocker; merge after 415 | docs only (5 `lab/**/*.md`) | clean | sync row |
+| 3 | 428 | `client/README.md` *Frames*: no frame leaves memory | CLIENT-README-CACHE-FIX-REVIEW: no blocker | docs only | clean | sync row |
+| 4 | 432 | README opens with the value statement | VALUE-STATEMENT-REVIEW: no blocker, m1–m6 | docs only | clean | DOCS-SYNC-1123 |
+| 5 | 412 | remove `handoff/` | UNIFIED-REMOVALS-REVIEW: no blocker | OK (811 s or 477 s, UNIFIED-REMOVALS, which does not say which branch took which); the review's merge gate `--quick` OK, 292 s | clean | sync row (item 1) |
+| 6 | 411 | remove the frame clock (`git revert 24b80bcd`) | the same: no blocker, m1 m2 in docs | OK (the other of 811 s and 477 s); the review's merge gate full, OK 790 s | clean | sync row (item 1) |
+| 7 | 423 | lab levers set on `Sessions` by one call | UNIFIED-BUILDS-REVIEW: no blocker | OK, 58 steps | clean | sync row |
+| 8 | 424 | the five lab crates in a workspace of their own | the same: no blocker; m1 the two locks unchecked | OK 754 s | conflict: `docs/lines/coordination.md` | sync row (item 1), the line doc resolved |
+| 9 | 425 | OpenJPH 0.31.0 → 0.33.0 in the decoder | the same: no blocker | `--quick` OK | conflict: `docs/lines/client.md` | sync row |
+| 10 | 426 | P9's moves (depth cut, one clock, store worker) | UNIFIED-SIMPLIFY-REVIEW: no blocker, m1 m2 | full OK | clean | sync row |
+| 11 | 427 | NAMES-1's leftovers | the same: no blocker; m1 no gate step runs `r3_arm.test` | OK 883 s | conflict: `docs/lines/coordination.md` | sync row |
+| 12 | 433 | SELinux build flag restored | **owed**: SELINUX-BUILD-RESTORE-REVIEW (latest 11-23 16:00) | full OK 727 s | conflict: `docs/lines/coordination.md` | sync row, after its review |
+| 13 | 410 | which client results hold in which engine | ENGINE-REVIEW-FIX-REVIEW: no blocker; **gate fails** on two personal paths | `--quick` fails (UNIFIED-SYNC-1122) | conflict: `docs/lines/client.md` | sync row, after ENGINES-PATH-FIX and its review |
+
+Every conflict but one is a line doc that two PRs each dated; the one in code is outside the track: PR 419 against
+PR 418 in `client/viewer/demo-check.mjs` (both from [`client-calls`](client-calls.md), "after one review"). Rows 1–7
+merge in sequence with no conflict at all.
+
+The other PRs into `claude/unified` are decided by their own pages, not here: 407, 417, 422 ([`pacs-sync`](pacs-sync.md):
+yes, 417 after its review; each conflicts in `docs/lines/metadata.md` after 415), 413 and 421 ([`ingest-optimal-quality`](ingest-optimal-quality.md):
+yes; 413 conflicts in `docs/lines/codecs.md` after 415, 421 clean), 418 and 419; the theory PRs 420, 429, 430, 431
+(each re-reviewed with no blocker open, so rule 1 merges them); 434 (MEMORY-LEAK-TRACE, review owed). Never merged:
+402, 405, 409 ("do not merge"); 406 and 408 are the delivery and A1 rigs, read on their branches.
+
+### 3.2 M6: proposals in product paths
+
+| PR | what merging adopts | its state on `claude/unified` | decided by | recommended |
+| --- | --- | --- | --- | --- |
+| 368 | the view's reconstruction digest and coding error (I1–I3) | not carried, 73 commits ahead; base the old demo tip, unmergeable as is | [`frame-integrity`](frame-integrity.md) row 6 | port, review, merge (**provisional**, §6) |
+| 370 | the telemetry module (off by default) | not carried | [`reports`](reports.md) row 11: "no; keep it open" | open |
+| 372 | the demo room's network check (`scripts/demo-network.py`, README §Demo) | not carried, 5 commits | no page; the demo is suspended (coordination §Decisions, 2026-11-11 evening) | open |
+| 376 | the hidden-page decode deadline given again | **carried** (`claude/hidden-page-decode` is an ancestor of the tip) | adopted by the unification | nothing to do; the PR's close is the owner's |
+| 378 | a lost exact ask asked again once, 1 s later | not carried, 23 commits; "carries lab code, fix first" (M6) | [`frame-integrity`](frame-integrity.md) row 7: once is enough, "PR 378 as it stands" | port without its lab code, review, merge |
+| 390 | the optimal-quality ingest behind `--optimal-quality` | **carried** (`claude/oq-ingest` an ancestor) | [`ingest-optimal-quality`](ingest-optimal-quality.md): kept, off by default | nothing to do |
+| 309 | a reduced-depth view painted at its own depth, behind a flag | not carried, 6 commits | no page; nothing timed (SwiftShader), its GPU protocol owed on the owner's machine | open |
+| 265 | `waitAhead` k = 8 | not carried, 14 commits; its downloader fix `52bfb33a` **is** carried | [`asking`](asking.md): `waitAhead` off | open (nothing left in it the product needs) |
+
+### 3.3 The seven conditions at the tip
+
+Each condition of [`final-state.md`](final-state.md) §5, checked at `4a2b4277f` (**read, not run**, except where a
+row's gate log is quoted).
+
+| # | condition | at the tip | what closes it |
+| ---: | --- | --- | --- |
+| 1 | the scope written | **not met**: README §Purpose is on PR 432 | DOCS-SYNC-1123 merges 432 |
+| 2 | complete, end to end, DBT and ultrasound | **not met**: the gate serves its small fixtures, no DBT volume (UNIFIED-SIMPLIFY-REVIEW: "no DBT volume served"; `demo-check.mjs` on `dbts_*` runs by hand, no gate step); `fixtures/us_cine_smoke/` is "3 frames, 19-byte placeholders … not HTJ2K" (`docs/FIXTURES.md`) | §4 row 2 |
+| 3 | every default chosen by measurement | **not met**: no table; `docs/reviews/understand/defaults.md` (2026-11-11, the demo tip) lists defaults with no measurement each | §4 row 1 |
+| 4 | lean | **partly**: `check_lab_absent.sh` and the comment budget pass on every track branch; 411 and 412 open; 47 `lab/` directories (26 391 code lines) read by no gate step (this page's reading: `final-state.md` §5's condition 4 names no `lab/` directory; it rests on §Decided's "`lab/` on `main` is the harness only") | §3.1 rows 5–6, item 4 |
+| 5 | gate green, full, only the allowed skip | **not shown**: `gate.yml` runs on PRs into `claude/av1-unified-mainbase`, `claude/core` and `main`, not `claude/unified`; every cloud gate on the track skipped the native painter and window and the web host's check besides the allowed "the viewer's cross-codec arm and Firefox" | §4 row 3 |
+| 6 | reviewed, no blocker open | **met** for rows 1–11 of §3.1; owed for 433, 410's path fix, 434 | their review rows |
+| 7 | every number names its bench | **not checked** across `docs/`; the decision pages meet it | DECISION-PAGES-REVIEW, for the pages |

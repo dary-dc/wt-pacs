@@ -3,7 +3,7 @@
 Row FINAL-STATE of the program (`claude/work-ledger:docs/queue-2026-11-14.md`, amendment 27), written 2026-11-22;
 corrected in place 2026-11-23 by FINAL-STATE-FIX (§Fix).
 Sources and reasoning only: nothing was built, run or timed, and the gate was not run. Every quotation is a
-**source**, fetched 2026-11-22 and listed in §8 with its URL, section and revision; every judgement of a term is
+**source**, fetched on the date §8 gives (2026-11-22; S15's PS3.8, S17 and S18 2026-11-23) and listed in §8 with its URL, section and revision; every judgement of a term is
 **theory** (this page's reasoning); what is said of `claude/unified` was read at `4a2b4277`, not executed.
 
 ## 1. The question
@@ -26,8 +26,9 @@ reader what the project claims.
 
 They are two names because they name two things (**theory**): *release* names an artifact, the tree that goes into
 `main`, and *evaluation* says what a reader may do with it, §5's third axis; *bench-verified* names the state of its
-claims, §5's first two axes. Each passes a test the other fails (§3): *evaluation release* has no official definition
-and says nothing of its evidence (T3, T4), and *bench-verified* says what was shown but not what the artifact is for.
+claims, §5's first two axes. Each says what the other does not (§3): *evaluation release* has no official definition
+and says nothing of its evidence (T3, T4; its T5 is weak because DICOM, which the code touches, has *release* as
+A-RELEASE, judged harmless), and *bench-verified* says what was shown but not what the artifact is for.
 Kept, the provisional term renames nothing (§7). "For technical evaluation" is there because medical-device law uses
 *evaluation* for the clinical assessment of a device (S18), which this release has not had.
 
@@ -66,50 +67,53 @@ What the owner's words ask of a term, as five tests (**theory**):
 * **T5** it obeys `CLAUDE.md` §Names: the domain's words, no word from the project's history, none that a standard
   the code touches uses for something else.
 
-The terms in use, each from its official source (quotations in §8), then the terms this page generated.
-
-| term | what its source says it means (**source**) | T1 | T2 | T3 | T4 | T5 | verdict (**theory**) |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| alpha, beta | Kubernetes: alpha "Might be buggy"; beta "well tested ... Recommended for only non-business-critical uses" (S5). PyPI: "3 - Alpha", "4 - Beta", then "5 - Production/Stable" (S4) | yes | **no** | no | no | yes | a step on a ladder whose next step is production; says how far, not what was shown |
-| preview, technology preview | "not necessarily feature-complete ... intended for use in test environments only" (S7); "still under development ... cannot guarantee their stability" (S8) | yes | **no** | no | no | yes | a vendor's support promise; this project sells no support |
-| experimental; release candidate | Node.js: "Use of the feature is not recommended in production environments"; its stage 1.2, "Release candidate ... hopefully ready to become stable" (S6) | yes; **no** | **no**; yes | no | no | yes | "experimental" undersells; a release candidate is a candidate *for* production |
-| `0.y.z` | "Major version zero (0.y.z) is for initial development. Anything MAY change at any time."; "If your software is being used in production, it should probably already be 1.0.0." (S3) | yes | weak | no | no | yes | **keep beside the name**: `series-server` is already `0.1.0`; a number, not a word |
-| TRL 5 or 6 | TRL 5: "End-to-end software system tested in relevant environment, meeting predicted performance." TRL 6: "Prototype implementations of the software demonstrated on full-scale, realistic problems." TRL 7: "Well integrated with operational hardware/software systems" (S1); EU: TRL 5 "validated in a relevant environment", TRL 6 "demonstrated in a relevant environment" (S2) | yes | **no** ("prototype") | partly | yes | yes | the closest official scale; the branch reads at 5 to 6 and below 7 (**theory**), and the number invites that argument instead of ending it |
-| Candidate Recommendation | "considered complete and fit for purpose, and that no further refinement to the text is expected without additional implementation experience and testing" (S9) | yes | yes | no | yes | **no** | the right idea (complete, awaiting the field), but it is a specification's stage and W3C's own word |
-| repostatus "Active" or "WIP" | Active: "has reached a stable, usable state and is being actively developed"; WIP: "there has not yet been a stable, usable release suitable for the public"; Concept: "a limited example, demo, or proof-of-concept" (S10) | **no**; yes | yes; **no** | no | no | yes | two bins, and the branch is in neither |
-| research use only | "For a product in the laboratory research phase of development, and not represented as an effective in vitro diagnostic product ... 'For Research Use Only. Not for use in diagnostic procedures.'" (S11) | yes | weak | no | no | **no** | a label the regulation defines for in vitro diagnostic products, which this is not; it says who may use it, not what state it is in (§6) |
-| investigational use only | "'For Investigational Use Only. The performance characteristics of this product have not been established.'" (S11) | yes | **no** | no | no | **no** | as above, and false here: the performance is what was established |
-| verified, not validated | verification: "objective evidence that the design outputs of a particular phase ... meet all of the specified requirements"; validation: "software specifications conform to user needs and intended uses" (S13) | yes | yes | **yes** | no | see §6 | the right pair; alone it does not say where the evidence came from |
-| *reference implementation* | no official definition found | yes | yes | no | no | weak | implies a specification it implements, and clarity before speed |
-| *measured baseline* (generated) | — | yes | yes | yes | weak | **no** | DICOM: "JPEG Baseline Compression (coding Process 1)" (S15); the repo's `scripts/perf_counts.baseline` |
-| *verified core* (generated) | — | yes | yes | yes | no | **no** | "core" is history here (`claude/core`) and a glossary word (the native core, the `core` paint thread) |
-| *scope-complete* (generated) | — | yes | yes | partly | no | yes | says the first condition of §5 and none of the others |
-| **evaluation release** (the owner's provisional term, amendment 27 item 7) | no official definition found (searched 2026-11-23). Vendor practice: "Fully functional time-limited evaluation versions of Windows Server 2012" (S17). Medical-device law: "‘clinical evaluation’ means a systematic and planned process to ... assess the clinical data pertaining to a device in order to verify the safety and performance" (S18, MDR); "‘performance evaluation’ means an assessment and analysis of data to establish or verify the scientific validity, the analytical and, where applicable, the clinical performance of a device" (S18, IVDR) | yes | yes | no | no | weak | **kept, as the release's name**: it says what a reader may do with it, not what was shown; the regulations' *evaluation* is clinical, so the status line says "technical evaluation"; DICOM's *release* is "The graceful release of an association" (S15, PS3.8 §7.2), a protocol primitive spelled A-RELEASE, not a version, judged harmless |
-| **bench-verified** (generated) | bench: "performance testing, performed by either a device manufacturer or a third party testing facility" (S14); verified as above (S13) | yes | yes | **yes** | **yes** | see §6 | **recommended, as the state** |
-| *bench-measured* (generated) | "measured" is this repository's own label for a number (`CLAUDE.md` §Docs: "A claim that is not measured says so") | yes | yes | yes | yes | yes | the fallback if "verified" is refused (§6): weaker, a measurement proves nothing by itself |
-
-How two open-source medical imaging projects word the same thing (practice, not a definition): "The OHIF Viewer is
-NOT F.D.A. cleared or CE Marked. It is the users' responsibility to ensure compliance with applicable rules and
-regulations." (S16); "Slicer is NOT approved for clinical use and the distributed application is intended for
-research use." (S16). Both state what the software is not, in one sentence, and neither uses a maturity word.
+The terms in use, each from its official source, and the terms this page generated: seventeen rows, each judged on
+T1–T5, in [§3 in full](#appendix-3-in-full) after §8 (moved there 2026-11-25 by PAGES-PASS, nothing changed). The
+verdicts (**theory**): *bench-verified* "**recommended, as the state**"; *evaluation release* "**kept, as the
+release's name**"; `0.y.z` "**keep beside the name**"; *bench-measured* "the fallback if 'verified' is refused (§6)";
+every other term refused, with its reason. Two open-source medical imaging projects state what the software is not,
+in one sentence, and neither uses a maturity word (S16, quoted there).
 
 ## 4. Where it holds
 
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
 * **Nothing measured.** The verdicts of §3 are reasoning over quoted definitions. No reader outside the project was
-  asked what a term makes them assume; §6 names that test.
+  asked what a term makes them assume; §6 names that test. Found by FINAL-STATE's scope ("Sources and reasoning
+  only"), its status file `claude/work-ledger:docs/queue/FINAL-STATE.md`.
 * **Sources not read**: ISO 9000:2015 (its terms 3.8.12 and 3.8.13, the origin of verification and validation; the
   online browsing platform answered 403), ISO 16290 (TRL), ISO/IEC/IEEE 24765 (the software vocabulary) and
   IEC 62304 are sold, not published. S13 is used in their place and says which standard it follows. The eCFR API
-  answered 406, so S11 is the annual edition, not today's text.
+  answered 406, so S11 is the annual edition, not today's text. Found by FINAL-STATE's fetches of 2026-11-22 (the
+  403 and the 406 are their answers).
+* **W3C answered 403 to one client** and 200 to another (S9). Found by FINAL-STATE-REVIEW's fetch (§Review).
+* **S10 has no revision on its page**, so it is cited by its fetch date; **S13 predates** the Quality Management
+  System Regulation (effective 2026-02-02), as its cover notes. Found by FINAL-STATE-REVIEW m4, and by S13 itself.
 * **The branch was read, not run**: `README.md`, `docs/glossary.md`, `docs/FIXTURES.md`, `docs/lines/coordination.md`,
   `docs/merge-readiness.md`, `scripts/gate.sh` and `server/Cargo.toml` on `origin/claude/unified` at `4a2b4277`.
-  Whether the branch meets §5 today is UNIFIED-PAGE's question, not this page's.
+  Whether the branch meets §5 today is UNIFIED-PAGE's question, not this page's. Found by FINAL-STATE (read
+  only); [`unified-to-main.md`](unified-to-main.md) §3.3 then checked it, read, not run.
 * **The program's fixtures**, which "bench" stands for: 19 DBT volumes of one dataset, three of them timed; no breast
   ultrasound cine in any run (`docs/FIXTURES.md` lists two, `usb_cine` and `usb_cine_rgb`, both lossy-sourced, never
   run end to end); 4-core cloud hosts without a GPU, software WebCodecs, headless Chromium; a userspace relay or
-  netem, not a radio; one phone on one home link.
+  netem, not a radio; one phone on one home link. Found by the rows' fixture lines as `README.md` §The order to
+  decide in collects them; the two clips by §Review B3 of `README.md` (`docs/FIXTURES.md`).
+* **Today, conditions 2 and 3 are unmet and the merge-readiness hole was not checked here** (§5's last list). Found
+  by FINAL-STATE reading `docs/FIXTURES.md`; `defaults.md` as the table's start by FINAL-STATE-REVIEW m2; the hole
+  read as closed by UNIFIED-PAGE (`unified-to-main.md` §5).
+* **The status line's "every default chosen by measurement"** is met by a table whose rows may say "not measured";
+  and the line's *stacks* scope is narrower than the value statement's *study*. Found by PROGRAM-CLOSE, `README.md`
+  §Contradictions 3 and 6.
+* **Two homonyms judged harmless, not tested on a reader**: DICOM's Verification Service Class, and *bench* as a
+  project word (§6). Found by this page (the first) and FINAL-STATE-REVIEW m3 (the second).
 * **Not a regulatory opinion.** Whether software like this is a medical device in a given country is decided by
-  that country's rules and the use its maker states, and by no word on this page.
+  that country's rules and the use its maker states, and by no word on this page. Found by FINAL-STATE's reading
+  of S11, S12 and S18, which tie the label to an intended use.
+
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS): no link enters this question, which is a name
+and its seven conditions judged against sources and a tree; where the link binds for the speed the status line
+calls measured is [`delivery-per-link.md`](delivery-per-link.md) §4's, and no transport row is lowered by the
+decode-bound phone.
 
 ## 5. The mechanism: why a ladder word fails, and the definition
 
@@ -230,7 +234,7 @@ by its fetch date.
 | S15 | DICOM PS3.4 2026e, Annex A Verification Service Class; DICOM PS3.5 2026e, §8.2.1 JPEG Image Compression; DICOM PS3.8 2026e, §7.2 A-RELEASE Service | 2026e | `https://dicom.nema.org/medical/dicom/current/output/chtml/part04/chapter_A.html`, `https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_8.2.html`, `https://dicom.nema.org/medical/dicom/current/output/chtml/part08/sect_7.2.html` |
 | S16 | OHIF, *General FAQ*; 3D Slicer, *About 3D Slicer* (practice, not definitions) | "Does The OHIF Viewer have 510(k) Clearance ..."; "What is 3D Slicer?", the note | `https://docs.ohif.org/faq/general/`, `https://slicer.readthedocs.io/en/latest/user_guide/about.html` |
 | S17 | Microsoft Learn, *Evaluation Versions and Upgrade Options for Windows Server 2012* (practice, not a definition) | "Evaluation versions of Windows Server 2012"; a previous-versions page, cited by its fetch date | `https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/jj574204(v=ws.11)` |
-| S18 | Regulation (EU) 2017/745 (MDR) and Regulation (EU) 2017/746 (IVDR) | Article 2, points 44; the text as adopted, 5 April 2017 | `https://www.legislation.gov.uk/eur/2017/745/article/2/adopted`, `https://www.legislation.gov.uk/eur/2017/746/article/2/adopted` |
+| S18 | Regulation (EU) 2017/745 (MDR) and Regulation (EU) 2017/746 (IVDR) | Article 2, points 44; the text as adopted, 5 April 2017 | EUR-Lex, the official publication: `https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32017R0745`, `https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32017R0746`; the quotations were fetched from the UK's copy, the same text (FINAL-STATE-FIX-REVIEW): `https://www.legislation.gov.uk/eur/2017/745/article/2/adopted`, `https://www.legislation.gov.uk/eur/2017/746/article/2/adopted` |
 
 The quotations of §3 in full, where the table shortened them:
 
@@ -286,6 +290,37 @@ The quotations of §3 in full, where the table shortened them:
   performance, including clinical benefits, of the device when used as intended by the manufacturer"; IVDR Article
   2(44): "‘performance evaluation’ means an assessment and analysis of data to establish or verify the scientific
   validity, the analytical and, where applicable, the clinical performance of a device".
+
+## Appendix: §3 in full
+
+Moved here from §3 on 2026-11-25 (PAGES-PASS, §Review m13 of `README.md`), unchanged.
+
+The terms in use, each from its official source (quotations in §8), then the terms this page generated.
+
+| term | what its source says it means (**source**) | T1 | T2 | T3 | T4 | T5 | verdict (**theory**) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| alpha, beta | Kubernetes: alpha "Might be buggy"; beta "well tested ... Recommended for only non-business-critical uses" (S5). PyPI: "3 - Alpha", "4 - Beta", then "5 - Production/Stable" (S4) | yes | **no** | no | no | yes | a step on a ladder whose next step is production; says how far, not what was shown |
+| preview, technology preview | "not necessarily feature-complete ... intended for use in test environments only" (S7); "still under development ... cannot guarantee their stability" (S8) | yes | **no** | no | no | yes | a vendor's support promise; this project sells no support |
+| experimental; release candidate | Node.js: "Use of the feature is not recommended in production environments"; its stage 1.2, "Release candidate ... hopefully ready to become stable" (S6) | yes; **no** | **no**; yes | no | no | yes | "experimental" undersells; a release candidate is a candidate *for* production |
+| `0.y.z` | "Major version zero (0.y.z) is for initial development. Anything MAY change at any time."; "If your software is being used in production, it should probably already be 1.0.0." (S3) | yes | weak | no | no | yes | **keep beside the name**: `series-server` is already `0.1.0`; a number, not a word |
+| TRL 5 or 6 | TRL 5: "End-to-end software system tested in relevant environment, meeting predicted performance." TRL 6: "Prototype implementations of the software demonstrated on full-scale, realistic problems." TRL 7: "Well integrated with operational hardware/software systems" (S1); EU: TRL 5 "validated in a relevant environment", TRL 6 "demonstrated in a relevant environment" (S2) | yes | **no** ("prototype") | partly | yes | yes | the closest official scale; the branch reads at 5 to 6 and below 7 (**theory**), and the number invites that argument instead of ending it |
+| Candidate Recommendation | "considered complete and fit for purpose, and that no further refinement to the text is expected without additional implementation experience and testing" (S9) | yes | yes | no | yes | **no** | the right idea (complete, awaiting the field), but it is a specification's stage and W3C's own word |
+| repostatus "Active" or "WIP" | Active: "has reached a stable, usable state and is being actively developed"; WIP: "there has not yet been a stable, usable release suitable for the public"; Concept: "a limited example, demo, or proof-of-concept" (S10) | **no**; yes | yes; **no** | no | no | yes | two bins, and the branch is in neither |
+| research use only | "For a product in the laboratory research phase of development, and not represented as an effective in vitro diagnostic product ... 'For Research Use Only. Not for use in diagnostic procedures.'" (S11) | yes | weak | no | no | **no** | a label the regulation defines for in vitro diagnostic products, which this is not; it says who may use it, not what state it is in (§6) |
+| investigational use only | "'For Investigational Use Only. The performance characteristics of this product have not been established.'" (S11) | yes | **no** | no | no | **no** | as above, and false here: the performance is what was established |
+| verified, not validated | verification: "objective evidence that the design outputs of a particular phase ... meet all of the specified requirements"; validation: "software specifications conform to user needs and intended uses" (S13) | yes | yes | **yes** | no | see §6 | the right pair; alone it does not say where the evidence came from |
+| *reference implementation* | no official definition found | yes | yes | no | no | weak | implies a specification it implements, and clarity before speed |
+| *measured baseline* (generated) | — | yes | yes | yes | weak | **no** | DICOM: "JPEG Baseline Compression (coding Process 1)" (S15); the repo's `scripts/perf_counts.baseline` |
+| *verified core* (generated) | — | yes | yes | yes | no | **no** | "core" is history here (`claude/core`) and a glossary word (the native core, the `core` paint thread) |
+| *scope-complete* (generated) | — | yes | yes | partly | no | yes | says the first condition of §5 and none of the others |
+| **evaluation release** (the owner's provisional term, amendment 27 item 7) | no official definition found (searched 2026-11-23). Vendor practice: "Fully functional time-limited evaluation versions of Windows Server 2012" (S17). Medical-device law: "‘clinical evaluation’ means a systematic and planned process to ... assess the clinical data pertaining to a device in order to verify the safety and performance" (S18, MDR); "‘performance evaluation’ means an assessment and analysis of data to establish or verify the scientific validity, the analytical and, where applicable, the clinical performance of a device" (S18, IVDR) | yes | yes | no | no | weak | **kept, as the release's name**: it says what a reader may do with it, not what was shown; the regulations' *evaluation* is clinical, so the status line says "technical evaluation"; DICOM's *release* is "The graceful release of an association" (S15, PS3.8 §7.2), a protocol primitive spelled A-RELEASE, not a version, judged harmless |
+| **bench-verified** (generated) | bench: "performance testing, performed by either a device manufacturer or a third party testing facility" (S14); verified as above (S13) | yes | yes | **yes** | **yes** | see §6 | **recommended, as the state** |
+| *bench-measured* (generated) | "measured" is this repository's own label for a number (`CLAUDE.md` §Docs: "A claim that is not measured says so") | yes | yes | yes | yes | yes | the fallback if "verified" is refused (§6): weaker, a measurement proves nothing by itself |
+
+How two open-source medical imaging projects word the same thing (practice, not a definition): "The OHIF Viewer is
+NOT F.D.A. cleared or CE Marked. It is the users' responsibility to ensure compliance with applicable rules and
+regulations." (S16); "Slicer is NOT approved for clinical use and the distributed application is intended for
+research use." (S16). Both state what the software is not, in one sentence, and neither uses a maturity word.
 
 ## Review
 
@@ -382,6 +417,16 @@ New, none a blocker:
   2026-11-23. Point the preamble at §8.
 * **n3.** S18 is cited from legislation.gov.uk, the UK's copy; the EU's official publication is EUR-Lex (the text
   is the same, checked above). Cite EUR-Lex.
+
+**n1–n3 closed in place, 2026-11-25 (PAGES-PASS):**
+
+* **n1**: §2 reads "Each says what the other does not", and gives *evaluation release*'s T5 "weak" its reason in a
+  clause: DICOM's A-RELEASE, the table's own verdict (not the regulations' *evaluation*, which no standard the code
+  touches holds).
+* **n2**: the preamble points at §8's fetch dates (2026-11-22; S15's PS3.8, S17 and S18 2026-11-23).
+* **n3**: §8's S18 row cites EUR-Lex by CELEX number first and keeps the UK copy the quotations were taken from; this
+  pass's fetch of EUR-Lex answered 202 (an automated-client check), so the text there is the re-review's check, not
+  read again.
 
 **Verdict: no blocker open.** The loop closes in round one: UNIFIED-PAGE's need on this page is met, and the owner's
 yes or no on both names (§2) is due.

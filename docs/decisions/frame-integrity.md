@@ -5,8 +5,8 @@ of the rows behind it, from pushed results only; nothing run but `git` reads. In
 `claude/integrity-model:docs/client/evidence/integrity-model.md` (PR 429 at `aa0e6b909`, reviewed, fixed and
 re-reviewed with no blocker open), PR 368 (`claude/oq-integrity-build` `a59aa4310`) with its body's *Choices left
 open* and its review `docs/reviews/oq-integrity.md`, the status file I2-RUN, and on `origin/claude/unified`
-`4a2b4277`: `docs/adr/exactness-in-production.md`, `docs/client/evidence/hidden-page-decode.md`,
-`lossless-after-a-failed-ask.md`, `docs/transport/link-profiles.md`, `client/transport/downloader.js`; PR 378's
+`4a2b4277`: [`docs/adr/exactness-in-production.md`](../adr/exactness-in-production.md), [`docs/client/evidence/hidden-page-decode.md`](../client/evidence/hidden-page-decode.md),
+[`lossless-after-a-failed-ask.md`](../client/evidence/lossless-after-a-failed-ask.md), [`docs/transport/link-profiles.md`](../transport/link-profiles.md), [`client/transport/downloader.js`](../../client/transport/downloader.js); PR 378's
 controller at `claude/lossless-under-loss` `60635db78`. *The model* below means `integrity-model.md`.
 Read again 2026-11-23 by row DECISION-PAGES-FIX under the owner's word of 2026-11-23 ~02:00 (the program, amendment
 28: "for the next demo, we will accept hardware decoding and not checking. So the OQ badge or symbol that we will show
@@ -18,7 +18,7 @@ changed, 2, 4, 7 and 8 kept, each with its reason in §2; §7 names the reopen.
 Every frame was checked, in production too (amendment 1): the decoded samples hashed with XXH3-64 and compared with
 the digest the ingest wrote. The owner's word of 2026-11-23 ~02:00 reopens that for the view: a view frame decoded in
 hardware is shown unchecked, because no browser hands such a frame back at full precision
-(`claude/reviews-2026-11-28:docs/reviews/results-2026-11-22.md` §3.1, **source**), and the optimal-quality mark
+([`claude/reviews-2026-11-28:docs/reviews/results-2026-11-22.md`](../reviews/results-2026-11-22.md) §3.1, **source**), and the optimal-quality mark
 describes the view (lossy AV1, about N:1, [`visually-lossless.md`](visually-lossless.md)), not a check. The exact
 HTJ2K frame stays checked, bit for bit. What is open is **what the check is allowed to claim on screen, what the
 client does when it fails, and which further checks are worth their cost.** Each answer changes a label the reader
@@ -46,6 +46,129 @@ is unchecked, a recorded disadvantage against DELIVERY-FIT-ARM, the HTJ2K-only c
 whose every frame is exact and checked ([`delivery-per-link.md`](delivery-per-link.md) §3).
 
 ## 3 · The options, one call at a time
+
+Each call's options, its numbers and their sources are in [§3 in full](#appendix-3-in-full), after §8 (moved there
+2026-11-25 by PAGES-PASS, nothing changed). In short:
+
+| § | call | options | recommended |
+| --- | --- | --- | --- |
+| [3.1](#31-the-labels-states) | the label's states | (a) five states; (b) today's words, with a ✓ on *Optimal quality* (PR 368); (c) (a) with a ✓ kept on the view | **(a)**; the words are the owner's, the states are not |
+| [3.2](#32-a-withheld-frame) | a withheld frame | (a) clear the canvas, keep the frame out of later wants, no reveal; (b) paint it under a red mark; (c) (a) with the exact frame fetched unasked | **(a)**; (c) named in §7, not recommended now |
+| [3.3](#33-two-cheap-rules-every-frame-with-a-digest-and-the-metadata-hashed) | every frame with a digest; the metadata hashed | no frame without a digest; a digest over `metadata.json` | **yes** to both (items 3 and 4) |
+| [3.4](#34-the-coded-bytes-digest) | the coded-bytes digest | hashed only after a sample mismatch; before every decode; none | **after a mismatch** (**provisional**) |
+| [3.5](#35-pr-368-the-views-reconstruction-digest) | PR 368 | its eight open choices; (d) no view check on any route | **yes**, through one fix row on `claude/unified`; (d) the owner's call, not recommended |
+| [3.6](#36-re-asks-a-lost-exact-ask-and-a-replaced-decoders-group) | re-asks | one re-ask of a lost ask; a replaced decoder's group (a) as today, (b) asked again once from its keyframe | **once is enough**; **(b)** |
+
+## 4 · Where it holds
+
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
+* Fixtures: the measured numbers come from the 18 demo series and three DBT volumes of one dataset (`dbts_a1`,
+  `dbts_b1`, `dbts_c1`). Found by the rows' own fixture lines (I1 in §3.5, I2-RUN, INTEGRITY-MODEL).
+* 4-core x86 cloud hosts without a GPU, headless Chromium (and Firefox for the ADR's cells), SwiftShader for the
+  paint, loopback or a userspace relay, never a radio. Found by the same lines and the [ADR](../adr/exactness-in-production.md)'s cells.
+* No phone, no hardware decoder, no WebKit, no breast ultrasound cine in any cell. Found by INTEGRITY-PAGE's status
+  file ("no phone, no hardware decoder, no US cine") and INTEGRITY-MODEL's.
+* Rates of memory and storage faults are from published studies of servers, disks and consumer PCs (2008–2011); for
+  phones **unknown**, published nowhere. Found by the model's §10 sources (INTEGRITY-MODEL: "a phone's is unknown").
+* A hardware-decoded view frame is shown unchecked: no browser hands it back at full precision. Found by
+  [`results-2026-11-22.md`](../reviews/results-2026-11-22.md) §3.1 (**source**), read under the owner's word (§Review B1).
+* The page cannot know which decoder ran: `prefer-hardware` is a hint the agent may ignore. Found by WebCodecs §7.9
+  (**source**).
+* The check ends at the samples handed to the painter, not the glass; the held frame, the texture, the window
+  table's parameters, the index and the label are behind it. Found by the model's §4.2 and §5 (theory, not run).
+* Three untrue label states and a withheld frame that keeps the previous picture, re-asked without bound (§3.1,
+  §3.2). Found by the model's §5 and §6: read in code, not run, and a scratch run of `FrameStore`.
+* The reconstruction digest's ingest cost alone is **not measured** (I2-RUN timed it with the coding error). Found
+  by I2-RUN's cost cell, which measured the two together.
+* The metadata digest and the coded-bytes digest are **theory**, not built; the coded-bytes digest's cost on a view
+  frame not measured. Found by the model's §3 row 5 and §4.1; the view case by DECISION-PAGES-FIX (§Review B1).
+* Item 5 is **provisional**: REPORTS-PAGE was not written when this page was. Found by this page's date (INTEGRITY-PAGE).
+* PR 368's base is the old demo tip and GitHub reports it unmergeable. Found by GitHub's merge state, as §3.5 says.
+* The 4:0:0 view failed at flush on the round's phone, at 256 × 256 only. Found by the phone round's measurement,
+  [`phone-decode-route.md`](phone-decode-route.md) §3 4.7.
+* No source gives an outage distribution in seconds on a real wireless link. Found by [`link-profiles.md`](../transport/link-profiles.md) §2's survey (LINK-TARGETS).
+* The phone's 30 s with no UDP is one load, its cause not shown; the 45 s blackout rig ran three rounds. Found by
+  [`lossless-after-a-failed-ask.md`](../client/evidence/lossless-after-a-failed-ask.md) (its server logs and its rig).
+* The fault bench's cells (2, 3, 5, 6, 12 among them) are not run; item 5's "before every decode" waits on cell 2.
+  Found by the model's §8, which lists them as predictions for the next queue.
+
+Carried by **theory**, untested: to **US clips** the check carries unchanged: it hashes samples whatever their depth
+or colour, and a clip is cine-like, so the view's reconstruction digest applies; their frames are small (often under
+1 Mpx), so the check costs about what 512² costs, 0.15 ms (**measured**, x86). To **DBT stacks** the numbers above
+apply directly. To **phones**: the check's share is 1–10 % of a decode (**theory**, the model's §4.3); a phone's
+memory fault rate, which decides whether a held frame is worth hashing again, is published nowhere. To **hardware
+AV1 decoders**: the AV1 spec requires identical output without film grain (**source**, §7.2), so the digest stays
+well defined, but no browser hands the decoded frame back at full precision ([results](../reviews/results-2026-11-22.md) §3.1, **source**), so under the
+word it is shown unchecked; WebCodecs' `prefer-hardware` is a hint the agent may ignore (**source**, §7.9), so the
+page cannot know which decoder ran, and a frame the agent decoded in hardware without being asked is unchecked too. Faults cluster in place and time (FAST'08, EuroSys'11, SIGMETRICS'09, **source**): a failure is
+evidence about a device or a store, which is why the safety report and item 5 matter.
+
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). The check binds on no link: it runs after the
+decoder, on the client, whatever the wire (**theory**, §5). The link enters this page twice. Item 7: a lost exact ask
+is a link's outage, and every published one is inside the downloader's own resume (**source**, `link-profiles.md`
+§2; §3.6). And §6's DELIVERY-FIT-ARM, which asks whether a view is needed at all: by
+[`delivery-per-link.md`](delivery-per-link.md) §4 (**derived**), the link binds B on every link below its class's
+*G*★, A on LTE, a far stream, LOSS-like links and public Wi-Fi below ~83 Mbit/s for `dbts_b1` on the round's phone,
+and C1's exact frame on every link; the decode binds A on clean links above that crossover. That the wire binds on
+the links we target is untested (README §Premises item 1): on the one phone measured, the exact series filled faster
+than the view in 15 of 15 rounds, median 0.705 (**measured**, [`phone-decode-route.md`](phone-decode-route.md) §4).
+No transport row is lowered by the decode-bound phone.
+
+## 5 · The mechanism
+
+The check stands between the decoder and the hold. Everything in front of it (store, server, wire, receive code,
+decoder) it catches; everything behind it (the held frame, the texture, the window table's parameters, the index,
+the label) it cannot. Items 1–4 close what is behind it at no run-time cost: the metadata by its own digest, the
+index and the label by invariants and a test per state, the withheld frame by clearing the canvas. Item 5 does not
+widen detection; it splits the front half in two so the repair can be chosen. A hardware decoder hands the browser
+an image, not samples, so for a hardware view there is nothing behind the decoder to hash: the check stands in front
+of the exact frame and a software view only.
+
+## 6 · What would change the recommendation
+
+* **Item 5's form**: the fault bench's cell 2 (a hang and a truncation with the bytes hashed first) showing a
+  deadline too slow for a reader.
+* **Item 6's ingest cost**: the reconstruction digest alone over 10 % of the ingest's time; then off the path too.
+* **A pass-1 read-back of the paint** (not recommended now): its cost on a phone's GPU (cell 9 on a device), after
+  the paint's own GPU proof.
+* **Hashing a held frame again on dwell** (not now): a phone memory fault rate, which the safety report's counts
+  would give.
+* **Item 7**: an outage distribution on a real wireless link with silences past ~57 s.
+* **Items 1 and 6 under the word**: a browser shipping plane access to a hardware frame (WebCodecs `P010`, results
+  §3.1) makes a hardware view checkable again; then the owner's word is asked again, and item 6 covers every route.
+* **DELIVERY-FIT-ARM** filling as fast as the view on wire-bound links: then no view is needed, unchecked or not
+  ([`delivery-per-link.md`](delivery-per-link.md) §6).
+
+The model's §8 lists twelve fault-bench cells for the next queue; cells 3, 5, 6 and 12 test items 4, 1, 1 and 2.
+
+## 7 · What it would reopen
+
+**Amendment 1's "every frame checked, in production too", for the view.** The owner's word of 2026-11-23 ~02:00
+reopened it: a view frame decoded in hardware is shown unchecked, the mark describes the view, the exact HTJ2K frame
+stays checked bit for bit. This page reads items 1, 3, 5 and 6 under it and reopens nothing further: XXH3 stays the
+frame check wherever a check runs. Taken, two options would reopen more: the exact frame fetched unasked for a
+withheld view frame (§3.2 (c)) reopens "the exact HTJ2K frame on an explicit Lossless request" by one case; one
+re-ask after a coded-digest mismatch (with item 5) widens amendment 22 by one case. Neither is recommended now.
+
+## 8 · Rows and links
+
+INTEGRITY-MODEL (Fable), -REVIEW, -FIX, -FIX-REVIEW: PR 429, `claude/integrity-model`. OQ-INTEGRITY-FIXES and its
+review, I2-RUN: PR 368, `claude/oq-integrity-build:docs/reviews/oq-integrity.md` and `claude/oq-integrity-build:lab/oq-integrity/rows/`.
+PHONE-FIX-378, FIX-378-DIAL and their reviews: PR 378, `claude/lossless-under-loss`. HIDDEN-PAGE-DECODE: PRs 376,
+377. On `claude/unified`: [`docs/adr/exactness-in-production.md`](../adr/exactness-in-production.md), [`docs/client/evidence/where-a-frame-can-be-corrupted.md`](../client/evidence/where-a-frame-can-be-corrupted.md),
+[`optimal-quality-reconstruction-digest.md`](../client/evidence/optimal-quality-reconstruction-digest.md), [`lossless-after-a-failed-ask.md`](../client/evidence/lossless-after-a-failed-ask.md), [`hidden-page-decode.md`](../client/evidence/hidden-page-decode.md),
+[`docs/transport/link-profiles.md`](../transport/link-profiles.md).
+
+**Rows this page asks for in phase 2** (for PHASE2-PLAN): LABEL-STATES (item 1) and WITHHELD-FRAME (item 2, with the
+store's re-ask defect, the model's cell 12 as its test), one review for both; INGEST-DIGEST-RULES (items 3 and 4,
+structural: a draft PR); OQ-INTEGRITY-ONTO-UNIFIED (item 6's fix row) and its review, then the reconstruction
+digest's ingest cost alone (cloud, amendment 28 rule 2); GROUP-REASK (item 8) and its review; item 5 after
+REPORTS-PAGE. Fault-bench cells 2, 3, 5, 6, 12 as cloud rows.
+
+## Appendix: §3 in full
+
+Moved here from §3 on 2026-11-25 (PAGES-PASS, §Review m13), unchanged.
 
 ### 3.1 The label's states
 
@@ -81,12 +204,12 @@ exact frame with `exact: false` is painted today; (c) (a) with the exact frame f
 frame (the pair as its own second path, **new, not built**). A withheld frame's pixels are wrong by an unknown amount
 and plausible. **Recommended (a)**; (c) widens "the exact frame on an explicit request" by one case, so it is named
 in §7, not recommended now. The cost of a deterministic fault under today's re-ask: a fetch and up to two decodes
-(×2.8–3.0 of a decode for AV1, **measured**, ADR §9) every step, for the session.
+(×2.8–3.0 of a decode for AV1, **measured**, [ADR](../adr/exactness-in-production.md) §9) every step, for the session.
 
 ### 3.3 Two cheap rules: every frame with a digest, and the metadata hashed
 
 * **No frame without a digest.** The lab ingest already refuses a frame that does not decode back to the samples its
-  checksum was written from (`ingest/coded-frames/ingest.py`). For bytes the PCS codes itself, the receiver's own
+  checksum was written from ([`ingest/coded-frames/ingest.py`](../../ingest/coded-frames/ingest.py)). For bytes the PCS codes itself, the receiver's own
   decode gives the digest: it then proves the frame unchanged since receipt, not that the PCS coded it rightly. Cost
   at run time: none. It removes *unchecked* from the exact series instead of wording it; a view frame decoded in
   hardware stays unchecked whatever the store holds (§1).
@@ -107,7 +230,7 @@ safety report actionable (restore a bundle, or turn a route off on an engine).
 | form | cost | gives |
 | --- | --- | --- |
 | hashed only after a sample mismatch | nothing on the common path; one hash a frame at the ingest, 16 hex digits in the metadata | location, the server's re-check, the report's cause |
-| hashed before every decode | under the frame check's 4.0–4.7 ms on the largest frame (**derived** from **measured**, ADR §10) | the above, and the decoder never sees damaged bytes |
+| hashed before every decode | under the frame check's 4.0–4.7 ms on the largest frame (**derived** from **measured**, [ADR](../adr/exactness-in-production.md) §10) | the above, and the decoder never sees damaged bytes |
 | none | — | today |
 
 **Recommended: after a mismatch**, built once the report's carrier is chosen (REPORTS-PAGE, not written:
@@ -156,90 +279,20 @@ owner's call, not recommended. A hardware view needs a 4:2:0 form of the stream 
 **One re-ask of a lost ask (B4).** PR 378 asks a lost exact ask again once, 1 s later (`EXACT_RETRY_MS`), and
 counts an ask whose own re-dial failed as lost (FIX-378-DIAL, reviewed, no blocker). Before an ask is declared lost
 the downloader has already waited: a 3 s stall watch (doubling) or the frame's 15 s waiter, then up to five dials of
-at most 5 s, 1 s apart (`downloader.js` `deadlines`); in the 45 s blackout rig the ask failed 28.2 s after the press
-(**measured**, three rounds). So one ask and its re-ask ride out a silence of roughly 57 s (**derived**: 28 + 1 + 28).
-Against the published outages (**source**, `link-profiles.md` §2): LTE handover interruptions 24–29 ms on average,
+at most 5 s, 1 s apart ([`downloader.js`](../../client/transport/downloader.js) `deadlines`); in the 45 s blackout rig the ask failed 28.2 s after the press
+(**measured**, three rounds, [`lossless-after-a-failed-ask.md`](../client/evidence/lossless-after-a-failed-ask.md)). So one ask and its re-ask ride out a silence of roughly 57 s (**derived**: 28 + 1 + 28).
+Against the published outages (**source**, [`link-profiles.md`](../transport/link-profiles.md) §2): LTE handover interruptions 24–29 ms on average,
 sometimes over 100 ms, about 40 ms median; 5G mmWave 30+ handoffs in 8 minutes walking, modelled as a drop to
 167 Mbit/s for 2 s, not a silence; the 5G target 0 ms. Every one is two orders of magnitude inside the downloader's
 own resume, before the re-ask is reached. The one long silence on record is the phone's 30 s with no UDP
-(**measured**, one load, cause not shown), inside the 57 s. **Recommended: once is enough.** No source gives an
+(**measured**, one load, cause not shown, [`lossless-after-a-failed-ask.md`](../client/evidence/lossless-after-a-failed-ask.md)), inside the 57 s. **Recommended: once is enough.** No source gives an
 outage distribution in seconds on a real wireless link; that is what would change it.
 
 **A replaced decoder's group.** A decoder silent through one deadline of running time is replaced; the frozen-page
 fix (late deadlines given again, on `claude/unified`) removed the case that met the phone. For a real hang, the new
 decoder holds no group state, so every later frame of the group fails by name and is not asked again
-(`hidden-page-decode.md` §3, pinned by the contract rig). Options: (a) as today, up to G − 1 frames lost (7 or 15 at
+([`hidden-page-decode.md`](../client/evidence/hidden-page-decode.md) §3, pinned by the contract rig). Options: (a) as today, up to G − 1 frames lost (7 or 15 at
 G 8 or 16); (b) the group asked again once from its keyframe on the new decoder, each frame checked again. A frame
 lost with its decoder is a loss, not a refusal or a failed check, so (b) is inside amendment 22. A decoder that hangs
 again on the same bytes fails the group by name the second time. **Recommended (b)**, a build row; it changes what
 the contract rig pins, which is why it is the owner's.
-
-## 4 · Where it holds
-
-Fixtures: the measured numbers come from the 18 demo series and three DBT volumes of one dataset (`dbts_a1`,
-`dbts_b1`, `dbts_c1`), 4-core x86 cloud hosts without a GPU, headless Chromium (and Firefox for the ADR's cells),
-SwiftShader for the paint, loopback or a userspace relay, never a radio. No phone, no hardware decoder, no WebKit,
-no breast ultrasound cine in any cell. Rates of memory and storage faults are from published studies of servers,
-disks and consumer PCs; for phones **unknown**.
-
-Carried by **theory**, untested: to **US clips** the check carries unchanged: it hashes samples whatever their depth
-or colour, and a clip is cine-like, so the view's reconstruction digest applies; their frames are small (often under
-1 Mpx), so the check costs about what 512² costs, 0.15 ms (**measured**, x86). To **DBT stacks** the numbers above
-apply directly. To **phones**: the check's share is 1–10 % of a decode (**theory**, the model's §4.3); a phone's
-memory fault rate, which decides whether a held frame is worth hashing again, is published nowhere. To **hardware
-AV1 decoders**: the AV1 spec requires identical output without film grain (**source**, §7.2), so the digest stays
-well defined, but no browser hands the decoded frame back at full precision (results §3.1, **source**), so under the
-word it is shown unchecked; WebCodecs' `prefer-hardware` is a hint the agent may ignore (**source**, §7.9), so the
-page cannot know which decoder ran, and a frame the agent decoded in hardware without being asked is unchecked too. Faults cluster in place and time (FAST'08, EuroSys'11, SIGMETRICS'09, **source**): a failure is
-evidence about a device or a store, which is why the safety report and item 5 matter.
-
-## 5 · The mechanism
-
-The check stands between the decoder and the hold. Everything in front of it (store, server, wire, receive code,
-decoder) it catches; everything behind it (the held frame, the texture, the window table's parameters, the index,
-the label) it cannot. Items 1–4 close what is behind it at no run-time cost: the metadata by its own digest, the
-index and the label by invariants and a test per state, the withheld frame by clearing the canvas. Item 5 does not
-widen detection; it splits the front half in two so the repair can be chosen. A hardware decoder hands the browser
-an image, not samples, so for a hardware view there is nothing behind the decoder to hash: the check stands in front
-of the exact frame and a software view only.
-
-## 6 · What would change the recommendation
-
-* **Item 5's form**: the fault bench's cell 2 (a hang and a truncation with the bytes hashed first) showing a
-  deadline too slow for a reader.
-* **Item 6's ingest cost**: the reconstruction digest alone over 10 % of the ingest's time; then off the path too.
-* **A pass-1 read-back of the paint** (not recommended now): its cost on a phone's GPU (cell 9 on a device), after
-  the paint's own GPU proof.
-* **Hashing a held frame again on dwell** (not now): a phone memory fault rate, which the safety report's counts
-  would give.
-* **Item 7**: an outage distribution on a real wireless link with silences past ~57 s.
-* **Items 1 and 6 under the word**: a browser shipping plane access to a hardware frame (WebCodecs `P010`, results
-  §3.1) makes a hardware view checkable again; then the owner's word is asked again, and item 6 covers every route.
-* **DELIVERY-FIT-ARM** filling as fast as the view on wire-bound links: then no view is needed, unchecked or not
-  ([`delivery-per-link.md`](delivery-per-link.md) §6).
-
-The model's §8 lists twelve fault-bench cells for the next queue; cells 3, 5, 6 and 12 test items 4, 1, 1 and 2.
-
-## 7 · What it would reopen
-
-**Amendment 1's "every frame checked, in production too", for the view.** The owner's word of 2026-11-23 ~02:00
-reopened it: a view frame decoded in hardware is shown unchecked, the mark describes the view, the exact HTJ2K frame
-stays checked bit for bit. This page reads items 1, 3, 5 and 6 under it and reopens nothing further: XXH3 stays the
-frame check wherever a check runs. Taken, two options would reopen more: the exact frame fetched unasked for a
-withheld view frame (§3.2 (c)) reopens "the exact HTJ2K frame on an explicit Lossless request" by one case; one
-re-ask after a coded-digest mismatch (with item 5) widens amendment 22 by one case. Neither is recommended now.
-
-## 8 · Rows and links
-
-INTEGRITY-MODEL (Fable), -REVIEW, -FIX, -FIX-REVIEW: PR 429, `claude/integrity-model`. OQ-INTEGRITY-FIXES and its
-review, I2-RUN: PR 368, `claude/oq-integrity-build:docs/reviews/oq-integrity.md` and `claude/oq-integrity-build:lab/oq-integrity/rows/`.
-PHONE-FIX-378, FIX-378-DIAL and their reviews: PR 378, `claude/lossless-under-loss`. HIDDEN-PAGE-DECODE: PRs 376,
-377. On `claude/unified`: `docs/adr/exactness-in-production.md`, `docs/client/evidence/where-a-frame-can-be-corrupted.md`,
-`optimal-quality-reconstruction-digest.md`, `lossless-after-a-failed-ask.md`, `hidden-page-decode.md`,
-`docs/transport/link-profiles.md`.
-
-**Rows this page asks for in phase 2** (for PHASE2-PLAN): LABEL-STATES (item 1) and WITHHELD-FRAME (item 2, with the
-store's re-ask defect, the model's cell 12 as its test), one review for both; INGEST-DIGEST-RULES (items 3 and 4,
-structural: a draft PR); OQ-INTEGRITY-ONTO-UNIFIED (item 6's fix row) and its review, then the reconstruction
-digest's ingest cost alone (cloud, amendment 28 rule 2); GROUP-REASK (item 8) and its review; item 5 after
-REPORTS-PAGE. Fault-bench cells 2, 3, 5, 6, 12 as cloud rows.

@@ -47,24 +47,47 @@ product's.
 | 1 `docs/agents/` | (a) PR 404 as proposed: `CLAUDE.md` §Agents one pointer line; (b) the pointer plus the three git lines (rec.); (c) no `docs/agents/` | PR 404: 5 files, +152 −11, 3 commits, base `71c4a720`, GitHub's `mergeable_state` "dirty" against `claude/unified` (**measured**, 2026-11-22); its review: no blocker, six minors (**measured**, PR 404 §AGENTS-DOCS-REVIEW) |
 | 2 archive index | (a) the tags as the index, one `README.md` line (rec.); (b) `docs/archive.md`, one line a tag; (c) nothing | 34 `archive/*` tags on `origin`, 29 annotated with a message saying what and why, 5 lightweight with none (`arms-2026-10-03`, `backup/w1-preclean`, `claude/disk-access-adr-validation-saz6m8`, `cursor/l1-loss-run-dbae`, `feat/set-priority-per-frame`) (**measured**, `git ls-remote`, `git for-each-ref`); coordination §Open 4 says 33 (written before one more tag) |
 | 3 "Requested by" | (a) strip every body (rec.); (b) strip the six FOOTERS-CHECK named (#39, #40, #41, #96, #102, #103); (c) leave | 21 PRs match "project thread" in GitHub's search, 3 open (39, 40, 96), 18 closed, the six among them (**measured**, `search/issues`, 2026-11-22); six body edits was FOOTERS-CHECK's count (**source**, `reviews-2026-11-10.md` §2 F1) |
-| 4 dataset hub | A release assets (rec.), B Git LFS, C container registry, D Zenodo, E a model hub, F a paid bucket, G none (today) | A: "Each file included in a release must be under 2 GiB. There is no limit on the total size of a release, nor bandwidth usage." (**source**, [R1] of `dataset-hub.md`); B: 10 GiB of bandwidth a month ≈ 27 full fetches of 368 MB (**derived**, §2 there); largest bundle 107.4 MB (**measured**); recoding 637 s and 689 s on 4 cores (**measured**, MEASURE-1, E2E-3) |
+| 4 dataset hub | A release assets (rec.), B Git LFS, C container registry, D Zenodo, E a model hub, F a paid bucket, G none (today) | A: "Each file included in a release must be under 2 GiB. There is no limit on the total size of a release, nor bandwidth usage." (**source**, [R1] of `dataset-hub.md`); B: 10 GiB of bandwidth a month (**source**, [R3] there); ≈ 27 full fetches of 368 MB counts it as 10 GB, not GiB (10 GiB is ≈ 29) (**derived**, §2 there; the unit corrected 2026-11-25, PAGES-PASS, §Review's nit); largest bundle 107.4 MB (**measured**); recoding 637 s and 689 s on 4 cores (**measured**, MEASURE-1, E2E-3) |
 | 5 work ledger | (a) a branch, never merged (rec.); (b) merged for history at the end; (c) an `archive/` tag at the queue's close | 783 commits at MERGE-ALL-PLAN (2026-11-15), more since (**measured** then); every file under `docs/`, so the docs-only test alone would admit it (PROGRAM-PLAN-REVIEW B2) |
 | 6 PR-TIDY, LATER-PASS | (a) LATER-PASS `done` by pointer, PR-TIDY resumed after re-verification (rec.); (b) both left as they are; (c) PR-TIDY resumed from its Resume as written | PR-TIDY's file: 150 closed, the last 289, heartbeat 2026-11-18 01:12; GitHub today: of the 237 carried, 57 open (327–393, with 388, 389, 391 which PR-TIDY left open as moved past the tip), so 180 are closed; the 7 superseded and the 4 staging PRs all open; 118 PRs open in all, 29 of them from 403 up (**measured**, 2026-11-22). LATER-PASS: 384, 392, 359, 396 merged locally, never pushed; DOCS-SYNC-1119 redid those four merges and pushed them (**source**, its status file, coordination §Open 8) |
 
 ## 4 · Where it holds
 
-**Fixtures and limits.** No fixture: the evidence is the repository's own state, read once on 2026-11-22 about 19:30
-UTC, and the counts move with every row. GitHub's issue search is an index, not the store: a body edited since may
-not be re-indexed, so the 21 is a search count, to be re-read by the row that edits (limitation found here, by the
-gap between FOOTERS-CHECK's six and the search's 21). PR 404's conflict is GitHub's `mergeable_state`, not a test
-merge (not run here). The 180 closed carried PRs are more than PR-TIDY's file says (150): the file was not updated
-after its last close, or another session closed the rest; which is not known (found here, by comparing the file with
-GitHub's open list).
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
+* **No fixture**: the evidence is the repository's own state, read once on 2026-11-22 about 19:30 UTC, and the
+  counts move with every row. Found by REPOSITORY-PAGE (its status file: "counts by GitHub search, an index").
+* GitHub's issue search is an index, not the store: a body edited since may not be re-indexed, so the 21 is a search
+  count, to be re-read by the row that edits. Found here, by the gap between FOOTERS-CHECK's six and the search's 21.
+* PR 404's conflict is GitHub's `mergeable_state`, not a test merge (not run here). Found by REPOSITORY-PAGE, which
+  ran no merge.
+* The 180 closed carried PRs are more than PR-TIDY's file says (150): the file was not updated after its last close,
+  or another session closed the rest; which is not known. Found here, by comparing the file with GitHub's open list.
+* The 118 open PRs of 2026-11-22 could not be re-checked for their date. Found by DECISION-PAGES-REVIEW (`README.md`
+  §Review, Passes).
+* Coordination §Open 4's 33 tags against 34 on `origin`. Found by `git ls-remote` against §Open 4 (written before one
+  more tag).
+* No API to delete a comment's edit history was found (not searched exhaustively); GitHub Docs publishes no revision
+  number. Found by this page's search of GitHub Docs, 2026-11-22.
+* The same bundle bytes on two hosts are assumed, not shown. Found by [`dataset-hub.md`](../reviews/dataset-hub.md) §1.
+* Recoding 637 s and 689 s, ~11 minutes, is on 4 cores, one run in each row. Found by MEASURE-1 and E2E-3 (`dataset-hub.md` §0).
+* §2's value line uses VALUE-STATEMENT's draft text; that row was not done on 2026-11-22. Found by this page's date.
+* B's "≈ 27 fetches" counted 10 GB as 10 GiB. Found by DECISION-PAGES-REVIEW's nits (`README.md` §Review).
+* The breast ultrasound sets pinned in `lab/av1/data.json` are lossy-sourced (below), so a hub carries them, but
+  they enter no bytes, time or inter verdict. Found by DECISION-PAGES-FIX-REVIEW r-m1 and `docs/FIXTURES.md`'s rule.
 
 **The population.** These calls hold for this repository on GitHub, as of the sources' dates; nothing here carries
-to devices, engines or links. **US and DBT stacks** (amendment 27 item 6): the calls do not depend on modality, with
-one exception: a hub keyed by recipe (item 4) carries breast ultrasound sets the day a US source is pinned in
-`lab/av1/data.json` (**theory**: the key names the source, not a modality); there is no US cine fixture today.
+to devices, engines or links. **US and DBT stacks** (amendment 27 item 6): the calls do not depend on modality
+(**theory**: a hub keyed by recipe names the source, not a modality). Breast ultrasound sets are pinned in
+`lab/av1/data.json` already (corrected 2026-11-25, PAGES-PASS, §Re-review r-m1; the page said "there is no US cine
+fixture today"): `usb_cine` and `usb_cine_rgb` (the BUVFM Zenodo record, `10.5281/zenodo.20901197`) and the stills
+`usb_still`, read at `origin/claude/unified`; `usb_cine` and `usb_cine_rgb` are lossy-sourced and `usb_still`'s
+provenance unknown (`docs/FIXTURES.md`), and grey liver cine (`uscine_crc1`…`3`) is the sound ultrasound cine. So a
+hub keyed by recipe (item 4) carries breast ultrasound sets as it carries DBT, from the day it is built.
+
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS): no link enters these calls, which are about the
+repository itself; the hub's fetch (item 4) is a download, not timed here, and no transport row is lowered by the
+decode-bound phone.
 
 ## 5 · The mechanism
 

@@ -56,18 +56,35 @@ Merged, not dropped: C3 and E1 both ask about the lossy flag and stay two questi
 
 ## 4 · Where it holds
 
+**Each limitation, and what found it** (2026-11-25, PAGES-PASS):
+
 * The note's facts about our side are the pages' as of their dates: DBT numbers on `dbts_a1`, `dbts_b1`, `dbts_c1`
   (3 of 19 volumes of one dataset), the σ_min costs on one 4-core cloud host (PR 413), the archive counts on headers
-  of 1 000 public ultrasound instances (`us-dbt-carry` §3, **measured** on headers only). The PCS's code is read at
-  `e105214` and not run (`pacs-sync` §4, A8).
+  of 1 000 public ultrasound instances (`us-dbt-carry` §3, **measured** on headers only). Found by each source's own
+  fixtures line (the four pages' §4, PR 413 (NOISE-INGEST-MEASURE), `us-dbt-carry` §3).
+* The PCS's code is read at `e105214` and not run (`pacs-sync` §4, A8); the re-review did not read it, its facts are
+  our documents'. Found by PACS-PAGE (`pacs-sync` §4) and PCS-NOTE-FIX-REVIEW's verdict.
 * The D questions are this row's wording of a page's line, not a page's text: the one place the note says what no
   page drafted. Found by: this row, reading `non-cine-series` item 3, which names the three refusals but drafts no
   question.
 * A10–A13 and D4 are PCS-NOTE-FIX's additions, each a question one of our documents already marks for the PCS team
   (§3 names it), worded here as a sentence; found by PCS-NOTE-REVIEW m6.
 * E1–E4 come from a page whose review (US-DBT-CARRY-REVIEW) is owed; if that review changes item 2, E changes with it
-  before the note is sent.
-* No private name, address or deployment appears in the note; it names the team by its role only.
+  before the note is sent. Found by PCS-NOTE (its status file: "E rests on us-dbt-carry, whose review is owed") and
+  PCS-NOTE-REVIEW m5.
+* Two of `pacs-receive-design.md` §15's questions are neither carried nor listed as left out (the `[instance]/d/`
+  line; exit codes 12 and 0, unbounded attribute tables, the failing builds). Found by PCS-NOTE-FIX-REVIEW r-m1;
+  still open, advised before sending.
+* Every ultrasound figure we have is from lossy-sourced public clips (F); no lossless-sourced breast clip in the PCS's
+  layout. Found by `docs/FIXTURES.md` (provenance per set) and PCS-NOTE-REVIEW m4.
+* G has no measurement on ultrasound clips, and σ_min's rule no calibration beyond the three DBT systems (C, C4).
+  Found by `ingest-optimal-quality` §9's G note and `noise-point.md` §Note, as the drafts say.
+
+No private name, address or deployment appears in the note; it names the team by its role only.
+
+**Where the link, not the decode, binds** (2026-11-25, PAGES-PASS): the note asks what the PCS writes, not how it
+reaches a reader; its one link question, A2 (a package or rsync), is the PCS-to-PACS delivery, which no page has
+timed, and no transport row is lowered by the decode-bound phone.
 
 ## 5 · The mechanism
 
