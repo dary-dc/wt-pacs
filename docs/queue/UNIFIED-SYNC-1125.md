@@ -1,6 +1,6 @@
 state: started
 started: 2026-11-25T07:07Z
-heartbeat: 2026-11-25T08:47Z
+heartbeat: 2026-11-25T08:49Z
 by: P4ZSLYDZ
 outputs: claude/unified 9170cdf39 (11 merges + one link fix), pushed; PR comments and closes next
 ## Resume
@@ -12,4 +12,7 @@ Merged and pushed (9170cdf39) onto b059388b6, --no-ff, in order: 413 418 419 439
 Next: scripts/gate.sh on 9170cdf39 (log in the session's scratchpad); if green push claude/unified, comment
 "Merged into claude/unified at <sha>" and close each PR; a resume with nothing pushed redoes the merges from the eligible list:
 git checkout -B claude/unified origin/claude/unified; git merge --no-ff origin/claude/<branch> for each, resolving line docs by keeping both entries.
+Found while the gate runs: CI on 9170cdf39 (run 45568976556, push) fails its deploy job: the image build reads
+`lab/noise-ingest` as a workspace member (added by PR 413's merge 86b439238) but deploy/Containerfile and its
+.dockerignore copy no such crate; the same job passed at b059388b6 (run 45345879478). PRs already show merged on GitHub (head reached base); no comment yet.
 ## Result
