@@ -36,6 +36,13 @@ measured, and every result names its fixtures.
   PR 415, after its re-review.
 * **The noise rule at ingest**: its protocol written 2026-11-19 (NOISE-INGEST-PROTOCOL, `claude/noise-ingest`, draft
   PR 413); NOISE-INGEST-MEASURE next, ending in the `ingest-optimal-quality` page.
+  *2026-11-21 (row NOISE-INGEST-MEASURE, measured, one cloud core, the three timed volumes):* the port
+  (`lab/noise-ingest`) equals the rows' σ on 175 of 175 frames, at 0.002–0.003 CPU s/Mpx, 12–20 % of the exact
+  path's CPU a frame. σ over all samples is lower on two of three and would move the rule's Q 8 → 2 and 4 → 2, so
+  σ_min waits for phase 2's window. Results and misses: [`../av1/noise-point.md`](../av1/noise-point.md) §Measured.
+  *2026-11-24 (row NOISE-INGEST-REVIEW, a session that wrote none of it):* no blocker; P1–P5 recomputed from the raw
+  rows, mutants 1–3 fail the golden test, and mutant 4 is equivalent on any frame of more than 36 410 kept samples
+  at 12 bits or fewer (*theory*: both `_lerp` forms are then exact). Findings in PR 413's body.
 * **An 8-bit depth cut for hardware** ([`../av1/depth-cut-8.md`](../av1/depth-cut-8.md), theory 2026-11-14, measured
   2026-11-15 on all 19 volumes): the cut alone stays under the noise; coded, predicted at 0.82–2.44 times today's
   view's bytes, the 8-bit view meets the noise rule at Q 3–11 at 1.14–1.86 times; 4:2:0 adds +0.01–0.12 %; it buys a
