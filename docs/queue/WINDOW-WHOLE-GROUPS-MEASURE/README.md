@@ -66,3 +66,20 @@ binds (4×) is read from the rows, not assumed.
 **Result** (2026-11-25 08:07–09:45 UTC, 64 visits and 16 bare, `steps-summary.txt`): the bytes ÷ 1.3 to ÷ 3.3, a miss in
 every cell; forward waits gone on CLEAN and LTE 4× (÷ 2.2 on LTE 1×); backward steps into each group's last frame wait 3 to
 7 times the tip's on CLEAN. Findings: `findings.md` §Timed cells.
+
+## The timed cells again (WINDOW-WHOLE-GROUPS-MEASURE-3)
+
+The same rig and cells (`steps.mjs` unchanged), on the fixed branch: `tip-a`, `tip-b` are `origin/claude/unified` `8459a0a7b`
+(UNIFIED-SYNC-1125's tip; its client is `9170cdf39`'s plus PRs 447 and 448, DECODE-OVERLAP and DIAL-BEFORE-PAIR); `pr-a`,
+`pr-b` are `8459a0a7b` with PR 446's `94d447835` merged locally (`--no-ff`, never pushed; its code diff is PR 446's seven
+files; `docs/lines/client.md` taken from the tip). Rows `steps-3.jsonl`, summary `steps-3-summary.txt`.
+
+**Prediction**, written by this session before any row, beside the brief's above (which stands and is read against too):
+*derived* from §FIX-2's table (backward lead 3 → 7 steps at W = 15, G = 8) and §Timed cells' rows. (1) The branch's
+backward waits at each group's last frame (31, 23, 15, 7) are gone on CLEAN at 1× and 4×: seven steps at this rig's pace
+(each ≥ 300 ms of dwell plus a paint, ≥ 2.1 s) cover a group's wire and eight chained decodes, which three steps (≥ 0.9 s)
+did not at 4× (0.96–1.39 s a wait); so the branch's backward sum on CLEAN is at most the tip's. (2) On LTE the lead covers
+the group's 0.6 s on the wire, so backward waits fall to what §Timed cells m1's refetch leaves. (3) The branch's frames a
+pass stay 34 forward and 40 backward (two groups held, unchanged by FIX-2), its MB about 15.8 and 18.7; the ÷ 4 to ÷ 8 on
+bytes misses again (m3: the tip's real count is about half the stand-in's). (4) Forward waits on the branch stay 0 on CLEAN
+and LTE 4×. A non-regressor here means: no cell where the branch's waited sum exceeds the tip's beyond the A/A spread.
