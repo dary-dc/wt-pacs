@@ -40,11 +40,10 @@ export class Bidi {
     };
   }
   send(method, params = {}) {
-    if (this.#closed) return Promise.reject(this.#closed);
-    const id = ++this.#id;
-    this.#ws.send(JSON.stringify({ id, method, params }));
-    const answer = new Promise((ok, fail) => this.#pending.set(id, { ok, fail }));
-    // A call its caller has given up on (a timed-out wait) is still rejected at the close: not an unhandled one.
+    const answer = this.#closed ? Promise.reject(this.#closed)
+      : new Promise((ok, fail) => this.#pending.set(++this.#id, { ok, fail }));
+    if (!this.#closed) this.#ws.send(JSON.stringify({ id: this.#id, method, params }));
+    // A call no caller awaits any more (a timed-out wait, a dropped ending) is rejected, never an unhandled one.
     answer.catch(() => {});
     return answer;
   }

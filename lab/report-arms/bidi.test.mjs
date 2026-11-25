@@ -34,8 +34,10 @@ const fakeSocket = () => ({ sent: [], send(m) { this.sent.push(m); }, close() { 
   const count = () => unhandled++;
   process.on("unhandledRejection", count);
   const ws = fakeSocket();
-  new Bidi(ws).send("script.evaluate");
+  const bidi = new Bidi(ws);
+  bidi.send("script.evaluate");
   ws.close();
+  bidi.send("browsingContext.close");
   await new Promise((ok) => setTimeout(ok, 20));
   process.off("unhandledRejection", count);
   check(unhandled === 0, "Bidi: a dropped call rejected at the close is no unhandled rejection");
