@@ -178,6 +178,9 @@ exact frame bit for bit, and only checked claims on screen.
   KEEPALIVE-H/Y pass cell D (provisional: L, C, Y unbuilt), the Y timing leading by 50 points; BEACON-Y against
   KEEPALIVE-Y, rule 3 and the receivers not decided. D5's kill is timed from the page's send, not the mismatch, so
   D5a never tested its race. Owed: D5 retimed, cells L, C, Y, R, D6, Firefox and WebKitGTK.
+* **The demo check's worker-view flake**, 2026-11-20 ([`../reviews/worker-flake.md`](../reviews/worker-flake.md)):
+  reproduced 1 in 100 on `dbts_a1-q8-g16-cut`; the check read the on-demand count before the view worker's progress,
+  posted at most every 100 ms, had come. The product is right; the check now reads it once it has come (#419, draft).
 
 ## PRs
 
