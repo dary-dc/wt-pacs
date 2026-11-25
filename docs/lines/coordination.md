@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 2026-11-24.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 2026-11-24, GATE-CI 2026-11-24.
 
 ## Goal
 
@@ -130,6 +130,11 @@ small enough that every open item has an owner and a next step.
    message names its conflicts); `scripts/gate.sh` full on the merged tree, OK in 722 s. Each PR commented and closed.
    Skipped, with why: 420 (commits after its last review), 413, 418, 419 (review owed), 438 (blocker open), 439
    (review owed then), 411, 412, 424 (structural, the owner's item 1), 406, 408 (rigs), 404, 405, 409 (do not merge).
+   GATE-CI (2026-11-24, `claude/gate-ci`, draft PR into unified): `gate.yml` runs on PRs into and pushes to
+   `claude/unified` and `claude/eval-release`. Its run on unified's tip through PR 402 (run 45345879478, *measured*)
+   passed `scripts/gate.sh` in 620 s with the native painter, the window and the web host's check run, and failed
+   the job on one skip the workflow does not allow: `pair_contract_test.py`'s "the pair's invariants: no writer"
+   (a known gap held on `ingest-optimal-quality` item 1), so final-state condition 5 is unmet while it prints.
 
 ## Unification (the owner, 2026-11-09)
 
