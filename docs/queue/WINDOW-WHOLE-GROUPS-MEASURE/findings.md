@@ -71,3 +71,71 @@ the downloader. Frames counted, no time, no bytes on a link, no browser; no DBT 
 
 *How it serves the value statement:* the one-frame rock, the commonest DBT motion, now costs nothing on the wire; the
 backward edge and wider rocks are what remain for "low latency on every jump".
+
+## Timed cells (WINDOW-WHOLE-GROUPS-MEASURE-2)
+
+WINDOW-WHOLE-GROUPS-MEASURE-2, 2026-11-25 08:07–09:45 UTC, by a session that built none of PR 446, its measure, fix or
+re-review (`by:` in its status file). The brief's timed cells, on the fixed branch: `origin/claude/unified` `9170cdf39`
+(the tip) against `9170cdf39` with PR 446's `0e273ee92` merged locally (`--no-ff`, never pushed; its code diff is PR 446's
+seven files; `docs/lines/client.md`'s conflict taken from the tip). The rig, its forms and the prediction, written before
+any row: `README.md` §The timed cells; rows `steps.jsonl` (64 visits: 4 rounds × CLEAN, LTE × 1×, 4× × `tip-a`, `tip-b`,
+`pr-a`, `pr-b`, `lab/order.mjs`'s order), `steps-bare.jsonl` (16 visits without the port instrumentation, CLEAN and LTE at
+1×), `steps-summary.txt` (`steps_summary.py`). 56 of 64 rows kept: 4 VOID by the relay's self-timing, 4 failed (below).
+Every number here is *measured*: the median over rounds of each arm, the A/A pairs beside each other.
+
+| form, rate | pass | MB on the wire, tip → branch | steps that waited: count, sum of their times, tip → branch | against ÷ 4 to ÷ 8 |
+| --- | --- | --- | --- | --- |
+| CLEAN 1× | forward | 49.4, 48.7 → 15.8 (÷ 3.1) | 1, 0.12–0.22 s → **0** | bytes miss; time beyond (÷ ∞) |
+| CLEAN 1× | backward | 45.4, 47.2 → 18.7 (÷ 2.5) | 0–2, 0–0.27 s → **4, 0.67–0.84 s** | bytes miss; time **reversed** (× 3–5 slower) |
+| CLEAN 4× | forward | 52.6, 50.4 → 15.8 (÷ 3.3) | 4–6, 1.1–1.7 s → **0** | bytes miss; time beyond |
+| CLEAN 4× | backward | 43.5, 42.7 → 18.7 (÷ 2.3) | 2–3, 0.39–1.01 s → **4, 4.8–5.0 s** | bytes miss; time **reversed** (× 5–7 slower) |
+| LTE 1× | forward | 33.7, 34.6 → 23.3 (÷ 1.5) | 24, 14.6–15.5 s → 6, 6.9 s (÷ 2.2) | both miss |
+| LTE 1× | backward | 25.4, 24.3 → 18.7 (÷ 1.3) | 4, 8.9–9.7 s → 4, 8.0–8.7 s (÷ 1.1) | both miss (a tie on time) |
+| LTE 4× | forward | 36.0, 34.4 → 15.8 (÷ 2.2) | 13–14, 9.1–10.4 s → **0** | bytes miss; time beyond |
+| LTE 4× | backward | 31.2, 31.2 → 18.7 (÷ 1.7) | 2, 6.0–6.4 s → 4, 6.2–6.5 s (÷ 0.97; the longest ÷ 1.9) | both miss |
+
+A/A: each pair's MB within 0.96–1.05; the branch's waited sums within 0.95–1.27; the tip's, with one to six waits a pass,
+0.54–2.58. The branch's frames a pass are the same in every kept row but LTE 1× forward (49–51): 34 forward, 40 backward,
+the stand-in wire's counts exactly (§The count); the tip's 104–113 forward on CLEAN and 72–77 on LTE, not the stand-in's
+268: the real downloader replaces a want's unsent asks, which the stand-in delivers whole.
+
+**B1 (blocker). A backward step into a group waits for the whole group, where the tip did not.** On CLEAN the branch waits
+on four steps a backward pass, always 31, 23, 15 and 7 (each group's last frame): 0.12–0.25 s each at 1×, 0.96–1.39 s at
+4×, sum × 3–5 and × 5–7 the tip's. *Theory*: a backward entry lands on a group's last frame, which needs its group decoded
+from the keyframe; the branch wants the group behind three frames before its last (r-m1, *derived*), and three steps at
+this rig's pace (a 300 ms dwell and the paint) are shorter than a group's wire and eight chained decodes here. The tip held
+frames on both sides of the one in view, so going back met them held. It is "low latency on every jump" lost in the
+commonest reversal, so the branch is not a non-regressor. Fix (any that holds, the brief's own words first): the
+neighbour group chosen by "the side the reader is … moving toward" — moving back, the group behind is wanted from the
+group's first backward step, a lead of up to G − 1 frames — or r-m2's wider margin; a test that on a backward pass at W =
+15, G = 8 the group behind is wanted at least G − 1 steps before its last frame is reached, failing on `0e273ee92`,
+mutated; the one-frame rock's test kept. What it costs (forward lead, a reader reversing) stated in the PR body.
+
+**m1 (minor, not PR 446's; for BRIEF-WEEKEND's list).** On LTE 1× a group still in flight when the want moves is asked
+again from its keyframe: the branch delivers frames 24–28, 32–36 and 40–45 twice a forward pass and waits 2.2–3.0 s at 32
+and 48 (1.2 s at 40), in all four rounds; at 4× (slower steps) it never does. The tip does it more (72–77 frames). The
+downloader's "a group is asked whole, from its keyframe" against a moving want; a downloader row, not this PR's.
+
+**m2 (minor, an observation for the sync row). The tip fails a pass; the branch rarely.** The tip: 4 of 32 instrumented
+visits (CLEAN 1× "no paint in 60 s" at forward 32, forward 42, backward 21; CLEAN 4× "error: frame 38: frame 37 of its group
+did not decode") and 1 of 8 bare visits (LTE 1×, "error: frame 44: frame 43 of its group did not decode"): reproduced with
+no instrumentation, so the product's. The branch: 1 of 32 instrumented (LTE 1× backward 36, "no paint in 60 s"), 0 of 8
+bare. Not diagnosed here; the group-decode failure under the tip's refetching is a point for PR 446 once B1 is closed.
+
+**m3 (the prediction).** The bytes' ÷ 4 to ÷ 8 missed in every cell (÷ 1.3 to ÷ 3.3): the ratio was taken from the
+stand-in's tip count, which the real downloader halves. The branch's own counts are the stand-in's.
+
+**Verdict.** One blocker (B1). PR 446 is not a non-regressor: no sync row merges it. The fix loop's second round is
+appended (WINDOW-WHOLE-GROUPS-FIX-2, -FIX-2-REVIEW, -MEASURE-3); a blocker left after it is the owner's.
+
+Fixtures and limits: `dbts_b1-q8-g8` and its exact series `dbts_b1` (50 frames, 2560 × 3328, 10-bit, W = 15, G = 8)
+only, coded here by `ingest_coded.py` as `scripts/demo-series.sh` does; no ultrasound clip, no other DBT volume (`dbts_c1`,
+W = 54, not timed). One 4-core cloud container, no GPU, headless Chromium, software WebCodecs and WebGL (SwiftShader), the
+page view only (the worker view's frames do not pass the page's ports); 4× by `cpu_throttle.mjs`'s per-thread cap from
+the end of the fill (its check: 1× 144 ms, 4× 684 ms), not a phone; the host's cores not recorded, so where it saturates
+is not stated and nothing is claimed of the 4× cells but the arms' order. A userspace relay (`link_impair.py`, its own
+core), not a radio; LTE without its 30 s blackout. One reader pace (a 300 ms dwell after each paint), one pass each way
+from frame 0 after the window's fill. Bytes are the frames' coded bytes handed to the page, not packets.
+
+*How it serves the value statement:* the branch cuts a pass's bytes by 1.3 to 3.3 and every forward wait on CLEAN; until
+B1 is fixed it makes the backward jump slower, which "low latency on every jump" does not allow.

@@ -62,3 +62,7 @@ the stand-in wire, 268 → 34 forward and 280 → 40 backward, are ÷ 7.9 and ÷
 ±15 % of each other; at 4× the waits longer on both, the ratio no smaller. Where the link binds (LTE, 50 Mbit/s against
 a group of eight view frames, 3.71 Mbit each, *derived* from `candidates.md` §2: 0.6 s a group) and where the decode
 binds (4×) is read from the rows, not assumed.
+
+**Result** (2026-11-25 08:07–09:45 UTC, 64 visits and 16 bare, `steps-summary.txt`): the bytes ÷ 1.3 to ÷ 3.3, a miss in
+every cell; forward waits gone on CLEAN and LTE 4× (÷ 2.2 on LTE 1×); backward steps into each group's last frame wait 3 to
+7 times the tip's on CLEAN. Findings: `findings.md` §Timed cells.
