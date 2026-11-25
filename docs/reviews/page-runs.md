@@ -359,6 +359,22 @@ the same round, median of 28 (IQR), **measured**, against §2(a):
 * So (a)'s condition for KEEPALIVE-Y ("its C cost comes from its wrapped decoder") is **not shown**: leaning that way,
   under a failed A/A. With (b)'s race shown, the page's rule is the verdict's to apply (PAGE-RUNS-VERDICT).
 
+**Firefox D1** (`r3-firefox-D1.jsonl`, Firefox 160.0.1, 18 rounds × 9 units, Williams-balanced; cut at round 9 by the
+driver defect below and resumed from round 9, `fromRound: 9`; round 9's partial rows in `r3-firefox-D1.cut-round9.jsonl`).
+**Measured**, against §2's Firefox prediction (Chromium's REPORT-RUN-2 pattern):
+
+| | measured | predicted | |
+| --- | --- | --- | --- |
+| safety report, every arm | 18/18, but `off` 16/18: its 2 loads never filled (`reached: "starting"`, `VOID: no fill`) | 18/18 every HTTP arm; ~2–3 % no fill | hit (2 of 162 no fill, 1.2 %) |
+| fill record, Y arms and SESSION-1 | 18/18 each | delivered | hit |
+| fill record, BEACON-H, KEEPALIVE-H | 17, 14 of 18 | H arms deliver at a navigation | hit (BEACON-H), KEEPALIVE-H loses 4 |
+| fill record, SESSION-H | 2 of 18 | SESSION-H fails the load bar | hit |
+
+**Driver defects found while running Firefox (lab only):** step 0's close-rejects-pending left a rejected call no
+caller awaited, and Node ended the process on it (cut D5a at round 2, D1 at 9, L at 4): fixed in `e9b0e0a9b`,
+`712a3fc67`, and the driver now logs a dropped `BiDi socket closed` and goes on (any other error still stops it). Each
+cut cell went on from its first incomplete round; no partial round is counted.
+
 ## 3 · Engines (`engines` items 3 and 4) → ENGINE-CELLS
 
 **Firefox builds.** No script installs a pinned Firefox: `scripts/wtcompat.py --fetch` takes only the latest release
