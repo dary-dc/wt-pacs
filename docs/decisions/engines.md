@@ -5,7 +5,9 @@ the engines' rows, from pushed results only; nothing run. Inputs at: `claude/eng
 (`docs/decode/engines.md`, its matrix, §Measured and §Only on a device; the raw rows in `docs/decode/engines-smoke/`;
 PR 410's body §ENGINE-REVIEW, §ENGINE-REVIEW-FIX, §Re-review), and on `origin/claude/unified` `4a2b4277`
 `docs/client/design.md` §Open (contradiction 6) and `docs/client/evidence/frame-memory-ownership.md` (*Firefox, run
-again*; *M5 under the amended bar*). "Row n" is a row of `engines.md`'s matrix; "cell n" a row of its §Measured.
+again*; *M5 under the amended bar*); and, read 2026-11-26 by PAGES-AFTER-RUNS, `claude/page-runs` `b38906f58`
+(`docs/reviews/page-runs.md` §3, its Results by ENGINE-CELLS, `claude/engines` `9881d90dd`, and §Verdict review).
+"Row n" is a row of `engines.md`'s matrix; "cell n" a row of its §Measured.
 
 ## 1 · The question
 
@@ -21,20 +23,39 @@ per engine, whether a coded form that Firefox's decoder mishandles may ever reac
 **State the client as measured on Chromium and Firefox desktop (Firefox's view through dav1d), unknown on Safari;
 keep any 4:2:0 view form away from Firefox's `VideoDecoder` until its G = 8 failure is traced; close contradiction 6
 by one Firefox 160 run of the ring's amended bar; queue the Safari probe page first when a Mac or iPhone session
-exists.**
+exists.** Items 3 and 4 have run and are verdicted (below the table, *Read against the runs*): the G = 8 failure is
+the client's, so item 2 becomes a bug fix; the ring misses the fill bar on Firefox 160.0.1.
 
 | # | the owner's yes or no | recommended | a yes changes | a no leaves |
 | ---: | --- | --- | --- | --- |
 | 1 | The client's engine statement reads: Chromium and Firefox desktop measured for every row (Firefox's AV1 view decoded by dav1d, row 2), Safari macOS and iOS not measured, three Safari rows conditional on the device or OS (§4) | **yes** | one paragraph in `docs/client/design.md` §Decided and `README.md`, pointing at `engines.md` | `design.md` §Open's *Elsewhere* line ("Firefox and WebKit") stays open |
-| 2 | Until it is traced, no 4:2:0 view form (GREY420, `docs/av1/payload-format.md` §8-bit grey as 4:2:0) is decoded by Firefox's `VideoDecoder`: the client routes it to dav1d there | **yes** | one engine condition beside the per-layout probe (a build row, its test first) if GREY420 is ever adopted; today nothing, since GREY420 is built and not adopted | a 4:2:0 view on Firefox passes its probe and then fails frames 1–7 of every group of 8, and a frame inside a group cannot fall back (`av1.js` `decodeFrame`; PR 410 §ENGINE-REVIEW), so the failure reaches the reader as a failed check where the view is checked, and as wrong frames on screen where it is decoded in hardware and shown unchecked (the owner's word of 2026-11-23 ~02:00) |
-| 3 | Queue one cloud row that traces the G = 8 failure (Firefox 159.0.1 and 160.0.1: the engine's output, or `av1-webcodecs.js` under it) | **yes** | one Opus row in the next queue; the cloud can run it (cell 2 ran there) | the cause stays open; item 2's condition stays indefinite |
-| 4 | Contradiction 6 closes by one cloud run of *M5 under the amended bar* on Firefox 160.0.1, the `ring` and `disk` arms with the A/A pair, 7 rounds; `ring` on Firefox stands as measured on 155.0 until then | **yes** | one run row, pre-registered by a session that will not run it; the contradiction closes on its result | the ring's Firefox verdict stays on 155.0, labelled so; §5 says why the margin is not expected to move (**theory**) |
+| 2 | Until it is traced, no 4:2:0 view form (GREY420, `docs/av1/payload-format.md` §8-bit grey as 4:2:0) is decoded by Firefox's `VideoDecoder`: the client routes it to dav1d there | **no, replaced** (corrected 2026-11-26, PAGES-AFTER-RUNS; it read **yes**): traced to the client (item 3), so the fix is a bug row, an inter frame taking its group's layout from its keyframe, with no engine condition; the fixed client's first Firefox run shows whether Firefox's `VideoDecoder` decodes those inter frames exactly, never yet handed one | one engine condition beside the per-layout probe (a build row, its test first) if GREY420 is ever adopted; today nothing, since GREY420 is built and not adopted | a 4:2:0 view on Firefox passes its probe and then fails frames 1–7 of every group of 8, and a frame inside a group cannot fall back (`av1.js` `decodeFrame`; PR 410 §ENGINE-REVIEW), so the failure reaches the reader as a failed check where the view is checked, and as wrong frames on screen where it is decoded in hardware and shown unchecked (the owner's word of 2026-11-23 ~02:00); *corrected 2026-11-26* (3a): those frames fail by name, never wrong, because they never reach a decoder that holds their keyframe; after the fix, whether Firefox's `VideoDecoder` decodes them exactly is not shown |
+| 3 | Queue one cloud row that traces the G = 8 failure (Firefox 159.0.1 and 160.0.1: the engine's output, or `av1-webcodecs.js` under it) | **yes** (done: ENGINE-CELLS 3a 2026-11-24, verdicted 2026-11-26: the client's layout choice, neither) | one Opus row in the next queue; the cloud can run it (cell 2 ran there) | the cause stays open; item 2's condition stays indefinite |
+| 4 | Contradiction 6 closes by one cloud run of *M5 under the amended bar* on Firefox 160.0.1, the `ring` and `disk` arms with the A/A pair, 7 rounds; `ring` on Firefox stands as measured on 155.0 until then | **yes** (done: ENGINE-CELLS 3b 2026-11-24, 12 rounds, verdicted 2026-11-26: `ring` holds its memory and misses the fill bar, so it does not qualify on Firefox; choice 2 of `frame-memory-ownership.md` returns to the owner for Firefox) | one run row, pre-registered by a session that will not run it; the contradiction closes on its result | the ring's Firefox verdict stays on 155.0, labelled so; §5 says why the margin is not expected to move (**theory**) |
 | 5 | The first Safari device session runs `engines.md` §Only on a device in its order: the engine probe page, then one WebTransport session and one frame with its SETTINGS captured, then `check.mjs`'s page by hand; on one Apple device with AV1 hardware and one without | **yes** | the order of the first Safari session, whenever a device session exists; the protocol is a row, the run is the owner's device's | Safari's rows stay unmeasured, every one |
 | 6 | Firefox for Android stays out of scope (no WebCodecs on release, E19) | **yes** | nothing | the same |
 
 **How it serves the value statement** (amendment 27 item 7): "in a web browser — on a phone … as well as on a
 workstation" names no engine. Items 1 and 5 make that claim checkable per engine; item 2 keeps "every frame the reader
 asks to see exactly is the original, bit for bit, and checked" from failing on one engine's decoder.
+
+**Read against the runs** (2026-11-26, PAGES-AFTER-RUNS, from `page-runs.md` §Verdict review §3, whose counts hold,
+recomputed; **measured**, synthetic sets only). *Item 3 (3a)*, six runs on Firefox 159.0.1 and 160.0.1, deterministic:
+the inter frames of an 8-bit G = 8 series **never reach a `VideoDecoder`** (0 chunks in six runs). `av1-payload.js`
+`layouts()` reads a unit's layout from its own sequence header; a delta unit has none, so an inter frame is probed as
+`g8` while its keyframe was probed as `c8`; Firefox refuses `g8` at configure, the frame goes to dav1d, which never
+decoded the keyframe, and the frame fails by name. So the fault is the client's (**held** as to whose; its mechanism
+**missed**: not the dispatch, not `av1-webcodecs.js`), how Firefox decodes inter frames is **not shown**, and no
+frame came back wrong. *Item 4 (3b)*, 12 rounds on Firefox 160.0.1: `ring` growth 764 MiB [691–831], under
+`disk` + 320 = 846 in 12 of 12 rounds (least room 15), the A/A pair 47 MiB and ×0.980; `ring` − `disk` 237 MiB,
+below the predicted 250–310; **the fill ÷ `today` ×1.241** [1.130–1.430], every round over 1.10, against 0.80–0.95
+predicted. So the memory held and the fill bar flipped: `ring` does not qualify on Firefox, 155.0's 0.85 is not
+reproduced, and lever 2 stays the owner's. Item 2 is answered no and replaced by the layout fix, a bug with no
+trade-off for BRIEF-WEEKEND's list; nothing new asks a yes.
+
+**How it serves the value statement** (2026-11-26): the Firefox reader of a colour stack in groups gets frames that
+fail by name, never wrong ones, until the layout fix; on Firefox the bounded ring costs about a quarter more full-fill
+time, which the owner's lever 2 weighs against "a fast full fill".
 
 ## 3 · The options
 
@@ -44,7 +65,7 @@ container, one round, no timing claimed.
 
 | result (row) | Chromium | Firefox desktop | Safari macOS / iOS |
 | --- | --- | --- | --- |
-| The view's AV1 by WebCodecs, exact (1) | **M** 141, 153: every frame `av1-webcodecs` (cell 1) | **M** refused at configure for the grey view, so every frame `av1-dav1d`, 56/56 exact on 160.0.1 (cell 2); **M** 8-bit G = 8 groups inexact on frames 1–7, WebCodecs route only, 159.0.1 and 160.0.1 | **S** AV1 Main only and only with an AV1 hardware decoder (E9–E11, E26); 10-bit `format` `null` by one report (E25); **D** |
+| The view's AV1 by WebCodecs, exact (1) | **M** 141, 153: every frame `av1-webcodecs` (cell 1) | **M** refused at configure for the grey view, so every frame `av1-dav1d`, 56/56 exact on 160.0.1 (cell 2); **M** 8-bit G = 8 groups fail frames 1–7 by name, 159.0.1 and 160.0.1: the client probes an inter frame as `g8`, so it goes to dav1d without its keyframe, never to a `VideoDecoder` (corrected 2026-11-26, PAGES-AFTER-RUNS, 3a; it read "inexact on frames 1–7, WebCodecs route only") | **S** AV1 Main only and only with an AV1 hardware decoder (E9–E11, E26); 10-bit `format` `null` by one report (E25); **D** |
 | dav1d after a refusal, exact (2) | **M** 408/408 | **M** 408/408 (157) | **S** WASM SIMD (E23); **D** |
 | The exact frame, HTJ2K (3) | **M** 240/240 | **M** 240/240; 56/56 on 160.0.1 | **S**; **D** |
 | XXH3 check (4) | **M** | **M** 157.0.1 | **S**; **D** |
@@ -57,12 +78,14 @@ container, one round, no timing claimed.
 | The reports' carriers (11) | **M** BEACON, KEEPALIVE, SESSION deliver at D1 in one of two interleaved runs; in the other SESSION and KEEPALIVE failed to open (Re-review n3) | **M** 160.0.1, D1, one round: three carriers deliver a fill record (`off` its safety record only, n1) | **S** BCD; SESSION needs row 7; **D** |
 | `getStats()` (12) | **M** absent on 153, 158, 159; present on 160.0.8173.0, a pre-release build, without byte counts; stable 160 not measured | **M** 160.0.1, 163.0a1: bytes, packets, loss, RTT (BCD's "throws a not-implemented error" is stale) | **S** BCD 26.4; **D** |
 
-Contradiction 6, **measured** (`frame-memory-ownership.md`), growth in MiB, median [range]:
+Contradiction 6, **measured** (`frame-memory-ownership.md`; the 160.0.1 row ENGINE-CELLS 3b, added 2026-11-26),
+growth in MiB, median [range]:
 
 | Firefox | bar | `ring` | `disk` (the floor) | `ring` − floor | room under the bar, largest round | the fill bar |
 | --- | --- | --- | --- | --- | --- | --- |
 | 159.0, rerun, struck bar (2026-10-30) | `disk` + 320 = 862 | 828 [790–850] | 542 [528–584] | 286 (**derived**) | 12 | missed, 1.30 × `today` |
 | 155.0, amended bar (2026-11-02/03) | `disk` + 320 = 760 | 702 [673–710] | 440 [429–450] | 262 (**derived**) | 50 | met, 0.85 |
+| 160.0.1, amended bar (2026-11-24, 12 rounds) | `disk` + 320 = 846 | 764 [691–831] | 526 [477–594] | 237 (226 paired) | 15 | **missed**, 1.241 [1.130–1.430] |
 
 ## 4 · Where it holds
 
@@ -83,7 +106,10 @@ Nothing measured on WebKitGTK 2.52.6 is carried to Safari.
 modality, so a DBT result carries to an ultrasound clip of the same form (**theory**). One difference matters: an
 ultrasound clip in colour would be an 8-bit 4:2:0 form, which Firefox's `VideoDecoder` takes, and that is exactly the
 form whose groups failed (item 2; **derived**, not measured on any ultrasound frame). How an ultrasound clip's view is
-coded is not yet decided, so whether item 2 binds it is not yet known.
+coded is not yet decided, so whether item 2 binds it is not yet known. *Corrected 2026-11-26* (PAGES-AFTER-RUNS, 3a,
+**derived**): an ultrasound colour view coded AV1 at G > 1 would fail every inter frame by name on Firefox until the
+layout fix, whatever its coding; the grey DBT view is not affected, since Firefox refuses its keyframe's `g8` too and
+the whole group goes to dav1d.
 
 **Predictions against the runs** (cells 1–7). Held: cells 1, 4, 5, 7, and cell 2's pair. Missed: cell 2's `dispatch`
 (predicted 3/3, measured 764/781), and cell 3's "-07 on Chromium", a mis-stated prediction (-07 was only ever measured
@@ -120,9 +146,10 @@ view decoding by dav1d, which is untimed here.
 * Safari 10-bit `format` `null` rests on one report. Found by ENGINE-MATRIX's E25.
 * Nothing measured on WebKitGTK 2.52.6 (no `SharedArrayBuffer`, no OPFS, no AV1) carries to Safari. Found by
   ENGINE-SMOKE's cell 7.
-* Firefox's 8-bit G = 8 groups come back inexact on frames 1–7, the WebCodecs route only, cause not traced here.
-  Found by ENGINE-SMOKE (dispatch 17 of 781 failing on 160, 18 on 159); the route by ENGINE-REVIEW (the dav1d variant
-  passes). Traced since by ENGINE-CELLS (§6).
+* Firefox's 8-bit G = 8 groups fail frames 1–7, 9–15 and 17–19 of `g8x20`: the client's `layouts()` probes a delta
+  unit as `g8` and sends it to dav1d without its keyframe; how Firefox decodes an inter frame is not shown. Found by
+  ENGINE-SMOKE (dispatch 17 of 781 failing on 160, 18 on 159); traced by ENGINE-CELLS 3a on one synthetic 20-frame
+  set, verdicted by PAGE-RUNS-VERDICT (corrected 2026-11-26, PAGES-AFTER-RUNS; it read "come back inexact ... the WebCodecs route only").
 * A US colour clip coded as 8-bit 4:2:0 would meet that failure: **derived**, no ultrasound frame run. Found by
   ENGINE-PAGE.
 * Cell 2's `dispatch` missed its prediction (3/3 predicted, 764/781 measured), and cell 2's command cannot serve a
@@ -136,9 +163,12 @@ view decoding by dav1d, which is untimed here.
   measured. Found by ENGINE-SMOKE's cell 3; pre-release by ENGINE-REVIEW's m2.
 * BCD's "throws a not-implemented error" for Firefox's `getStats()` is stale. Found by ENGINE-REVIEW's m1.
 * Safari's view worker (row 9) never run. Found by ENGINE-MATRIX.
-* Contradiction 6: the ring's Firefox verdict rests on 155.0, not the 159.0 its bar was set on; the fill bar under
-  its amendment is not measured on 159 or later; §5's "not expected to move" is **theory**. Found by `design.md`
-  §Open, contradiction 6, from `frame-memory-ownership.md`. Measured since by ENGINE-CELLS on 160.0.1 (§6).
+* Contradiction 6: the ring's Firefox verdict rested on 155.0, not the 159.0 its bar was set on. Found by `design.md`
+  §Open, contradiction 6, from `frame-memory-ownership.md`. Closed by ENGINE-CELLS 3b on 160.0.1 (§3): the memory
+  held, as §5's **theory** said, and the fill bar missed; one synthetic 80-frame series, loopback, the host near its
+  ceiling (CPU busy 0.71 median), so the fill is a ratio inside a round, never an absolute. ring − disk 237 MiB fell
+  below its predicted band. Found by ENGINE-CELLS; the paired 226 and the `summary.py` line's reading by
+  PAGE-RUNS-VERDICT (n3).
 
 ## 5 · The mechanism
 
@@ -146,7 +176,11 @@ view decoding by dav1d, which is untimed here.
 every frame goes to dav1d, which is exact; the view holds by its fallback, not by WebCodecs. An 8-bit 4:2:0 form is
 accepted and probes fine, but in groups of 8 its inter frames come back wrong on the WebCodecs route only (every
 `dav1d:` variant of the same clauses is exact), and inside a group there is no per-frame fallback. Whether the engine
-or the client's WebCodecs module under it is at fault is not traced (item 3).
+or the client's WebCodecs module under it is at fault is not traced (item 3). *Corrected 2026-11-26*
+(PAGES-AFTER-RUNS, 3a, **measured**): the inter frames never come back at all from a `VideoDecoder`. The client reads
+a frame's layout from its own sequence header, which a delta unit lacks, so it probes `g8`, Firefox refuses it, and
+the frame goes to dav1d, which holds no keyframe and fails it by name. Neither the engine nor `av1-webcodecs.js`:
+the layout choice in `av1-payload.js`.
 
 **Safari.** WebKit turns AV1 in WebCodecs on only once a hardware decoder is found (E11), and builds WebTransport
 only against Network.framework from OS 26 (E6, E7). So Safari's two central rows are a property of the device, which
@@ -156,18 +190,23 @@ no cloud host can stand for.
 its floor, and the bar is the floor plus 320 MiB on each version. The ring sat 286 MiB over its floor on 159.0 and
 262 on 155.0 (**derived**), both under 320; so the memory bar is not expected to turn on the version (**theory**).
 What is not measured is the fill bar under its amendment on 159 or later: the amendment alone turned 155.0's reading
-from 1.23 to 0.85 × `today`, and 159.0 was read only by the struck bar (1.30). Item 4 measures it.
+from 1.23 to 0.85 × `today`, and 159.0 was read only by the struck bar (1.30). Item 4 measures it. *Measured
+2026-11-24* (3b): on 160.0.1 the memory held (12 of 12 rounds under the bar) and the fill read ×1.241, like 159.0's
+1.30, so the version moved the fill and not the memory.
 
 ## 6 · What would change the recommendation
 
 * **Item 2:** a trace (item 3) that puts the fault in `av1-webcodecs.js`: then a client fix, not an engine condition.
-  One cloud run shows it.
+  One cloud run shows it. *Shown 2026-11-24, verdicted 2026-11-26:* the fault is the client's, in `av1-payload.js`
+  `layouts()`; item 2 is replaced by that fix (§2). What would change it again: the fixed client's Firefox run
+  showing an inter frame from Firefox's `VideoDecoder` that fails its check.
 * **Item 4:** `ring` missing the amended fill bar on Firefox 160: choice 2 of `frame-memory-ownership.md` returns to
-  the owner for Firefox. One cloud run shows it.
+  the owner for Firefox. One cloud run shows it. *Shown 2026-11-24, verdicted 2026-11-26:* ×1.241, every round over
+  1.10; choice 2 is the owner's for Firefox.
 * **Item 1, Safari:** the probe page on one device (item 5) showing `SharedArrayBuffer` absent on a cross-origin
   isolated page: then the client does not run on Safari as built, whatever the other rows say.
 * **Named for the owner (PAGES-PASS, 2026-11-25):** ENGINE-CELLS (done 2026-11-24, `claude/engines` `7048b6534`,
-  `cc2b4c22d`, `9881d90dd`; its verdict row, which reads `page-runs.md` §3, has not run) reports for item 3 that "the
+  `cc2b4c22d`, `9881d90dd`; verdicted 2026-11-26 by PAGE-RUNS-VERDICT, and carried into §2 that day) reports for item 3 that "the
   G = 8 inter frames never reach a VideoDecoder. av1-payload.js layouts() reads a delta unit's layout from a sequence
   header it lacks", "the client's" fault, and for item 4 that "ring does not qualify on Firefox 160.0.1" (fill ÷
   `today` 1.24, predicted 0.80–0.95), both on synthetic sets. Once verdicted, item 2 would read as a client fix, item 3 as done, and item 4 as
