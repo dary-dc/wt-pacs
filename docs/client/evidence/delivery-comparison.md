@@ -1012,28 +1012,43 @@ reading is carried, as on the 23rd.
   (×0.89, ×0.79, ×0.86); PUB ×1.17, ×0.95, ×1.11; CR ×1.25, ×1.15, ×1.23 (×1.00). **The split's predicted gain did not
   show on this host**: the lab fill (both sessions bytes-only, its `ahead` window; FIT-ARM-BUILD-REVIEW m5) costs
   10–25 % over A even where it asks only the view.
-* **The lossy forms, through A2.4's curve.** LTE, every (volume) over the first point, predicted to hold: A, A′ and C1's
-  fill have medians ×0.94–1.10, 5 of 9 hold and 4 miss in band, so the curve's direction is shown on LTE where one goodput
-  missed every one on the 23rd (×0.47–0.70). LOSS `dbts_a1` and `dbts_c1`, under the first point, **miss low as
-  predicted** (×0.68–0.75), the curve's stated limit. **LOSS `dbts_b1`, over the first point and predicted to hold,
-  misses low** (A ×0.34, A′ ×0.49, C1 ×0.48): the model's miss. Its 8 view frames (3.66 MB) came in 2.09 s where B's
-  curve puts those bytes at 6.1 s, so on LOSS the wire time is not a function of the bytes alone, against A2.4's
-  premise (*theory* for why: an exact frame of 1.1–2.2 MB waits behind its own losses where a view frame of ~0.46 MB does
-  not; not isolated). B holds on LOSS `dbts_b1` and `dbts_c1`, misses in band on `dbts_a1` (×1.03, 9/12); on LTE it holds
-  on `dbts_b1` only (`dbts_c1` ×0.77, 4/12).
+* **The lossy forms, through A2.4's curve.** LTE, every (volume) over the first point, predicted to hold: A, A′ and
+  C1's fill have medians ×0.94–1.10, 5 of 9 hold and 4 miss in band, but **no LTE view fill carries** (*corrected
+  2026-11-26, §Verdict review 2*, B1): four of the five holds are regime misses (A′ and C1 on `dbts_a1`, A and A′ on
+  `dbts_c1`, read back near or decode-bound in 3–6 of 12 rounds; predicted wire-bound by only ×1.19 and ×1.20, so this
+  host sits at the crossover) and the fifth, A on `dbts_b1`, was predicted *near*, which §8 reports and does not
+  judge. What LTE shows is the curve's wire term for the views' bytes: dial → last byte ×0.91–1.13 of the curve on all
+  three volumes (`recount2.txt` `WIRE`), where one goodput missed every fill on the 23rd (×0.47–0.70); a wire
+  statement, not a fill carried. LOSS `dbts_a1` and `dbts_c1`, under the first point, **miss low in the predicted
+  direction** (×0.68–0.75), but **for the decode term, not the curve** (*corrected 2026-11-26, §Verdict review 2*,
+  B2): their wire came in at ×1.06–1.24 of the curve on A, A′ and C1 (SPLIT ×0.91–0.98), not fast; the 8 frames are
+  one group, so §4.1 puts *W*(*B*) + 8 *d*₁ (the group decoded after its last byte at K2's two-decoder *d*₁, 54.4 and
+  57.2 ms), while the loads decoded each frame as it arrived on one decoder at 34–38 ms (A, A′, C1, `WIRE`) and filled
+  ~0.1 s after the last byte (A `dbts_a1`: fill 0.73 s, wire 0.64 s). **LOSS `dbts_b1`, over the first point and
+  predicted to hold, misses low** (A ×0.34, A′ ×0.49, C1 ×0.48): the model's miss, on both terms. Its 8 view frames
+  (3.66 MB) came in 1.98 s (A's dial → last byte; A′ 2.88 s, C1 2.73 s) where B's curve puts those bytes at 4.31 s,
+  not 6.1 s (*corrected 2026-11-26, §Verdict review 2*, B2: the prediction's 6.10 s is the curve's 4.31 s plus 1.79 s
+  of decode), and decoded at 114–118 ms a frame against *d*₁'s 223.5 ms. So on LOSS the wire time is not a function of
+  the bytes alone, against A2.4's premise (*theory* for why: an exact frame of 1.1–2.2 MB waits behind its own losses
+  where a view frame of ~0.46 MB does not; not isolated). B holds on LOSS `dbts_b1` and `dbts_c1`, misses in band on
+  `dbts_a1` (×1.03, 9/12); on LTE it holds on `dbts_b1` only (`dbts_c1` ×0.77, 4/12).
 
-**What this run lets the page carry** (strict; only through cells that held): the decode-bound view on CLEAN and PUB; the
-wire-bound exact series and views on CLEAN, PUB and CR; C1's exact frame on every form but LTE `dbts_c1` and PUB `dbts_b1` (cannot hold) (the
-short-round-trip excess as measured, after the last byte, not a constant); the view on LTE through the curve, as in band
-(5 of 9 hold); FIT's fill on CLEAN and CR, and its zoom on PUB and CR. Not through: FIT on PUB `dbts_b1`, SPLIT
-anywhere but CLEAN, any view fill on LOSS, FIT's zoom on lossy forms. Nothing here ranks the arms or decides which one
-the product serves (§8).
+**What this run lets the page carry** (strict; only through cells that held): the decode-bound view on CLEAN and PUB;
+the wire-bound exact series and views on CLEAN, PUB and CR; C1's exact frame on every form but PUB `dbts_b1` (cannot
+hold) and LTE `dbts_c1` (misses in band, 9 of 10; *corrected 2026-11-26, §Verdict review 2*, m1) (the short-round-trip
+excess as measured, after the last byte, not a constant); on LTE, the curve's wire term for the views' bytes
+(×0.91–1.13), not a view fill (*corrected 2026-11-26, §Verdict review 2*, B1); FIT's fill on CLEAN and CR, and its zoom
+on PUB and CR. Not through: FIT on PUB `dbts_b1`, SPLIT anywhere but CLEAN, any view fill on LTE (four of five holds
+regime misses, the fifth predicted near) or on LOSS (on `dbts_a1` and `dbts_c1` the one-group decode term missed while
+the curve's wire held, *corrected 2026-11-26, §Verdict review 2*, B2), FIT's zoom on lossy forms. Nothing here ranks the
+arms or decides which one the product serves (§8).
 
-**Where the host saturates**: the browser's two cores in every decode-bound load (A, A′, C1's fill and SPLIT on CLEAN and
-PUB), this host's decode, never a phone's; the relay's guard on 44 loads, 34 of them view arms (A2.6's escalations not
-needed, R4). Nothing is claimed above 90 Mbit/s or for a radio. **Where the link, not the decode, binds**: B and FIT on
-every form, A on CR, LTE and LOSS, C1's exact frame and FIT's zoom on every form (A2.9, as measured: the regimes held but
-LTE's six regime misses, where the view's fill read back near or decode-bound).
+**Where the host saturates**: the browser's two cores in every decode-bound load (A, A′, C1's fill and SPLIT on CLEAN
+and PUB), this host's decode, never a phone's; the relay's guard on 44 loads, 34 of them view arms (A2.6's escalations
+not needed, R4). Nothing is claimed above 90 Mbit/s or for a radio. **Where the link, not the decode, binds**: B and FIT
+on every form, A on CR and LOSS, C1's exact frame and FIT's zoom on every form (A2.9, as measured: the regimes that
+held). On LTE the view sits at this host's crossover: its six regime misses read back near or decode-bound, so neither
+side is said to bind there (*corrected 2026-11-26, §Verdict review 2*, B1).
 
 **How it serves the value statement**: FIT gives an exact first picture on `dbts_b1` in ×0.47–0.55 of the lossy view's
 time on the clean short-round-trip forms and about A's time on CR and LTE, at ×1.25 its bytes; on the level-0 volumes it
