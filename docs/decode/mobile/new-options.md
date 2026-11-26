@@ -431,3 +431,43 @@ only; the gate was not run.*
   identity at 4:2:0, so the hazard is the page's `"rgb"` override (S1 §6.4.2, S2 §9.12); `hw-inverted.md` §3 says so.
 * **m2** premise 3 labelled theory; **m3** DEC:CPLEX named; **m4** S6 pinned to the 2026d edition's URL;
   **m5** [5.1/H-1-15] in §2.1.
+
+### Re-review
+
+*Queue row MOBILE-DECODE-OPTIONS-FIX-REVIEW, 2026-11-26, by a session that wrote none of this file, its review or
+its fix; `7706f4a66..ee0d3c3f9`. S1, S2, S4 (the V4 PDF), S5, S6 (at 2026d's own URL) and S8 fetched again on
+2026-11-26: every quotation the fix added is verbatim. Docs only: `scripts/check_links.py` (9 unresolved before and
+after, none new); the gate was not run.*
+
+* **B1, closed.** Cell D's 1.12–1.21 is `htj2k-lossy.md` §5.2's 1.115–1.212; 1 ÷ 0.496 = 2.02 and 1 ÷ 0.405 = 2.47;
+  1.24 ÷ 1.21 = 1.02 and 1.74 ÷ 1.12 = 1.55, the inverse of that file's 0.64–0.98. S8: "Table 8 is similar to Table
+  7, with 64x64 code-blocks, except that we use the more complex irreversible 9/7 DWT"; DEC:CPLEX at 2 bpp "143
+  (9.0x)" and "115 (6.8x)", 115 ÷ 143 = 0.80; the ATK sentence is about Table 5, and "Table 6 and Table 7 are
+  similar", so it holds for Table 7. The phone's 58.9 and 110.2 ms are the three repetitions' medians in
+  `next-round-results.md` Cell 1, rows HTJ2K × 3 and view × 3. The prediction is kept and struck.
+* **B2 (blocker, new in the fix). The ingest does not signal BT.709.** The fix closes m1 with "the ingest signals
+  BT.709" (`hw-inverted.md` §3) and "So the ingest signals 1 (BT.709) rather than 2" (§3 step 2). The ingest writes
+  no colour description. Its 4:2:0 grey (`encoder_args`, layout `"420"`) adds no `--matrix-coefficients`, and the
+  view (`lossy_args`) is `--monochrome`. Read with `client/decode/av1-payload.js` `sequence()` (M, 2026-11-26),
+  `client/contract/av1/payloads/grey420/g8.av1` gives `"mono":0,"cp":2,"tc":2,"mc":2,"range":1`, and
+  `optimized/g10.av1` gives `"mono":1`, `"mc":2`. S1 §5.5.2: when `color_description_present_flag` is 0,
+  "matrix_coefficients = MC_UNSPECIFIED", which is H.273's 2, "unknown or is determined by the application" (S4).
+  So m1's hazard is still open, and the text now says it is closed. It should name what is true today (4:2:0 grey
+  with `mc` 2, the view 4:0:0) and the route's requirement (the route's ingest writes
+  `--matrix-coefficients=bt709`, or the page sets `matrix: "bt709"`), each labelled.
+* **m1–m5, closed.** m1: equations 45, 48–50 and both conditions are verbatim from S4 §8.3. S1 §6.4.2's MC_IDENTITY
+  sentence and S2 §7.6's override ("If colorSpace exists, the provided values will override any in-band values from
+  the bitsream", sic) and §9.12's `"rgb"` are verbatim too. The line is in `hw-inverted.md` §3, though B2 reopens its
+  last clause. m2: premise 3 is labelled T, with M2 and M3. m3: the DEC:CPLEX column (DEC:STATS 117, 108, 86
+  checked). m4: 2026d's URL names "PS3.5 2026d", "1-38" and `1.2.840.10008.1.2.4.203`. m5: "[5.1/H-1-15] MUST have
+  at least 1 hardware video decoder supporting 4K60." is verbatim; 3 840 × 2 160 = 8 294 400 ≤ 8 912 896, so it fits
+  level 5.0 (D).
+* **n1.** The struck paragraph was kept "as written", yet it gained "(its DEC:CPLEX column)". That is harmless, but
+  it is an edit to retracted text. m3 could stand beside the new bullet's numbers instead.
+* **Beside the fix, not this loop's.** `htj2k-lossy.md` §1 compares against "the phone's measured AV1 133–135 ms
+  (R)". In `next-round-results.md` Cell 1, 133–135 is the protocol's prediction column; the measured view × 3 is
+  108.9–115.1 ms a frame per decoder. It is for that file's owner row, and is not counted here.
+
+**Verdict.** B1 and m1–m5 closed; one new blocker, B2. Amendment 17's second round is appended:
+MOBILE-DECODE-OPTIONS-FIX-2 for B2 (and n1 if it chooses), then MOBILE-DECODE-OPTIONS-FIX-2-REVIEW. A blocker left
+open after that review sets the row `blocked` for the owner.
