@@ -307,8 +307,12 @@ throughout (no round over 90 %). Rows `claude/report-arms:lab/report-arms/rows/r
 | fill record, Y arms | BEACON-Y 6, KEEPALIVE-Y 9, SESSION-1 9, SESSION-Y 7 | 18/18 | **miss** |
 | fill record, H arms | 0 each | 0/18 | hit |
 
-* **The race (b) asks for exists** by its rule: BEACON-* ≤ 16 and KEEPALIVE-Y 18/18. BEACON-* and `off` pooled lose
-  32 of 72; KEEPALIVE-* lose 0 of 36 (Fisher's exact p 4 × 10⁻⁷ for BEACON-* against KEEPALIVE-*, **derived**).
+* **The race (b) asks for is met by its band** (BEACON-* ≤ 16 and KEEPALIVE-Y 18/18), **but the cell is `VOID` by its
+  A/A** (below), so it is read beside, not adopted. *Corrected 2026-11-26, §Verdict review (B1):* this read "The race
+  (b) asks for exists by its rule". BEACON-* and `off` pooled deliver 32 of 72 and lose 40; KEEPALIVE-* lose 0 of 36
+  (Fisher's exact p 4.8 × 10⁻¹⁰, **derived**). *Corrected 2026-11-26, §Verdict review (m5):* this read "pooled lose
+  32 of 72", the delivered count. The p 4 × 10⁻⁷ given here was BEACON-* alone against KEEPALIVE-* (18 of 36 lost
+  against 0 of 36: 4.4 × 10⁻⁷, recomputed), as labelled, and stands for that pair.
 * **The model under-predicts the loss.** 9 of 18 has P ≈ 0.02 under Binomial(18, 0.75) (**derived**): the page-thread
   carriers lose about half, not a quarter. Not established why; a candidate (**theory**, untested): the page hands the
   report off only after it handles the decoder's failed-frame message, which queues behind the task too, so the wait
@@ -319,7 +323,11 @@ throughout (no round over 90 %). Rows `claude/report-arms:lab/report-arms/rows/r
   frame 10): the idle cell's 18/18 was for a kill always 50 ms after the fault; not a carrier property.
 * **The A/A by the letter:** §2's VOID rule reads "D's A/A `off` = `off′`", written for idle cells where every arm was
   18/18. Here `off` 6 and `off′` 8 differ (Fisher's p 0.73, **derived**): VOID by the letter, a tie under the race's
-  noise. Left to PAGE-RUNS-VERDICT; both readings stand above.
+  noise. Left to PAGE-RUNS-VERDICT; both readings stand above. **The verdict (§Verdict review B1): the letter
+  stands**: a VOID rule is not rewritten after its rows, so (b) is `VOID` and decides nothing. Read beside, not
+  adopted (*derived*, `claude/work-ledger:docs/queue/PAGE-RUNS-VERDICT/recount.txt`): the four page-thread arms lose
+  17 of 18 reports sent under 12.5 ms after the fault, 15 of 23 at 12.5–25, 7 of 15 at 25–37.5, 1 of 16 at 37.5–50;
+  KEEPALIVE-* none at any delay.
 * The driver learned of each fault 5–8 ms after it (p50; max 21 ms), so 1–5 delays an arm were sent late (§2 Amendment).
 
 **Lbusy** (`r3-chromium-Lbusy.jsonl`, 18 rounds × 9 units, Williams-balanced, 20 later faults a load, none lost, no
@@ -335,7 +343,9 @@ error). A container restart cut the cell at round 14; rounds 0–13 were kept, r
 | SESSION-1, SESSION-Y, SESSION-H | 1.92, 2.13, 1.98 ms (5.79, 2.38, 2.54) | ≤ 5 ms | hit per load; SESSION-1's pooled p99 5.79 over |
 
 The page-thread carriers hand a report off after the long task (p99 ≈ the 50 ms task); the worker carriers do not.
-Read with D5a busy above: a kill inside that wait takes the report, so the race (b) asks for exists, and Lbusy gives its size.
+Read with D5a busy above: a kill inside that wait takes the report, so the race is plain beside D5a busy's `VOID` cell,
+and Lbusy gives its size. *Corrected 2026-11-26, §Verdict review (B1):* this read "so the race (b) asks for exists";
+Lbusy is (b)'s latency cell, not its loss cell, and does not lift D5a busy's `VOID`.
 
 **C** (`r3-chromium-C.jsonl`, 28 rounds × 7 units, Williams-balanced, no error, no long task ≥ 50 ms in any arm).
 A second container restart cut it after round 26; it went on from round 27 (`fromRound: 27`). Fill time ÷ `off`'s in
@@ -357,7 +367,9 @@ the same round, median of 28 (IQR), **measured**, against §2(a):
   band and inside `off′`'s own spread. The carrier's metered page-thread time: KEEPALIVE-Y° 2.47 ms, KEEPALIVE-Y
   1.50 ms, `off` 0.55 ms a load (medians, **measured**).
 * So (a)'s condition for KEEPALIVE-Y ("its C cost comes from its wrapped decoder") is **not shown**: leaning that way,
-  under a failed A/A. With (b)'s race shown, the page's rule is the verdict's to apply (PAGE-RUNS-VERDICT).
+  under a failed A/A. With (b) `VOID` too, neither holds, and the page's rule gives BEACON-Y (Summary below).
+  *Corrected 2026-11-26, §Verdict review (B1):* this read "With (b)'s race shown, the page's rule is the verdict's to
+  apply".
 
 **Firefox D1** (`r3-firefox-D1.jsonl`, Firefox 160.0.1, 18 rounds × 9 units, Williams-balanced; cut at round 9 by the
 driver defect below and resumed from round 9, `fromRound: 9`; round 9's partial rows in `r3-firefox-D1.cut-round9.jsonl`).
@@ -389,11 +401,15 @@ D6 ran under the same relay in REPORT-RUN-2. Not traced (Firefox's WebTransport 
 non-loopback http origin is the first suspect, **theory**). The remaining Firefox cells (D2 D9 D4 D5b D8 D3 D7 Lbusy C)
 are not run, as §2 allows.
 
-**Summary for PAGE-RUNS-VERDICT.** (b) **the race exists** on Chromium: on a busy page BEACON-* deliver 9 of 18,
-KEEPALIVE-* 18 of 18 (D5a busy), and Lbusy places the page carriers' hand-off at the long task's end (p99 ≈ 51 ms
-against ≤ 3 ms for the worker carriers, its A/A passing). (a) **is VOID** by its A/A (`off′` 1.053); read beside,
-KEEPALIVE-Y's cost leans on its wrapped decoder (+7.3 ms over KEEPALIVE-Y°, p 0.09), not shown. SESSION lost 2–3 of 18
-safety reports on a busy page, unpredicted. Host CPU ≤ 63 % in every sample of the run (16 257 samples of 5 s; none over
+**Summary for PAGE-RUNS-VERDICT.** (b) **is `VOID`** by its A/A (D5a busy: `off` 6, `off′` 8 of 18). Read beside, not
+adopted, the race is plain on Chromium: on a busy page BEACON-* deliver 9 of 18, KEEPALIVE-* 18 of 18, page-thread
+losses falling with the kill's delay (17 of 18 under 12.5 ms, 1 of 16 over 37.5 ms), and Lbusy places the page
+carriers' hand-off at the long task's end (p99 ≈ 51 ms against ≤ 3 ms for the worker carriers, its A/A passing).
+(a) **is VOID** by its A/A (`off′` 1.053); read beside, KEEPALIVE-Y's cost leans on its wrapped decoder (+7.3 ms over
+KEEPALIVE-Y°, p 0.09), not shown. Neither holds, so `reports.md` §6's rule ("BEACON-Y wins if neither holds") names
+**BEACON-Y, provisional**: a rerun of D5a busy with an A/A written for a race cell before its rows (§Verdict review,
+table row 2) is the owner's yes or no. *Corrected 2026-11-26, §Verdict review (B1):* this read "(b) **the race
+exists** on Chromium". SESSION lost 2–3 of 18 safety reports on a busy page, unpredicted. Host CPU ≤ 63 % in every sample of the run (16 257 samples of 5 s; none over
 90 %). How it serves the value statement: the checked frame's safety report is what makes a failed check known; on a
 busy phone page only a worker carrier delivered it every time.
 
