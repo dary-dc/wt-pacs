@@ -6,7 +6,10 @@ rows behind it, from pushed results only; nothing run but `git` reads. Inputs: `
 §ASK-MODEL-FIX, §Re-review), PR 96, [`transport-stack.md`](transport-stack.md) item 2, and at `origin/claude/unified`
 `4a2b4277`: [`../client/design.md`](../client/design.md) §Open, the stride ADR, the client's `downloader.js`,
 `controller.js` and `view-worker.js`. **Every number on this page is theory, derived or quoted; none of the rule is
-measured.** The measured numbers quoted are earlier rows', named where they are used.
+measured.** The measured numbers quoted are earlier rows', named where they are used. *Corrected 2026-11-26*
+(PAGES-AFTER-RUNS): the rule's hold is now measured, by ASK-CELLS (`claude/ask-cells` `5364c9f44`,
+`claude/page-runs` `b38906f58`: `docs/reviews/page-runs.md` §4, §Asking: results, §Verdict review); §2's *Read
+against the run* carries it, and every other number stays as labelled.
 
 ## 1 · The question
 
@@ -20,11 +23,27 @@ between an accepted ADR and IHE, and decides whether PR 96 and three settings li
 
 | # | item | recommended | a yes changes | a no leaves |
 | ---: | --- | --- | --- | --- |
-| 1 | **The rule** (model §4): one key, a frame's *need time*, orders the want soonest first, lets go the latest-needed held frame over the budget, and bounds what the transport commits | **yes, as the design; its one new behaviour tested before it is built** | `design.md` §Open's *What a view asks for* becomes a decision; a protocol row (another session) and a run row for P1, P1b, P1c and a corrected P2 (§6), on two lab levers built first: a display that never skips with the target apart from the display's frame, and the hold key. No product code until P1 and P1b hold | the 2026-11-02 proposal stays a proposal; the store stays centred, as built, which the model ties or loses to by 0–0.37 s a leg (§3) |
+| 1 | **The rule** (model §4): one key, a frame's *need time*, orders the want soonest first, lets go the latest-needed held frame over the budget, and bounds what the transport commits | **yes, as the design; its one new behaviour tested before it is built** (tested 2026-11-24, verdicted 2026-11-26: P1 holds, so **behind first as the store's default, a product build row: yes**, provisional: the page view and the exact series only, W = 15, one volume; the dwell state not shown to earn anything; below) | `design.md` §Open's *What a view asks for* becomes a decision; a protocol row (another session) and a run row for P1, P1b, P1c and a corrected P2 (§6), on two lab levers built first: a display that never skips with the target apart from the display's frame, and the hold key. No product code until P1 and P1b hold | the 2026-11-02 proposal stays a proposal; the store stays centred, as built, which the model ties or loses to by 0–0.37 s a leg (§3) |
 | 2 | **Contradiction 1**: no slice skipped for DBT and ultrasound stacks, in a scroll and in a cine | **yes** | the stride ADR corrected in place as not holding where IHE RAD TF-2 §4.16.4.2.2.1.3.9 binds; one Opus row carries `claude/cine-no-skip`'s cine fix to `claude/unified` as a draft PR | the accepted ADR's option B against "shall not skip slices" (S1), and a cine that steps whether or not the frame was painted |
 | 2b | a scroll bar's thumb, dragged: a scroll (every slice) or a jump (none between) | **a jump** (this page's reading, not a source's: S1 binds "manual or automatic scrolling" and its note speaks of a "requested frame rate"; a thumb asks for a place, not a rate) | the rule's jump path for a thumb: the target, then outward from it | every slice between shown, the reader held at the pipeline's rate |
 | 3 | **The three settings** (model §6): `waitAhead` stays **off** for DBT and US until P3; `span` **0**; `span` and `holdEveryOther` **removed** | **yes** | one removal draft PR, named for what it removes (`span` in `downloader.js`, `holdEveryOther` in `view-worker.js`, `view.js`, `viewer.js`), its tests adjusted; `waitAhead` stays a lab lever | two levers with no state to act on under the rule, kept and documented |
-| 4 | **M3, PR 96** (the one queue) | **hold PR 96; the shallow commitment first**, by [`transport-stack.md`](transport-stack.md) item 2's run, already recommended there | nothing new: that run decides; PR 96 is reopened only if asks at the saturating depth lose to runs (G1) | the same |
+| 4 | **M3, PR 96** (the one queue) | **hold PR 96; the shallow commitment first**, by [`transport-stack.md`](transport-stack.md) item 2's run, already recommended there (run and verdicted 2026-11-26: #96 unanswered, its lever not in the rig; asks first under a 6 MiB send window, #39, ×0.535–0.780 an ask during a fill, a yes there as a build row) | nothing new: that run decides; PR 96 is reopened only if asks at the saturating depth lose to runs (G1) | the same |
+
+**Read against the run** (2026-11-26, PAGES-AFTER-RUNS, from `page-runs.md` §Verdict review §4, whose counts hold;
+**measured**, `dbts_b1` as the exact HTJ2K series, the page view, W = 15, a relay at 20 and 80 Mbit/s and 40 ms, 298
+counted visits, every frame exact). Wait a leg after the first pass, median, behind first against centred: P1 legs 20
+**5.23 against 6.14 s**, legs 40 **19.19 against 20.06** (the order behind first and ¾ ahead tied, centred, then the
+struck split, as the model, 9 of 9 and 10 of 10 rounds: **holds**); P1b 19.29 against 20.33, the rule 19.28 (the dwell
+earns nothing over behind first always; on 50 frames it **cannot decide**, as the bounded model foresaw); the controls
+**refuted**: P1c legs 12 behind first 0.42 against 0 (the one arm that waits), P1c ρ 0.92 0.00 against 0.47, P2 one
+way 22.26 against 23.40. So behind first waits 0.4–1.2 s a leg less than centred on every live cell, larger than the
+model's 0–0.37, and item 1's hold is not dropped: §6's P1 line is met. But by §6's own clause (P1c and P2: "a
+difference there means the hold acts where the model says it cannot"), **the model's mechanism is refuted** by three
+of its cells (the verdict's m4): the gain P1 shows is not shown to come from the turn. The open account (*theory*,
+the run's): the window follows the display past the legs, so the store asks across a leg's ends and the hold's order
+decides which frames are there. Item 1's yes is therefore for the order (behind first), as measured, not for the
+model's reason, and **provisional**: one volume, the page view, the exact series, not the AV1 view whose ρ the model
+was derived for.
 
 **Not asked:** the memory budget. The model's §9 item 5 put 256 MiB to the owner; the owner has since said it is not
 theirs (amendment 28, VIEW-MEMORY-BOUND: "the specific number should be decided by you or the other session"). That
@@ -72,7 +91,11 @@ the fill is already written; the window flag alone, "nearly all of the ask gain"
 
 ## 4 · Where it holds
 
-**Fixtures: none.** The rule is theory; §3's table is a simulation of it. The measured numbers quoted come from
+**Fixtures: none.** The rule is theory; §3's table is a simulation of it. *Corrected 2026-11-26* (PAGES-AFTER-RUNS):
+the hold's cells are now measured (§2, *Read against the run*): `dbts_b1` only, 50 × 2560 × 3328, run as the exact
+HTJ2K series (2.11 MB a frame), not the AV1 view; the page view only, W = 15; one 4-core cloud container without a
+GPU, software WebGL, headless Chromium 158; the relay at 20 and 80 Mbit/s, 40 ms, no loss, not a radio; no
+ultrasound. The measured numbers quoted come from
 `ct_lidc` and `dbt10_ea1141` at 5 and 20 Mbit/s through a userspace relay, headless Chromium and Firefox on 4-core
 cloud hosts without a GPU (up to a third of visits voided), `dbts_b1` of one DBT dataset of 19 volumes, and one phone
 on one home link behind the decode ranges. No breast ultrasound cine in the runs (`usb_cine` is in `docs/FIXTURES.md`,
@@ -87,11 +110,22 @@ order across the study's many clips (§4.2), for which no source was found. **Wh
 (amendment 28): for the `dbts_b1` view at 25 frames a second, ρ is wire-bound on the lab's 20 Mbit/s (0.22) and on far
 LTE (0.29–0.92), and decode-bound on entry phones (0.20–0.44) (**derived on theory**: the device model's decode and
 `link-profiles.md`'s goodputs; one phone measured). The rule's order is the same either way; ρ sets how long the waits are.
+*Measured 2026-11-24* (ASK-CELLS, the exact series): at 20 Mbit/s and 40 ms the link binds (ρ 0.21, a step of
+155–236 ms); at 80 Mbit/s this host's software paint nearly sets the step (ρ 0.92).
 
 **Each limitation and what found it** (completed 2026-11-25, PAGES-PASS: each item names what found it):
 
 * No fixture: the rule is theory and §3 a simulation of it; nothing built, run or timed. Found by ASK-MODEL (its
   status file: "Theory and sources") and ASK-MODEL-FIX-REVIEW ("every number is derived ... none measured").
+  *Corrected 2026-11-26:* the hold's order measured on one volume, its limits the next four items.
+* The run was the exact HTJ2K series, not the AV1 view the model's ρ was derived for. Found by ASK-CELLS' pilot
+  (`page-runs.md` §4 Amendment).
+* P1b cannot decide on a 50-frame series. Found by `bounded.py` before the run, confirmed by the rows (ASK-CELLS).
+* The controls' nulls fail (P1c, P2): the model's tie predictions do not carry to this driver, and its mechanism is
+  refuted where its own clause says. Found by ASK-CELLS' rows; read as the mechanism's refutation by PAGE-RUNS-VERDICT
+  (m4).
+* P1c's "no byte after the first pass" holds for no arm (19–23 frames received after it). Found by ASK-CELLS' pilot,
+  confirmed in every counted visit.
 * The measured numbers quoted are earlier rows' on relay links and 4-core cloud hosts without a GPU that voided up to
   a third of their visits; one phone behind the decode ranges; no reader, no radio. Found by ASK-MODEL (the model's
   fixtures paragraph, from those rows).
@@ -101,7 +135,8 @@ LTE (0.29–0.92), and decode-bound on entry phones (0.20–0.44) (**derived on 
   own limits) and ASK-MODEL-REVIEW (the toy's parameters, `sawtooth.py`).
 * P2 as written predicts an order its model cannot show: on a one-way path the arms differ only by a start-up
   transient (87.11 / 87.11 / 87.48 / 88.41 s over 600 frames at ρ 0.216, **derived**). It must predict a tie (§6).
-  Found by ASK-MODEL-FIX-REVIEW (n1, `claude/work-ledger:docs/queue/ASK-MODEL-FIX-REVIEW/one-way.py`).
+  Found by ASK-MODEL-FIX-REVIEW (n1, `claude/work-ledger:docs/queue/ASK-MODEL-FIX-REVIEW/one-way.py`). Run corrected
+  as a tie on 2026-11-24 and refuted (behind first 1.20 s under centred, 10 of 10 rounds; ASK-CELLS).
 * "The rule needs no estimate" is true of the hold only; the cine's gate needs μ. Found by ASK-MODEL-FIX-REVIEW (n2).
 * The closed form reads 0.04–0.44 s under the simulation, not 0.2–0.4 s. Found by ASK-MODEL-FIX-REVIEW (n3).
 * Item 3's optimum at p = 1 (all behind while dwelling) has no simulated arm; the table supports only "centred is
@@ -135,9 +170,15 @@ pass: an ask waits behind C, so a shallow C is what makes a jump fast.
 
 * **P1 and P1b** (a cloud run on the existing sawtooth driver, `dbts_b1` view, W = 15, ρ ≈ 0.22): if centred is the
   shortest, or behind first is not within the A/A spread of the shortest, item 1's hold is dropped and the store
-  stays centred; the rest of the rule stands.
+  stays centred; the rest of the rule stands. *Run 2026-11-24 on the exact series, verdicted 2026-11-26:* behind first
+  is the shortest (tied with ¾ ahead) in P1 at both leg lengths, so the hold stays; P1b cannot decide on 50 frames.
+  What would change it now: the same cells on the AV1 view and on a longer series, and the worker view.
 * **P1c and the corrected P2** are controls: every arm within the A/A spread (legs ≤ W − 1; ρ ≥ 0.8; a one-way path
-  after the first W frames). A difference there means the hold acts where the model says it cannot.
+  after the first W frames). A difference there means the hold acts where the model says it cannot. *Run 2026-11-24:*
+  each differs (behind first 0.47 and 1.20 s under centred on P1c at ρ 0.92 and P2, 0.42 s over it on P1c's legs of
+  12, the one arm that waits), where the model says no hold acts, so the model's mechanism
+  is refuted (§2, *Read against the run*); a model whose window follows the display past the legs is the open
+  account, *theory*.
 * **P3** (`waitAhead` k ∈ {1, 4, 8, 16, 32} on three frame sizes): a forward-wait minimum at k ≈ C ÷ b would make k a
   derived setting, not a constant; another shape refutes the model of C.
 * **A reader's own scroll log** (leg lengths, dwells before turns): the only measurement of whether the gain is worth
