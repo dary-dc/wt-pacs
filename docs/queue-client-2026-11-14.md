@@ -119,6 +119,8 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | MOBILE-DECODE-COMPARE-REVIEW | 11-14 21:00 | MOBILE-DECODE-COMPARE done | `claude/mobile-decode` (findings in its PR body) |
 | MOBILE-DECODE-COMPARE-FIX | 11-15 21:00 | MOBILE-DECODE-COMPARE-REVIEW done | `claude/mobile-decode` (`docs/decode/mobile/README.md` and the option files; PR 397) |
 | MOBILE-DECODE-COMPARE-FIX-REVIEW | 11-15 21:00 | MOBILE-DECODE-COMPARE-FIX done | `claude/mobile-decode` (PR 397 body §Re-review) |
+| MOBILE-DECODE-OPTIONS-FIX | 11-26 20:00 | MOBILE-DECODE-OPTIONS-REVIEW done | `claude/mobile-decode` (`docs/decode/mobile/new-options.md`, `hw-inverted.md`, `docs/lines/client.md`): B1 and m1–m5 of `new-options.md` §Review, in place |
+| MOBILE-DECODE-OPTIONS-FIX-REVIEW | 11-26 20:00 | MOBILE-DECODE-OPTIONS-FIX done | findings in `new-options.md` §Re-review; amendment 17 |
 | PHONE-NEXT-PROTOCOL-FIX | 11-14 21:00 | — | `claude/phone-protocol` (its draft PR 359) |
 | PHONE-NEXT-PROTOCOL-FIX-REVIEW | 11-14 21:00 | PHONE-NEXT-PROTOCOL-FIX done | `claude/phone-protocol` (the file's "Re-review" section) |
 | PHONE-PROBE-RUN | — | — | **the owner's local device session; no cloud worker takes it** (the probe's report on `claude/hw-probe`) |
@@ -709,6 +711,18 @@ line each, not editing its cells), and a leaning labelled as such. Theory labell
 
 A session that wrote none of it: 15 quoted sources fetched at their pinned revisions; the table follows from the
 text; the window/level arithmetic re-derived; what is a leaning stays a leaning.
+
+#### MOBILE-DECODE-OPTIONS-FIX (appended by MOBILE-DECODE-OPTIONS-REVIEW, 2026-11-26; amendment 17)
+
+A session that wrote neither `new-options.md` nor its review, on `claude/mobile-decode`: B1 first, §5's decode
+prediction (0.78; 1.6–2.2 lossy frames an AV1 frame) corrected in place, kept and marked refuted, with
+`htj2k-lossy.md` Cell D's measured 1.12–1.21× beside it and S8's Tables 7 and 8 as the reason; then m1 (the identity
+matrix, in `new-options.md` §3 and in `hw-inverted.md`), m2–m5. Docs only: `scripts/check_links.py`; the gate not run.
+
+#### MOBILE-DECODE-OPTIONS-FIX-REVIEW
+
+A session that wrote none of the file, its review or the fix: each finding closed or argued, in `new-options.md`
+§Re-review; a blocker left open starts round two, then `blocked` for the owner.
 
 20. **Which model does what** (the owner, 2026-11-15: "Fable shouldn't be used for comparing already existing options
     … use it to create options … a more scoped problem might be better handled by a smaller model like Opus. Or several
