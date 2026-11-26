@@ -134,8 +134,10 @@ space conversions." (S12). A `VideoFrame` is neither.
 **The ideal map** (R, [`new-options.md`](new-options.md) §3.1): narrow range, p = 255 × (Y − 16) ÷ 219, steps of
 1.1644, one-to-one after any single rounding to nearest. Full range, p = Y. With neutral chroma R = G = B under
 H.273's matrices 1, 4–7, 9 and 12, not under the identity (0), which a 4:2:0 AV1 stream cannot signal but
-`VideoDecoderConfig.colorSpace`'s `"rgb"` can impose: the ingest signals BT.709 and the page never sets `"rgb"`
-(same file, §3 step 2, corrected 2026-11-26).
+`VideoDecoderConfig.colorSpace`'s `"rgb"` can impose: ~~the ingest signals BT.709~~ the ingest signals no matrix
+today (`mc` 2, unspecified; the view 4:0:0; M), so the route's ingest writes `--matrix-coefficients=bt709` or its page
+sets `matrix: "bt709"` (T, §4's colour description), and the page never sets `"rgb"` (same file, §3 step 2, corrected
+2026-11-26 twice).
 
 **Vulkan, the specified case** (S9, `textures.adoc` §Sampler YCbCr Range Expansion): narrow range is "Y′ =
 (C′rgba[G] × (2ⁿ−1) − 16 × 2ⁿ⁻⁸) ÷ (219 × 2ⁿ⁻⁸)", and "The precision of the operations performed during range

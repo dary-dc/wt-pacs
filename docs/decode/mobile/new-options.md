@@ -100,9 +100,19 @@ is decoded again in software, which is what the client already does on a refusal
    "If matrix_coefficients is equal to MC_IDENTITY, it is a requirement of bitstream conformance that subsampling_x is
    equal to 0 and subsampling_y is equal to 0" (S1, §6.4.2), but the page can still impose it, since
    `VideoDecoderConfig.colorSpace` overrides the stream (S2, §7.6) and its `"rgb"` is "Matrix coefficients used by
-   sRGB, as described by [H.273] section 8.3 table 4 value 0" (S2, §9.12). So the ingest signals 1 (BT.709) rather
+   sRGB, as described by [H.273] section 8.3 table 4 value 0" (S2, §9.12). ~~So the ingest signals 1 (BT.709) rather
    than 2, which H.273 leaves "unknown or is determined by the application", and the page, if it sets `matrix`, sets
-   `"bt709"` (D).
+   `"bt709"` (D).~~ *Corrected 2026-11-26 (§Re-review B2):* the ingest signals no matrix today. Its 4:2:0 grey
+   (`encoder_args`, layout `"420"`) writes no colour description, and then "matrix_coefficients = MC_UNSPECIFIED"
+   (S1, §5.5.2), value 2 in §6.4.2's table ("MC_UNSPECIFIED", "Unspecified"), which H.273 leaves "unknown or is
+   determined by the application" (S4). Read with `client/decode/av1-payload.js` `sequence()`,
+   `client/contract/av1/payloads/` `grey420/g8.av1` gives `"mono":0,"cp":2,"tc":2,"mc":2,"range":1`, and the view is
+   4:0:0 (`lossy_args`' `--monochrome`; the lossless grey `optimized/g8.av1` and `g10.av1` give
+   `"mono":1,"mc":2` too) (M, 2026-11-26). So the route
+   needs one of two things, neither built (T): its ingest writes `--matrix-coefficients=bt709` for the 4:2:0 form, so
+   the stream signals 1; or its page sets `colorSpace.matrix` to `"bt709"`, "Matrix coefficients used by BT.709, as
+   described by [H.273] section 8.3 table 4 value 1" (S2, §9.12), which overrides the stream (S2, §7.6). Never
+   `"rgb"`.
 3. *The inverse*: read the picture's red channel through a 256-entry table measured on the device (§3.2), giving
    the luma sample back.
 4. *The check*: XXH3-64 over the recovered plane, against the ingest's digest. Either after a read-back
@@ -471,3 +481,17 @@ after, none new); the gate was not run.*
 **Verdict.** B1 and m1–m5 closed; one new blocker, B2. Amendment 17's second round is appended:
 MOBILE-DECODE-OPTIONS-FIX-2 for B2 (and n1 if it chooses), then MOBILE-DECODE-OPTIONS-FIX-2-REVIEW. A blocker left
 open after that review sets the row `blocked` for the owner.
+
+### Fix 2
+
+*Queue row MOBILE-DECODE-OPTIONS-FIX-2, 2026-11-26, by a session that wrote none of this file, its review, its fix
+or its re-review. S1 (the colour config syntax and the `matrix_coefficients` table) and S2 (§9.9's
+`VideoColorSpaceInit`, §9.12's `"bt709"`) fetched again on 2026-11-26. Docs only: `scripts/check_links.py` (9
+unresolved before and after, none new); the gate was not run.*
+
+* **B2**: §3 step 2's "So the ingest signals 1 (BT.709)" is struck, and `hw-inverted.md` §3's "the ingest signals
+  BT.709" too. In their place: the 4:2:0 grey carries `mc` 2 and the view is 4:0:0 (M, the two contract payloads'
+  sequence headers re-read with `sequence()`), and the route needs its ingest to write `--matrix-coefficients=bt709`
+  or its page to set `matrix: "bt709"` (T).
+* **n1**: not taken. The struck paragraph of §5 is left as it is, since editing it again would be a second edit to
+  retracted text.
