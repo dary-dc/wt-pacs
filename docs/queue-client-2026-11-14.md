@@ -121,6 +121,8 @@ Times are UTC. Beside `docs/queue-docs-2026-11-14.md` (the documentation restruc
 | MOBILE-DECODE-COMPARE-FIX-REVIEW | 11-15 21:00 | MOBILE-DECODE-COMPARE-FIX done | `claude/mobile-decode` (PR 397 body §Re-review) |
 | MOBILE-DECODE-OPTIONS-FIX | 11-26 20:00 | MOBILE-DECODE-OPTIONS-REVIEW done | `claude/mobile-decode` (`docs/decode/mobile/new-options.md`, `hw-inverted.md`, `docs/lines/client.md`): B1 and m1–m5 of `new-options.md` §Review, in place |
 | MOBILE-DECODE-OPTIONS-FIX-REVIEW | 11-26 20:00 | MOBILE-DECODE-OPTIONS-FIX done | findings in `new-options.md` §Re-review; amendment 17 |
+| MOBILE-DECODE-OPTIONS-FIX-2 | 11-26 22:00 | MOBILE-DECODE-OPTIONS-FIX-REVIEW done | `claude/mobile-decode` (`docs/decode/mobile/new-options.md` §3, `hw-inverted.md` §3, `docs/lines/client.md`): B2 of `new-options.md` §Re-review, in place |
+| MOBILE-DECODE-OPTIONS-FIX-2-REVIEW | 11-26 22:00 | MOBILE-DECODE-OPTIONS-FIX-2 done | findings in `new-options.md` §Re-review 2; amendment 17's second round |
 | PHONE-NEXT-PROTOCOL-FIX | 11-14 21:00 | — | `claude/phone-protocol` (its draft PR 359) |
 | PHONE-NEXT-PROTOCOL-FIX-REVIEW | 11-14 21:00 | PHONE-NEXT-PROTOCOL-FIX done | `claude/phone-protocol` (the file's "Re-review" section) |
 | PHONE-PROBE-RUN | — | — | **the owner's local device session; no cloud worker takes it** (the probe's report on `claude/hw-probe`) |
@@ -723,6 +725,21 @@ matrix, in `new-options.md` §3 and in `hw-inverted.md`), m2–m5. Docs only: `s
 
 A session that wrote none of the file, its review or the fix: each finding closed or argued, in `new-options.md`
 §Re-review; a blocker left open starts round two, then `blocked` for the owner.
+
+#### MOBILE-DECODE-OPTIONS-FIX-2 (appended by MOBILE-DECODE-OPTIONS-FIX-REVIEW, 2026-11-26; amendment 17, round two)
+
+A session that wrote none of `new-options.md`, its review, its fix or its re-review, on `claude/mobile-decode`: B2 of
+`new-options.md` §Re-review. Correct, in place, "the ingest signals BT.709" (`hw-inverted.md` §3) and "So the ingest
+signals 1 (BT.709)" (`new-options.md` §3 step 2). Today the 4:2:0 grey carries `mc` 2 (unspecified) and the view is
+4:0:0, measured from `client/contract/av1/payloads/` with `client/decode/av1-payload.js` `sequence()`. The route needs
+its ingest to write `--matrix-coefficients=bt709`, or its page to set `matrix: "bt709"`. Label each statement. n1 is
+optional. Docs only: `scripts/check_links.py`; the gate is not run.
+
+#### MOBILE-DECODE-OPTIONS-FIX-2-REVIEW
+
+A session that wrote none of the file, its reviews or either fix: B2 closed or argued, nothing else changed, in
+`new-options.md` §Re-review 2. A blocker left open sets MOBILE-DECODE-OPTIONS-FIX-2 `blocked` for the owner
+(amendment 17's two rounds).
 
 20. **Which model does what** (the owner, 2026-11-15: "Fable shouldn't be used for comparing already existing options
     … use it to create options … a more scoped problem might be better handled by a smaller model like Opus. Or several
