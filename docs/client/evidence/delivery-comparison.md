@@ -1045,6 +1045,91 @@ at Q 8 G 8 only, only `dbts_b1` with a level to gain on the assumed 1080 × 2100
 software decode, full Chromium 158 headless; a userspace TUN relay at ≤ 90 Mbit/s, its forms scaled and assumed, none a
 radio; two periods a cell; K2 read with the guard waived (R1); LOSS `dbts_a1`'s curve on 7 loads (R3).
 
+## Verdict review 2 (2026-11-26, DELIVERY-VERDICT-2)
+
+*A session that wrote none of the protocol, §Amendment 2, its fix, the build, the run or any review. Every count
+recomputed from `lab/delivery/rows/run2/<CELL>.jsonl` by
+[`rows/run2/judged/recount2.py`](../../../lab/delivery/rows/run2/judged/recount2.py) (its output `recount2.txt` beside
+it), written apart from `judge.mjs`: `VOID` from each row's raw fields, ratios, 10-of-12 holds and regimes from the
+frames. Two blockers, both in what §Results 2 lets the page carry; DELIVERY-VERDICT-2-FIX corrects them in place.*
+
+**The counts hold** (*measured*, recomputed). `VOID` 7, 21, 15, 7, 1 of 216 (CLEAN, PUB, LTE, LOSS, CR), 51 in all: the
+guard 44 (34 on view arms), 3× the pilot's median 7; no crash, no core over 95 %, no process outside cores 2–3, no fill
+read back more than two decoders; each row's own `void` agrees with its raw fields on all 1 080. All 125 judged verdicts,
+medians, in-band counts and the six regime misses match the §Results 2 table: 85 hold, 36 miss (16 in, 12 below, 8
+above), 4 cannot hold; 10 zooms reported. Every row carries `d126fac79a8b2145`; `predict.mjs` on `inputs.json`
+reproduces `predictions.json` byte for byte, last changed at `edbb8ce19` (09:32Z), before the first counted row
+(10:44Z). Two predictions recomputed by hand: CLEAN `dbts_b1` FIT 2 731 ms, LOSS `dbts_b1` A 6 099 ms. All 180 FIT
+window read-backs are the window pass's picture at the frame's size (1280 × 1664 on `dbts_b1`), equal; the judge printed
+"the switch picked the view in every load" on all five cells; §7's ties are PUB `dbts_c1` and the three CR volumes.
+Read with the guard ignored (`--no-guard`, a sensitivity reading, not §6's rule): 93 hold; PUB `dbts_b1` C1's three
+clocks and LTE `dbts_a1` A, `dbts_c1` C1 and SPLIT move to holds; nothing moves the other way.
+
+**Blockers**
+
+* **B1 · The view on LTE is carried against §8's regime rule.** §Results 2 lets the page carry "the view on LTE
+  through the curve, as in band (5 of 9 hold)". §8: a (cell, volume, arm) whose regime misses in more than 2 of 10
+  rounds "is a **regime miss** whatever its ratio, because a device class is carried by which side binds". Of the five
+  LTE view fills that hold, four are regime misses (A′ and C1 on `dbts_a1`, A and A′ on `dbts_c1`: read back near or
+  decode-bound in 3–6 of 12 rounds) and the fifth, A on `dbts_b1`, was predicted *near*, which §8 reports and does not
+  judge. So no LTE view fill carries to a device class. Why (*derived*, `inputs.json`): on `dbts_a1` and `dbts_c1` the
+  16-frame view was predicted wire-bound by ×1.19 and ×1.20 (wire 517 and 548 ms against a decode floor of 435 and 458
+  ms), just past §4.1's 10 %; on this host it sits at the crossover. What LTE does show, *measured* (`recount2.txt`,
+  `WIRE`): the views' dial → last byte at ×0.91–1.13 of the curve on all three volumes, so the curve's wire term held for
+  the view's bytes; that is a wire statement, not a fill carried. The fix: the carry paragraph and §Results 2's "Where
+  the link binds" line say so.
+* **B2 · LOSS's misses low are put on the curve; the wire held there and the decode term missed.** §Results 2 reads LOSS
+  `dbts_a1` and `dbts_c1` as missing low "as predicted ... the curve's stated limit" (A2.4: under the first point the
+  curve's line predicts the wire too slow). The wire did not come in fast: dial → last byte was ×1.06–1.24 of the curve
+  on every view arm of both volumes (*measured*, `WIRE`). The fill missed low because LOSS's 8 frames are one group, so
+  §4.1's second term is *W*(*B*) + 8 *d*₁, the group decoded after its last byte at K2's two-decoder *d*₁ (54.4, 57.2
+  ms), while the loads decoded each frame as it arrived on one decoder alone at 31–38 ms (*measured*, median per frame)
+  and filled ~0.1 s after the last byte (A `dbts_a1`: fill 0.73 s, wire 0.64 s). The direction was predicted; its
+  reason was not. On `dbts_b1` both parts miss: the prediction 6.10 s is the curve's 4.31 s for the 3.66 MB plus 1.79 s
+  of decode (§Results 2 says "B's curve puts those bytes at 6.1 s": it puts them at 4.31 s); the wire came in at 1.98 s
+  (A; ×0.46, A′ ×0.67, C1 ×0.63), the curve's own miss as stated there, and the decode at 114–118 ms a frame against
+  *d*₁'s 223.5. For the next protocol (*theory*): a fill of one unit is bound by its last byte plus about one frame's
+  decode, at the lone time, which K2 does not measure for the view. The fix: §Against each prediction's lossy bullet and
+  the carry paragraph name the decode term, not the curve, for LOSS `dbts_a1` and `dbts_c1`, and correct the 6.1 s.
+
+**Minor**
+
+* **m1** · "C1's exact frame on every form but LTE `dbts_c1` and PUB `dbts_b1` (cannot hold)": LTE `dbts_c1` misses in
+  band (9 of 10), it does not "cannot hold".
+* **m2** · C1's rest (press → painted less ask → last byte; *measured*, medians) is the same on every form: 47–56 ms on
+  `dbts_a1` and `dbts_c1`, 106–112 ms on `dbts_b1`, CLEAN to CR. So it is a per-frame cost after the last byte,
+  independent of the round trip, ×1.4–1.8 of *h*₁ + 17 ms; §Results 2 quotes it for CLEAN and PUB only. Nothing to fix.
+
+**Is a view needed, per link profile.** A first picture of the whole series, fastest: the view (A), the exact series (B),
+or the exact series at the level that fits (FIT). *Measured* on this host (medians, `recount2.txt` `RATIO`; FIT is B on
+`dbts_a1` and `dbts_c1`); *carried* to a device class only through cells that held, or by a bound named as *derived*.
+
+| profile (form) | B ÷ A, `dbts_a1`, `dbts_c1` | `dbts_b1`: FIT ÷ A, B ÷ A | carried to a phone | a view needed |
+| --- | --- | --- | --- | --- |
+| home Wi-Fi (CLEAN, 90 Mbit/s, 2 ms) | ×3.70, ×2.82 | ×0.47, ×1.70 | decode-bound view and wire-bound B held: B first above the class's *G*★ (§Verdict review: entry 77–327, middle 117–716, premium 320–890 Mbit/s), past 90 Mbit/s so extrapolated (*theory*); one premium phone at ≥ 568 Mbit/s, B first (cell 2) | below *G*★ yes; above it no; frames larger than the viewport no (FIT) |
+| public Wi-Fi (PUB, 90 Mbit/s, 20 ms) | ×3.51, ×2.71 | ×0.55, ×1.64 | as CLEAN for A and B; FIT missed above (×1.19), its lead not carried | as CLEAN; FIT's lead measured here only |
+| loaded LTE round trip (CR, 800 ms) | ×2.76, ×2.68 | ×1.12, ×2.57 | A and B both wire-bound and held: their ratio is bytes and start, so it carries while a device's view decode stays under its wire (this host: floor 1.7–5.4 s against 9–14 s of wire, A2.3) (*derived*) | yes, every class |
+| LTE (16 frames, 0.1 % loss, blackout) | ×14.0, ×9.4 | ×1.02, ×8.1 | not by the model (B1); bound (*derived*): B's measured wire 7.8–21.9 s against a view of 1.4–7.4 MB, which an entry phone decodes in ~3.2 s at most (16 × 200 ms, DEVICE-THEORY's effective range) | yes as measured; to a phone not shown, bound only |
+| lossy Wi-Fi (LOSS, 8 frames, 1 % bursts) | ×16.7, ×15.2 | ×2.35, ×11.7 | not by the model (B2); the same bound: B's wire 11–24 s | yes as measured; to a phone not shown, bound only |
+| enterprise Wi-Fi, 5G, the median home link (§3) | not run | not run | — | not shown |
+
+So (*measured* here, *derived* beyond): a view is needed on every lossy and long-round-trip profile measured, and on
+clean links below a device class's *G*★; it is not needed on clean links above *G*★, nor for a volume whose frames are
+larger than the viewport where FIT fills first (`dbts_b1`, 1 of 19 DBT volumes upright). PROGRAM-CLOSE order 3's "no
+view needed" is therefore not found: the five rows held on it stay held, the owner's to decide.
+
+**Where the link, not the decode, binds** (*measured*, regimes that held): B and FIT on every form; A on CR and LOSS;
+C1's exact frame and FIT's zoom on every form. On LTE the view sits at this host's crossover (B1). **Where the host
+saturates**: as §Results 2; nothing above 90 Mbit/s, no radio.
+
+**How it serves the value statement**: a fast full fill on a phone over unreliable wireless needs the view on lossy and
+long links, at 0.07–0.22 of the exact series' bytes (§4.3); on fast clean links the exact series alone fills first and every
+frame is the original, checked.
+
+**Fixtures and limits**: as §Results 2 (three DBT volumes of one dataset, only `dbts_b1` with a level to gain on an
+assumed viewport, the view at Q 8 G 8, no ultrasound; one 4-core container, software decode, Chromium 158 headless; a
+TUN relay ≤ 90 Mbit/s, scaled forms, no radio); *G*★ and the phone bounds rest on DEVICE-THEORY's ranges and one phone.
+
 ## Fixtures and limits
 
 Three DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`; 56, 50, 69 frames), the view at Q 8 G 8 only, no

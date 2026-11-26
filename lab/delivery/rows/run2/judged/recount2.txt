@@ -1,0 +1,186 @@
+# CLEAN: 216 loads, VOID 7 {'guard': 7}, guard on view arms 5, digests {'d126fac79a8b2145': 216}, stops 0, rounds 12
+CLEAN	dbts_a1	A	fill	pred 1824	x0.932	12/12	holds	in	regime misses 0
+CLEAN	dbts_a1	A'	fill	pred 1824	x0.929	11/11	holds	in	regime misses 0
+CLEAN	dbts_a1	B	fill	pred 6289	x1.000	11/11	holds	in	regime misses 0
+CLEAN	dbts_a1	C1	fill	pred 1824	x0.929	10/11	holds	in	regime misses 0
+CLEAN	dbts_a1	C1	latency	pred 153	x1.165	11/11	holds	in	
+CLEAN	dbts_a1	C1	askLastByte	pred 119	x1.120	11/11	holds	in	
+CLEAN	dbts_a1	FIT	fill	pred 6289	x1.000	12/12	holds	in	regime misses 0
+CLEAN	dbts_a1	FIT	zoom	pred 17	x0.044	0/12	reported	below	
+CLEAN	dbts_a1	SPLIT	fill	pred 1625	x1.122	10/11	holds	in	
+CLEAN	dbts_b1	A	fill	pred 6170	x0.949	12/12	holds	in	regime misses 0
+CLEAN	dbts_b1	A'	fill	pred 6170	x0.991	12/12	holds	in	regime misses 0
+CLEAN	dbts_b1	B	fill	pred 9969	x0.999	12/12	holds	in	regime misses 0
+CLEAN	dbts_b1	C1	fill	pred 6170	x0.997	12/12	holds	in	regime misses 0
+CLEAN	dbts_b1	C1	latency	pred 258	x1.250	11/12	holds	in	
+CLEAN	dbts_b1	C1	askLastByte	pred 198	x1.076	12/12	holds	in	
+CLEAN	dbts_b1	FIT	fill	pred 2731	x1.010	11/11	holds	in	regime misses 0
+CLEAN	dbts_b1	FIT	zoom	pred 204	x1.275	8/11	misses	in	
+CLEAN	dbts_b1	SPLIT	fill	pred 4856	x1.119	11/12	holds	in	
+CLEAN	dbts_c1	A	fill	pred 2207	x1.054	12/12	holds	in	regime misses 0
+CLEAN	dbts_c1	A'	fill	pred 2207	x1.025	11/11	holds	in	regime misses 0
+CLEAN	dbts_c1	B	fill	pred 6551	x1.000	12/12	holds	in	regime misses 0
+CLEAN	dbts_c1	C1	fill	pred 2207	x1.050	12/12	holds	in	regime misses 0
+CLEAN	dbts_c1	C1	latency	pred 134	x1.281	10/12	holds	in	
+CLEAN	dbts_c1	C1	askLastByte	pred 104	x1.134	12/12	holds	in	
+CLEAN	dbts_c1	FIT	fill	pred 6551	x1.000	12/12	holds	in	regime misses 0
+CLEAN	dbts_c1	FIT	zoom	pred 17	x0.044	0/12	reported	below	
+CLEAN	dbts_c1	SPLIT	fill	pred 1908	x1.109	10/11	holds	in	
+# PUB: 216 loads, VOID 21 {'guard': 21}, guard on view arms 13, digests {'d126fac79a8b2145': 216}, stops 0, rounds 12
+PUB	dbts_a1	A	fill	pred 1937	x0.940	12/12	holds	in	regime misses 0
+PUB	dbts_a1	A'	fill	pred 1937	x0.904	10/11	holds	in	regime misses 0
+PUB	dbts_a1	B	fill	pred 6399	x1.000	10/10	holds	in	regime misses 0
+PUB	dbts_a1	C1	fill	pred 1937	x0.934	12/12	holds	in	regime misses 0
+PUB	dbts_a1	C1	latency	pred 236	x1.167	12/12	holds	in	
+PUB	dbts_a1	C1	askLastByte	pred 202	x1.118	12/12	holds	in	
+PUB	dbts_a1	FIT	fill	pred 6399	x1.000	11/11	holds	in	regime misses 0
+PUB	dbts_a1	FIT	zoom	pred 17	x0.042	0/11	reported	below	
+PUB	dbts_a1	SPLIT	fill	pred 1738	x1.223	0/11	misses	above	
+PUB	dbts_b1	A	fill	pred 6283	x0.975	10/10	holds	in	regime misses 0
+PUB	dbts_b1	A'	fill	pred 6283	x0.989	11/11	holds	in	regime misses 0
+PUB	dbts_b1	B	fill	pred 10077	x1.000	11/11	holds	in	regime misses 0
+PUB	dbts_b1	C1	fill	pred 6283	x0.962	9/9	cannot hold	in	regime misses 0
+PUB	dbts_b1	C1	latency	pred 341	x1.279	9/9	cannot hold	in	
+PUB	dbts_b1	C1	askLastByte	pred 280	x1.139	9/9	cannot hold	in	
+PUB	dbts_b1	FIT	fill	pred 2843	x1.190	0/12	misses	above	regime misses 0
+PUB	dbts_b1	FIT	zoom	pred 222	x1.288	10/12	holds	in	
+PUB	dbts_b1	SPLIT	fill	pred 4968	x1.166	4/10	misses	above	
+PUB	dbts_c1	A	fill	pred 2320	x1.061	11/11	holds	in	regime misses 0
+PUB	dbts_c1	A'	fill	pred 2320	x1.026	12/12	holds	in	regime misses 0
+PUB	dbts_c1	B	fill	pred 6661	x0.999	10/10	holds	in	regime misses 0
+PUB	dbts_c1	C1	fill	pred 2320	x1.019	11/11	holds	in	regime misses 0
+PUB	dbts_c1	C1	latency	pred 217	x1.255	11/11	holds	in	
+PUB	dbts_c1	C1	askLastByte	pred 187	x1.169	11/11	holds	in	
+PUB	dbts_c1	FIT	fill	pred 6661	x1.000	10/10	holds	in	regime misses 0
+PUB	dbts_c1	FIT	zoom	pred 17	x0.039	0/10	reported	below	
+PUB	dbts_c1	SPLIT	fill	pred 2021	x1.355	0/11	misses	above	
+# LTE: 216 loads, VOID 15 {'pilot 3x': 5, 'guard': 10}, guard on view arms 10, digests {'d126fac79a8b2145': 216}, stops 0, rounds 12
+LTE	dbts_a1	A	fill	pred 758	x1.059	9/10	misses, regime miss	in	regime misses 3
+LTE	dbts_a1	A'	fill	pred 758	x1.019	10/11	holds, regime miss	in	regime misses 3
+LTE	dbts_a1	B	fill	pred 10976	x1.023	7/12	misses	in	regime misses 0
+LTE	dbts_a1	C1	fill	pred 758	x1.100	11/11	holds, regime miss	in	regime misses 6
+LTE	dbts_a1	C1	latency	pred 426	x1.060	10/11	holds	in	
+LTE	dbts_a1	C1	askLastByte	pred 391	x1.019	10/11	holds	in	
+LTE	dbts_a1	FIT	fill	pred 10976	x0.820	5/8	cannot hold	in	regime misses 0
+LTE	dbts_a1	FIT	zoom	pred 17	x0.040	0/8	reported	below	
+LTE	dbts_a1	SPLIT	fill	pred 758	x1.017	10/11	holds	in	regime misses 0
+LTE	dbts_b1	A	fill	pred 2790	x0.969	10/12	holds	in	
+LTE	dbts_b1	A'	fill	pred 2790	x0.941	9/12	misses	in	
+LTE	dbts_b1	B	fill	pred 21373	x1.026	10/12	holds	in	regime misses 0
+LTE	dbts_b1	C1	fill	pred 2790	x0.942	9/12	misses	in	
+LTE	dbts_b1	C1	latency	pred 653	x1.028	12/12	holds	in	
+LTE	dbts_b1	C1	askLastByte	pred 593	x0.945	12/12	holds	in	
+LTE	dbts_b1	FIT	fill	pred 2320	x1.193	7/12	misses	in	regime misses 0
+LTE	dbts_b1	FIT	zoom	pred 503	x1.781	5/12	misses	above	
+LTE	dbts_b1	SPLIT	fill	pred 2790	x0.947	9/11	misses	in	
+LTE	dbts_c1	A	fill	pred 831	x0.993	12/12	holds, regime miss	in	regime misses 5
+LTE	dbts_c1	A'	fill	pred 831	x1.011	11/11	holds, regime miss	in	regime misses 5
+LTE	dbts_c1	B	fill	pred 10083	x0.771	4/12	misses	in	regime misses 0
+LTE	dbts_c1	C1	fill	pred 831	x1.073	8/10	misses, regime miss	in	regime misses 4
+LTE	dbts_c1	C1	latency	pred 419	x1.033	9/10	misses	in	
+LTE	dbts_c1	C1	askLastByte	pred 388	x0.989	9/10	misses	in	
+LTE	dbts_c1	FIT	fill	pred 10083	x0.955	5/12	misses	in	regime misses 0
+LTE	dbts_c1	FIT	zoom	pred 17	x0.047	0/12	reported	below	
+LTE	dbts_c1	SPLIT	fill	pred 831	x1.029	9/10	misses	in	regime misses 0
+# LOSS: 216 loads, VOID 7 {'pilot 3x': 2, 'guard': 5}, guard on view arms 5, digests {'d126fac79a8b2145': 216}, stops 0, rounds 12
+LOSS	dbts_a1	A	fill	pred 976	x0.748	5/12	misses	below	regime misses 0
+LOSS	dbts_a1	A'	fill	pred 976	x0.748	4/12	misses	below	regime misses 0
+LOSS	dbts_a1	B	fill	pred 11905	x1.027	9/12	misses	in	regime misses 0
+LOSS	dbts_a1	C1	fill	pred 976	x0.731	2/12	misses	below	regime misses 0
+LOSS	dbts_a1	C1	latency	pred 826	x0.886	11/12	holds	in	
+LOSS	dbts_a1	C1	askLastByte	pred 791	x0.864	11/12	holds	in	
+LOSS	dbts_a1	FIT	fill	pred 11905	x1.005	10/12	holds	in	regime misses 0
+LOSS	dbts_a1	FIT	zoom	pred 17	x0.040	0/12	reported	below	
+LOSS	dbts_a1	SPLIT	fill	pred 976	x0.617	2/12	misses	below	regime misses 0
+LOSS	dbts_b1	A	fill	pred 6099	x0.342	1/11	misses	below	regime misses 0
+LOSS	dbts_b1	A'	fill	pred 6099	x0.488	2/12	misses	below	regime misses 0
+LOSS	dbts_b1	B	fill	pred 25502	x0.962	12/12	holds	in	regime misses 0
+LOSS	dbts_b1	C1	fill	pred 6099	x0.481	3/12	misses	below	regime misses 0
+LOSS	dbts_b1	C1	latency	pred 1286	x0.930	10/12	holds	in	
+LOSS	dbts_b1	C1	askLastByte	pred 1226	x0.883	10/12	holds	in	
+LOSS	dbts_b1	FIT	fill	pred 5859	x0.838	4/11	misses	in	regime misses 0
+LOSS	dbts_b1	FIT	zoom	pred 966	x1.867	4/11	misses	above	
+LOSS	dbts_b1	SPLIT	fill	pred 6099	x0.337	3/11	misses	below	regime misses 0
+LOSS	dbts_c1	A	fill	pred 1084	x0.675	2/10	misses	below	regime misses 0
+LOSS	dbts_c1	A'	fill	pred 1084	x0.710	2/11	misses	below	regime misses 0
+LOSS	dbts_c1	B	fill	pred 10144	x1.094	10/12	holds	in	regime misses 0
+LOSS	dbts_c1	C1	fill	pred 1084	x0.695	2/11	misses	below	regime misses 0
+LOSS	dbts_c1	C1	latency	pred 782	x0.835	10/11	holds	in	
+LOSS	dbts_c1	C1	askLastByte	pred 752	x0.795	10/11	holds	in	
+LOSS	dbts_c1	FIT	fill	pred 10144	x1.065	8/12	misses	in	regime misses 0
+LOSS	dbts_c1	FIT	zoom	pred 17	x0.042	0/12	reported	below	
+LOSS	dbts_c1	SPLIT	fill	pred 1084	x0.613	0/12	misses	below	regime misses 0
+# CR: 216 loads, VOID 1 {'guard': 1}, guard on view arms 1, digests {'d126fac79a8b2145': 216}, stops 0, rounds 12
+CR	dbts_a1	A	fill	pred 9394	x0.954	12/12	holds	in	regime misses 0
+CR	dbts_a1	A'	fill	pred 9394	x0.952	12/12	holds	in	regime misses 0
+CR	dbts_a1	B	fill	pred 24869	x0.994	12/12	holds	in	regime misses 0
+CR	dbts_a1	C1	fill	pred 9394	x0.955	12/12	holds	in	regime misses 0
+CR	dbts_a1	C1	latency	pred 5763	x1.107	12/12	holds	in	
+CR	dbts_a1	C1	askLastByte	pred 5728	x1.105	12/12	holds	in	
+CR	dbts_a1	FIT	fill	pred 24869	x0.994	12/12	holds	in	regime misses 0
+CR	dbts_a1	FIT	zoom	pred 17	x0.045	0/12	reported	below	
+CR	dbts_a1	SPLIT	fill	pred 9394	x1.190	0/12	misses	above	regime misses 0
+CR	dbts_b1	A	fill	pred 14231	x0.959	12/12	holds	in	regime misses 0
+CR	dbts_b1	A'	fill	pred 14231	x0.960	12/12	holds	in	regime misses 0
+CR	dbts_b1	B	fill	pred 35041	x1.000	12/12	holds	in	regime misses 0
+CR	dbts_b1	C1	fill	pred 14231	x0.958	12/12	holds	in	regime misses 0
+CR	dbts_b1	C1	latency	pred 6611	x1.074	12/12	holds	in	
+CR	dbts_b1	C1	askLastByte	pred 6551	x1.069	12/12	holds	in	
+CR	dbts_b1	FIT	fill	pred 14967	x1.022	12/12	holds	in	regime misses 0
+CR	dbts_b1	FIT	zoom	pred 1255	x0.839	12/12	holds	in	
+CR	dbts_b1	SPLIT	fill	pred 14231	x1.099	12/12	holds	in	regime misses 0
+CR	dbts_c1	A	fill	pred 9789	x0.972	11/11	holds	in	regime misses 0
+CR	dbts_c1	A'	fill	pred 9789	x0.974	12/12	holds	in	regime misses 0
+CR	dbts_c1	B	fill	pred 25599	x0.996	12/12	holds	in	regime misses 0
+CR	dbts_c1	C1	fill	pred 9789	x0.973	12/12	holds	in	regime misses 0
+CR	dbts_c1	C1	latency	pred 5717	x1.084	12/12	holds	in	
+CR	dbts_c1	C1	askLastByte	pred 5687	x1.082	12/12	holds	in	
+CR	dbts_c1	FIT	fill	pred 25599	x0.995	12/12	holds	in	regime misses 0
+CR	dbts_c1	FIT	zoom	pred 17	x0.040	0/12	reported	below	
+CR	dbts_c1	SPLIT	fill	pred 9789	x1.198	0/12	misses	above	regime misses 0
+COUNTS {'holds': 85, 'regime miss': 6, 'reported': 10, 'misses in': 16, 'misses above': 8, 'cannot hold': 4, 'misses below': 12}
+WIRE	LTE	dbts_a1	A	1.36 MB	curve 517 ms	measured 513 ms	x0.99	decode a frame 44 ms
+WIRE	LTE	dbts_a1	A'	1.36 MB	curve 517 ms	measured 496 ms	x0.96	decode a frame 47 ms
+WIRE	LTE	dbts_a1	C1	1.36 MB	curve 517 ms	measured 497 ms	x0.96	decode a frame 52 ms
+WIRE	LTE	dbts_a1	SPLIT	1.36 MB	curve 517 ms	measured 585 ms	x1.13	decode a frame 31 ms
+WIRE	LTE	dbts_a1	B	20.17 MB	curve 10961 ms	measured 11209 ms	x1.02	decode a frame 15 ms
+WIRE	LTE	dbts_b1	A	7.38 MB	curve 1732 ms	measured 1575 ms	x0.91	decode a frame 172 ms
+WIRE	LTE	dbts_b1	A'	7.38 MB	curve 1732 ms	measured 1593 ms	x0.92	decode a frame 160 ms
+WIRE	LTE	dbts_b1	C1	7.38 MB	curve 1732 ms	measured 1957 ms	x1.13	decode a frame 153 ms
+WIRE	LTE	dbts_b1	SPLIT	7.38 MB	curve 1732 ms	measured 1642 ms	x0.95	decode a frame 156 ms
+WIRE	LTE	dbts_b1	B	34.28 MB	curve 21329 ms	measured 21888 ms	x1.03	decode a frame 42 ms
+WIRE	LTE	dbts_c1	A	1.50 MB	curve 548 ms	measured 520 ms	x0.95	decode a frame 47 ms
+WIRE	LTE	dbts_c1	A'	1.50 MB	curve 548 ms	measured 519 ms	x0.95	decode a frame 55 ms
+WIRE	LTE	dbts_c1	C1	1.50 MB	curve 548 ms	measured 534 ms	x0.97	decode a frame 52 ms
+WIRE	LTE	dbts_c1	SPLIT	1.50 MB	curve 548 ms	measured 610 ms	x1.11	decode a frame 34 ms
+WIRE	LTE	dbts_c1	B	17.55 MB	curve 10069 ms	measured 7756 ms	x0.77	decode a frame 15 ms
+WIRE	LOSS	dbts_a1	A	0.67 MB	curve 541 ms	measured 644 ms	x1.19	decode a frame 34 ms
+WIRE	LOSS	dbts_a1	A'	0.67 MB	curve 541 ms	measured 640 ms	x1.18	decode a frame 37 ms
+WIRE	LOSS	dbts_a1	C1	0.67 MB	curve 541 ms	measured 672 ms	x1.24	decode a frame 34 ms
+WIRE	LOSS	dbts_a1	SPLIT	0.67 MB	curve 541 ms	measured 533 ms	x0.98	decode a frame 31 ms
+WIRE	LOSS	dbts_a1	B	10.07 MB	curve 11890 ms	measured 12202 ms	x1.03	decode a frame 16 ms
+WIRE	LOSS	dbts_b1	A	3.66 MB	curve 4311 ms	measured 1983 ms	x0.46	decode a frame 114 ms
+WIRE	LOSS	dbts_b1	A'	3.66 MB	curve 4311 ms	measured 2876 ms	x0.67	decode a frame 114 ms
+WIRE	LOSS	dbts_b1	C1	3.66 MB	curve 4311 ms	measured 2726 ms	x0.63	decode a frame 118 ms
+WIRE	LOSS	dbts_b1	SPLIT	3.66 MB	curve 4311 ms	measured 1936 ms	x0.45	decode a frame 117 ms
+WIRE	LOSS	dbts_b1	B	17.01 MB	curve 25458 ms	measured 24484 ms	x0.96	decode a frame 41 ms
+WIRE	LOSS	dbts_c1	A	0.75 MB	curve 626 ms	measured 666 ms	x1.06	decode a frame 35 ms
+WIRE	LOSS	dbts_c1	A'	0.75 MB	curve 626 ms	measured 685 ms	x1.09	decode a frame 38 ms
+WIRE	LOSS	dbts_c1	C1	0.75 MB	curve 626 ms	measured 688 ms	x1.10	decode a frame 35 ms
+WIRE	LOSS	dbts_c1	SPLIT	0.75 MB	curve 626 ms	measured 568 ms	x0.91	decode a frame 30 ms
+WIRE	LOSS	dbts_c1	B	8.77 MB	curve 10130 ms	measured 11082 ms	x1.09	decode a frame 15 ms
+RATIO	CLEAN	dbts_a1	B/A x3.70	FIT/A x3.70	SPLIT/A x1.07	C1/A x1.00	A 1.70 s	B 6.29 s	FIT 6.29 s
+RATIO	CLEAN	dbts_b1	B/A x1.70	FIT/A x0.47	SPLIT/A x0.93	C1/A x1.05	A 5.85 s	B 9.96 s	FIT 2.76 s
+RATIO	CLEAN	dbts_c1	B/A x2.82	FIT/A x2.82	SPLIT/A x0.91	C1/A x1.00	A 2.33 s	B 6.55 s	FIT 6.55 s
+RATIO	PUB	dbts_a1	B/A x3.51	FIT/A x3.51	SPLIT/A x1.17	C1/A x0.99	A 1.82 s	B 6.40 s	FIT 6.40 s
+RATIO	PUB	dbts_b1	B/A x1.64	FIT/A x0.55	SPLIT/A x0.95	C1/A x0.99	A 6.13 s	B 10.07 s	FIT 3.38 s
+RATIO	PUB	dbts_c1	B/A x2.70	FIT/A x2.71	SPLIT/A x1.11	C1/A x0.96	A 2.46 s	B 6.66 s	FIT 6.66 s
+RATIO	LTE	dbts_a1	B/A x13.99	FIT/A x11.22	SPLIT/A x0.96	C1/A x1.04	A 0.80 s	B 11.22 s	FIT 9.00 s
+RATIO	LTE	dbts_b1	B/A x8.11	FIT/A x1.02	SPLIT/A x0.98	C1/A x0.97	A 2.70 s	B 21.93 s	FIT 2.77 s
+RATIO	LTE	dbts_c1	B/A x9.42	FIT/A x11.67	SPLIT/A x1.04	C1/A x1.08	A 0.83 s	B 7.78 s	FIT 9.63 s
+RATIO	LOSS	dbts_a1	B/A x16.74	FIT/A x16.38	SPLIT/A x0.82	C1/A x0.98	A 0.73 s	B 12.22 s	FIT 11.96 s
+RATIO	LOSS	dbts_b1	B/A x11.74	FIT/A x2.35	SPLIT/A x0.98	C1/A x1.40	A 2.09 s	B 24.53 s	FIT 4.91 s
+RATIO	LOSS	dbts_c1	B/A x15.18	FIT/A x14.78	SPLIT/A x0.91	C1/A x1.03	A 0.73 s	B 11.10 s	FIT 10.80 s
+RATIO	CR	dbts_a1	B/A x2.76	FIT/A x2.76	SPLIT/A x1.25	C1/A x1.00	A 8.96 s	B 24.71 s	FIT 24.72 s
+RATIO	CR	dbts_b1	B/A x2.57	FIT/A x1.12	SPLIT/A x1.15	C1/A x1.00	A 13.64 s	B 35.03 s	FIT 15.29 s
+RATIO	CR	dbts_c1	B/A x2.68	FIT/A x2.68	SPLIT/A x1.23	C1/A x1.00	A 9.52 s	B 25.49 s	FIT 25.48 s
