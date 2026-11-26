@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124, PAGE-RUNS-PROTOCOL and its reviews 2026-11-24.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124, PAGE-RUNS-PROTOCOL and its reviews 2026-11-24, PAGE-RUNS-VERDICT 2026-11-26.
 
 ## Goal
 
@@ -162,6 +162,12 @@ small enough that every open item has an owner and a next step.
    each mutant killed. The cell as served is the exact HTJ2K series (16.9 Mbit a frame, not the view's 3.71) and the
    software paint sets the pace (~200 ms a step), so each cell reads its own ρ (0.21–0.28 on `r20000rtt40`, ~1.2 on
    `r80000rtt40`, measured); on 50 frames P1b cannot decide (the bounded model meets its refutation line). Running.
+   PAGE-RUNS-VERDICT (2026-11-26, `page-runs.md` §Verdict review; recount on
+   `claude/work-ledger:docs/queue/PAGE-RUNS-VERDICT/`): every count recomputed from the raw rows and holding but m1, m5
+   and n1. One blocker: §2(b)'s D5a busy is `VOID` by its A/A (`off` 6, `off′` 8), so with (a) `VOID` the page's rule
+   gives BEACON-Y, provisional; the race is plain beside it. #39 net (a build row, recommended yes); behind first not
+   dropped (a build row, recommended yes, provisional); `engines` 3 the client's bug, 4 `ring` misses the fill on
+   Firefox; `cache` Chromium only, provisional. PAGE-RUNS-VERDICT-FIX and its review appended.
 
 ## Unification (the owner, 2026-11-09)
 

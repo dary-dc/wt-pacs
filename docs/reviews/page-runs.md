@@ -1189,3 +1189,114 @@ S3 prediction read against a former run's medians, not an interleaved control (f
 moved too); `pssByProcess` sampled every 500 ms, so a peak shorter than that is missed (found by the rig's code,
 `cells.mjs` `pssGrowth`); IDB and Cache Storage not run (§5).
 
+
+## Verdict review (PAGE-RUNS-VERDICT, 2026-11-26)
+
+*A session that wrote none of this file, its reviews or fixes, and ran none of its runs (`by:` in
+`claude/work-ledger:docs/queue/PAGE-RUNS-VERDICT.md`). Taken at its need's fallback (11-26 18:00): CACHE-CELLS is
+`blocked` on its Firefox cells, so §5's verdict is Chromium's alone and **provisional**, as that row says. Every count
+recomputed from the raw rows at `origin` by `claude/work-ledger:docs/queue/PAGE-RUNS-VERDICT/recount.sh` (its output
+`recount.txt` beside it), written apart from the rigs' summaries: `transport-flags`' rows as copied here, `report-arms`'
+`r3-*`, `engines`' `3b/m5-firefox.jsonl`, `ask-cells`' three files, `cache-arms`' `chromium-1125/`. 3a's six logs and
+`summary.txt` read, `client/decode/av1-payload.js` `layouts()` read at `claude/engines`. Nothing else run. One blocker,
+in what §2's results let the page carry; PAGE-RUNS-VERDICT-FIX corrects it in place.*
+
+**The counts hold** (*measured*, recomputed), with the exceptions named below as m1 and n1.
+
+* §1: every median, range and rounds-better of both tables; `VOID` 0, 3 and 2 of 98 with the results' reasons; 4 900,
+  1 568 and 4 900 frames exact; every arm twice at each of the seven positions on every form; busiest core 0.86, 0.41,
+  0.47.
+* §2: D5a busy's deliveries per arm (6, 9, 8, 9 page-thread; 18, 18 KEEPALIVE; 15, 16, 16 SESSION), its fill records
+  and late kills; Lbusy's per-load p99 medians and BEACON-H's floor A/A 1.790 ÷ 1.722 = 1.040; C's seven medians and
+  IQRs, `off′` +5.3 ms over 21 of 28 rounds, no long task ≥ 50 ms.
+* §3b: every median, 12 of 12 rounds under 846 MiB (least room 15), A/A 47 MiB and 0.980; 3a's failure set and
+  "0 inter chunks to a `VideoDecoder`" on all six logs; `layouts()` gives a unit with no sequence header `g${depth}`
+  (**source**, the line the results cite).
+* §4: every arm's wait a leg, the A/A median |Δ| and the rounds outside the A/A spread, every cell.
+* §5: L's growth per arm and per process at both sizes, T's 13 failed re-reads (`NotReadableError`, 0 SHA-256 after
+  XXH3), O's medians.
+
+**Blocker**
+
+* **B1 · §2(b), the race, is carried as shown; its cell is `VOID` by its own A/A.** §2's VOID line: "D's A/A `off` =
+  `off′`". D5a busy gave `off` 6 and `off′` 8 of 18. The run named this "VOID by the letter" and left it here; its
+  Summary and `docs/queue/REPORT-RERUNS.md`'s Result then say "(b) the race exists" and "(b) shown" without it. **The
+  verdict: the letter stands.** The rule was written before the delay was drawn and is a poor test for a race cell
+  (two Binomial(18, ≈ 0.4) arms are rarely equal), but rewriting a VOID rule after the rows is what pre-registration
+  forbids, and the run read C's VOID by the same letter. So neither (a) nor (b) is shown by a counted cell, and the
+  page's rule reads: "BEACON-Y wins if neither holds" (`reports.md:159-161`). Read beside, not adopted, the race is
+  plain (*derived*, `recount.txt`): the four page-thread arms lose 17 of 18 reports when the crash is sent under
+  12.5 ms after the fault, 15 of 23 at 12.5–25, 7 of 15 at 25–37.5, 1 of 16 at 37.5–50; KEEPALIVE-* lose none at any
+  delay (from 4.0 ms); SESSION's 7 losses all fall at 4.3–10.6 ms. So the model's "the page is in its task half the
+  time" is the term that failed: at the shortest delays the hand-off is nearly always later than the kill. The fix:
+  §2 Results' Summary and REPORT-RERUNS's Result say (b) is `VOID` by its A/A, read beside, and the carrier by the
+  page's rule BEACON-Y, **provisional**; the rerun the owner may order is named below.
+
+**Minor**
+
+* **m1 · §5 O S1 warm is not `VOID`.** §8.4 (CP:632-634): "W, R and O when the median ratio lies outside 0.90–1.10".
+  The results took the ratio of the two medians (86.9 ÷ 97.5 = 0.892); the median of the six per-round ratios, the
+  reading every other cell here pairs within a round, is 0.945 (cold 0.970). So warm reads: OPFS-ASYNC 0.570 ms a
+  frame, under 1 ms, **held**. No decision moves (cold held already).
+* **m2 · §5 O S3, read against OPFS-SYNC in the same rounds.** OPFS-ASYNC ÷ OPFS-SYNC, median of paired ratios: warm
+  1.517, cold 1.266, against CACHE-RUN's 1.156 and 1.138 (its medians, 749 ÷ 648 and 743 ÷ 653). So warm moved ×1.31
+  beyond what OPFS-SYNC's own move explains, cold ×1.11 (*derived*). The refutation stands for warm on its own; cold
+  sits at the band's edge once the host's drift is taken out. The results' "part is the build or the host" is about a
+  third of warm's move.
+* **m3 · §1 CR: the credit's cap is not what binds WT-TS.** §1 and `transport-stack` §5: the 6 MiB credit "caps a
+  stream at ~63 Mbit/s over 0.8 s". WT-TS's fill moved 107 407 602 B in 35.02 s, 24.5 Mbit/s (*derived*): 39 % of
+  that cap, 51 % of it with the queue's 0.25 s added to the round trip (47.9 Mbit/s). So the one-stream fill is held
+  under the credit by something not read here, and WT-PF's ×0.571 and WT-AF's ×0.676 are measured gains whose
+  mechanism is not shown. PAGES-AFTER-RUNS should carry the ratios, not the cap, as `transport-stack`'s reason.
+* **m4 · §4: by the page's own control clause, the hold acts where the model says it cannot.** `asking.md:138-139`:
+  "A difference there means the hold acts where the model says it cannot." P2 (one way, no turn) gives behind first
+  −1.20 s a leg against centred, more than P1's −0.88 and −0.86; P1c-80 −0.47. So the gain P1 shows is not shown to
+  come from the turn, and the results' *theory* (the window follows the display past the legs) is the open account.
+  P1's decision stands as registered (its order held, 9 of 9 and 10 of 10 rounds), but the page should say its
+  model's mechanism is refuted by three of its cells, not only that the gaps are larger.
+* **m5 · §2 D5a busy, the pooled count is reversed.** "BEACON-* and `off` pooled lose 32 of 72": they deliver 32
+  (6 + 9 + 8 + 9) and lose 40. Fisher's exact test, two-sided, 40 of 72 lost against 0 of 36: p 4.8 × 10⁻¹⁰
+  (*derived*; 32 of 72 would give 1.9 × 10⁻⁷, and the results' 4 × 10⁻⁷ is neither). The direction stands.
+
+**Nits**
+
+* **n1** · §5 T: the 13 failed re-reads fall in 6 rounds of 12 (1, 2, 6, 7, 9, 10), not 7.
+* **n2** · §1 WT-AF AD-LTE (Re-review 2, r2-n1): its band's own sum reaches ×0.58; the median ×0.535 is inside either way.
+* **n3** · §3b: `summary.py` prints `ring` "memory bar and checks missed"; its *checks* include the fill ratio
+  (`summary.py:160`), so the line is the fill's miss, as the results read it: memory held 12 of 12.
+
+**What each run decides.** Every recommendation below says how it serves the value statement; the transport line
+is said where a link is in the cell.
+
+| § | page item | the cell's verdict | the page carries | owner's yes or no |
+| --- | --- | --- | --- | --- |
+| 1 | `transport-stack` 2 | TW ties on AD-PUB (×0.993) and misses its AD-LTE gain (×1.037); PF misses above on AD (×1.55, ×1.70) and below on CR (×0.571); **AF ×0.780 and ×0.535 on AD, ×0.676 on CR** | "a GET path for asks alone is the next structural draft" stands for TW and PF; #39 is net on these cells; CR is answered within WebTransport, by PF at an ask cost and by AF without one; #96 unanswered | **Adopt asks first under a 6 MiB send window (#39) as a product build row: yes** (recommended). AD-PUB's ×0.780 is 0.02 under the rule, its range reaching ×0.802, 14 of 14 rounds better: met by the median, as registered. AF beats PF on both AD forms and costs ×1.18 of PF's fill on CR. The GET path draft waits on that build's own measurement. |
+| 2 | `reports` 3 | (a) `VOID` by its A/A (`off′` 1.053); (b) `VOID` by its A/A (B1), the race plain beside it; Lbusy hit, its A/A passing | BEACON-Y by the page's rule, **provisional** | **Rerun D5a busy alone (18 rounds) with an A/A for a race cell written before its rows** (recommended: `off` and `off′` within Fisher's p ≥ 0.05): yes or no. Without it BEACON-Y stands. C is left as not measurable at this size on this host (two runs, no arm inside its bar). |
+| 3 | `engines` 3, 4 | 3a: the client's layout choice for a unit with no sequence header, not the engine (held on whose fault, missed on the mechanism); 3b: `ring` misses the fill bar on Firefox 160.0.1 (×1.24; ×1.26–1.37 by the rig's two other fill readings, every round over 1.10), memory held | item 3: the client's bug; item 4: `ring` does not qualify on Firefox | None new: the layout fix is a bug with no trade-off, a build row for the next queue (BRIEF-WEEKEND's list); lever 2 stays the owner's. |
+| 4 | `asking` §6 | P1 holds (both leg lengths); P1b cannot decide on 50 frames; P1c and P2, the controls, refuted | the hold is not dropped; behind first waits 0.4–1.2 s a leg less than centred on every live cell; the model's mechanism refuted (m4) | **Behind first as the store's default, a product build row: yes** (recommended, provisional: the page view and the exact series only, W = 15, one volume). |
+| 5 | `cache` 1, 3, 4 | Chromium only: item 1 held (a constant ~87–90 MiB in the renderer at both sizes); item 3 held (no SHA-256 after XXH3; every miss a refused re-read); item 4 held at S1 cold and warm (m1), refuted at S3 warm | **provisional** on the store question (CACHE-DESIGN-1124 never ran) and on Firefox (unrun) | None new; the Firefox cells run where `archive.mozilla.org` can be fetched (§5 Amendment's commands). |
+
+**How it serves the value statement.** §1: "low latency on every jump" during a fill and "a fast full fill" over a
+long round trip, together, from one WebTransport flag. §2: a failed check is only known if its safety report
+arrives; on a busy page only the worker carriers delivered it every time, which a valid rerun would let the page
+act on. §3: the Firefox reader of a colour stack in groups gets frames that fail by name, never wrong ones, until
+the layout fix. §4: a scroll back over a series longer than the window waits less. §5: a store that never hands a
+wrong frame, at a memory cost the bar prices.
+
+**On which links the link, not the decode, binds.** §1: every cell (PUB, LTE, the 0.8 s CR), the decode only checks.
+§4: `r20000rtt40` the link; `r80000rtt40` the software paint nearly sets the step (ρ 0.92). §2, §3 and §5 have no
+link (loopback or a local store): neither binds there.
+
+**Fixtures and limits.** §1 and §4 `dbts_b1` only, as HTJ2K (one DBT volume of one dataset); §2 the grey-16 frame × 32;
+§3a the synthetic `g8x20`, §3b one synthetic 80-frame 3328 × 4096 series; §5 the rig's synthetic 16-bit fields; no
+ultrasound in any cell. One 4-core cloud container without a GPU per run; headless Chromium 158.0.8127.36, Firefox
+159.0.1 and 160.0.1 where §3 and §2 ran them; the userspace relay's models of PUB, LTE and CR **assumed**, not a radio.
+Limits found by this review: §2's A/A rule cannot be met reliably by a race cell (B1, found by the rows: 6 against 8);
+§5's O A/A read two ways (m1, found by recomputing it paired); the CR fill runs under the credit's stated cap (m3,
+found by the rate the rows give). Nothing here is claimed past where each run's host saturated, as each result says.
+
+**Verdict.** One blocker (B1): PAGE-RUNS-VERDICT-FIX corrects §2's Summary and REPORT-RERUNS' Result in place, then
+m1–m5 and n1, each fixed or argued; PAGE-RUNS-VERDICT-FIX-REVIEW after it, both appended to
+`claude/work-ledger:docs/queue-2026-11-24.md`. PAGES-AFTER-RUNS' `reports` page waits on the re-review (or its
+latest); its other five pages may go from this review now. For BRIEF-WEEKEND's table: #39's build row (yes,
+recommended); behind first's build row (yes, recommended, provisional); D5a busy's rerun with a race A/A (yes or no).
