@@ -1,6 +1,6 @@
 # Coordination
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review, its fix and re-review 2026-11-23 (the pass's fix 2026-11-25); the order to decide in 2026-11-23; phase 2's queue (`claude/work-ledger:docs/queue-2026-11-24.md`, PHASE2-PLAN) 2026-11-24, its review (three blockers, the fix loop opened) 2026-11-24. The carry to ultrasound and DBT (`docs/decisions/us-dbt-carry.md`, US-DBT-CARRY) 2026-11-24. The one PCS note (`docs/decisions/pcs-note.md`, PCS-NOTE) 2026-11-24. The phone's reading carried (PHONE-CARRY) 2026-11-24, its review (one blocker, the fix loop opened) 2026-11-24, its fix 2026-11-24, its re-review (no blocker open) 2026-11-24. Every page passed (PAGES-PASS) 2026-11-25, its review (four blockers, the fix loop opened), its fix and re-review (no blocker open) 2026-11-25. The carry's review, fix and re-review (US-DBT-CARRY-REVIEW, -FIX, -FIX-REVIEW) 2026-11-25. The pages read against the runs (PAGES-AFTER-RUNS) 2026-11-26.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17. Decision pages opened 2026-11-19; `lab/`'s list 2026-11-20; the final state's name 2026-11-22, its review, fix and re-review 2026-11-23; the repository page 2026-11-22; the `unified-to-main` page 2026-11-23; the pages' review, its fix and re-review 2026-11-23 (the pass's fix 2026-11-25); the order to decide in 2026-11-23; phase 2's queue (`claude/work-ledger:docs/queue-2026-11-24.md`, PHASE2-PLAN) 2026-11-24, its review (three blockers, the fix loop opened) 2026-11-24. The carry to ultrasound and DBT (`docs/decisions/us-dbt-carry.md`, US-DBT-CARRY) 2026-11-24. The one PCS note (`docs/decisions/pcs-note.md`, PCS-NOTE) 2026-11-24. The phone's reading carried (PHONE-CARRY) 2026-11-24, its review (one blocker, the fix loop opened) 2026-11-24, its fix 2026-11-24, its re-review (no blocker open) 2026-11-24. Every page passed (PAGES-PASS) 2026-11-25, its review (four blockers, the fix loop opened), its fix and re-review (no blocker open) 2026-11-25. The carry's review, fix and re-review (US-DBT-CARRY-REVIEW, -FIX, -FIX-REVIEW) 2026-11-25. The pages read against the runs (PAGES-AFTER-RUNS) 2026-11-26, `reports` (PAGES-AFTER-RUNS-REPORTS) 2026-11-26.
 
 ## Goal
 
@@ -93,7 +93,10 @@ small enough that every open item has an owner and a next step.
   kept with both of §1's rules, #39 yes as a build row, #96 held, CR not the credit's cap), `engines` (item 2 replaced
   by the client's layout fix, items 3 and 4 done, contradiction 6 closed), `asking` (P1 holds, behind first a build
   row, provisional; the controls refute the model's mechanism), `cache` (Chromium only, provisional; the cache off);
-  r-m1, r-n1, r-n2 closed. `reports` waits on PAGE-RUNS-VERDICT-FIX-REVIEW.
+  r-m1, r-n1, r-n2 closed. `reports` waits on PAGE-RUNS-VERDICT-FIX-REVIEW. *Done 2026-11-26*
+  (PAGES-AFTER-RUNS-REPORTS): `reports` read against `page-runs.md` §2 Results and its verdict, in place, dated: both
+  reruns `VOID` by their A/A, so BEACON-Y by §6's rule, provisional; item 3 asks a D5a busy rerun with a race A/A
+  (yes, recommended), C not rerun; §6's rule names no carrier if only (b) holds (the page's reading).
 
 ## Open (ordered)
 
