@@ -185,7 +185,8 @@ place, 2026-11-24), PCS-NOTE-FIX-REVIEW (§Re-review, 2026-11-24: no blocker ope
 > ingest codes the view with any Q from 1 to 63 and any group length G ≥ 1; on DBT at Q 8 a group of 8 saved at most
 > 1.2 % of the view's bytes against G 1 on three volumes (nothing on one), and on one volume longer groups saved 4–5 %
 > but decoded about 20 % slower. On ultrasound at Q 8, a group of 16 saved 23 % on two public sound sweeps (prostate,
-> not breast) and 8–72 % on two lossy-sourced clips; we have no measurement on a lossless-sourced breast clip.
+> not breast) and 8–72 % on two lossy-sourced clips, which is not a result (lossy-sourced clips enter no verdict); we
+> have no measurement on a lossless-sourced breast clip.
 >
 > 1. Will the parser's output carry the per-frame window? For enhanced multi-frame objects, it sits inside
 >    (5200,9229) or (5200,9230) → Frame VOI LUT Sequence (0028,9132). The ingest reads top-level keys today.

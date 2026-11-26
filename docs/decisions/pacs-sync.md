@@ -59,7 +59,8 @@ Measured beside it (#223, one CT fix): E 35 KB, B 10–11 KB, a gap of one round
 E. Over rsync (PR 417, **derived** from #234's estimates by #223's rule, as its review corrected it: `rsync-updates.md`
 §6.1, PR 417 §SYNC-RECONCILE-REVIEW B1): E (P4) "only if the metadata call uses zstd (`--zc=zstd`) and rsync's file
 list compresses to ≤ 34 KB for ct and ≤ 221 KB at 2 000 instances" on rural ADSL at 0.5 Mbit/s; else P3. With zlib
-per file, P3 on satellite too (P4 − P3 0.9–1.7 s for ct at 2 Mbit/s). M-R2 and M-R3, not run, decide.
+per file, P3 on satellite too above 210 KB (P4 − P3 0.9–1.7 s for ct at 2 Mbit/s; "above 210 KB" from §6.1's table
+row, added 2026-11-26, README §Pass re-review r-n1). M-R2 and M-R3, not run, decide.
 
 **The second writer** (#220 §1, **theory**). With a PACS edit, A refuses what E would overwrite: "every two-way shape
 … silently overwrites their edits on the next PCS change" (#222 §On one screen). P5 (no PACS edits) asks nothing new
