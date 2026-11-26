@@ -1,6 +1,6 @@
 # Codecs and lab
 
-Last verified 2026-11-20 (PR state, branches, and the transport and HTJ2K rows of
+Last verified 2026-11-25 (owed runs: the session cost); 2026-11-20 (PR state, branches, and the transport and HTJ2K rows of
 `claude/work-ledger:docs/queue-2026-11-14.md` and `queue-client-2026-11-14.md`); the AV1 findings as of their dates.
 The optimal-quality view's measured state, the study branches, the harvest of 2026-11-10, the owner's questions and
 decisions: [`../av1/README.md`](../av1/README.md) §The optimal-quality view; HTJ2K at screen resolution:
@@ -69,6 +69,16 @@ measured, and every result names its fixtures.
 
 ## Owed runs
 
+* **The cost of a reading session** ([`../server/session-cost.md`](../server/session-cost.md), pre-registered
+  2026-11-24): server CPU, peak memory and wire bytes a session, arms A, A+C1, B, FIT on CLEAN and CR; its review,
+  then SESSION-COST-RUN and -VERDICT (`claude/work-ledger:docs/queue-2026-11-24.md`).
+  Reviewed 2026-11-24 (PR 441's body): four blockers, among them §3's ask counts against the product's own code and
+  PR 446's reversal on `dbts_b1`. Fixed in place 2026-11-24 (§9): counts from the product's code, two tables (the
+  tip's and PR 446's), FIT's *W* both ways, claims against the frame retrieve only. Re-reviewed 2026-11-24 (PR 441's §Re-review): no
+  blocker open, the counts reproduced at both commits; r-m1 (CR's CPU multiplier per form) for the run. Run 2026-11-24
+  (SESSION-COST-RUN, §9's amendment and §Results; rows on `claude/session-cost-rig`): 147 sessions; the view's
+  asks on `dbts_b1` and `dbts_c1` a third to two thirds of T1's, so B is the dearest arm everywhere; lowest bytes A
+  on `dbts_a1` and `dbts_c1`, FIT on `dbts_b1`; exact-frame CPU and every peak RSS above their bands. Verdict review 2026-11-25 (§Verdict review): the table and every lowest arm reproduced; B1, the CPU claim against the frame retrieve is CLEAN's only; m1, the bytes are delivered, not sent (CLEAN's FIFO overflowed). Verdict fix 2026-11-25 (§Verdict fix): CPU claim scoped to CLEAN, delivered bytes with the overflow as an upper bound per cell, CR's CPU read per form; no lowest arm moves. Verdict re-review 2026-11-25 (§Verdict re-review): B1 closed; R-B1, CR `dbts_a1` A's CPU written held on the reading that misses it; r-m1, the view's rate tops at 7.1 ms a MB, not 7.0; Verdict fix 2 2026-11-25 (§Verdict fix 2): R-B1 and r-m1 fixed; r-n3 found §5's HTTP/2 rate is a payload MB and its rows' median 100 ms, not 90, so CR `dbts_a1` A against the frame retrieve is not shown (not "not met"); every CLEAN verdict stands. Verdict re-review 2 2026-11-25 (§Verdict re-review 2): no blocker open; §5's 90 ms is H2-fill's median, H2-frame's 100, so "not shown" stands; r2-m1 (the moved verdict's marker and the pre-registered reading beside it) and two nits left for PAGES-AFTER-RUNS.
 * **G at equal quality** (`claude/av1-groups`): shard 2 (`dbts_a1`, `dbts_c1`, TRUS; about 4.3 h on one 4-core host)
   and the collect without `--partial`; the settings shard S2 (A, C cut); a structure-only source with no coding error
   of its own; a finer ladder at Q 8–12. Decode time in order matters more than jumps. No G is decided for DBT.
