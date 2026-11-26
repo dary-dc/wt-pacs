@@ -10,7 +10,11 @@ median below in seconds is the prediction × its median ratio); [`../transport/l
 `claude/phone-run:docs/phone-rows/next-round-results.md` §Cell 2. PHONE-READ-CODE-CHECK was done 2026-11-23 07:34
 (`claude/phone-run` `2b242245`): no load set apart, no result corrected (corrected here 2026-11-23, `README.md` §Review
 m3). Every row of this question is done; the recommendation rests
-on no phone number alone, so it is **not provisional**.
+on no phone number alone, so it is **not provisional**. Read again 2026-11-26 by PAGES-AFTER-RUNS against the second
+run: `claude/delivery` `22987dc86` (`delivery-comparison.md` §Amendment 2, DELIVERY-RUN-2's §Results 2,
+DELIVERY-VERDICT-2's §Verdict review 2 and its §Re-review, no blocker open) and `claude/session-cost` `f7485a2d9`
+(`docs/server/session-cost.md` §Results, after its two verdict re-reviews); §2's *Read against the second run*
+carries them.
 
 Labels: **source**, **theory**, **derived**, **measured**; *the view* is the optimal-quality AV1 series, *the exact
 series* its HTJ2K pair ([`../glossary.md`](../glossary.md)). Arms: **A** the view alone; **B** the exact series alone;
@@ -34,12 +38,36 @@ with C1's wire time recorded, a lossy-link model registered before it, and the r
 | # | the owner's yes or no | recommended | a yes changes | a no leaves |
 | ---: | --- | --- | --- | --- |
 | 1 | A + C1 stays the delivery on every link profile and device class | **yes** | nothing in the product; §3's table becomes the record of where B would fill faster | the arm open on every link page |
-| 2 | B (the exact series alone) as a default where *G* exceeds the class's *G*★ (fast clean links) | **no, for now**; the same answer as [`phone-decode-route.md`](phone-decode-route.md) item 4 | — | B's faster fill on those links (B ÷ A 0.51–0.77 on the round's phone, **measured**; on this host's software decode A was faster everywhere) not taken until that page's item 3 (the switch and the split, cloud) has run |
+| 2 | B (the exact series alone) as a default where *G* exceeds the class's *G*★ (fast clean links) | **no, for now**; the same answer as [`phone-decode-route.md`](phone-decode-route.md) item 4 | — | B's faster fill on those links (B ÷ A 0.51–0.77 on the round's phone, **measured**; on this host's software decode A was faster everywhere) not taken until that page's item 3 (the switch and the split, cloud) has run. *Run 2026-11-25:* the switch picked the view in every load and the split's predicted gain did not show (its lab fill ×1.15–1.25 of A on CR, where *x* is 0), so this answer stands |
 | 3 | C2 (the whole exact series after the view) as an arm the product offers | **no** | — | C2 stays a lab lever (`exactFill=1`): its exact series ends no sooner than B's alone (span ×0.995–1.002 of B's prediction on every clean form, **measured**, after A's fill) at 1.07–1.22× B's bytes (**derived**) |
-| 4 | The next delivery run (phase 2, amendment 28 rule 2, no product code): C1's ask → last byte recorded (§5 of the protocol, not in the rows); LTE and LOSS predicted by a goodput that depends on the fill's bytes, registered from K3 before any row; the relay on a host or container of its own, the guard kept; DELIVERY-FIT-ARM interleaved as the HTJ2K-only control | **yes** | PHASE2-PLAN queues protocol amendment, build, review, run | lossy links keep no model, C1's short-trip excess no cause, 52 of 750 loads voided by the rig |
+| 4 | The next delivery run (phase 2, amendment 28 rule 2, no product code): C1's ask → last byte recorded (§5 of the protocol, not in the rows); LTE and LOSS predicted by a goodput that depends on the fill's bytes, registered from K3 before any row; the relay on a host or container of its own, the guard kept; DELIVERY-FIT-ARM interleaved as the HTJ2K-only control | **yes** (done: DELIVERY-RUN-2 2026-11-25, verdicted 2026-11-26; below) | PHASE2-PLAN queues protocol amendment, build, review, run | lossy links keep no model, C1's short-trip excess no cause, 52 of 750 loads voided by the rig |
+
+**Read against the second run** (2026-11-26, PAGES-AFTER-RUNS; **measured** on one host, two Williams periods a cell,
+216 loads, `VOID` 51 of 1 080; 85 of 125 judged hold, 36 miss, 4 cannot hold; every frame exact). The recommendation
+stands, items 1–4 unchanged in their answers. **Is a view needed** (§Verdict review 2): on every lossy and
+long-round-trip profile measured, yes (B ÷ A ×2.7–2.8 on CR, ×9.4–14.0 on LTE, ×15.2–16.7 on LOSS, `dbts_a1` and
+`dbts_c1`); on clean links below a class's *G*★ yes, above it no; and no for a volume whose frames are larger than the
+viewport, where FIT fills first (`dbts_b1`, 1 of 19 DBT volumes upright: FIT ÷ A ×0.47 on CLEAN, ×0.55 on PUB, a miss
+above its band there). So PROGRAM-CLOSE order 3's "no view needed" is not found, and the rows held on it stay held,
+the owner's. **FIT**, the HTJ2K-only control: an exact first picture on `dbts_b1` in ×0.47–0.55 of A's time on the
+clean short-round-trip forms, ×1.12 on CR, ×2.35 on LOSS (A having missed low), at ×1.25 A's bytes; on the level-0
+volumes it is B (×2.7–16 A's fill); LTE's ×1.02 is a ratio on this host, FIT missing in band there, not a carry
+(§Re-review n1). It does not replace A + C1 on wire-bound links. **C1**: ask → last byte now recorded and held
+(×1.08–1.17 on CLEAN and PUB); the short-round-trip excess lies after the last byte, a per-frame cost of 47–56 ms
+on `dbts_a1` and `dbts_c1` and 106–112 ms on `dbts_b1`, the same from CLEAN to CR (the verdict's m2), not a round
+trip. **The lossy forms**: A2.4's curve held the wire for the views' bytes on LTE (dial → last byte ×0.91–1.13), but
+no LTE view fill carries to a device class (four of five holds are regime misses, this host sits at the crossover);
+LOSS `dbts_a1` and `dbts_c1` missed low on the one-group decode term, their wire ×1.06–1.24 of the curve; LOSS
+`dbts_b1` missed on both terms (its wire 1.98 s against the curve's 4.31). **Session cost**
+(SESSION-COST-RUN, CLEAN and CR, **measured**): the lowest arm a session is A on `dbts_a1` (4.83 MB, ×14.6 under B)
+and `dbts_c1` (11.12 MB, ×8.1), FIT on `dbts_b1` (84.98 MB, ×3.4); B, and FIT where it is B, is the dearest on every
+volume; against a DICOMweb frame retrieve (*theory*), lower server CPU is shown on CLEAN `dbts_a1` only, not shown on
+CR.
 
 **How it serves the value statement** (amendment 27 item 7). "The lowest server and network cost per reading
-session" is item 1: A sends 0.07–0.22 of B's bytes at Q 8 (**measured**, three volumes). "A fast first picture, a fast
+session" is item 1: A sends 0.07–0.22 of B's bytes at Q 8 (**measured**, three volumes); a session costs least with A
+on two volumes and with FIT on the one whose frames exceed the viewport, and most with B (SESSION-COST-RUN, added
+2026-11-26). "A fast first picture, a fast
 full fill" is where A loses on fast clean links (item 2) and wins on every wire-bound one (§3); item 4 measures the
 links where that turns. "Every frame the reader asks to see exactly is the original, bit for bit, and checked" is C1:
 an exact frame in 0.19–0.46 s on short round trips and 6.2–7.1 s at 800 ms (**measured**, this host).
@@ -89,7 +117,9 @@ against DELIVERY-FIT-ARM, the HTJ2K-only control of phase 2), named here beside 
 ## 4 · Where it holds
 
 **Fixtures and limits.** Three DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`; 56, 50, 69 frames), the
-view at Q 8 G 8 only; one 4-core cloud container (Intel Xeon @ 2.10 GHz) without a GPU, software decode, Chromium 153
+view at Q 8 G 8 only; one 4-core cloud container (Intel Xeon @ 2.10 GHz; the second run's @ 2.30 GHz, Chromium 158,
+two periods of 12 rounds, 1 080 loads, 51 `VOID`, only `dbts_b1` with a level to gain on an assumed 1080 × 2100
+viewport) without a GPU, software decode, Chromium 153
 headless; a userspace TUN relay at ≤ 90 Mbit/s, its forms scaled from the profiles and assumed, none a radio; one
 period of 10 rounds a cell, 750 counted loads, 61 `VOID`. The phone beside it: one premium phone, one home link, one
 evening (cell 2). No breast ultrasound cine in the run (`usb_cine` is in `docs/FIXTURES.md`, lossy-sourced, not one of
@@ -115,7 +145,9 @@ being measured, not a phone's. The TUN at 100 Mbit/s; nothing is claimed above 9
 **Where the link, not the decode, binds** (amendment 28 item 3.7): B on every link below its class's *G*★, so on
 public Wi-Fi, LTE, a far stream and the median home's p10 for every class; A on LTE, a far stream, LOSS-like links and
 public Wi-Fi below ~83 Mbit/s (`link-profiles.md` §2's crossover for `dbts_b1` on the round's phone); C1's exact frame
-on every link (round trips and slow start on an idle session). The decode binds A on clean links above that crossover.
+on every link (round trips and slow start on an idle session). The decode binds A on clean links above that crossover. *Measured 2026-11-25* (DELIVERY-RUN-2, regimes that held): the link binds B and FIT on
+every form, A on CR and LOSS, C1's exact frame and FIT's zoom on every form; on LTE the view sits at this host's
+crossover, so neither side is said to bind there.
 Transport rows are lowered by none of this.
 
 **US and DBT stacks** (amendment 27 item 6). DBT stacks: measured on three volumes, carried to the 19 by bytes and to
@@ -141,14 +173,27 @@ phase 2).
 * No *G*★ is known for US: a clip's frames change the view's ratio and its decode time. Found by this page's reading
   of the model (DELIVERY-PAGE, **theory**); US-DBT-CARRY is the row that would measure it.
 * Lossy links have no model: one goodput per form does not predict a fill. Found by DELIVERY-RUN (K3's line gave
-  negative starts, amendment A2; §Results: the first megabytes go at ~3× the late ones).
+  negative starts, amendment A2; §Results: the first megabytes go at ~3× the late ones). *Corrected 2026-11-26*
+  (DELIVERY-RUN-2, DELIVERY-VERDICT-2): A2.4's curve holds the wire for the views' bytes on LTE (×0.91–1.13), but no
+  LTE view fill carries (regime misses at this host's crossover); on LOSS the wire is not a function of the bytes
+  alone (`dbts_b1`'s 8 view frames came in at 1.98 s against the curve's 4.31), and a one-unit fill is bound by its
+  last byte plus about one frame's decode at the lone time, which K2 does not measure (*theory*, the verdict's B2).
 * C1's short-round-trip excess (+43 to +117 ms) grows with the frame's bytes and the round trip, not fixed; its wire
   and decode parts cannot be split because §5's ask → last byte is not recorded. Found by DELIVERY-VERDICT-REVIEW (m2).
+  *Corrected 2026-11-26:* recorded in the second run, ask → last byte holds; the excess is after the last byte
+  (decode, check, paint), 47–56 ms or 106–112 ms by volume and the same on every form, so it grows with the frame and
+  not with the round trip; its parts after the last byte are not isolated. Found by DELIVERY-RUN-2 and
+  DELIVERY-VERDICT-2 (m2).
 * C2's span was judged with the latency band; under the fill band LOSS `dbts_b1` misses; this page uses the fill
   band. Found by DELIVERY-VERDICT-REVIEW (m1).
 * The relay's guard voided 52 loads, 51 on decoding view arms, with the relay already pinned to its own core: a pinned
   core alone did not keep it; the voided fills were not faster (median ×0.980 against ×1.000). Found by DELIVERY-RUN
-  (A1), DELIVERY-VERDICT-REVIEW (m5) and RESULTS-BRIEF (§1.12).
+  (A1), DELIVERY-VERDICT-REVIEW (m5) and RESULTS-BRIEF (§1.12). In the second run, the browser kept to cores 2–3 (no
+  process escaped), the guard still voided 44 loads, 34 on view arms, none over 25 % of a cell; read with the guard
+  ignored, 93 of 125 hold instead of 85 and none moves the other way. Found by DELIVERY-RUN-2 and DELIVERY-VERDICT-2.
+* FIT misses above on PUB `dbts_b1` (×1.19, 0 of 12 in band; the 50 prefix asks at 20 ms a likely reading, *theory*),
+  and its zoom misses above on LTE and LOSS (×1.78, ×1.87): the idle session does not keep its window over 1 s on
+  lossy forms. SPLIT's predicted gain did not show (×1.15–1.25 of A on CR, where *x* is 0). Found by DELIVERY-RUN-2.
 * The view's per-frame decode at two decoders was ~2.1× the lone-decoder figure, cause not established. Found by
   DELIVERY-RUN (A3).
 * A container restart cut CLEAN's first pass at 89 loads, kept in no bar. Found by DELIVERY-RUN (A5).
@@ -177,10 +222,15 @@ C2 adds the exact series after the view, so its exact frames end later than B's 
 
 * **The switch test** ([`phone-decode-route.md`](phone-decode-route.md) item 3) showing that a fill that measures its
   own first group switches to B without a slower fill on wire-bound links: then B on fast clean links stops costing
-  seconds anywhere and item 2 is asked again with its byte price.
+  seconds anywhere and item 2 is asked again with its byte price. *Run 2026-11-25:* the switch picked the view in
+  every load, the split cost ×1.15–1.25 of A on CR; not shown, so item 2 is not asked again.
 * **A lossy-link model that holds** (item 4): then *G*★ reaches LTE and 5G, where today no arm is carried by the model.
+  *Run 2026-11-25:* the curve holds LTE's wire, not its fills (regime misses) nor LOSS's; still no arm carried there.
 * **DELIVERY-FIT-ARM** (HTJ2K only, each frame first at the resolution level that fits the screen): if it fills as fast
-  as A on wire-bound links with B's exactness, it replaces A + C1 with an arm that is never unchecked.
+  as A on wire-bound links with B's exactness, it replaces A + C1 with an arm that is never unchecked. *Run
+  2026-11-25:* it does not on wire-bound links (×1.12 on CR, ×2.35 on LOSS); it fills first on `dbts_b1`'s clean short
+  round trips (×0.47–0.55). A FIT default for frames larger than the viewport would be a new item, named for the
+  owner through BRIEF-WEEKEND, not answered here.
 * **One middle-band phone's cell 1 and 2** (a real-device cloud, [`phone-decode-route.md`](phone-decode-route.md) item
   8): it places the middle row of §3 on a measurement instead of a range ×3.6–5.2 wide.
 
