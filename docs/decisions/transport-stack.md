@@ -6,8 +6,9 @@ the transport's rows, from pushed results only; nothing run. Inputs at: `claude/
 `lab/transport-arms/rows/`), `origin/claude/unified` (`docs/transport/design.md`, `network-mode.md`,
 `transport-conclusions.md`, `docs/lines/codecs.md` §Open 6 and 13), `claude/docs-client`
 (`docs/client/evidence/congestion-controller.md`, `lossless-after-a-failed-ask.md`, `hidden-page-decode.md`,
-`docs/client/design.md` §Open contradiction 3), PR 254's index (closed 2026-11-18, its body kept). § numbers below are
-`stacks.md`'s unless another file is named.
+`docs/client/design.md` §Open contradiction 3), PR 254's index (closed 2026-11-18, its body kept); and, read
+2026-11-26 by PAGES-AFTER-RUNS, `claude/page-runs` `b38906f58` (`docs/reviews/page-runs.md` §1, §Transport: results,
+§Verdict review). § numbers below are `stacks.md`'s unless another file is named.
 
 ## 1 · The question
 
@@ -24,17 +25,34 @@ owner's because each changes what the product ships, not a setting a run can pic
 
 **Keep WebTransport as the one wire and build no GET path now. Queue one cloud run that asks whether WebTransport
 itself, with flags it already has, gets the two wins the fetch arms showed (an ask during a fill; CR's credit-bound
-fill), before any second wire is considered.**
+fill), before any second wire is considered.** The run is done and verdicted: below the table, *Read against the
+run*.
 
 | # | the owner's yes or no | recommended | a yes changes | a no leaves |
 | ---: | --- | --- | --- | --- |
-| 1 | No GET path in the product now; WebTransport stays the one wire | **yes** | nothing built; the fetch arms stay lab arms on `claude/transport-arms` (PR 403) | a GET path designed as a structural draft PR (`delivery-prior-art.md` §8 *What the server would need*) |
-| 2 | Queue a cloud run: cell AD and CR, WT-TS with `--send-window-follows-cwnd` (the one queue) and with `per-frame` streams, against H3-fill and H3-frame as reference, pre-registered by a session that runs none of it | **yes** | one protocol row and one run row in the next queue; the rig and arms exist | the fill shape's 0.50–0.68 ask unexplained, and whether WT can match it unknown |
+| 1 | No GET path in the product now; WebTransport stays the one wire | **yes** (kept 2026-11-26, PAGES-AFTER-RUNS: asks first met the fetch arms' ask within WebTransport; below) | nothing built; the fetch arms stay lab arms on `claude/transport-arms` (PR 403) | a GET path designed as a structural draft PR (`delivery-prior-art.md` §8 *What the server would need*) |
+| 2 | Queue a cloud run: cell AD and CR, WT-TS with `--send-window-follows-cwnd` (the one queue) and with `per-frame` streams, against H3-fill and H3-frame as reference, pre-registered by a session that runs none of it | **yes** (done: TRANSPORT-FLAGS-RUN 2026-11-24, with asks first added as WT-AF; verdicted 2026-11-26) | one protocol row and one run row in the next queue; the rig and arms exist | the fill shape's 0.50–0.68 ask unexplained, and whether WT can match it unknown |
 | 3 | The WebSocket stays built and off, a fallback only (decided 2026-10-02, kept 2026-11-11) | **yes** | nothing; its wins recorded (§3) | a WebSocket-first or a race design, against its ×1.35–1.70 ask after a 5 s silence |
 | 4 | Host networking stays a proposal: `deploy/compose.yml` keeps publishing until `network-mode.md` §6's check runs from a client off the host | **yes** | the check queued for a session with two hosts (the cloud's one container cannot place a client off the host) | an override with `network_mode: host` written now, unmeasured in a forwarded mode |
 | 5 | The initial window stays quinn's 12 000 B; 32 packets (38 400 B) stays opt-in (PR 37: close) | **yes** | PR 254's #37 answered no | 38 400 B the default, on −28 to −33 % at one RTT and a slowdown under BBR nobody explained |
 | 6 | PR 254's other held defaults, as the [appendix's table](#appendix-the-servers-held-defaults) reads them | **as that table** | each line's answer recorded | the index's open column stays open |
 | 7 | `bbr` is **not** withdrawn by loads 6 and 13; it stays an option, never the default | **yes** | contradiction 3's second half closes | `bbr` withdrawn from what the next runs try (the 2026-11-11 Amendment's rule read literally) |
+
+**Read against the run** (2026-11-26, PAGES-AFTER-RUNS, from `page-runs.md` §Verdict review §1, whose counts hold,
+recomputed; **measured**, `dbts_b1` as HTJ2K, 14 rounds a cell, ratio to WT-TS in the same round). The one queue's
+window (TW) ties on AD-PUB (×0.993) and misses its AD-LTE gain (×1.037 against ×0.70–0.88); `per-frame` streams (PF)
+are worse on AD (×1.55, ×1.70) and answer CR (×0.571); **asks first under a 6 MiB send window (WT-AF, #39) is
+×0.780 and ×0.535 on AD and ×0.676 on CR**, 14 of 14 rounds better on AD-PUB and CR, 13 of 13 on AD-LTE. AD-PUB's
+×0.780 is 0.02 under the rule's ×0.8, its range reaching ×0.802: met by the median, as registered. By `page-runs.md`
+§1's own rules both readings stand together (README §Pass re-review r-m1): rule (1), TW and PF above ×0.8, keeps "a
+GET path for asks alone is the next structural draft" for those two flags; rule (3), WT-AF at ≤ ×0.8, keeps "no GET
+path" open, on a `lab-levers` build, not a flag the default build has. So item 1 stays **yes** and the GET path
+draft waits on the #39 build's own measurement; item 2 is done; the appendix's #39 becomes a **yes** (a product build
+row, the verdict's recommendation); #96 stays held (its lever is not in the rig). CR's reason is the ratios, not the
+credit's cap: the one-stream fill ran at 24.5 Mbit/s, 39 % of the cap (§5, *corrected*).
+
+**How it serves the value statement** (amendment 27 item 7): "low latency on every jump" during a fill and "a fast
+full fill" over a long round trip come together from one WebTransport flag (#39), on the one wire item 1 keeps.
 
 ## 3 · The options
 
@@ -88,7 +106,7 @@ WT-TS's own times against §5.3's predictions (§6.1, §6.6; **measured** agains
 PAGES-PASS): CLEAN 9.92 s, PUB 10.03 s, AD on PUB (743 ms against ~0.8 s) and LTE (24.0 s against 20–30 s) held,
 FF and AA not judged against an absolute; CR 35.0 s against ~20 s, AD on LTE 5 287 ms (5 664 the first run) against ~1.4 s, LOSS 24.4 s against ~46 s,
 HOL's p99 4.74 s against 1.4 s and ENT 176 s against ~9.6 s (×18) **missed**. §5's ~63 Mbit/s cap is the arithmetic behind
-CR's ~20 s; AD's mechanism is read from the ratios.
+CR's ~20 s, and it is not what binds WT-TS (§5, corrected 2026-11-26); AD's mechanism is read from the ratios.
 
 **Where the link, not the decode, binds** (2026-11-25, PAGES-PASS). This page's question is the link's: a stack, a
 window or a controller moves a fill or an ask only where the wire, not the phone's decode, sets it. On this rig the
@@ -109,8 +127,10 @@ marked:
   decode); ENT's model decides nothing here (the table below).
 * **LTE, one far stream (27–85, lower quartile 7–26):** the wire binds A (2.2–6.9 s), B (10–32 s) and C1 (~0.5 s,
   1–2.8 s behind a fill); every arm is not conclusive on LTE's fill (**measured**).
-* **LTE with a full queue (~0.8 s RTT, cell CR):** the link and the one stream's credit bind (WT-TS 35.0 s,
-  **measured**; the ~63 Mbit/s cap, **derived**, §5); no decode enters.
+* **LTE with a full queue (~0.8 s RTT, cell CR):** the link binds (WT-TS 35.0 s, **measured**); no decode enters.
+  Not the stream credit's ~63 Mbit/s cap: WT-TS's fill ran at 24.5 Mbit/s, 39 % of it, and what holds it there is
+  not read; PF's ×0.571 and AF's ×0.676 are measured gains whose mechanism is not shown (corrected 2026-11-26, PAGES-AFTER-RUNS, `page-runs.md`
+  §Verdict review m3; it read "the link and the one stream's credit bind ... the ~63 Mbit/s cap").
 * **LOSS-like links (GE 1 %):** the wire binds A and B ([`delivery-per-link.md`](delivery-per-link.md) §4); the
   controller's loss slope sets it, not the framing (§5).
 * **5G sub-6 (> 100, a target):** the decode binds A; the wire binds B (1.1–3.0 s at a PHY of 284–771); goodput,
@@ -137,7 +157,9 @@ Read by its own §1 rules it bears on three lines here, none changed by this fix
 are both above ×0.8 on AD … the page's next step stands, 'a GET path for asks alone is the next structural draft'"),
 which reopens item 1; "#39: net on these cells" (WT-AF ×0.780, ×0.535 on AD, a CR fill of ×0.676), against the
 appendix's "hold for item 2's run"; and "CR is answered within WebTransport" by `per-frame` (×0.571). #96 "is not
-answered". PAGES-AFTER-RUNS carries the verdict into items 1 and 2, #39 and §6.
+answered". PAGES-AFTER-RUNS carries the verdict into items 1 and 2, #39 and §6. *Carried 2026-11-26* (§2, *Read
+against the run*): rule (1) of the same paragraph reopens item 1 for TW and PF, and its rule (3) keeps "no GET path"
+open on WT-AF's build; both are said there.
 
 **The stack per link profile** (**derived** from §3's table; LINK-TARGETS' profiles, `link-profiles.md`):
 
@@ -146,9 +168,9 @@ answered". PAGES-AFTER-RUNS carries the verdict into items 1 and 2, #39 and §6.
 | home Wi-Fi, public Wi-Fi, 5G sub-6, clean | the wire or the phone's decode; every stack ties on the fill | WebTransport: no stack gains; WT and H3 keep their window through a reader's pause (AA at 5 s) |
 | enterprise Wi-Fi | reordering | not decided: ENT's model is uniform jitter, unbalanced, its fill ×18 the prediction (§6.3) |
 | LTE, one far stream, 0.1 % loss | the controller's loss slope | WebTransport: every arm not conclusive on the fill (LTE) |
-| LTE with a full queue (~0.8 s RTT) | the 6 MiB stream credit | H3-frame, by escaping the one stream's credit; WT's own `per-frame` flag measured ×0.571 of WT-TS on CR, unverdicted (item 2's run) |
+| LTE with a full queue (~0.8 s RTT) | the one stream, below its credit's cap (24.5 Mbit/s against ~63; what holds it not read) (corrected 2026-11-26, PAGES-AFTER-RUNS, m3; it read "the 6 MiB stream credit") | within WebTransport: `per-frame` ×0.571 of WT-TS, asks first ×0.676; H3-frame ×0.620 (verdicted 2026-11-26) |
 | 5G mmWave | the stream credit or the decode | not measurable here (above 90 Mbit) |
-| any, an ask during a fill | what the ask waits behind | fill-shape fetch and WS ×0.47–0.74; WT's one-queue flag ×0.32–0.90 on other rigs (`ask-during-a-fill.md`), ×0.99–1.04 on this rig's AD, unverdicted (item 2's run) |
+| any, an ask during a fill | what the ask waits behind | WT asks first (#39) ×0.535–0.780, as fast as the fill-shape fetch and WS (×0.47–0.74), verdicted 2026-11-26; WT's one-queue flag ×0.32–0.90 on other rigs (`ask-during-a-fill.md`), ×0.99–1.04 on this rig's AD |
 | any, a UDP-hostile network | the dial | the WebSocket fallback, as decided |
 
 **Each limitation, and what found it** (2026-11-25, PAGES-PASS):
@@ -171,7 +193,9 @@ answered". PAGES-AFTER-RUNS carries the verdict into items 1 and 2, #39 and §6.
 * AD's re-run has had no review of its own. Found by this page (TRANSPORT-PAGE), from the rows of §8.
 * Why the fill shape's ask is faster is **theory**, not traced. Found by TRANSPORT-AD-RERUN (§6.6).
 * WT's flags on this rig (TW ×0.993, ×1.037, ×1.000 of WT-TS on AD-PUB, AD-LTE and CR; PF, AF) are one volume
-  (`dbts_b1`), one 4-core container, unverdicted until PAGE-RUNS-VERDICT; QW and #96's lever not run. Found by
+  (`dbts_b1`), one 4-core container, Chromium 158; QW and #96's lever not run; cwnd not recorded, so TW's AD-LTE miss
+  is not attributed. Verdicted 2026-11-26 (PAGE-RUNS-VERDICT, `page-runs.md` §Verdict review: the counts hold); the
+  CR fill runs under the credit's stated cap for a reason not read (its m3). Found by
   TRANSPORT-FLAGS-RUN (`page-runs.md` §Transport: results); the earlier "never measured on this rig" corrected
   2026-11-25 by PAGES-PASS-FIX (README §Pass review B3).
 * No Firefox, no Safari, no phone, no Android `tcp_rmem`, no handover; Chromium's `net/` read, not traced. Found by
@@ -200,6 +224,10 @@ answered". PAGES-AFTER-RUNS carries the verdict into items 1 and 2, #39 and §6.
   0.11.18 does not restart after idle. A 5 s reading pause therefore costs the TCP stacks ×1.35–1.70 and WT nothing.
 * **CR**: one stream's 6 MiB credit over 0.8 s caps a single stream at ~63 Mbit/s (**derived**: 6 × 2²⁰ × 8 bit ÷
   0.8 s = 62.9 Mbit/s, §5.3's CR line, whose ~20 s for WT-TS missed at 35.0 s, §4); a stream a frame escapes it.
+  *Corrected 2026-11-26* (PAGES-AFTER-RUNS, `page-runs.md` §Verdict review m3): the cap is not what binds. WT-TS moved
+  107 407 602 B in 35.02 s, 24.5 Mbit/s (**derived**), 39 % of the cap (51 % with the queue's 0.25 s on the round
+  trip), so something not read holds the one stream under its credit; PF's ×0.571 and AF's ×0.676 are measured gains
+  whose mechanism is not shown.
 * **CPU**: the kernel segments and encrypts TCP with offloads; quinn spends ~2 µs a datagram in userspace.
 
 **The defaults.** Rootless publish forwards each datagram through pasta and a 726 kB tap ring whose drops the
@@ -215,8 +243,10 @@ controller's (**derived**). The Wi-Fi pairs (9 of 10 faster under `cubic-restart
 ## 6 · What would change the recommendation
 
 * **Item 2's run shows WT with its flags still above ×0.8 of the fill shape's ask**: then a GET path for asks alone is
-  the next structural draft, measured on a phone. One cloud run decides. *Run 2026-11-24, unverdicted:* TW and PF
-  above ×0.8 on AD (§4, *For the owner*).
+  the next structural draft, measured on a phone. One cloud run decides. *Run 2026-11-24, verdicted 2026-11-26:* TW
+  and PF above ×0.8 on AD, so the draft stands for those flags (rule (1)); WT-AF at ×0.780 and ×0.535, so "no GET
+  path" stays open on its build (rule (3)). What decides it now: the #39 product build's own measurement, the
+  appendix's #39.
 * **A real radio's loss and reordering** (an enterprise Wi-Fi or LTE trace) where the TCP stacks' ENT and LOSS wins
   hold: the WebSocket earns more than a fallback. A device session decides.
 * **`network-mode.md` §6's check** shows a tap drop in a counted load: host networking becomes the recommendation. A
@@ -253,8 +283,8 @@ Moved here from §3 on 2026-11-25 (PAGES-PASS, §Review m13), unchanged.
 | PR | held default | recommended | why |
 | --- | --- | --- | --- |
 | #37 | 38 400 B initial window | **no**; close | item 5 |
-| #39 | asks first under a 6 MiB send window | **hold for item 2's run** | a trade-off: the ask ×0.18–0.31, the fill +2 to +44 % (row 211); item 2's run: "net on these cells", unverdicted (§4, *For the owner*) |
+| #39 | asks first under a 6 MiB send window | **yes: a product build row** (corrected 2026-11-26, PAGES-AFTER-RUNS; it read "hold for item 2's run") | row 211's trade-off (the ask ×0.18–0.31, the fill +2 to +44 % on 0.57 MB frames) does not carry to `dbts_b1`'s 2.15 MB frames: on item 2's run the ask is ×0.780, ×0.535 and the CR fill ×0.676, 32 % faster, verdicted (§2, *Read against the run*); AD-PUB's margin is 0.02 |
 | #40 | `cubic-classify` the controller | **no**; close | row 212: not the default in either reading; now compiled only under `lab-classify` |
 | #41 | 100 ms initial RTT; the repeated-Initial reply removed | **hold** | the owner's 2026-10-14 reading (H over R) is recorded; a run at the target's real RTT decides (`design.md` §Open) |
-| #96 | the one queue as product code, no flag | **hold for item 2's run** | its measurement (row 253) is not on the line; item 2's run: "#96 is not answered", its lever not in the rig (§4, *For the owner*) |
+| #96 | the one queue as product code, no flag | **hold** (corrected 2026-11-26, PAGES-AFTER-RUNS; it read "hold for item 2's run") | its measurement (row 253) is not on the line; item 2's run, verdicted: "#96 unanswered", its lever not in the rig; the one queue's window flag (TW) tied or missed (§2, *Read against the run*) |
 | #88, #102, #103, #122, #123, #137, #139 | disk and design rows, no default | **no default to set** | each index line's open question stays where it is recorded |
