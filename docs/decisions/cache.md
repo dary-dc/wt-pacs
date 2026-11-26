@@ -4,8 +4,10 @@ Written 2026-11-22 by row CACHE-PAGE (`claude/work-ledger:docs/queue-2026-11-14.
 cache's rows, from pushed results only; nothing run. Inputs at: `claude/cache-plan` `70aba834`
 (`docs/client/evidence/cache-plan.md` §8–§10), `claude/cache-arms` `e988f9c6` (the rows), `claude/docs-client`
 `6120da78` (`docs/client/design.md` §Open; `docs/client/evidence/what-the-cache-leaves-on-a-device.md`,
-`frame-memory-ownership.md`), `claude/device-theory` `055f152b` (`docs/decode/mobile/device-model.md`). § numbers
-below are `cache-plan.md`'s unless another file is named.
+`frame-memory-ownership.md`), `claude/device-theory` `055f152b` (`docs/decode/mobile/device-model.md`); and, read
+2026-11-26 by PAGES-AFTER-RUNS, `claude/page-runs` `b38906f58` (`docs/reviews/page-runs.md` §5, §Cache: results by
+CACHE-CELLS, rows at `claude/cache-arms` `e4a032947`, and §Verdict review). § numbers below are `cache-plan.md`'s
+unless another file is named.
 
 ## 1 · The question
 
@@ -24,12 +26,34 @@ passed (§10.2); it waits on §10.4's run (named 2026-11-25, PAGES-PASS, `README
 
 | # | the owner's yes or no | recommended | a yes changes | a no leaves |
 | ---: | --- | --- | --- | --- |
-| 1 | Queue §10.4's run, narrowed to items 1 (PSS by process, a PSS VOID rule), 3 (T's per-index record) and 4 (OPFS-ASYNC's handle a group) | **yes** | one cloud run row in the next queue, by a session that wrote none of §1–§10 | the store unchosen; every PSS failure at 512² stands at a margin the rig cannot resolve (§10.2) |
+| 1 | Queue §10.4's run, narrowed to items 1 (PSS by process, a PSS VOID rule), 3 (T's per-index record) and 4 (OPFS-ASYNC's handle a group) | **yes** (run 2026-11-25 on Chromium only, verdicted 2026-11-26; its Firefox cells unrun, so **provisional**; below) | one cloud run row in the next queue, by a session that wrote none of §1–§10 | the store unchosen; every PSS failure at 512² stands at a margin the rig cannot resolve (§10.2) |
 | 2 | Drop §10.4's items 2 (IndexedDB `value=buffer`) and 5 (Cache Storage's Firefox K and T) | **yes** | less host time. Both stores already lose cells to their own API's floor on both engines (§10.3), so the two items can trace causes but cannot change which store passes (**derived**) | both run too, as written |
 | 3 | An L cell with a round whose `none` errored is VOID, unless its period is rerun whole (BRIEF-WED item 13) | **yes** | one line in §10.4 before its run | the rig's current reading: such a round judges no arm, and the share is taken over the judged rounds (`lab/cache-arms/cells.mjs` `lBars`) |
 | 4 | `frame-memory-ownership.md`'s questions 3 and 4 are answered as that file prints them: the window stays 256 MiB of RAM a tab; no budget of ours, the least recently opened series evicted only when the store refuses, never a series open in a tab | **yes** | the contradiction (`design.md` §Open, contradiction 2) closes; both lines lose the "proposed" of `claude/opfs-multigb` `07ffd873` | both stay proposed; the next run still uses both as its rig (§8.2's 256 MiB ring; E's sequence) |
 | 5 | The cache keeps nothing on a device until a deployment sets a policy (option F of `what-the-cache-leaves-on-a-device.md`), its defaults by device kind as that file recommends | **yes, as the frame; nothing built now** | the shape the cache is turned on in, later | the policy question returns when the cache is turned on |
 | 6 | Turn the cache on now | **no** | — | the cache off, as today |
+
+**Read against the run** (2026-11-26, PAGES-AFTER-RUNS, from `page-runs.md` §Verdict review §5, whose counts hold;
+**measured**, Chromium 158 only, 12 rounds, the rig's synthetic 16-bit fields; **provisional** on the store question,
+since CACHE-DESIGN-1124 never ran (contradiction 5, `README.md`), and on Firefox, whose cells are unrun). *Item 1*:
+OPFS-SYNC's growth over `none` is a constant ~87–90 MiB **in the renderer** (≤ 0.2 MiB in any other process), 112.1
+at S1 against 115.8 at S2 though the frames are ×32 larger; the PSS A/A 9.7–9.8 MiB, so the bar judges. Under the
+bar, S1: both OPFS stores fail PSS only (every other bar 12 of 12, every frame exact); S2: OPFS-SYNC fails PSS (2 of
+12), **OPFS-ASYNC passes every bar** (12 of 12). The renderer also holds the arm's worker and its sync handle, so the
+rows do not separate the rig from the engine's handle (open). *Item 3*: T held, no correctness defect: 13 re-reads
+not exact over 6 rounds of 12, every one a refused re-read (`NotReadableError`, no bytes hashed), **0 SHA-256
+mismatches after a passing XXH3**; CACHE-RUN's three were these. *Item 4* (a handle a group): OPFS-ASYNC's S1 reopen
+0.53 ms a frame cold and 0.57 warm (CACHE-RUN 1.46, 1.85), **held** both (warm by the median of paired ratios, 0.945,
+the verdict's m1; the run had read it `VOID`); S3 **refuted**, ×1.51 warm and ×1.19 cold of CACHE-RUN's 749 and 743
+ms, of which OPFS-SYNC's own move in the same rounds explains about a third of warm's and most of cold's (OPFS-ASYNC
+÷ OPFS-SYNC 1.517 warm, 1.266 cold, against 1.156 and 1.138; m2). So items 1–6 keep their answers: the cache stays
+off, no store is chosen; on Chromium OPFS-ASYNC passes S2 and fails S1 only by a constant the bar does not price, and
+OPFS-SYNC's T is cleared. The Firefox cells (item 4's bar to cross among them) run where `archive.mozilla.org` can
+be fetched; nothing new asks a yes.
+
+**How it serves the value statement** (2026-11-26): "fewer asks reaching the servers" and "the lowest server and
+network cost per reading session" need a store that never hands a wrong frame within the tab's memory; on Chromium
+the OPFS stores' re-reads are exact or refused, at a constant ~90 MiB the bar prices against S1's small frames.
 
 ## 3 · The options
 
@@ -47,7 +71,9 @@ Every number **measured** unless labelled; one 4-vCPU cloud container, medians, 
 **Each engine's candidate after the run** (**derived** from §10.2–§10.3, not a verdict): on **Firefox**, OPFS-SYNC
 (one failed bar, inside the A/A noise); OPFS-ASYNC too if item 4 lands. On **Chromium**, OPFS-ASYNC (PSS bars only);
 OPFS-SYNC also needs Q, whose refusal at open §10.3 calls the option's on the override lever, and T traced. On
-**WebKit**, none judged.
+**WebKit**, none judged. *After item 1's run* (2026-11-26, **measured**, Chromium only): OPFS-ASYNC passes every bar
+at S2 and fails PSS at S1 by a constant; OPFS-SYNC's T is traced (refused re-reads, no wrong frame), so it needs Q
+and PSS; Firefox unchanged, its cells unrun.
 
 ## 4 · Where it holds
 
@@ -99,7 +125,14 @@ transport row is lowered by the decode-bound phone.
   by up to 23 MiB. Found by CACHE-VERDICT-REVIEW.
 * T on Chromium's OPFS-SYNC: 3 re-reads not exact over 4 rounds; `verify()` lumps a failed re-read with a SHA
   mismatch, so no row shows a wrong frame painted; a probe did not reproduce it; cause open. Found by CACHE-RUN; the
-  lumping and the probe by CACHE-VERDICT-REVIEW.
+  lumping and the probe by CACHE-VERDICT-REVIEW. *Traced 2026-11-25* (CACHE-CELLS' per-index record): refused re-reads
+  (`NotReadableError`) while the writing tab still writes the series' file, 0 SHA-256 mismatches after XXH3; why a
+  snapshot's read is refused is *theory* (the File API on a changed file), not checked.
+* Item 1's run is Chromium 158 only (not 153), on synthetic fields, O at 6 rounds and its S3 read against a former
+  run's medians, PSS sampled every 500 ms; its Firefox cells unrun, CACHE-DESIGN-1124 not run. Found by CACHE-CELLS
+  (its fixtures line), CACHE-CELLS' `blocked` status file, and CACHE-DESIGN-1124-REVIEW (`blocked`, no output).
+* The PSS constant sits in the renderer with the arm's worker and handle, so rig and engine are not separated. Found
+  by CACHE-CELLS (*What it means* (1)).
 * VOID cells: Chromium W at S1 (A/A 0.890); Firefox T for OPFS-SYNC and IndexedDB (mutant not caught). Found by
   CACHE-RUN.
 * Not run: Firefox E and Q (Gecko's quota lever does not hold). Found by CACHE-RUN.
@@ -146,9 +179,13 @@ arm follows every other equally often (§8.2). A round dropped from the judgemen
 
 * **Item 1 shows the PSS growth to be a fixed per-origin cost of the engine's storage process**, and the bar prices
   it as a constant. Then OPFS-SYNC passes on Firefox, and OPFS-ASYNC very likely on Chromium: the recommendation
-  becomes "turn on OPFS, per engine, after P2 and P1".
+  becomes "turn on OPFS, per engine, after P2 and P1". *Run 2026-11-25 (Chromium):* a constant, but in the renderer,
+  not a storage process (this build has none), and not separated from the rig; OPFS-ASYNC passes S2's bars and fails
+  S1's by it. What decides it now: a bar that prices the constant (the owner's, through CACHE-DESIGN), and the
+  Firefox cells.
 * **Item 3 finds a SHA-256 mismatch after a passing XXH3** in a reading tab. That is a correctness defect, and it
-  blocks OPFS-SYNC until traced (§10.4 3).
+  blocks OPFS-SYNC until traced (§10.4 3). *Run 2026-11-25:* none found (336 re-reads exact, 13 refused); OPFS-SYNC is not
+  blocked by T.
 * **The phone's P1 and P2** (`claude/phone-protocol:docs/phone-rows/next-round.md` §4, cell 5). If the cold read and
   re-check of a 17 MB frame comes in over ~45 ms (the measured decode), decoded samples stop winning on reopen, and
   only the no-re-decoding rule keeps them. If the sustained write falls short of the fill on a mid-band phone, the
