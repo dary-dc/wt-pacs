@@ -1064,7 +1064,11 @@ the stream credit by more than H3-frame (×0.620); §1's **assumption** that Chr
 6 MiB holds on this build, and better than the band, not a refutation of the lever. *WT-AF on CR* (×0.676, under
 ×0.97): the 6 MiB send window did not cap the fill at the stream credit's ~63 Mbit/s (§1's **theory**, refuted), and
 row 211's fill cost (+2 to +44 %, 0.57 MB frames) does not carry to `dbts_b1`'s 2.15 MB frames on this rig: the fill
-is 32 % faster, not slower.
+is 32 % faster, not slower. *Added 2026-11-26, §Verdict review (m3):* the credit's cap is not what binds WT-TS
+here: its fill moved 107 407 602 B in 35.02 s, 24.5 Mbit/s (*derived*), 39 % of the ~63 Mbit/s cap (6 MiB over
+0.8 s), 51 % of it with the queue's 0.25 s added to the round trip (47.9 Mbit/s). So the one-stream fill is held
+under the credit by something these rows do not read, and WT-PF's ×0.571 and WT-AF's ×0.676 are measured gains whose
+mechanism is not shown; the page carries the ratios, not the cap, as the reason.
 
 **What it decides, by §1's rules.** (1) WT-TW and WT-PF are both above ×0.8 on AD (×0.99/×1.04; ×1.55/×1.70): the
 page's next step stands, "a GET path for asks alone is the next structural draft", for TW and PF; QW is untested
@@ -1120,7 +1124,12 @@ visits, every frame shown exact (15 of 15 checked a visit, no HTJ2K check false)
 one: in P1c-12, P1c-80 and P2 behind first and ¾ ahead wait least, and in P1c-12 behind first is the one arm that
 waits. *Theory, not tested here*: the window follows the display past the legs (the pilot's finding, §4 Amendment),
 so the store asks across the leg's ends and the hold's order decides which frames are there at the turn; the model,
-one fetch at a time with no RTT, keeps every arm's frames in reach. P1b meets its own refutation line, as the bounded
+one fetch at a time with no RTT, keeps every arm's frames in reach. *Added 2026-11-26, §Verdict review (m4):* by the
+page's own control clause ("A difference there means the hold acts where the model says it cannot", `asking.md` §6),
+**the model's mechanism is refuted** by three cells: P2 (one way, no turn) gives behind first −1.20 s a leg against
+centred, more than P1's −0.88 and −0.86, and P1c-80 −0.47. So P1's gain is not shown to come from the turn; P1's
+decision stands as registered (its order held, 9 of 9 and 10 of 10 rounds), and the account above is the open one.
+P1b meets its own refutation line, as the bounded
 model said it would on 50 frames (§4 Amendment): it cannot decide `asking` §6's P1b on this series. The rule waits
 as behind first always does (19.28 against 19.29 s), both 1.0–1.1 s under centred.
 
@@ -1176,9 +1185,9 @@ fail): **four of four caught**; no cell is VOID for a mutant.
 | L S2 1×, PSS growth | `none` 25.5; OPFS-SYNC 115.8 (renderer 115.1), OPFS-SYNC′ 119.0, OPFS-ASYNC 92.7 (renderer 90.9, browser 6.3) | S1 and S2 within 20 MiB | **held**: 112.1 against 115.8, 3.7 MiB apart; it does not scale with the frame (×32 in bytes) |
 | L, PSS A/A | median \|ΔPSS\| 9.8 MiB (S1), 9.7 (S2) | VOID over 32 | not VOID: the PSS bar judges |
 | L, the bars (§8.3) | S1: OPFS-SYNC and OPFS-ASYNC fail PSS only (0 / 12 rounds each), every other bar 12 / 12, every frame exact; S2: OPFS-SYNC fails PSS (2 / 12), **OPFS-ASYNC passes every bar** (12 / 12) | — (§5 predicts the place, not the bar) | the growth is ~87–90 MiB over `none` at both sizes; the bar's slack is 64.5 MiB at S1 and 80.3 (SYNC) or 112.8 (ASYNC, 3 in flight) at S2, so a constant of this size fails S1 for both and passes ASYNC at S2 |
-| T, Chromium, OPFS-SYNC | tab 1: 600 of 600 exact; tab 2: 336 exact, **13 not** (7 rounds of 12), every one `hit` false, `why` `NotReadableError`, no bytes hashed; **0 SHA-256 mismatches after a passing XXH3** | every non-exact index a failed re-read; none a SHA mismatch after XXH3 | **held**: no correctness defect; the three of CACHE-RUN are re-reads the arm refused |
-| O S1, OPFS-ASYNC reopen | cold 135.8 ms, **0.53 ms a frame** (CACHE-RUN 1.46); warm 146.0, 0.57 (1.85); OPFS-SYNC 0.37 / 0.38; 6 rounds | under 1 ms (0.46, *derived*, Amendment) | cold **held** (+0.07 ms on 0.46); warm **VOID**: the A/A ratio is 0.892, outside 0.90–1.10 (cold's 0.977), read beside only |
-| O S3, OPFS-ASYNC reopen | warm 1 132 ms, cold 887 (CACHE-RUN 749, 743); OPFS-SYNC 735 / 709 (648 / 653); A/A 0.931, 0.974 | unchanged, within ×0.90–1.10 of 749 | **refuted**: ×1.51 warm, ×1.19 cold. At *G* = 1 the read path is unchanged (one handle a frame opened and closed, as before), and OPFS-SYNC moved ×1.13 on the same cell, so part is the build or the host (158 against 153, another day); the rest is not explained by these rows |
+| T, Chromium, OPFS-SYNC | tab 1: 600 of 600 exact; tab 2: 336 exact, **13 not** (6 rounds of 12: 1, 2, 6, 7, 9, 10; *corrected 2026-11-26, §Verdict review (n1)*: this read 7), every one `hit` false, `why` `NotReadableError`, no bytes hashed; **0 SHA-256 mismatches after a passing XXH3** | every non-exact index a failed re-read; none a SHA mismatch after XXH3 | **held**: no correctness defect; the three of CACHE-RUN are re-reads the arm refused |
+| O S1, OPFS-ASYNC reopen | cold 135.8 ms, **0.53 ms a frame** (CACHE-RUN 1.46); warm 146.0, 0.57 (1.85); OPFS-SYNC 0.37 / 0.38; 6 rounds | under 1 ms (0.46, *derived*, Amendment) | cold **held** (+0.07 ms on 0.46); warm **held** (0.57 ms a frame, under 1 ms): the A/A, read as the median of the six per-round ratios as every other cell pairs within a round, is 0.945 (cold 0.970), inside 0.90–1.10. *Corrected 2026-11-26, §Verdict review (m1):* warm read "**VOID**: the A/A ratio is 0.892", the ratio of the two medians (86.9 ÷ 97.5) |
+| O S3, OPFS-ASYNC reopen | warm 1 132 ms, cold 887 (CACHE-RUN 749, 743); OPFS-SYNC 735 / 709 (648 / 653); A/A 0.931, 0.974 | unchanged, within ×0.90–1.10 of 749 | **refuted**: ×1.51 warm, ×1.19 cold. At *G* = 1 the read path is unchanged (one handle a frame opened and closed, as before), and OPFS-SYNC moved ×1.13 on the same cell, so part is the build or the host (158 against 153, another day); the rest is not explained by these rows. Against OPFS-SYNC in the same rounds (median of paired ratios, *derived*): OPFS-ASYNC ÷ OPFS-SYNC 1.517 warm, 1.266 cold, against CACHE-RUN's 1.156 (749 ÷ 648) and 1.138 (743 ÷ 653): ×1.31 warm and ×1.11 cold beyond OPFS-SYNC's own move. So warm stays **refuted** on its own, cold sits at the band's edge once the host's drift is out, and the build or host is about a third of warm's move. The paired A/A is 0.940 warm, 0.933 cold, inside 0.90–1.10. *Added 2026-11-26, §Verdict review (m2).* |
 
 **What it means.** (1) OPFS-SYNC's ~90 MiB is a constant in the renderer, the same at S1 and S2: by §10.4 (1)'s
 reading "it is the rig's", not a per-origin cost of the engine; on this build there is no storage process, so the
