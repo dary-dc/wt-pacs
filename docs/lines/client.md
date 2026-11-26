@@ -70,7 +70,7 @@ exact frame bit for bit, and only checked claims on screen.
   with a row: a hardware frame inverted from its 8-bit picture and checked against its digest (220 levels); a lossy
   HTJ2K view; the view coded from the content's rectangle. Found: `dbts_b1` and `dbts_c1` need AV1 level 5.0, above
   what Android asks of a hardware decoder. Owed: three phone asks and three cloud byte cells (its §7); the second
-  picture for more than 8 bits (its §4) is the owner's to open. HTJ2K alone, in software ([`../decode/mobile/htj2k-software.md`](../decode/mobile/htj2k-software.md)):
+  picture for more than 8 bits (its §4) is the owner's to open. Reviewed 2026-11-26 (its §Review): sources and arithmetic hold; one blocker, its §5 decode prediction refuted by `htj2k-lossy.md` Cell D and not yet corrected in place (MOBILE-DECODE-OPTIONS-FIX). HTJ2K alone, in software ([`../decode/mobile/htj2k-software.md`](../decode/mobile/htj2k-software.md)):
   exact and checked on every engine today; its phone decode unmeasured (78–127 ms a `dbts_b1` frame predicted), its
   bytes 4.6–14.6× the view's; the shipped OpenJPH 0.31.0 predates upstream's CVE fix of 0.33.0 (the bump is the owner's).
   The GPU option ([`../decode/mobile/gpu-compute-decode.md`](../decode/mobile/gpu-compute-decode.md), 2026-11-15):

@@ -339,3 +339,54 @@ Fetched 2026-11-15. Section numbers are the documents' own.
 * **S8** D. Taubman, A. Naman, R. Mathew, M. Smith, O. Watanabe, P.-A. Lemieux, *High Throughput JPEG 2000
   (HTJ2K): Algorithm, Performance and Potential*, "Last updated: 29 May 2020", §7, Tables 8 and 9:
   <https://htj2k.com/wp-content/uploads/white-paper.pdf>.
+
+## Review
+
+*Queue row MOBILE-DECODE-OPTIONS-REVIEW, 2026-11-26, by a session that wrote none of this file or its option rows.
+The brief (`claude/work-ledger:docs/queue-client-2026-11-14.md`, under amendment 19's list) predates amendment 20's
+re-scope and counts 15 sources; this file quotes eight (S1–S8, nine documents with S3's two drafts), and all nine
+were fetched on 2026-11-26 at the revisions §8 names. Docs only: `scripts/check_links.py` and the comment budget;
+the gate was not run.*
+
+**Sources.** Every quotation in §2.1, §3, §3.1, §5 and §8 was found verbatim: S1's level table values (`2359296`,
+`8912896`, `547,430,400`), §7.2's exactness sentence (under "When film_grain_params_present is equal to 0", so the
+"film grain off" holds) and §6.4.2's two sentences; S2 §7.6 and §9.4; S3's upload, colour-space and read-back
+sentences (in the 1.0 draft; the 2.0 draft's *Reading back pixels* says "Only differences from Reading back pixels in
+WebGL 1.0 are described here", so the RGBA/UNSIGNED_BYTE rule carries); S4's equations 30, 36 and 45, numbered so in
+the V4 PDF; S5's [C-2-2] and [5.1/H-1-14], the latter under `VERSION_CODES.V`; S6's sentence, UID and "1-38"; S7's
+README and usage sentences; S8's Table 9 caption and its 117, 112 and 91.
+
+**Arithmetic.** Recomputed, all hold: the three matrices' sample counts and level fits (§2.1); 547 430 400 ÷
+8 519 680 = 64.3 a second; 15.8 ns a sample; 255 ÷ 219 = 1.1644; log2 220 = 7.78; 4.65 and 1.34, 18.6 and 5.37;
+109 ÷ 4.65 = 23; 5 120 × 3 328 = 17 039 360; 2.02 and 0.44 bits a sample; the crops' 0.25 and 0.38; 0.277. The
+§2 and §3.3 tables follow from the text; the §7 leaning stays labelled a leaning.
+
+**B1 (blocker). §5's decode prediction was refuted, and this file still states it.** §5 derives from S8 that a lossy
+HTJ2K frame decodes in 0.78 of a lossless frame's time, so 1.6–2.2 of them in one AV1 frame's time.
+`htj2k-lossy.md` Cell D measured the opposite: OpenJPH-WASM decodes a lossy frame in **1.12–1.21×** the time of the
+same frame lossless (M, one cloud host, node 22, one thread, two runs), "the irreversible path costs more than the
+block decoder saves". The source predicted the direction: 91 ÷ 117 compares two *irreversible 9/7* streams at 4 and
+1 bits a sample, while the lossless frame is the reversible 5/3 at 2.02; S8's own Tables 7 and 8 (5/3 against 9/7,
+both 64x64 code-blocks, DEC:CPLEX) give 143 against 115 frames a second at 2 bpp, the 9/7 0.80× as fast. By
+`CLAUDE.md` §Docs, §5's bullet is corrected in place: the prediction kept, struck as refuted, the measured ratio and
+its file beside it, and the 1.6–2.2 replaced by what Cell D gives.
+
+**Minor.**
+
+* **m1.** §3 step 2, "every colour matrix gives R = G = B": S4 §8.3 applies equations 30–32 only "if
+  MatrixCoefficients is equal to 1, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14 or 15"; with 0 (identity) the planes are G, B
+  and R, so constant chroma at 128 makes B and R constant, not grey. The route needs the ingest to signal a
+  non-identity matrix, or the page to set one through `VideoDecoderConfig.colorSpace` (S2 §7.6). `hw-inverted.md`
+  does not say so either; one line in each.
+* **m2.** §2, premise 3's verdict "**Did not hold**" is theory stated as a verdict. Label it (T), with what would
+  confirm it: asks M2 and M3, not run on 2026-11-22 (§7).
+* **m3.** §5 quotes 117, 112 and 91 without naming the column: they are DEC:CPLEX. DEC:STATS gives 117, 108 and 86.
+* **m4.** S6 was read as *current*, which on 2026-11-26 names itself 2026e, not 2026d; the quoted sentence, the UID
+  and "1-38" are unchanged. Say so, or pin the edition's own URL.
+* **m5.** §2.1 could add S5's next item, "[5.1/H-1-15] MUST have at least 1 hardware video decoder supporting 4K60",
+  with the codec unspecified: 3840 × 2160 = 8 294 400 samples is a level-5 size (D). So a performance-class-V phone
+  has some hardware decoder that takes a frame this large, though nothing says it is AV1. The platform comes no
+  closer to promising one for `dbts_b1`.
+
+**Verdict.** One blocker. Amendment 17's loop is appended: MOBILE-DECODE-OPTIONS-FIX for B1 and m1–m5, then
+MOBILE-DECODE-OPTIONS-FIX-REVIEW.
