@@ -135,6 +135,11 @@ small enough that every open item has an owner and a next step.
    image's copy of `lab/noise-ingest` (a workspace member since 413), tip `8459a0a7b`. CI run 45596759058: gate OK in
    954 s, the job failing only on the known skip of the pair's invariants (as at `b059388b6`). Each PR commented.
    Skipped: 438 (code conflict in `client/view/controller.js`, `client/viewer/viewer.js`); the rest as 1124 left them.
+   UNIFIED-SYNC-1126 (2026-11-26, amendment 28 rule 1): 441 and 446 merged `--no-ff` onto `07f700b78`, tip `da65e4530`
+   (446's merge kept both entries of `docs/lines/client.md`); `scripts/gate.sh` full on the merged tree, OK in 938 s, a
+   local cloud run that also skipped the native painter and window, the stacks end to end and the web host's check (no
+   lavapipe, fetched fixtures or nginx). The merge comments were refused to the session; GitHub closed both as merged.
+   Skipped: 438 (code conflict, as in 1125), 420 (VL-READS' commits after its last review); the rest as 1124 left them.
    GATE-CI (2026-11-24, `claude/gate-ci`, draft PR into unified): `gate.yml` runs on PRs into and pushes to
    `claude/unified` and `claude/eval-release`. Its run on unified's tip through PR 402 (run 45345879478, *measured*)
    passed `scripts/gate.sh` in 620 s with the native painter, the window and the web host's check run, and failed
