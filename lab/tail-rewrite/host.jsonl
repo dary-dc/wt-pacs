@@ -1,0 +1,6 @@
+{"round": 0, "fs": "xfs", "bytes": 1073741824, "write_cached_s": 4.099651937999852, "write_fsync_s": 1.0299466550000034, "read_direct_s": 0.6317877940000471}
+{"round": 0, "fs": "ext4", "bytes": 1073741824, "write_cached_s": 0.312012359000164, "write_fsync_s": 1.9415893890000007, "read_direct_s": 0.47232600600000296}
+{"round": 1, "fs": "xfs", "bytes": 1073741824, "write_cached_s": 0.19110888300019724, "write_fsync_s": 0.8918055459998868, "read_direct_s": 0.36742303599999104}
+{"round": 1, "fs": "ext4", "bytes": 1073741824, "write_cached_s": 0.23341353900013928, "write_fsync_s": 1.6721294399999351, "read_direct_s": 0.5637299620000249}
+{"round": 2, "fs": "xfs", "bytes": 1073741824, "write_cached_s": 0.19088409099981618, "write_fsync_s": 0.8061336209998444, "read_direct_s": 0.5840786259998367}
+{"round": 2, "fs": "ext4", "bytes": 1073741824, "write_cached_s": 0.24593212300010237, "write_fsync_s": 2.0806322870000713, "read_direct_s": 0.565666346999933}

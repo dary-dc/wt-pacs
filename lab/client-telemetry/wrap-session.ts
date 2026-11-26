@@ -5,7 +5,7 @@ import { getTap } from "./tap.ts";
 type Frame = { frameIndex: number };
 
 type SessionLike = {
-  requestExactFrame(frameIndex: number, onHead?: () => void): Promise<unknown>;
+  requestFrame(frameIndex: number, onHead?: () => void): Promise<unknown>;
   fillFrames?(
     from: number,
     to: number,
@@ -31,10 +31,10 @@ export function wrapSession<T extends object & SessionLike>(session: T): T {
   const handler: ProxyHandler<T> = {
     get(target, prop, receiver) {
       const v = Reflect.get(target, prop, receiver);
-      if (prop === "requestExactFrame") {
+      if (prop === "requestFrame") {
         return (frameIndex: number, onHead?: () => void) => {
           getTap()?.gesture(frameIndex);
-          return settle(frameIndex, target.requestExactFrame(frameIndex, onHead));
+          return settle(frameIndex, target.requestFrame(frameIndex, onHead));
         };
       }
       if (prop === "fillFrames" && typeof target.fillFrames === "function") {

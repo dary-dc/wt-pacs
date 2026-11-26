@@ -1,0 +1,91 @@
+checks per arm over all rounds: frames exact / previews bit-identical to native dav1d / residuals as encode.py wrote them
+1x	dbts_a1	crf20	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+1x	dbts_a1	crf8	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+1x	dbts_a1	crf2	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+1x	dbts_a1	crf8-s0	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960
+1x	dbts_b1	crf20	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+1x	dbts_b1	crf8	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+1x	dbts_b1	crf2	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+1x	dbts_c1	crf20	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+1x	dbts_c1	crf8	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+1x	dbts_c1	crf2	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+1x	dbts_c1	crf8-s0	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960
+4x	dbts_a1	crf20	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+4x	dbts_a1	crf8	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+4x	dbts_a1	crf2	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+4x	dbts_a1	crf8-s0	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960
+4x	dbts_b1	crf20	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+4x	dbts_b1	crf8	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+4x	dbts_b1	crf2	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+4x	dbts_c1	crf20	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+4x	dbts_c1	crf8	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+4x	dbts_c1	crf2	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960	P webcodecs 960/960
+4x	dbts_c1	crf8-s0	H 960/960	R 960/960 960/960 960/960	P dav1d 960/960	RA 960/960 960/960
+
+ms a frame, median [range] over rounds; RA ÷ H paired: median [range], RA slower in k/n; order effect; rule
+1x	dbts_a1	crf20 (row 17)	H 25.0	R 18.8	RA 24.9	RA−R 5.40	webcodecs 13.2 dav1d 33.6	RA÷H 1.003 [0.668–1.762]	slower 31/60	R÷H 0.754	order 7.6 %	the same
+	  RA − H by RA's predecessor: P dav1d -0.05 (12) · P webcodecs -1.71 (12) · R +0.80 (12) · H +0.16 (12) · first -0.77 (12)
+	  R − H by R's predecessor: H -5.94 (12) · P dav1d -5.63 (12) · first -5.84 (12) · RA -6.64 (12) · P webcodecs -5.60 (12)
+1x	dbts_a1	crf8 (higher)	H 25.8	R 18.8	RA 25.1	RA−R 5.86	webcodecs 23.7 dav1d 57.2	RA÷H 1.003 [0.542–1.988]	slower 30/60	R÷H 0.744	order 9.0 %	the same
+	  RA − H by RA's predecessor: P dav1d -2.30 (12) · P webcodecs +0.76 (12) · R +0.29 (12) · H +1.91 (12) · first -0.34 (12)
+	  R − H by R's predecessor: H -6.67 (12) · P dav1d -6.60 (12) · first -6.14 (12) · RA -6.80 (12) · P webcodecs -5.82 (12)
+1x	dbts_a1	crf2 (higher)	H 25.4	R 18.5	RA 24.7	RA−R 5.84	webcodecs 60.4 dav1d 106	RA÷H 0.968 [0.655–1.381]	slower 26/60	R÷H 0.731	order 5.4 %	the same
+	  RA − H by RA's predecessor: P dav1d -1.96 (12) · P webcodecs -0.54 (12) · R -0.08 (12) · H -1.07 (12) · first +0.50 (12)
+	  R − H by R's predecessor: H -6.97 (12) · P dav1d -7.82 (12) · first -7.64 (12) · RA -5.37 (12) · P webcodecs -5.11 (12)
+1x	dbts_a1	crf8-s0 (full depth)	H 26.1	R 19.0	RA 24.8	RA−R 5.70	webcodecs — dav1d 56.6	RA÷H 0.963 [0.543–1.639]	slower 22/60	R÷H 0.738	order 5.4 %	the same
+	  RA − H by RA's predecessor: P dav1d -2.30 (15) · R -1.25 (15) · first -0.73 (15) · H -0.46 (15)
+	  R − H by R's predecessor: H -6.86 (15) · first -5.62 (15) · P dav1d -7.92 (15) · RA -5.69 (15)
+1x	dbts_b1	crf20 (row 17)	H 71.0	R 46.1	RA 72.8	RA−R 24.6	webcodecs 42.1 dav1d 98.1	RA÷H 1.002 [0.760–1.617]	slower 30/60	R÷H 0.655	order 1.9 %	the same
+	  RA − H by RA's predecessor: P dav1d -1.01 (12) · P webcodecs -1.29 (12) · R +1.44 (12) · H +1.43 (12) · first +0.20 (12)
+	  R − H by R's predecessor: H -26.17 (12) · P dav1d -20.74 (12) · first -26.45 (12) · RA -25.07 (12) · P webcodecs -26.67 (12)
+1x	dbts_b1	crf8 (higher)	H 73.3	R 47.7	RA 74.6	RA−R 24.5	webcodecs 88.3 dav1d 169	RA÷H 0.962 [0.734–1.441]	slower 25/60	R÷H 0.635	order 8.3 %	the same
+	  RA − H by RA's predecessor: P dav1d -2.17 (12) · P webcodecs -6.19 (12) · R +1.48 (12) · H -3.31 (12) · first +3.07 (12)
+	  R − H by R's predecessor: H -25.06 (12) · P dav1d -26.91 (12) · first -28.79 (12) · RA -26.47 (12) · P webcodecs -23.75 (12)
+1x	dbts_b1	crf2 (higher)	H 73.7	R 44.8	RA 69.4	RA−R 25.8	webcodecs 152 dav1d 258	RA÷H 0.951 [0.680–2.511]	slower 19/60	R÷H 0.612	order 4.5 %	the same
+	  RA − H by RA's predecessor: P dav1d -4.00 (12) · P webcodecs -7.48 (12) · R -0.49 (12) · H -5.13 (12) · first -1.13 (12)
+	  R − H by R's predecessor: H -25.97 (12) · P dav1d -36.94 (12) · first -31.28 (12) · RA -29.05 (12) · P webcodecs -28.53 (12)
+1x	dbts_c1	crf20 (row 17)	H 26.5	R 18.7	RA 26.3	RA−R 7.84	webcodecs 15.5 dav1d 34.7	RA÷H 0.992 [0.574–1.642]	slower 29/60	R÷H 0.705	order 8.5 %	the same
+	  RA − H by RA's predecessor: P dav1d -1.88 (12) · P webcodecs +1.29 (12) · R +0.75 (12) · H -2.57 (12) · first +0.35 (12)
+	  R − H by R's predecessor: H -9.89 (12) · P dav1d -6.75 (12) · first -7.62 (12) · RA -5.96 (12) · P webcodecs -8.70 (12)
+1x	dbts_c1	crf8 (higher)	H 26.3	R 18.7	RA 25.4	RA−R 6.63	webcodecs 25.4 dav1d 53.3	RA÷H 0.982 [0.607–1.611]	slower 25/60	R÷H 0.707	order 8.5 %	the same
+	  RA − H by RA's predecessor: P dav1d -0.06 (12) · P webcodecs -1.20 (12) · R -2.75 (12) · H -0.27 (12) · first +1.05 (12)
+	  R − H by R's predecessor: H -6.49 (12) · P dav1d -7.98 (12) · first -6.81 (12) · RA -9.13 (12) · P webcodecs -7.96 (12)
+1x	dbts_c1	crf2 (higher)	H 25.5	R 17.8	RA 25.2	RA−R 7.00	webcodecs 54.9 dav1d 96.6	RA÷H 0.979 [0.605–1.374]	slower 26/60	R÷H 0.688	order 19.5 %	not read (order effect 19 %)
+	  RA − H by RA's predecessor: P dav1d +4.63 (12) · P webcodecs -1.24 (12) · R -1.92 (12) · H -1.02 (12) · first -0.04 (12)
+	  R − H by R's predecessor: H -8.06 (12) · P dav1d -7.79 (12) · first -7.28 (12) · RA -8.88 (12) · P webcodecs -8.56 (12)
+1x	dbts_c1	crf8-s0 (full depth)	H 25.9	R 18.0	RA 26.6	RA−R 7.79	webcodecs — dav1d 53.7	RA÷H 1.020 [0.706–1.266]	slower 33/60	R÷H 0.712	order 9.6 %	the same
+	  RA − H by RA's predecessor: P dav1d +1.21 (15) · R -0.18 (15) · first +0.55 (15) · H -1.97 (15)
+	  R − H by R's predecessor: H -5.69 (15) · first -6.13 (15) · P dav1d -7.42 (15) · RA -8.46 (15)
+4x	dbts_a1	crf20 (row 17)	H 116	R 89.0	RA 118	RA−R 27.8	webcodecs 41.1 dav1d 154	RA÷H 1.004 [0.767–1.290]	slower 30/60	R÷H 0.761	order 3.1 %	the same
+	  RA − H by RA's predecessor: P dav1d +1.56 (12) · P webcodecs +2.06 (12) · R -0.31 (12) · H -3.15 (12) · first -1.61 (12)
+	  R − H by R's predecessor: H -24.90 (12) · P dav1d -26.53 (12) · first -30.78 (12) · RA -25.23 (12) · P webcodecs -32.53 (12)
+4x	dbts_a1	crf8 (higher)	H 114	R 87.5	RA 117	RA−R 27.9	webcodecs 48.5 dav1d 267	RA÷H 0.996 [0.723–1.613]	slower 28/60	R÷H 0.764	order 7.7 %	the same
+	  RA − H by RA's predecessor: P dav1d -6.32 (12) · P webcodecs -5.92 (12) · R -3.08 (12) · H +7.98 (12) · first -2.07 (12)
+	  R − H by R's predecessor: H -34.36 (12) · P dav1d -24.96 (12) · first -26.15 (12) · RA -29.40 (12) · P webcodecs -26.29 (12)
+4x	dbts_a1	crf2 (higher)	H 117	R 84.5	RA 110	RA−R 27.0	webcodecs 255 dav1d 482	RA÷H 0.952 [0.774–1.285]	slower 22/60	R÷H 0.724	order 4.7 %	the same
+	  RA − H by RA's predecessor: P dav1d -2.60 (12) · P webcodecs -11.60 (12) · R -5.89 (12) · H -7.21 (12) · first -0.43 (12)
+	  R − H by R's predecessor: H -31.00 (12) · P dav1d -34.28 (12) · first -30.10 (12) · RA -29.14 (12) · P webcodecs -34.55 (12)
+4x	dbts_a1	crf8-s0 (full depth)	H 114	R 87.0	RA 114	RA−R 27.5	webcodecs — dav1d 270	RA÷H 1.008 [0.829–1.223]	slower 33/60	R÷H 0.753	order 0.8 %	the same
+	  RA − H by RA's predecessor: P dav1d +0.70 (15) · R +1.06 (15) · first +0.04 (15) · H +1.72 (15)
+	  R − H by R's predecessor: H -23.95 (15) · first -33.29 (15) · P dav1d -29.75 (15) · RA -26.73 (15)
+4x	dbts_b1	crf20 (row 17)	H 337	R 219	RA 331	RA−R 116	webcodecs 141 dav1d 465	RA÷H 0.981 [0.811–1.952]	slower 24/60	R÷H 0.649	order 5.1 %	the same
+	  RA − H by RA's predecessor: P dav1d -15.47 (12) · P webcodecs +9.14 (12) · R -10.67 (12) · H -4.14 (12) · first -13.72 (12)
+	  R − H by R's predecessor: H -123.29 (12) · P dav1d -107.02 (12) · first -112.57 (12) · RA -125.64 (12) · P webcodecs -127.09 (12)
+4x	dbts_b1	crf8 (higher)	H 336	R 214	RA 328	RA−R 113	webcodecs 220 dav1d 763	RA÷H 0.978 [0.745–1.596]	slower 19/60	R÷H 0.636	order 1.7 %	the same
+	  RA − H by RA's predecessor: P dav1d -9.70 (12) · P webcodecs -2.79 (12) · R -11.75 (12) · H -13.23 (12) · first -6.44 (12)
+	  R − H by R's predecessor: H -123.12 (12) · P dav1d -120.36 (12) · first -129.84 (12) · RA -114.60 (12) · P webcodecs -124.33 (12)
+4x	dbts_b1	crf2 (higher)	H 329	R 204	RA 323	RA−R 114	webcodecs 633 dav1d 1147	RA÷H 0.953 [0.818–1.759]	slower 18/60	R÷H 0.621	order 5.7 %	the same
+	  RA − H by RA's predecessor: P dav1d -8.29 (12) · P webcodecs -31.89 (12) · R -18.09 (12) · H -12.27 (12) · first -31.09 (12)
+	  R − H by R's predecessor: H -122.18 (12) · P dav1d -131.56 (12) · first -128.02 (12) · RA -131.53 (12) · P webcodecs -108.96 (12)
+4x	dbts_c1	crf20 (row 17)	H 120	R 85.9	RA 118	RA−R 31.4	webcodecs 46.4 dav1d 161	RA÷H 0.973 [0.756–1.353]	slower 25/60	R÷H 0.706	order 4.2 %	the same
+	  RA − H by RA's predecessor: P dav1d -8.40 (12) · P webcodecs -2.53 (12) · R +0.15 (12) · H -3.01 (12) · first -2.99 (12)
+	  R − H by R's predecessor: H -38.35 (12) · P dav1d -31.80 (12) · first -33.42 (12) · RA -36.93 (12) · P webcodecs -34.00 (12)
+4x	dbts_c1	crf8 (higher)	H 121	R 84.6	RA 117	RA−R 33.2	webcodecs 56.9 dav1d 254	RA÷H 0.978 [0.685–1.324]	slower 26/60	R÷H 0.707	order 6.3 %	the same
+	  RA − H by RA's predecessor: P dav1d -3.80 (12) · P webcodecs -1.28 (12) · R -10.71 (12) · H +2.12 (12) · first -2.14 (12)
+	  R − H by R's predecessor: H -38.94 (12) · P dav1d -33.99 (12) · first -32.17 (12) · RA -29.63 (12) · P webcodecs -42.30 (12)
+4x	dbts_c1	crf2 (higher)	H 119	R 81.9	RA 115	RA−R 33.4	webcodecs 225 dav1d 438	RA÷H 0.979 [0.736–1.147]	slower 23/60	R÷H 0.699	order 6.7 %	the same
+	  RA − H by RA's predecessor: P dav1d -1.56 (12) · P webcodecs -11.36 (12) · R -2.09 (12) · H +0.99 (12) · first -4.04 (12)
+	  R − H by R's predecessor: H -32.37 (12) · P dav1d -35.53 (12) · first -34.30 (12) · RA -39.99 (12) · P webcodecs -36.84 (12)
+4x	dbts_c1	crf8-s0 (full depth)	H 121	R 84.3	RA 117	RA−R 34.5	webcodecs — dav1d 249	RA÷H 0.974 [0.721–1.128]	slower 21/60	R÷H 0.697	order 3.8 %	the same
+	  RA − H by RA's predecessor: P dav1d -1.04 (15) · R -8.42 (15) · first -1.23 (15) · H -5.33 (15)
+	  R − H by R's predecessor: H -33.95 (15) · first -36.82 (15) · P dav1d -34.85 (15) · RA -40.84 (15)

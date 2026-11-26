@@ -24,7 +24,7 @@ async function drive(link: StubLink, asks: number, options?: Parameters<typeof T
   const session = await TransportSession.connect("https://stub/", HASH, options);
   const stub = StubTransport.last!;
   const results = await Promise.all(
-    Array.from({ length: asks }, (_, i) => session.requestExactFrame(i)),
+    Array.from({ length: asks }, (_, i) => session.requestFrame(i)),
   );
   return { session, stub, results };
 }
@@ -73,7 +73,7 @@ async function aCutFrameIsNamedWithItsBytes() {
   for (const readMin of [undefined, 1 << 30, 4096]) {
     StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 10_000, chunk: 1000, cutAfter: 5008 };
     const session = await TransportSession.connect("https://stub/", HASH, { readMin });
-    const why = await session.requestExactFrame(0).then(() => "delivered", (e) => String(e.message));
+    const why = await session.requestFrame(0).then(() => "delivered", (e) => String(e.message));
     assert(why.includes("truncated: 5000 of 10000 bytes"), `readMin ${readMin}: a cut frame is named, saw "${why}"`);
   }
 }
@@ -84,7 +84,7 @@ async function onHeadRunsBeforeTheBodyUnderReadMin() {
   StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 64_000, chunk: 1000 };
   const session = await TransportSession.connect("https://stub/", HASH, { readMin: 4096 });
   const heads: number[] = [];
-  const r = await session.requestExactFrame(0, () => heads.push(session.stats().mediaReads));
+  const r = await session.requestFrame(0, () => heads.push(session.stats().mediaReads));
   const reads = session.stats().mediaReads;
   assert(heads.length === 1 && heads[0] < reads / 4 && intact(r), `readMin 4096: one head at read ${heads}, of ${reads}`);
 }
@@ -98,8 +98,8 @@ async function aFailedAskWriteDisarmsItsWaiter() {
   StubTransport.link = { rttMs: 0, tfMs: 0, bytes: 16, failWrites: true };
   const session = await TransportSession.connect("https://stub/", HASH);
   const why = (p: Promise<unknown>) => p.then(() => "delivered", (e) => String(e.message));
-  const first = await why(session.requestExactFrame(4));
-  const again = await why(session.requestExactFrame(4));
+  const first = await why(session.requestFrame(4));
+  const again = await why(session.requestFrame(4));
   session.fillFrames(0, 1, () => {});
   await new Promise((r) => setTimeout(r, 50));
   process.off("unhandledRejection", onUnobserved);

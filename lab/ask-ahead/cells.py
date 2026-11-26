@@ -3,7 +3,7 @@
 order (lab/scripts/order.py), each run its own server and relay (`link_impair.py --self-timing`), one
 headless Chromium (visit.mjs) for the whole campaign. One JSON row per run on stdout.
 
-usage: cells.py SERIES_DIR ROUNDS CELL ...   CELL = RATE_MBIT/RTT_MS/QUEUE[@AT][:ARM,...], QUEUE = fifoMS or codel,
+usage: cells.py SERIES_DIR ROUNDS CELL ...   CELL = RATE_MBIT/RTT_MS/QUEUE[/lossP][/cpuN][@AT][:ARM,...], QUEUE = fifoMS or codel,
        AT the share landed before the ask (default ASK_AT) or `none`; the arms default to all of ARMS
        ARMS=today,follow  (a further arm is name=--server-flag ..., or name=PATH/series-server [flag ...];
        a `?key=value` token goes to the page's query) — lab/ask-ahead/README.md
@@ -26,6 +26,7 @@ ARMS = {"today": [], "follow": ["--send-window-follows-cwnd"]}
 SERVER = ROOT / "target/release/series-server"
 # RELAY_CHRT=50 runs the relay under SCHED_FIFO: a late relay reads as link jitter (docs/rig-limits.md §3).
 PRIO = ["chrt", "-f", os.environ["RELAY_CHRT"]] if os.environ.get("RELAY_CHRT") else []
+PRIO += ["taskset", "-c", os.environ["RELAY_CORE"]] if os.environ.get("RELAY_CORE") else []
 ASK_AT = float(os.environ.get("ASK_AT", "0.5"))
 
 
@@ -43,13 +44,19 @@ def parse(cell):
 
 
 def link(cell):
-    rate, rtt, queue, *loss = parse(cell)[0].split("/")
+    rate, rtt, queue, *rest = parse(cell)[0].split("/")
     args = ["--delay-ms", str(int(rtt) / 2), "--rate-kbit", str(int(float(rate) * 1000)), "--self-timing"]
-    if loss:
-        args += ["--loss", loss[0].removeprefix("loss")]
+    for field in rest:
+        if field.startswith("loss"):
+            args += ["--loss", field.removeprefix("loss")]
     if queue == "codel":
         return args + ["--queue-ms", "800", "--codel", "5:100"]
     return args + ["--queue-ms", queue.removeprefix("fifo")]
+
+
+def throttle(cell):
+    """The CPU throttle a CELL's `cpuN` field names, 1 without one."""
+    return next((int(f.removeprefix("cpu")) for f in parse(cell)[0].split("/") if f.startswith("cpu")), 1)
 
 
 def shown(args):
@@ -95,7 +102,9 @@ def run(t, visit, http, cell, arm, rnd, prev):
     (t / "transport.json").write_text(json.dumps({"wt_url": f"https://127.0.0.1:{inp}/", "cert_sha256": t.cert}))
     at = parse(cell)[1]
     share = "none" if at == "none" else int(at) / 100 if at else ASK_AT
-    visit.stdin.write(f"http://127.0.0.1:{http}/lab/ask-ahead/index.html?frames={t.frames}&at={share}&ask={t.ask}{query}\n")
+    codec = f"&codec={t.codec}" if t.codec else ""
+    mutate = "&mutate=sample" if os.environ.get("MUTATE") == "sample" else ""
+    visit.stdin.write(f"http://127.0.0.1:{http}/lab/ask-ahead/index.html?frames={t.frames}&at={share}&ask={t.ask}{codec}{mutate}{query} {throttle(cell)}\n")
     visit.stdin.flush()
     r = json.loads(visit.stdout.readline())
     # The page's close is still in the relay's queue; the server logs the session once it lands.
@@ -109,12 +118,15 @@ def run(t, visit, http, cell, arm, rnd, prev):
     relay.wait()
     tally = rlog.read_text()
     late = re.findall(r"self-timing packets \d+ late p50 [\d.]+ p99 ([\d.]+)", tally)
-    sha_ok = r.get("sha") and all(r["sha"].get(str(i)) == d for i, d in enumerate(t.digests))
+    matched = sum(r.get("sha", {}).get(str(i)) == d for i, d in enumerate(t.digests))
     return {"round": rnd, "cell": cell, "arm": arm, "prev": prev, "settings": f"{settings} {' '.join(shown(ARMS[arm]))}".strip(),
+            "page": r.get("settings"), "cpu": throttle(cell),
             "ask_ms": round(r["askMs"], 1) if r.get("askMs") is not None else None,
+            "ask_decoder_ms": round(r["askDecoderMs"], 1) if r.get("askDecoderMs") is not None else None,
+            "ask_in_hand": r.get("askInHand"),
             "fill_ms": round(r["fillMs"], 1) if "fillMs" in r else None,
             "ahead": r.get("ahead"), "ahead_bytes": sum(t.sizes[i] for i in r.get("ahead") or []),
-            "exact": bool(sha_ok), "error": r.get("error") or (r.get("errors") or [None])[0],
+            "exact": matched == t.frames, "exact_frames": matched, "error": r.get("error") or (r.get("errors") or [None])[0],
             "gap_ms": gap(r["landedMs"], t.ask if at != "none" else None) if "landedMs" in r else None,
             "next_ms": round(r["next"]["ms"], 1) if r.get("next") else None,
             "next_bytes": t.sizes[r["next"]["index"]] if r.get("next") else None,
@@ -135,6 +147,14 @@ def gap(landed, asked):
         last = max(last, t)
         usable.append(last)
     return round(max(b - a for a, b in zip(usable, usable[1:])), 1)
+
+
+def builds():
+    """SHA-256 of what a run executes, by path: the server, the downloader, the decoder and its builds."""
+    import hashlib
+    paths = [SERVER, *(ROOT / "client" / f for f in ("transport/downloader.js", "decode/decoder.js", "transport/ts/dist/session.js")),
+             *sorted((ROOT / "client/decode/wasm/built").glob("*/*.wasm"))]
+    return {os.path.relpath(p, ROOT): hashlib.sha256(p.read_bytes()).hexdigest()[:16] for p in paths if p.exists()}
 
 
 class Rig(type(Path())):
@@ -158,9 +178,19 @@ def main():
         import hashlib
         t.cert = hashlib.sha256(der).hexdigest()
         os.symlink(series / "series.sbnd", t / "series.sbnd")
-        t.digests = json.loads((series / "digests.json").read_text())
-        t.frames = len(t.digests)
-        t.sizes = [(series / "frames" / f"{i:03d}.htj2k").stat().st_size for i in range(t.frames)]
+        if (series / "metadata.json").exists():
+            # Coded by ingest/coded-frames and decoded on the page: the truth is the source's checksum per frame.
+            t.codec = json.loads((series / "metadata.json").read_text()).get("codec", "htj2k")
+            t.frames = len(list(series.glob("*.sha256")))
+            t.digests = [(series / f"{i:03d}.sha256").read_text().split()[0] for i in range(t.frames)]
+            t.sizes = [(series / f"{i:03d}.{t.codec}").stat().st_size for i in range(t.frames)]
+        else:
+            t.codec = None
+            t.digests = json.loads((series / "digests.json").read_text())
+            t.frames = len(t.digests)
+            t.sizes = [(series / "frames" / f"{i:03d}.htj2k").stat().st_size for i in range(t.frames)]
+        if os.environ.get("MUTATE") == "truth":
+            t.digests = [("1" if d[0] == "0" else "0") + d[1:] for d in t.digests]
         # The last frame: what a deep queue has written ahead at half the fill never reaches it.
         t.ask = t.frames - 1
         (t / "transport.json").write_text("{}")
@@ -174,7 +204,8 @@ def main():
         print(json.dumps({"chromium": json.loads(visit.stdout.readline())["chromium"],
                           "server": subprocess.run(["git", "-C", ROOT, "rev-parse", "--short", "HEAD"], capture_output=True,
                                                    text=True).stdout.strip(), "arms": {a: shown(ARMS[a]) for a in arms},
-                          "series": str(series.name), "relay_chrt": os.environ.get("RELAY_CHRT"), "frames": t.frames, "ask_at": ASK_AT, "bytes": sum(t.sizes),
+                          "series": str(series.name), "relay_chrt": os.environ.get("RELAY_CHRT"), "relay_core": os.environ.get("RELAY_CORE"),
+                          "builds": builds(), "frames": t.frames, "ask_at": ASK_AT, "bytes": sum(t.sizes),
                           "ask": t.ask, "ask_bytes": t.sizes[t.ask]}), flush=True)
         time.sleep(0.5)
         try:

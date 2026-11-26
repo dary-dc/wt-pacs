@@ -1,0 +1,3 @@
+as written: a round 263 min at 1x + 772 min at 4x = 17.25 h; 0 rounds fit 5 h
+whole series to L dav1d 4x dbts_b1: a round 171 min at 1x + 601 min at 4x = 12.87 h; 0 rounds fit 5 h
+then 50 Mbit/s dropped: a round 123 min at 1x + 408 min at 4x = 8.85 h; 0 rounds fit 5 h

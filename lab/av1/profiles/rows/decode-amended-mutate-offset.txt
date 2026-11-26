@@ -1,0 +1,3 @@
+round 0 1x dbts_a1|Q16 R|12bit: {"exact":[0,16],"residuals":[16,16],"lossy":[16,16]} 
+round 0 1x dbts_a1|Q16 R|top10: {"exact":[0,16],"residuals":[16,16],"lossy":[16,16]} 
+round 0 1x done, 20 s

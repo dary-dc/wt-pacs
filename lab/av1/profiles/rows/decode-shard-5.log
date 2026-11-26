@@ -1,0 +1,89 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+page.evaluate: Target page, context or browser has been closed
+    at inChromium (lab/av1/profiles/decode_block.mjs:104:28)
+    at async lab/av1/profiles/decode_block.mjs:142:19
+
+Node.js v22.23.4
+round 0 1x done, 260 s
+round 0 1x done, 256 s
+round 0 4x done, 579 s
+round 0 4x done, 580 s
+round 1 4x done, 321 s
+round 1 4x done, 326 s
+round 1 1x done, 582 s
+round 1 1x done, 586 s
+round 2 1x done, 256 s
+round 2 4x done, 608 s
+round 3 4x done, 357 s
+round 4 1x done, 252 s
+round 4 1x done, 253 s
+round 4 4x done, 593 s
+round 4 4x done, 594 s
+round 5 4x done, 352 s
+round 5 4x done, 347 s
+round 5 1x done, 626 s
+round 6 1x done, 257 s
+round 6 1x done, 258 s
+round 6 4x done, 589 s
+round 6 4x done, 590 s
+round 7 4x done, 356 s
+round 7 4x done, 351 s
+round 7 1x done, 615 s
+round 8 1x done, 258 s
+round 8 1x done, 259 s
+round 8 4x done, 592 s
+round 8 4x done, 594 s
+round 9 4x done, 346 s
+round 9 4x done, 348 s
+round 9 1x done, 611 s
+round 10 1x done, 267 s
+round 10 1x done, 266 s
+round 10 4x done, 610 s
+round 10 4x done, 616 s
+round 11 4x done, 348 s
+round 11 4x done, 349 s
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+page.evaluate: Target page, context or browser has been closed
+    at inChromium (lab/av1/profiles/decode_block.mjs:104:28)
+    at async lab/av1/profiles/decode_block.mjs:149:19
+
+Node.js v22.23.4
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+page.evaluate: Target page, context or browser has been closed
+    at inChromium (lab/av1/profiles/decode_block.mjs:104:28)
+    at async lab/av1/profiles/decode_block.mjs:149:19
+
+Node.js v22.23.4
+--- 2026-11-04T20:49Z restart: every line above ran with two block drivers at once on this host (a launch not stopped); void. The block starts again at round 0 below.
+round 0 1x done, 243 s
+round 0 4x done, 565 s
+round 1 4x done, 331 s
+round 1 1x done, 579 s
+round 2 1x done, 244 s
+round 2 4x done, 569 s
+round 3 4x done, 335 s
+round 3 1x done, 577 s
+round 4 1x done, 245 s
+round 4 4x done, 580 s
+round 5 4x done, 355 s
+round 5 1x done, 598 s
+round 6 1x done, 247 s
+round 6 4x done, 572 s
+round 7 4x done, 328 s
+round 7 1x done, 565 s
+round 8 1x done, 240 s
+round 8 4x done, 575 s
+round 9 4x done, 319 s
+round 9 1x done, 556 s
+round 10 1x done, 235 s
+round 10 4x done, 543 s
+stopping before round 11: it would pass --until

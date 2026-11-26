@@ -1,8 +1,9 @@
 /**
- * The painter's worker half: WebGL2 on the page's transferred canvas. Pass 1 windows the frame
- * through the table into an RGBA8 texture at source size; pass 2 draws one quad that samples it
- * bilinearly. client/paint/README.md §How it paints
+ * The painter's worker half, and the view worker's paint module: WebGL2 on the page's transferred canvas.
+ * Pass 1 windows the frame through the table into an RGBA8 texture at source size; pass 2 draws one quad
+ * that samples it bilinearly. client/paint/README.md §How it paints
  */
+import { settled } from "./settle.js";
 import { tableShape, windowTable } from "./voi.js";
 
 const VERT_FULL = `#version 300 es
@@ -65,7 +66,8 @@ function format(f) {
   }
   if (f.bits <= 8 && !f.signed) return { internal: gl.R8UI, fmt: gl.RED_INTEGER, type: gl.UNSIGNED_BYTE, sampler: "usampler2D", View: Uint8Array };
   if (f.bits <= 16 && !f.signed) return { internal: gl.R16UI, fmt: gl.RED_INTEGER, type: gl.UNSIGNED_SHORT, sampler: "usampler2D", View: Uint16Array };
-  if (f.bits <= 16 && f.signed && f.bits > 8) return { internal: gl.R16I, fmt: gl.RED_INTEGER, type: gl.SHORT, sampler: "isampler2D", View: Int16Array };
+  if (f.bits <= 8) return { internal: gl.R8I, fmt: gl.RED_INTEGER, type: gl.BYTE, sampler: "isampler2D", View: Int8Array };
+  if (f.bits <= 16) return { internal: gl.R16I, fmt: gl.RED_INTEGER, type: gl.SHORT, sampler: "isampler2D", View: Int16Array };
   throw new Error(`${f.bits}-bit ${f.signed ? "signed" : "unsigned"} samples are not painted`);
 }
 
@@ -185,48 +187,65 @@ function readback(width, height) {
   return rows;
 }
 
-function start(offscreen) {
+/** The renderer's name, or a throw saying why nothing can be painted; `onLost` hears of a context lost later. */
+export function start(offscreen, onLost) {
   canvas = offscreen;
   canvas.addEventListener("webglcontextlost", (e) => {
     e.preventDefault();
     lost = "the WebGL2 context was lost";
-    self.postMessage({ kind: "lost", reason: lost });
+    onLost(lost);
   });
   gl = canvas.getContext("webgl2", { alpha: false, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false });
   if (!gl) {
     lost = "WebGL2 is not available";
-    return self.postMessage({ kind: "lost", reason: lost });
+    throw new Error(lost);
   }
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
   fbo = gl.createFramebuffer();
   const dbg = gl.getExtension("WEBGL_debug_renderer_info");
-  self.postMessage({ kind: "ready", renderer: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER) });
+  return dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
 }
 
-/** One paint: upload if the frame is new, window if the frame or the window changed, place always. */
-function paint({ id, frame, same, display, width, height, dpr, read }) {
-  if (lost) return self.postMessage({ kind: "painted", id, error: lost });
-  try {
-    const t0 = performance.now();
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-    }
-    const f = format(frame);
-    const fresh = upload(frame, f, same);
-    const key = JSON.stringify([display.photometric, display.invert, display.rescale, display.voi]);
-    if (fresh || cached.table !== key) {
-      windowPass(frame, display, f);
-      cached.table = key;
-    }
-    placePass(display, width, height, dpr);
-    const pixels = read ? readback(width, height) : null;
-    // A one-pixel read waits for the draw to execute; gl.finish() alone did not on SwiftShader.
-    if (!read) gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
-    self.postMessage({ kind: "painted", id, ms: performance.now() - t0, uploaded: fresh, pixels }, pixels ? [pixels.buffer] : []);
-  } catch (e) {
-    self.postMessage({ kind: "painted", id, error: e.message });
+/**
+ * One paint: upload if the frame is new, window if the frame or the window changed, place always. A lab's `settle`
+ * returns once drawn: `fence`, or `read`, which waits on a busy page in Firefox. README §When a paint has executed
+ */
+export async function paint({ frame, same, display, width, height, dpr, read, settle }) {
+  if (lost) throw new Error(lost);
+  const t0 = performance.now();
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
   }
+  const f = format(frame);
+  const fresh = upload(frame, f, same);
+  const key = JSON.stringify([display.photometric, display.invert, display.rescale, display.voi, frame.cutShift]);
+  if (fresh || cached.table !== key) {
+    windowPass(frame, display, f);
+    cached.table = key;
+  }
+  placePass(display, width, height, dpr);
+  const pixels = read ? readback(width, height) : null;
+  if (!read && settle === "fence") await settled(gl);
+  if (!read && settle === "read") gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+  // `drawn`: ms since the epoch, so a thread that waits for the reply can still time the draw; unsettled, its issue.
+  return { ms: performance.now() - t0, uploaded: fresh, pixels, drawn: performance.timeOrigin + performance.now() };
 }
 
-self.onmessage = ({ data }) => (data.kind === "start" ? start(data.canvas) : paint(data));
+// As its own worker, the painter's; imported by the view worker, which replaces this handler with its own.
+self.onmessage = async ({ data }) => {
+  if (data.kind === "start") {
+    try {
+      self.postMessage({ kind: "ready", renderer: start(data.canvas, (reason) => self.postMessage({ kind: "lost", reason })) });
+    } catch (e) {
+      self.postMessage({ kind: "lost", reason: e.message });
+    }
+    return;
+  }
+  try {
+    const r = await paint(data);
+    self.postMessage({ kind: "painted", id: data.id, ...r }, r.pixels ? [r.pixels.buffer] : []);
+  } catch (e) {
+    self.postMessage({ kind: "painted", id: data.id, error: e.message });
+  }
+};

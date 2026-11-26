@@ -13,7 +13,7 @@ dir="$OUT_ROOT/$NAME"
 mkdir -p "$dir"
 
 python3 - "$dir" "$BYTES" "$FRAMES" "$NAME" <<'PY'
-import json, struct, sys, os
+import json, os, random, struct, sys
 dir, nbytes, nframes, name = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
 meta = {"frameCount": nframes, "seriesLabel": name, "meanFrameBytes": nbytes}
 meta_bytes = json.dumps(meta, separators=(",", ":")).encode()
@@ -31,9 +31,10 @@ with open(out, "wb") as f:
         f.write(struct.pack("<QI", off, nbytes))
         off += nbytes
     f.write(meta_bytes)
-    blob = bytes([0xAB]) * nbytes
+    # Seeded, so every run reads the same bytes; incompressible, so a compressing filesystem stores them as read.
+    rng = random.Random(name)
     for _ in range(nframes):
-        f.write(blob)
+        f.write(rng.randbytes(nbytes))
 open(os.path.join(dir, "metadata.json"), "w").write(json.dumps(meta, indent=2) + "\n")
 open(os.path.join(dir, "README.md"), "w").write(
     f"# {name}\n\n"

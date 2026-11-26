@@ -80,6 +80,17 @@ mod tests {
         assert_eq!(parse(&["--congestion", "cubic-classify"]).tuning.congestion, Congestion::CubicClassify);
     }
 
+    /// A server serves `--series` or `--root`, never both and never neither; `--root` takes no
+    /// flag that sizes itself to one series.
+    #[test]
+    fn root_and_series_are_exclusive_and_one_is_required() {
+        let args = |flags: &[&str]| Args::try_parse_from([&["series-server"], flags].concat());
+        assert_eq!(args(&["--root", "r"]).expect("parses").serve.root.as_deref(), Some(std::path::Path::new("r")));
+        assert!(args(&["--series", "s.sbnd", "--root", "r"]).is_err(), "both parsed");
+        assert!(args(&[]).is_err(), "neither parsed");
+        assert!(args(&["--root", "r", "--send-window-follows-cwnd"]).is_err(), "a per-series flag parsed under --root");
+    }
+
     /// The opening ask is on unless turned off, and the bare flag the lab scripts pass still parses.
     #[test]
     fn the_opening_ask_is_on_by_default_with_a_way_off() {
@@ -105,7 +116,6 @@ mod tests {
             "--congestion", "bbr",
             "--initial-window-bytes", "4",
             "--initial-rtt-ms", "5",
-            "--reply-repeated-initial",
         ];
         let tuning = TransportTuning {
             send_window: Some(1),
@@ -114,7 +124,7 @@ mod tests {
             congestion: Congestion::Bbr,
             initial_window: Some(4),
             initial_rtt_ms: Some(5),
-            reply_repeated_initial: true,
+            reply_repeated_initial: false,
             segmentation_offload: true,
         };
         assert_eq!(parse(&flags).tuning, tuning);
@@ -124,7 +134,12 @@ mod tests {
     #[cfg(not(feature = "lab-levers"))]
     #[test]
     fn the_default_build_refuses_every_lab_lever() {
-        for flag in [&["--force-pool-reads"][..], &["--hold-sessions"], &["--stall-after-bytes", "1"], &["--segmentation-offload", "false"]] {
+        let flags = [
+            &["--force-pool-reads"][..], &["--hold-sessions"], &["--stall-after-bytes", "1"], &["--segmentation-offload", "false"],
+            &["--send-window-follows-cwnd"], &["--reply-repeated-initial"], &["--stream-mode", "per-frame-asks-first"],
+            &["--advise-tile-names"], &["--fill-resumes-after-asks"], &["--ask-stream-priority", "1"],
+        ];
+        for flag in flags {
             assert!(Args::try_parse_from([&["series-server", "--series", "s.sbnd"], flag].concat()).is_err(), "{flag:?} parsed");
         }
     }
@@ -135,8 +150,24 @@ mod tests {
     fn every_lab_lever_parses_under_its_feature() {
         use series_server::LabLevers;
         assert_eq!(parse(&[]).lab, LabLevers::default());
-        let flags = ["--force-pool-reads", "--hold-sessions", "--stall-after-bytes", "7", "--segmentation-offload", "false"];
-        let lab = LabLevers { force_pool_reads: true, hold_sessions: true, stall_after_bytes: Some(7), segmentation_offload: false };
-        assert_eq!(parse(&flags).lab, lab);
+        let flags = [
+            "--force-pool-reads", "--hold-sessions", "--stall-after-bytes", "7", "--segmentation-offload", "false",
+            "--send-window-follows-cwnd", "--reply-repeated-initial", "--stream-mode", "per-frame-asks-first",
+            "--advise-tile-names", "--fill-resumes-after-asks", "--ask-stream-priority", "-3",
+        ];
+        let lab = LabLevers {
+            force_pool_reads: true,
+            hold_sessions: true,
+            stall_after_bytes: Some(7),
+            segmentation_offload: false,
+            send_window_follows_cwnd: true,
+            reply_repeated_initial: true,
+            advise_tile_names: true,
+            fill_resumes_after_asks: true,
+            ask_stream_priority: Some(-3),
+        };
+        let args = parse(&flags);
+        assert_eq!(args.lab, lab);
+        assert_eq!(args.mode, series_server::StreamMode::PerFrameAsksFirst);
     }
 }

@@ -47,6 +47,13 @@ struct Args {
     /// where no earlier run has read it. Unset: frame 0, and a fill streams the whole series.
     #[arg(long)]
     start: Option<u32>,
+    /// Session k starts `k × asks × step` frames past the first, so no two sessions ask one frame.
+    #[arg(long)]
+    disjoint: bool,
+    /// On demand, asks go out in bursts of this many, the next once the last of this one is in;
+    /// p50_ns to p99_ns are then each burst's wall, its first ask sent to its last frame received.
+    #[arg(long)]
+    burst: Option<usize>,
     #[arg(long, default_value = "")]
     label: String,
     #[arg(long, default_value = "")]
@@ -130,7 +137,7 @@ async fn run(args: Args) -> Result<()> {
         if i > 0 && !args.one_socket {
             endpoints.push(client_endpoint(None)?);
         }
-        opening.spawn(Session::open(connect(endpoints.last().expect("one endpoint"), &args.url).await?));
+        opening.spawn(Session::open(connect(endpoints.last().expect("one endpoint"), &args.url).await?, i));
     }
     let mut sessions = Vec::with_capacity(opening.len());
     while let Some(opened) = opening.join_next().await {
@@ -147,13 +154,14 @@ async fn run(args: Args) -> Result<()> {
             let (args, digests) = (Arc::clone(&args), digests.clone());
             set.spawn(async move { session.ask(&args, &digests).await.map(|lats| (session, lats)) });
         }
-        let mut lats = Vec::new();
+        let (mut lats, mut asked) = (Vec::new(), 0);
         while let Some(joined) = set.join_next().await {
-            let (session, l) = joined.context("session join")??;
+            let (session, (l, n)) = joined.context("session join")??;
             sessions.push(session);
             lats.extend(l);
+            asked += n;
         }
-        print_row(&args, pass == 0, &mark, &peak, lats)?;
+        print_row(&args, pass == 0, &mark, &peak, lats, asked)?;
     }
     if let Some(sampler) = sampler {
         sampler.abort();
@@ -184,9 +192,9 @@ impl Mark {
     }
 }
 
-fn print_row(args: &Args, header: bool, mark: &Mark, peak: &AtomicU64, mut lats: Vec<u64>) -> Result<()> {
+fn print_row(args: &Args, header: bool, mark: &Mark, peak: &AtomicU64, mut lats: Vec<u64>, asked: usize) -> Result<()> {
     let wall_ns = mark.wall.elapsed().as_nanos() as u64;
-    let n = lats.len().max(1) as u64;
+    let n = asked.max(1) as u64;
     let (cpu_ns_per_ask, rss_kib) = match mark.server {
         Some((pid, cpu0, rss0)) => (
             (proc_cpu(pid)?.saturating_sub(cpu0) / u128::from(n)).to_string(),
@@ -209,7 +217,7 @@ fn print_row(args: &Args, header: bool, mark: &Mark, peak: &AtomicU64, mut lats:
         args.temp,
         args.mode.to_possible_value().expect("no mode is skipped").get_name(),
         args.depth,
-        lats.len(),
+        asked,
         pct(&lats, 0.50),
         pct(&lats, 0.90),
         pct(&lats, 0.99),
@@ -237,7 +245,7 @@ async fn idle(args: &Args, digests: &Option<Arc<Vec<u64>>>) -> Result<()> {
         let (mut control, recv) = connection.open_bi().await.context("open bi")?.await.context("bi ready")?;
         let mut media = connection.accept_uni().await.context("accept media uni")?;
         let (depth, step, start) = (args.depth.max(1), args.step.max(1), args.start.unwrap_or(0));
-        served += on_demand(&mut control, &mut media, depth, args.asks, frames, step, start, digests).await?.len();
+        served += on_demand(&mut control, &mut media, depth, args.asks, frames, step, start, None, digests).await?.len();
         let gap = Duration::from_micros(args.gap_us);
         served += fill(&mut control, &mut media, args.fill.min(frames as usize), Some(0), gap, digests).await?.len();
         held.push((endpoint, connection, control, recv, media));
@@ -303,10 +311,11 @@ struct Session {
     control: SendStream,
     _reply: RecvStream,
     media: RecvStream,
+    k: usize,
 }
 
 impl Session {
-    async fn open(connection: Connection) -> Result<Self> {
+    async fn open(connection: Connection, k: usize) -> Result<Self> {
         let (control, reply) = connection
             .open_bi()
             .await
@@ -314,19 +323,27 @@ impl Session {
             .await
             .context("bi ready")?;
         let media = connection.accept_uni().await.context("accept media uni")?;
-        Ok(Self { _connection: connection, control, _reply: reply, media })
+        Ok(Self { _connection: connection, control, _reply: reply, media, k })
     }
 
-    async fn ask(&mut self, args: &Args, digests: &Option<Arc<Vec<u64>>>) -> Result<Vec<u64>> {
-        let (control, media, frames) = (&mut self.control, &mut self.media, args.frames.max(1));
+    /// Each value timed, and the asks it covers.
+    async fn ask(&mut self, args: &Args, digests: &Option<Arc<Vec<u64>>>) -> Result<(Vec<u64>, usize)> {
+        let (control, media, frames, step) = (&mut self.control, &mut self.media, args.frames.max(1), args.step.max(1));
+        let start = match args.disjoint {
+            true => Some(args.start.unwrap_or(0) + (self.k * args.asks) as u32 * step),
+            false => args.start,
+        };
         match args.mode {
             Mode::OnDemand => {
-                let (depth, step, start) = (args.depth.max(1), args.step.max(1), args.start.unwrap_or(0));
-                on_demand(control, media, depth, args.asks, frames, step, start, digests).await
+                let (depth, start) = (args.depth.max(1), start.unwrap_or(0));
+                let lats = on_demand(control, media, depth, args.asks, frames, step, start, args.burst, digests).await?;
+                Ok((lats, args.asks))
             }
             Mode::Fill => {
                 let gap = Duration::from_micros(args.gap_us);
-                fill(control, media, args.asks.min(frames as usize), args.start, gap, digests).await
+                let lats = fill(control, media, args.asks.min(frames as usize), start, gap, digests).await?;
+                let asked = lats.len();
+                Ok((lats, asked))
             }
             Mode::Idle => unreachable!("`idle` opens its own sessions"),
         }
@@ -341,15 +358,19 @@ async fn on_demand(
     frames: u32,
     step: u32,
     start: u32,
+    burst: Option<usize>,
     digests: &Option<Arc<Vec<u64>>>,
 ) -> Result<Vec<u64>> {
     let plan = |i: usize| start.wrapping_add((i as u32).wrapping_mul(step)) % frames;
     let mut sent = Vec::with_capacity(asks);
     let mut lats = Vec::with_capacity(asks);
+    let mut walls = Vec::new();
+    let size = burst.unwrap_or(asks).max(1);
     let mut next_send = 0usize;
     let mut next_recv = 0usize;
     while next_recv < asks {
-        while next_send < asks && (next_send - next_recv) < depth as usize {
+        let burst_end = (next_recv / size + 1) * size;
+        while next_send < asks.min(burst_end) && (next_send - next_recv) < depth as usize {
             control
                 .write_all(&encode_fod_msg(&FodMsg::RequestFrame {
                     frame: plan(next_send),
@@ -369,8 +390,11 @@ async fn on_demand(
         );
         lats.push(sent[next_recv].elapsed().as_nanos() as u64);
         next_recv += 1;
+        if burst.is_some() && (next_recv % size == 0 || next_recv == asks) {
+            walls.push(sent[(next_recv - 1) / size * size].elapsed().as_nanos() as u64);
+        }
     }
-    Ok(lats)
+    Ok(if burst.is_some() { walls } else { lats })
 }
 
 async fn fill(

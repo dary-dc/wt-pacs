@@ -1,0 +1,8 @@
+Chromium 153.0.8010.12; renderer ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver); XXH3 vector 4
+rounds: 1x 1 (planned 1 at 1x, 1 at 4x)
+
+checks over every round and frame: exact = SHA-256 vs the fetched source; preview = dense Y vs native dav1d; =L = byte-equal to L; =prep = L equals the A arms' preview; agree = A/H digests equal
+1x	dbts_a1	L preview 16/16 =prep 16/16	LR =L 16/16	H exact 16/16 agree 0/16	LS =L 0/16	AS exact 0/16 agree 0/16	A2 exact 16/16 agree 0/16	A1′ exact 16/16 agree 0/16	A1 exact 16/16 agree 0/16	VOID
+1x	dbts_b1	L preview 16/16 =prep 16/16	LR =L 16/16	H exact 16/16 agree 0/16	LS =L 0/16	AS exact 0/16 agree 0/16	A2 exact 16/16 agree 0/16	A1′ exact 16/16 agree 0/16	A1 exact 16/16 agree 0/16	VOID
+1x	mr_ispy1	L preview 16/16 =prep 16/16	LR =L 16/16	H exact 16/16 agree 16/16	A2 exact 16/16 agree 16/16	A1′ exact 16/16 agree 16/16	A1 exact 16/16 agree 16/16
+1x	dbts_c1	L preview 16/16 =prep 16/16	LR =L 16/16	H exact 16/16 agree 0/16	LS =L 0/16	AS exact 0/16 agree 0/16	A2 exact 16/16 agree 0/16	A1′ exact 16/16 agree 0/16	A1 exact 16/16 agree 0/16	VOID

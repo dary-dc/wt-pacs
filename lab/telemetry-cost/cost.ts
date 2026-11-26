@@ -34,7 +34,7 @@ async function oneRun(variant: Variant, count: number, size: number, chunks: num
 
   const t0 = performance.now();
   for (let i = 0; i < count; i++) {
-    const pending = session.requestExactFrame(i);
+    const pending = session.requestFrame(i);
     FakeTransport.last.pushFrameInChunks(i, payload, chunks);
     const frame = await pending;
     if (frame.bytes.length !== size) throw new Error(`frame ${i}: ${frame.bytes.length} != ${size}`);

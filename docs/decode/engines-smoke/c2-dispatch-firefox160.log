@@ -1,0 +1,22 @@
+dispatch
+  FAIL: webcodecs: every stream of every ≤ 10-bit payload reached it (missed: 0,1,2,4,5,6,7,8,9,10)
+  SKIPPED: AV1 frame check, a WebCodecs sample changed — WebCodecs took none of these payloads here
+  FAIL: group: G = 8, 20 frames, every frame its source's (inexact: 1,2,3,4,5,6,7,9,10,11,12,13,14,15,17,18,19)
+  FAIL: group: G = 8, every frame on its keyframe's decoder (elsewhere: 1,2,3,4,5,6,7,9,10,11,12,13,14,15,17,18,19)
+  FAIL: webcodecs: G = 8, every frame its source's (inexact: 1,2,3,4,5,6,7,9,10,11,12,13,14,15,17,18,19)
+  FAIL: webcodecs: a group's units reach WebCodecs only where it is there (4)
+  FAIL: webcodecs: a unit mid-group with no frame fails, and its group's rest (1,2,3,4,5,6,7,9,10,11,12,13,14,15,17,18,19)
+  FAIL: webcodecs: the next group is still exact (inexact: 9,10,11,12,13,14,15,17,18,19)
+  FAIL: anAskForAFrameAsksItsWholeGroup threw: frame 11 unavailable: undecodable: frame 10 was not decoded before it here
+  FAIL: anAskMidFillStartsAtItsKeyframe threw: frame 13 unavailable: undecodable: frame 12 was not decoded before it here
+  FAIL: group: frame 3 undecodable, 4..7 never reach the page as frames (0,8)
+  FAIL: group: frame 3 undecodable, 3..7 each fail by name (1,2,3,4,5,6,7,9,10,11,12,13,14,15 of 14)
+  FAIL: group: frame 3 undecodable, the frames that arrived are their sources'
+  FAIL: group: frame 3 refused, 4..7 never reach the page as frames (0,8)
+  FAIL: group: frame 3 refused, 3..7 each fail by name (1,2,3,4,5,6,7,9,10,11,12,13,14,15 of 14)
+  FAIL: group: frame 3 refused, the frames that arrived are their sources'
+  FAIL: group: out of order, after a failure or from another request is refused (0:done,2:failed,1:failed,2:failed,3:failed,8:done,9:failed,9:failed)
+  FAIL: webcodecs scalable: 4 units decoded by WebCodecs, every frame exact, no preview (0 units, 4 previews)
+
+dispatch over ts: 764/781 checks passed through the downloader
+

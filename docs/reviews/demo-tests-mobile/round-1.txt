@@ -1,0 +1,30 @@
+=== dbts_a1-q8-g8-cut | none
+dbts_a1-q8-g8-cut (fill): first picture 326 ms, 56 frames by 1662 ms, 4532 KB over 56 frames painted, jump 12 ms, lossless 58 ms
+dbts_a1-q8-g8-cut&fill=0: first picture 263 ms, 24 frames by 1353 ms, 1145 KB over 14 frames painted, jump 311 ms, lossless 63 ms
+demo check: dbts_a1-q8-g8-cut passed
+=== dbts_a1-q8-g8-cut | --delay-ms 40 --jitter-ms 10 --loss 2
+link: udp :5433 client->server sent 4823 lost 104 overflowed 0 codel 0 | server->client sent 5770 lost 147 overflowed 0 codel 0 swallowed 0 promoted 0
+link: udp :5434 client->server sent 1415 lost 26 overflowed 0 codel 0 | server->client sent 1680 lost 28 overflowed 0 codel 0 swallowed 0 promoted 0
+link: flow upstream udp :5433 127.0.0.1:48779 packets 2981 bytes 104111 sojourn p50 0.01 p99 0.01 ms
+link: flow upstream udp :5434 127.0.0.1:39798 packets 697 bytes 27645 sojourn p50 0.01 p99 0.01 ms
+link: flow upstream udp :5433 127.0.0.1:58894 packets 1842 bytes 67996 sojourn p50 0.01 p99 0.01 ms
+link: flow upstream udp :5434 127.0.0.1:48364 packets 718 bytes 27120 sojourn p50 0.01 p99 0.01 ms
+link: flow client udp :5433 127.0.0.1:48779 packets 3559 bytes 5153175 sojourn p50 0.01 p99 0.01 ms
+link: flow client udp :5434 127.0.0.1:39798 packets 840 bytes 1197065 sojourn p50 0.01 p99 0.01 ms
+link: flow client udp :5433 127.0.0.1:58894 packets 2211 bytes 3191199 sojourn p50 0.01 p99 0.01 ms
+link: flow client udp :5434 127.0.0.1:48364 packets 840 bytes 1205737 sojourn p50 0.01 p99 0.01 ms
+FAIL a wrong digest, `l` and its retry: the label ran ["Optimal quality","Optimal quality · fetching lossless…","Lossless check failed · optimal quality shown","Optimal quality · fetching lossless…"], not ["Optimal quality","Optimal quality · fetching lossless…","Lossless check failed · optimal quality shown","Optimal quality · fetching lossless…","Lossless check failed · optimal quality shown"]
+demo check: 1 failed
+=== dbts_a1-q8-g8-cut | --delay-ms 80 --jitter-ms 20 --loss 5
+FAIL : the fill completes
+demo check: 1 failed
+=== dbts_b1-q8-g8 | none
+dbts_b1-q8-g8 (fill): first picture 547 ms, 50 frames by 5759 ms, 22663 KB over 50 frames painted, jump 126 ms, lossless 215 ms
+dbts_b1-q8-g8&fill=0: first picture 434 ms, 18 frames by 4959 ms, 6282 KB over 14 frames painted, jump 625 ms, lossless 212 ms
+demo check: dbts_b1-q8-g8 passed
+=== dbts_b1-q8-g8 | --delay-ms 40 --jitter-ms 10 --loss 2
+FAIL : the fill completes
+demo check: 1 failed
+=== dbts_b1-q8-g8 | --delay-ms 80 --jitter-ms 20 --loss 5
+FAIL : the fill completes
+demo check: 1 failed

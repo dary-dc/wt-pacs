@@ -1,0 +1,10 @@
+{"dir":"mr9_ispy2","truth":false,"pass":816,"fail":0,"caught":782,"missed":0,"refusal":"198104","first":[]}
+{"dir":"mr9_ispy2","truth":true,"pass":272,"fail":544,"caught":782,"missed":0,"refusal":"198104","first":["000/oneset.l1.j2c ","000/oneset.l2.j2c ","000/twosets1.l1.j2c ","000/twosets1.l2.j2c ","000/twosets2.l1.j2c ","000/twosets2.l2.j2c ","000/twosets3.l1.j2c ","000/twosets3.l2.j2c "]}
+{"dir":"rf_fluoro","truth":false,"pass":432,"fail":0,"caught":414,"missed":0,"refusal":"702744","first":[]}
+{"dir":"rf_fluoro","truth":true,"pass":144,"fail":288,"caught":414,"missed":0,"refusal":"702744","first":["000/oneset.l1.j2c ","000/oneset.l2.j2c ","000/twosets1.l1.j2c ","000/twosets1.l2.j2c ","000/twosets2.l1.j2c ","000/twosets2.l2.j2c ","000/twosets3.l1.j2c ","000/twosets3.l2.j2c "]}
+{"dir":"mr_ispy1","truth":false,"pass":1392,"fail":0,"caught":1334,"missed":0,"refusal":"341432","first":[]}
+{"dir":"mr_ispy1","truth":true,"pass":464,"fail":928,"caught":1334,"missed":0,"refusal":"341432","first":["000/oneset.l1.j2c ","000/oneset.l2.j2c ","000/twosets1.l1.j2c ","000/twosets1.l2.j2c ","000/twosets2.l1.j2c ","000/twosets2.l2.j2c ","000/twosets3.l1.j2c ","000/twosets3.l2.j2c "]}
+{"dir":"dbt12_ea1141","truth":false,"pass":696,"fail":0,"caught":667,"missed":0,"refusal":"652984","first":[]}
+{"dir":"dbt12_ea1141","truth":true,"pass":232,"fail":464,"caught":667,"missed":0,"refusal":"652984","first":["000/oneset.l1.j2c ","000/oneset.l2.j2c ","000/twosets1.l1.j2c ","000/twosets1.l2.j2c ","000/twosets2.l1.j2c ","000/twosets2.l2.j2c ","000/twosets3.l1.j2c ","000/twosets3.l2.j2c "]}
+{"dir":"dbts_b1","truth":false,"pass":240,"fail":0,"caught":230,"missed":0,"refusal":"2242360","first":[]}
+{"dir":"dbts_b1","truth":true,"pass":80,"fail":160,"caught":230,"missed":0,"refusal":"2242360","first":["000/oneset.l1.j2c ","000/oneset.l2.j2c ","000/twosets1.l1.j2c ","000/twosets1.l2.j2c ","000/twosets2.l1.j2c ","000/twosets2.l2.j2c ","000/twosets3.l1.j2c ","000/twosets3.l2.j2c "]}

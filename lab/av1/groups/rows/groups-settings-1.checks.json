@@ -1,0 +1,364 @@
+{
+ "arms are the table: AF\u2212AD, AU\u2212AT, AW\u2212AT differ by exactly \u00a7S4's flags; mutation, AU without --arnr-strength=0: fails": {
+  "got": {
+   "AF\u2212AD": [
+    [
+     "--deltaq-mode=1"
+    ],
+    []
+   ],
+   "AU\u2212AT": [
+    [
+     "--arnr-strength=0"
+    ],
+    []
+   ],
+   "AW\u2212AT": [
+    [
+     "--arnr-strength=2"
+    ],
+    []
+   ]
+  },
+  "holds": true,
+  "mutation": {
+   "AF\u2212AD": [
+    [
+     "--deltaq-mode=1"
+    ],
+    []
+   ],
+   "AU\u2212AT": [
+    [],
+    []
+   ],
+   "AW\u2212AT": [
+    [
+     "--arnr-strength=2"
+    ],
+    []
+   ]
+  },
+  "mutation_holds": true
+ },
+ "reproduction: O G 16 and AT G 16, Q 8, dbts_b1 byte-identical to rows/groups-1.jsonl; mutation --cpu-used=5: differs": {
+  "holds": true,
+  "mutation_holds": true
+ },
+ "Q1 strength: AT at --arnr-strength 4 and 6 = AT (5); mutation strength 3: differs": {
+  "holds": true,
+  "mutation_holds": true,
+  "bytes": {
+   "AT16": 9792023,
+   "AT-s4": 9792023,
+   "AT-s6": 9792023,
+   "AT-s3": 9883401
+  }
+ },
+ "Q2 G 1: AT and AF at G 1 = O G 1, Q 8; mutation AT at G 2: differs": {
+  "holds": null,
+  "mutation_holds": true,
+  "bytes": {
+   "O1": 15112123,
+   "AT1": "failed",
+   "AF1": "failed",
+   "AT2": 13994703
+  },
+  "failed": {
+   "AT1": "uantizer values should not be equal, and should differ by at least 8. | Pass 1/1 frame    1/0          0B       0 us 0.00 fpm [ETA  unknown] \u001b[K |     Error allocating buffers in smooth_filter_noise()",
+   "AF1": "RuntimeError: aomenc: Warning: Bad quantizer values. Quantizer values should not be equal, and should differ by at least 8. | Pass 1/1 frame    1/0          0B       0 us 0.00 fpm [ETA  unknown] \u001b[K"
+  }
+ },
+ "AU's filter off: AU \u2260 AT at Q 8 G 16 (a tie voids AU)": {
+  "holds": true,
+  "bytes": {
+   "AU16": 10083522,
+   "AT16": 9792023
+  }
+ },
+ "AF's delta-q acts: AF \u2260 AD at Q 8 G 16 (a tie voids AF)": {
+  "holds": true,
+  "bytes": {
+   "AF16": 9444210,
+   "AD16": 9445768
+  },
+  "q_hist": {
+   "AF16": {
+    "0": 31,
+    "8": 33
+   },
+   "AD16": {
+    "0": 31,
+    "8": 33
+   }
+  }
+ },
+ "the cut: depth_cut's vector; O G 1 at Q 0 on dbts_a1's cut form, back as c \u00b7 4, within [\u22122, +1] of the source; mutation c \u00b7 2: fails": {
+  "vector": [
+   0,
+   0,
+   1,
+   1,
+   2,
+   1023,
+   1023,
+   1023
+  ],
+  "span": [
+   -1,
+   2
+  ],
+  "mutation": [
+   -1607,
+   0
+  ],
+  "holds": false,
+  "mutation_holds": true
+ },
+ "per-group form: AT G 16 Q 8 on dbts_a1's cut form, one encoder a group, byte-identical to the whole-volume encode (a difference is reported)": {
+  "holds": false,
+  "bytes": {
+   "AT16-whole": 2182147,
+   "AT16-groups": 2209534
+  }
+ },
+ "equal quality: B\u2081 reads a known curve to 0.1 %, ln 0.9 offset reads \u221210.0 %; mutation, x reversed against y: the sign flips": {
+  "err": 0.0,
+  "offset": -0.10000000000000042,
+  "mutation": 1.135369040298595,
+  "holds": true,
+  "mutation_holds": true
+ },
+ "\u03bd: source against itself 1.000, S < 0.3; mutation, the source fed twice: \u03bd = 1 on S, fails": {
+  "itself": 1.0,
+  "S": 0.018104382249844238,
+  "mutation": 1.0,
+  "holds": true,
+  "mutation_holds": true
+ },
+ "determinism: AU and AF at Q 8 G 16 coded twice identical; mutation --cpu-used=5: differs": {
+  "holds": true,
+  "mutation_holds": true
+ },
+ "_failed": {
+  "AT1": "RuntimeError: aomenc: Warning: Bad quantizer values. Quantizer values should not be equal, and should differ by at least 8. | Pass 1/1 frame    1/0          0B       0 us 0.00 fpm [ETA  unknown] \u001b[K |     Error allocating buffers in smooth_filter_noise()",
+  "AF1": "RuntimeError: aomenc: Warning: Bad quantizer values. Quantizer values should not be equal, and should differ by at least 8. | Pass 1/1 frame    1/0          0B       0 us 0.00 fpm [ETA  unknown] \u001b[K"
+ },
+ "_encodes": {
+  "O16": {
+   "bytes": 14981915,
+   "cpu": 67.05889,
+   "rss_kb": 629120,
+   "hidden": 0,
+   "q_hist": {
+    "8": 33
+   }
+  },
+  "AT16": {
+   "bytes": 9792023,
+   "cpu": 95.558484,
+   "rss_kb": 2854860,
+   "hidden": 12,
+   "q_hist": {
+    "0": 31,
+    "8": 33
+   }
+  },
+  "O16-cpu5": {
+   "bytes": 14976080,
+   "cpu": 83.806876,
+   "rss_kb": 628892,
+   "hidden": 0,
+   "q_hist": {
+    "8": 33
+   }
+  },
+  "AT16-cpu5": {
+   "bytes": 9771458,
+   "cpu": 124.103275,
+   "rss_kb": 2861488,
+   "hidden": 12,
+   "q_hist": {
+    "0": 31,
+    "8": 33
+   }
+  },
+  "AT-s4": {
+   "bytes": 9792023,
+   "cpu": 96.215874,
+   "rss_kb": 2854788,
+   "hidden": 12,
+   "q_hist": {
+    "0": 31,
+    "8": 33
+   }
+  },
+  "AT-s6": {
+   "bytes": 9792023,
+   "cpu": 97.253822,
+   "rss_kb": 2854676,
+   "hidden": 12,
+   "q_hist": {
+    "0": 31,
+    "8": 33
+   }
+  },
+  "AT-s3": {
+   "bytes": 9883401,
+   "cpu": 96.614822,
+   "rss_kb": 2854756,
+   "hidden": 12,
+   "q_hist": {
+    "0": 31,
+    "8": 33
+   }
+  },
+  "O1": {
+   "bytes": 15112123,
+   "cpu": 124.30442599999999,
+   "rss_kb": 636300,
+   "hidden": 0,
+   "q_hist": {
+    "8": 33
+   }
+  },
+  "AT1": {
+   "bytes": "failed",
+   "cpu": null,
+   "rss_kb": null,
+   "hidden": null,
+   "q_hist": null
+  },
+  "AF1": {
+   "bytes": "failed",
+   "cpu": null,
+   "rss_kb": null,
+   "hidden": null,
+   "q_hist": null
+  },
+  "AT2": {
+   "bytes": 13994703,
+   "cpu": 118.687952,
+   "rss_kb": 2261064,
+   "hidden": 0,
+   "q_hist": {
+    "0": 32,
+    "8": 33
+   }
+  },
+  "AU16": {
+   "bytes": 10083522,
+   "cpu": 105.10985500000001,
+   "rss_kb": 2855008,
+   "hidden": 12,
+   "q_hist": {
+    "0": 31,
+    "8": 33
+   }
+  },
+  "AF16": {
+   "bytes": 9444210,
+   "cpu": 109.869912,
+   "rss_kb": 2854892,
+   "hidden": 12,
+   "q_hist": {
+    "0": 31,
+    "8": 33
+   }
+  },
+  "AD16": {
+   "bytes": 9445768,
+   "cpu": 105.56860800000001,
+   "rss_kb": 2854864,
+   "hidden": 12,
+   "q_hist": {
+    "0": 31,
+    "8": 33
+   }
+  },
+  "AU16-again": {
+   "bytes": 10083522,
+   "cpu": 96.24951200000001,
+   "rss_kb": 2854876,
+   "hidden": 12,
+   "q_hist": {
+    "0": 31,
+    "8": 33
+   }
+  },
+  "AF16-again": {
+   "bytes": 9444210,
+   "cpu": 96.931124,
+   "rss_kb": 2854720,
+   "hidden": 12,
+   "q_hist": {
+    "0": 31,
+    "8": 33
+   }
+  },
+  "AU16-cpu5": {
+   "bytes": 10036823,
+   "cpu": 124.549674,
+   "rss_kb": 2861904,
+   "hidden": 12,
+   "q_hist": {
+    "0": 31,
+    "8": 33
+   }
+  },
+  "AF16-cpu5": {
+   "bytes": 9378649,
+   "cpu": 124.165783,
+   "rss_kb": 2861708,
+   "hidden": 12,
+   "q_hist": {
+    "0": 31,
+    "8": 33
+   }
+  },
+  "proxy": {
+   "bytes": 822767,
+   "cpu": 50.92671,
+   "rss_kb": 646996,
+   "hidden": 0,
+   "q_hist": {
+    "32": 33
+   }
+  },
+  "AT16-whole": {
+   "bytes": 2182147,
+   "cpu": 49.534417999999995,
+   "rss_kb": 819720,
+   "hidden": 20,
+   "q_hist": {
+    "0": 31,
+    "8": 57
+   }
+  },
+  "AT16-groups": {
+   "bytes": 2209534,
+   "cpu": null,
+   "rss_kb": null,
+   "hidden": null,
+   "q_hist": null
+  },
+  "cut-Q0": {
+   "bytes": 44527881,
+   "cpu": 63.341344,
+   "rss_kb": 646992,
+   "hidden": 0,
+   "q_hist": {
+    "0": 57
+   }
+  },
+  "cut-Q0-x2": {
+   "bytes": 44527881,
+   "cpu": 62.328283,
+   "rss_kb": 2215492,
+   "hidden": 0,
+   "q_hist": {
+    "0": 57
+   }
+  }
+ }
+}

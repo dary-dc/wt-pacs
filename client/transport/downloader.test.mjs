@@ -47,7 +47,7 @@ async function aTimedOutAskIsResumed() {
     connect: async () => {
       const dial = ++dials;
       return {
-        requestExactFrame: (i) => dial === 1
+        requestFrame: (i) => dial === 1
           ? Promise.reject(Object.assign(new Error(`timeout waiting for frame ${i}: no byte for 15000 ms`), { name: "FrameTimeoutError" }))
           : Promise.resolve({ frameIndex: i, bytes: new Uint8Array(4), timing: {} }),
         stats: () => ({ closed: null, lastByteAt: performance.now() }),
@@ -74,7 +74,7 @@ function handFed() {
   const fed = { fill: null, asks: new Map() };
   globalThis.fakeTransport = {
     connect: async () => ({
-      requestExactFrame: (i) => new Promise((resolve) => fed.asks.set(i, resolve)),
+      requestFrame: (i) => new Promise((resolve) => fed.asks.set(i, resolve)),
       stats: () => ({ closed: null, lastByteAt: performance.now() }),
       fillFrames: (from, to, onFrame) => (fed.fill = onFrame),
       endStream: async () => {},
@@ -94,6 +94,7 @@ function handDecoders() {
     }
     postMessage(m) {
       if (m.kind === "init") {
+        this.init = m;
         this.toConsumer = m.toConsumer;
         queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
       }
@@ -156,6 +157,17 @@ async function startOnNeed() {
 }
 await startOnNeed();
 
+/** The lab's `pixels` reaches every decoder the downloader starts. */
+async function pixelsReachTheDecoders() {
+  handFed();
+  const made = handDecoders();
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // pixels`;
+  await import("./downloader.js?pixels");
+  await onmessage({ data: { kind: "start", config: { decoders: 2, transport, decoderWorker: "x", survival: false, pixels: "transfer" } } });
+  check(made.length === 2 && made.every((w) => w.init.pixels === "transfer"), `pixels reaches ${made.filter((w) => w.init.pixels === "transfer").length} of ${made.length} decoders`);
+}
+await pixelsReachTheDecoders();
+
 /** A downloader on hand-fed transport and decoders, filling frames 0–3, one decoder taking two frames at a time. */
 async function lossWorld(name, survival = false) {
   const fed = handFed();
@@ -214,6 +226,41 @@ async function aHangIsRecovered() {
   check(fed.asks.has(0) && fed.asks.has(1), `both frames it held are asked again (${[...fed.asks.keys()]})`);
 }
 await aHangIsRecovered();
+
+/**
+ * A deadline that fires late found the downloader's own thread stopped, as a hidden or frozen page stops it: the
+ * decoder had no time either, so it is given its deadline again, not replaced, and its group stays whole; a decoder
+ * still silent through a deadline of running time is replaced. docs/reviews/hidden-page-decode.md
+ */
+async function aFrozenPageKeepsItsDecoder() {
+  const freeze = async (name, survival = { decodeMs: 100, frozenMs: 50, stallMs: 60_000 }, ms = 400) => {
+    const world = await lossWorld(name, survival);
+    world.fed.fill(frame(0));
+    await settle();
+    const until = performance.now() + ms;
+    while (performance.now() < until);
+    await settle();
+    return world;
+  };
+  const { fed, made, failed } = await freeze("frozen");
+  check(!made[0].terminated && made.length === 1, `a decoder the page's freeze held up is kept (${made.length} made)`);
+  made[0].finish();
+  fed.fill(frame(1));
+  await settle();
+  check(made[0].decoding.map((m) => m.index).join() === "1", `and takes the next frame of its group (${made[0].decoding.map((m) => m.index)})`);
+  check(failed().length === 0, `nothing fails (${failed().map((m) => `${m.index}: ${m.reason}`)})`);
+  made[0].finish();
+  const silent = await freeze("frozen-silent");
+  await new Promise((r) => setTimeout(r, 250));
+  check(silent.made[0].terminated && silent.made.length === 2, `a decoder silent a deadline past the freeze, the page running, is replaced (${silent.made.length} made)`);
+  silent.fed.asks.get(0)?.(frame(0));
+  await settle();
+  silent.made[1]?.finish();
+  const byDefault = await freeze("frozen-default", { decodeMs: 100, stallMs: 60_000 }, 1300);
+  check(!byDefault.made[0].terminated, "the default freeze bound keeps a decoder held up 1.2 s past its deadline");
+  byDefault.made[0].finish();
+}
+await aFrozenPageKeepsItsDecoder();
 
 /** A frame lost twice fails by name, through `failed`, and is not asked a third time. */
 async function lostTwiceFailsLoudly() {
@@ -295,7 +342,7 @@ async function anAskAgainAfterACancelIsServed() {
   const owed = new Map();
   globalThis.fakeTransport = {
     connect: async () => ({
-      requestExactFrame: async (i) => {
+      requestFrame: async (i) => {
         if (owed.has(i)) throw new Error(`frame ${i} already requested`);
         return new Promise((resolve) => owed.set(i, (f) => (owed.delete(i), resolve(f))));
       },
@@ -332,7 +379,7 @@ async function theRemainderIsReissuedOnce() {
     let onFrame;
     globalThis.fakeTransport = {
       connect: async () => ({
-        requestExactFrame: (i, onHead) => new Promise((resolve) => asks.set(i, { resolve, onHead })),
+        requestFrame: (i, onHead) => new Promise((resolve) => asks.set(i, { resolve, onHead })),
         stats: () => ({ closed: null, lastByteAt: performance.now() }),
         fillFrames: (from, to, f) => {
           fills.push(`${from}-${to}`);
@@ -394,5 +441,338 @@ async function portsOutliveCollection() {
 }
 await portsOutliveCollection();
 
-console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held: ok");
+/** A transport that serves asks in the order they were sent, as the server does, when the test says so; fills are only recorded. */
+function servedInOrder() {
+  const w = { fills: [], asks: [], owed: [], onFill: null };
+  globalThis.fakeTransport = {
+    connect: async () => ({
+      requestFrame: (i) => new Promise((resolve) => (w.asks.push(i), w.owed.push(() => resolve(frame(i))))),
+      stats: () => ({ closed: null, lastByteAt: performance.now() }),
+      fillFrames: (from, to, onFrame) => (w.fills.push([from, to]), (w.onFill = onFrame)),
+      endStream: async () => {},
+      releaseWireBuffer() {},
+      close() {},
+    }),
+  };
+  w.serveOne = async () => (w.owed.shift()(), await settle());
+  return w;
+}
+
+async function wantWorld(name, config) {
+  const w = servedInOrder();
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // ${name}`;
+  await import(`./downloader.js?${name}`);
+  await onmessage({ data: { kind: "start", config: { transport, survival: false, ...config } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  posted.length = 0;
+  return w;
+}
+
+/** A want nearest-first from frame 40: its first D_min misses go out as asks in its order, topped up as each lands, and arrive in its order. */
+async function aWantArrivesInItsOrder() {
+  const w = await wantWorld("want-order", { decode: false, decoders: 0 });
+  const want = [40];
+  for (let d = 1; want.length < 76; d++) for (const i of [40 + d, 40 - d]) if (i >= 0 && i < 76) want.push(i);
+  await onmessage({ data: { kind: "want", indices: want } });
+  check(w.asks.join() === want.slice(0, 4).join() && w.fills.length === 0, `the first asks are the want's first 4 (${w.asks}, runs ${JSON.stringify(w.fills)})`);
+  let deepest = 0;
+  while (w.owed.length) {
+    deepest = Math.max(deepest, w.owed.length);
+    await w.serveOne();
+  }
+  const order = posted.filter((m) => m.kind === "frame").map((m) => m.index);
+  check(order.join() === want.join(), `frames arrive in the want's order (${order.slice(0, 8)} …)`);
+  check(deepest === 4, `at most D_min asks owed at once, and D_min reached (${deepest})`);
+  w.asks.length = 0;
+  await onmessage({ data: { kind: "want", indices: [10, 11, 12, 13, 14, 15] } });
+  check(JSON.stringify(w.fills) === "[[10,15]]" && w.asks.length === 0, `an ascending want is one run (${JSON.stringify(w.fills)}, asks ${w.asks})`);
+  w.onFill(frame(10));
+  await onmessage({ data: { kind: "want", indices: [30, 31, 32] } });
+  check(w.fills.length === 1, `a want ascending fewer than D_min frames, or behind a run, is no new run (${JSON.stringify(w.fills)})`);
+}
+await aWantArrivesInItsOrder();
+
+/**
+ * A want replaced while its run is decoding and in flight: no index is dispatched to a decoder twice or in a new
+ * generation, no frame the run delivered is asked again, and nothing is cancelled or failed.
+ */
+async function aReplacedWantKeepsWhatIsOwed() {
+  const dispatched = new Map();
+  const decoders = [];
+  globalThis.Worker = class {
+    constructor() {
+      this.decoding = [];
+      decoders.push(this);
+    }
+    postMessage(m) {
+      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "decode") {
+        this.decoding.push(m);
+        dispatched.set(m.index, [...(dispatched.get(m.index) ?? []), m.gen]);
+      }
+    }
+    terminate() {}
+  };
+  const w = await wantWorld("want-replaced", { decoders: 2, perDecoder: 2, decoderWorker: "x" });
+  const ten = [...Array(10).keys()];
+  await onmessage({ data: { kind: "want", indices: ten } });
+  for (const i of [0, 1, 2, 3]) w.onFill(frame(i));
+  await settle();
+  // The view moves to frame 7 and wants 10 next: 0–3 are decoding, 4 and 5 already in flight.
+  await onmessage({ data: { kind: "want", indices: [7, 10, 6, 8, 5, 9, 4, 3, 2, 1, 0] } });
+  check(w.asks.join() === "7,10", `the head and what the old run did not hold are asked, while that run may still be in flight (${w.asks})`);
+  w.onFill(frame(4));
+  w.onFill(frame(5));
+  await settle();
+  await w.serveOne();
+  check(w.asks.join() === "7,10,6,8,9", `once the head lands, the run's unsent frames are asked in the want's order (${w.asks})`);
+  while (w.owed.length) await w.serveOne();
+  await onmessage({ data: { kind: "want", indices: [3, 2, 1, 0] } });
+  for (let busy = true; busy; ) {
+    busy = false;
+    for (const d of decoders) {
+      const m = d.decoding.shift();
+      if (!m) continue;
+      busy = true;
+      d.onmessage({ data: { kind: "done", index: m.index, gen: m.gen } });
+      await onmessage({ data: { kind: "ack", index: m.index, gen: m.gen } });
+    }
+    await settle();
+  }
+  const once = [...ten, 10].every((i) => dispatched.get(i)?.join() === "0");
+  check(once, `each index dispatched once, in generation 0 (${JSON.stringify(Object.fromEntries(dispatched))})`);
+  check(JSON.stringify(w.fills) === "[[0,9]]" && w.asks.every((i) => i > 5), `the run once, and no frame it delivered asked again (runs ${JSON.stringify(w.fills)}, asks ${w.asks})`);
+  check(!posted.some((m) => m.kind === "cancelled" || m.kind === "failed"), `nothing cancelled or failed (${posted.map((m) => m.kind)})`);
+}
+await aReplacedWantKeepsWhatIsOwed();
+
+/**
+ * `span: g` makes the misses around held frames one run when no gap is wider than g, and the held frames it carries
+ * reach no one; a wider gap, or a frame still wanted later in the order, ends the run. Off, they are asks.
+ */
+async function aSpanCrossesHeldFrames() {
+  const odd = [1, 3, 5, 7, 9, 11, 13, 15];
+  const off = await wantWorld("span-off", { decode: false, decoders: 0 });
+  await onmessage({ data: { kind: "want", indices: odd } });
+  check(off.fills.length === 0 && off.asks.join() === "1,3,5,7", `span 0: the misses are asks (${off.asks}, runs ${JSON.stringify(off.fills)})`);
+
+  const on = await wantWorld("span-on", { decode: false, decoders: 0, span: 1 });
+  await onmessage({ data: { kind: "want", indices: odd } });
+  check(JSON.stringify(on.fills) === "[[1,15]]" && on.asks.length === 0, `span 1: one run over the held frames (${JSON.stringify(on.fills)}, asks ${on.asks})`);
+  for (let i = 1; i <= 15; i++) on.onFill(frame(i));
+  await settle();
+  const got = posted.filter((m) => m.kind === "frame").map((m) => m.index);
+  check(got.join() === odd.join(), `only the misses reach the consumer, once each (${got})`);
+
+  const wide = await wantWorld("span-wide", { decode: false, decoders: 0, span: 1 });
+  await onmessage({ data: { kind: "want", indices: [1, 3, 5, 7, 10, 12] } });
+  check(JSON.stringify(wide.fills) === "[[1,7]]", `a gap of 2 under span 1 ends the run (${JSON.stringify(wide.fills)})`);
+
+  const later = await wantWorld("span-later", { decode: false, decoders: 0, span: 1 });
+  await onmessage({ data: { kind: "want", indices: [1, 3, 5, 7, 2] } });
+  check(later.fills.length === 0 && later.asks.join() === "1,3,5,7", `a frame wanted later is not crossed (${later.asks}, runs ${JSON.stringify(later.fills)})`);
+
+  // The decoder never finishes: frame 2 stays here, unacknowledged, so the consumer does not hold it yet.
+  const queued = await wantWorld("span-queued", { decoders: 1, decoderWorker: "x", span: 1 });
+  await onmessage({ data: { kind: "want", indices: [2] } });
+  await queued.serveOne();
+  queued.asks.length = 0;
+  await onmessage({ data: { kind: "want", indices: [1, 3, 5, 7] } });
+  check(queued.fills.length === 0 && queued.asks.join() === "1,3,5,7", `a frame in hand and unacknowledged is not crossed (${queued.asks}, runs ${JSON.stringify(queued.fills)})`);
+}
+await aSpanCrossesHeldFrames();
+
+/**
+ * A run delivering 2–9 next, and a want headed by its 2nd frame (3), its 4th (5), its 5th (6) or one behind it (0).
+ * By default each is asked, which ends the run; under `waitAhead` 4 the 2nd and 4th are waited for, the rest asked.
+ */
+async function aHeadTheRunDeliversWithinKIsWaitedFor() {
+  const asked = {};
+  for (const waitAhead of [undefined, 4]) {
+    asked[waitAhead] = [];
+    for (const head of [3, 5, 6, 0]) {
+      const w = await wantWorld(`wait-ahead-${waitAhead}-${head}`, { decode: false, decoders: 0, waitAhead });
+      await onmessage({ data: { kind: "want", indices: [2, 3, 4, 5, 6, 7, 8, 9] } });
+      await onmessage({ data: { kind: "want", indices: [head, ...[2, 3, 4, 5, 6, 7, 8, 9].filter((i) => i !== head)] } });
+      if (w.asks.includes(head)) asked[waitAhead].push(head);
+    }
+  }
+  check(asked.undefined.join() === "3,5,6,0", `by default each head is asked (${asked.undefined})`);
+  check(asked[4].join() === "6,0", `under waitAhead 4, the run's 2nd and 4th are waited for, its 5th and one behind it asked (${asked[4]})`);
+}
+await aHeadTheRunDeliversWithinKIsWaitedFor();
+
+/**
+ * A frame the ended run delivers after its record was forgotten stays wanted: it is asked in its turn, so every frame
+ * of the want reaches the consumer though no new want is sent.
+ */
+async function aLateFrameOfAnEndedRunIsStillWanted() {
+  const w = await wantWorld("late-ended", { decode: false, decoders: 0 });
+  await onmessage({ data: { kind: "want", indices: [...Array(10).keys()] } });
+  const run = w.onFill;
+  run(frame(0));
+  await settle();
+  await onmessage({ data: { kind: "want", indices: [9, 8, 7, 6, 5, 4, 3, 2, 1] } });
+  await w.serveOne();
+  run(frame(1));
+  await settle();
+  while (w.owed.length) await w.serveOne();
+  const got = new Set(posted.filter((m) => m.kind === "frame").map((m) => m.index));
+  check(got.size === 10, `every frame of the want reaches the consumer (${[...got].sort((a, b) => a - b)})`);
+}
+await aLateFrameOfAnEndedRunIsStillWanted();
+
+/**
+ * A head the ended run had in flight crosses twice, once on the run and once on its ask: it is decoded and reaches
+ * the consumer once, whichever lands first.
+ */
+async function aHeadThatCrossesTwiceIsDecodedOnce() {
+  const dispatched = [];
+  globalThis.Worker = class {
+    postMessage(m) {
+      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "decode") dispatched.push(m.index);
+    }
+    terminate() {}
+  };
+  const w = await wantWorld("head-twice", { decoders: 2, perDecoder: 8, decoderWorker: "x" });
+  await onmessage({ data: { kind: "want", indices: [...Array(10).keys()] } });
+  const run = w.onFill;
+  await onmessage({ data: { kind: "want", indices: [7, 8, 6, 9, 5, 4, 3, 2, 1, 0] } });
+  check(w.asks.join() === "7", `the head is asked while the run is in flight (${w.asks})`);
+  for (let i = 0; i <= 7; i++) run(frame(i));
+  await settle();
+  await w.serveOne();
+  const sevens = dispatched.filter((i) => i === 7).length;
+  check(sevens === 1, `frame 7 is dispatched to a decoder once, not ${sevens} times (${dispatched})`);
+}
+await aHeadThatCrossesTwiceIsDecodedOnce();
+
+/** The first frame dispatched carries the start's stamps, each taken, in the order the start passed them; no later frame carries them. */
+async function theFirstFrameCarriesTheStart() {
+  const decoding = [];
+  globalThis.Worker = class {
+    postMessage(m) {
+      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "decode") decoding.push(m);
+    }
+    terminate() {}
+  };
+  const w = await wantWorld("boot-stamps", { decoders: 1, perDecoder: 2, decoderWorker: "x" });
+  await onmessage({ data: { kind: "want", indices: [0, 1, 2, 3] } });
+  w.onFill(frame(0));
+  w.onFill(frame(1));
+  await settle();
+  const b = decoding[0]?.stamps.boot ?? {};
+  const order = ["downloaderEvaluated", "downloaderStart", "dialReceived", "dial", "sessionOpen", "firstIn"];
+  const inOrder = order.every((k, j) => typeof b[k] === "number" && (j === 0 || b[order[j - 1]] <= b[k]));
+  check(inOrder && b.decodersReady >= b.downloaderStart, `the first frame's start stamps, in order (${JSON.stringify(b)})`);
+  check(decoding.length === 2 && decoding[1].stamps.boot === undefined, `the second frame carries none (${decoding.length} dispatched)`);
+}
+await theFirstFrameCarriesTheStart();
+
+/** The run the dial carries, if any, and the asks after it, for a want that rides `start`. */
+async function openingOf(name, config) {
+  const w = { opening: null, asks: [] };
+  globalThis.fakeTransport = {
+    connect: async (_url, _hash, options) => ((w.opening = options.fill ? [options.fill.from, options.fill.to] : null), {
+      requestFrame: (i) => (w.asks.push(i), new Promise(() => {})),
+      stats: () => ({ closed: null, lastByteAt: performance.now() }),
+      fillFrames() {},
+      endStream: async () => {},
+      close() {},
+    }),
+  };
+  const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // ${name}`;
+  await import(`./downloader.js?${name}`);
+  await onmessage({ data: { kind: "start", config: { transport, survival: false, decode: false, decoders: 0, ...config } } });
+  await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+  return w;
+}
+
+/**
+ * Under `shortRuns`, a want shorter than D_min that ascends whole rides the dial as its run, as the page's fill does;
+ * one that does not ascend, one with a gap span 0 does not cross, and any want once the session is up, stay asks.
+ */
+async function aShortWantRidesTheDial() {
+  const off = await openingOf("short-off", { want: [0] });
+  check(off.opening === null && off.asks.join() === "0", `by default one frame is asked after the dial (${off.opening}, asks ${off.asks})`);
+  const one = await openingOf("short-one", { want: [0], shortRuns: true });
+  check(one.opening?.join() === "0,0" && one.asks.length === 0, `one frame rides the dial (${one.opening}, asks ${one.asks})`);
+  const three = await openingOf("short-three", { want: [0, 1, 2], shortRuns: true });
+  check(three.opening?.join() === "0,2", `three ascending ride it (${three.opening})`);
+  const down = await openingOf("short-down", { want: [2, 1, 0], shortRuns: true });
+  check(down.opening === null && down.asks.join() === "2,1,0", `a descending want stays asks (${down.opening}, asks ${down.asks})`);
+  const gap = await openingOf("short-gap", { want: [1, 3], shortRuns: true });
+  check(gap.opening === null && gap.asks.join() === "1,3", `a gap span 0 does not cross stays asks (${gap.opening}, asks ${gap.asks})`);
+  const spanned = await openingOf("short-span", { want: [1, 3], shortRuns: true, span: 1 });
+  check(spanned.opening?.join() === "1,3", `span 1 crosses it as it would a long run (${spanned.opening})`);
+  const after = await openingOf("short-after", { shortRuns: true });
+  await onmessage({ data: { kind: "want", indices: [5] } });
+  check(after.opening === null && after.asks.join() === "5", `once the session is up a short want is an ask (${after.asks})`);
+}
+await aShortWantRidesTheDial();
+
+
+/**
+ * A jump into a group, G = 1, 8 and 16, with no decoder state: the ask fetches the frame's whole group, and its keyframe
+ * then each frame after it reach one decoder in index order; every frame of the group is posted, so a scroll through it
+ * asks nothing more. docs/av1/adr-unit.md §3
+ */
+async function aJumpMidGroupDecodesFromItsKeyframe() {
+  for (const g of [1, 8, 16]) {
+    const fed = handFed();
+    const made = handDecoders();
+    const transport = `data:text/javascript,export const TransportSession = globalThis.fakeTransport; // jump ${g}`;
+    await import(`./downloader.js?jump-${g}`);
+    await onmessage({ data: { kind: "start", config: { decoders: 3, perDecoder: 32, transport, decoderWorker: "x", survival: false, groupLength: g, frameCount: 40 } } });
+    await onmessage({ data: { kind: "dial", url: "https://x.invalid/", certHash: "ab" } });
+    const key = 21 - (21 % g);
+    const group = Array.from({ length: g }, (_, k) => key + k);
+    await onmessage({ data: { kind: "ask", index: 21 } });
+    check([...fed.asks.keys()].sort((x, y) => x - y).join() === group.join(), `G = ${g}: the jump to 21 asks its group ${group[0]}–${group.at(-1)} (${[...fed.asks.keys()]})`);
+    // The wire may deliver the group out of order: the asked frame first, its keyframe last.
+    for (const i of [21, ...group.filter((i) => i !== 21).reverse()]) fed.asks.get(i)?.(frame(i));
+    const decoded = [];
+    for (let k = 0; k < 4 * g; k++) {
+      await settle();
+      for (const [d, w] of made.entries()) {
+        w.toConsumer = { postMessage: (m) => decoded.push(`${m.index}@${d}`) };
+        if (w.decoding.length) w.finish();
+      }
+    }
+    const on = new Set(decoded.map((x) => x.split("@")[1]));
+    check(on.size === 1 && decoded.map((x) => x.split("@")[0]).join() === group.join(), `G = ${g}: one decoder decodes the group from its keyframe in order, and posts each frame (${decoded})`);
+  }
+}
+await aJumpMidGroupDecodesFromItsKeyframe();
+
+/**
+ * The default page view's step to a frame the fill has on the wire asks it, and the run's copy and the ask's copy both
+ * land: the frame is dispatched to a decoder once, not twice.
+ */
+async function aFrameAskedDuringAFillIsDecodedOnce() {
+  const dispatched = [];
+  globalThis.Worker = class {
+    postMessage(m) {
+      if (m.kind === "init") queueMicrotask(() => this.onmessage({ data: { kind: "ready" } }));
+      if (m.kind === "decode") dispatched.push(m.index);
+    }
+    terminate() {}
+  };
+  const w = await wantWorld("ask-in-fill", { decoders: 2, perDecoder: 8, decoderWorker: "x" });
+  await onmessage({ data: { kind: "fill", indices: [...Array(10).keys()] } });
+  const run = w.onFill;
+  for (const i of [0, 1, 2]) run(frame(i));
+  await onmessage({ data: { kind: "ask", index: 5 } });
+  check(w.asks.join() === "5", `frame 5 is asked while the run is in flight (${w.asks})`);
+  for (const i of [3, 4, 5]) run(frame(i));
+  await settle();
+  await w.serveOne();
+  const fives = dispatched.filter((i) => i === 5).length;
+  check(fives === 1, `frame 5 is dispatched to a decoder once, not ${fives} times (${dispatched})`);
+}
+await aFrameAskedDuringAFillIsDecodedOnce();
+
+console.log(failed ? `${failed} failed` : "downloader decoder count, timed-out ask, start on need, lost decodes, an ask again after a cancel, refill points, ports held, a want's order and its replacement, a span over held frames, a head the run delivers waited for, a late frame of an ended run still wanted, the start's stamps on the first frame, a short want riding the dial, a head crossing twice decoded once, a jump into a group decoded from its keyframe, a frame asked during a fill decoded once: ok");
 process.exit(failed ? 1 : 0);

@@ -33,7 +33,7 @@
           const index = next++;
           const sent = performance.now();
           try {
-            await s.requestExactFrame(index);
+            await s.requestFrame(index);
             latencies.push(performance.now() - sent);
           } catch {
             failures += 1;

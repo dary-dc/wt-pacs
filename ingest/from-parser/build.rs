@@ -1,4 +1,4 @@
-//! The encoder shim against the pinned OpenJPH, and libdecode for the check: both from `ingest/tools.sh`'s `INGEST_BUILD`.
+//! The encoder shim against the pinned OpenJPH, libdecode for the check and aomenc's path: all from `ingest/tools.sh`'s `INGEST_BUILD`.
 use std::path::PathBuf;
 
 fn main() {
@@ -16,6 +16,7 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib={lib}");
         println!("cargo:rustc-link-arg=-Wl,-rpath,{}", path.display());
     }
+    println!("cargo:rustc-env=INGEST_AOMENC={}", build.join("aom-3.15.1/bin/aomenc").display());
     cc::Build::new()
         .cpp(true)
         .std("c++17")

@@ -93,7 +93,7 @@ impl PathSampler {
 static PATH_SESSION_IDS: AtomicU64 = AtomicU64::new(0);
 
 /// Sample `connection` until it closes, appending one JSON line per interval.
-pub async fn run(connection: wtransport::Connection) {
+pub async fn run(connection: wtransport::quinn::Connection) {
     let Some(mut sampler) =
         PathSampler::for_session(PATH_SESSION_IDS.fetch_add(1, Ordering::Relaxed))
     else {
@@ -106,10 +106,10 @@ pub async fn run(connection: wtransport::Connection) {
     loop {
         tokio::time::sleep(interval).await;
         // Sampling after close reports a frozen path as a quiet one, biasing toward exogenous.
-        if connection.quic_connection().close_reason().is_some() {
+        if connection.close_reason().is_some() {
             return;
         }
-        let stats = connection.quic_connection().stats();
+        let stats = connection.stats();
         let row = sampler.sample(&stats.path);
         append_row(&path, &row);
     }

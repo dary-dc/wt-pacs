@@ -5,16 +5,37 @@ AV1; and, since the frame check's speed measurement, its XXH3-64 from xxHash. Bu
 row 91, DECODERBUILD, [`docs/av1/queue.md`](../../../../docs/av1/queue.md)); what each build is for and
 what it measured is [`docs/decode/README.md`](../../../../docs/decode/README.md) §The build, as delivered.
 
+The outputs are committed in `client/decode/wasm/built/` (owner's decision D2, 2026-10-21): a clone or a `git archive`
+deploys them as they are, and building them is a way to verify or change them, not a deploy step.
+
 ```bash
-client/decode/wasm/build/build.sh            # ~3 min on 4 cores; needs docker, git, curl, python3 with pip
-UPDATE=1 client/decode/wasm/build/build.sh   # after a change to a pin, a flag or a wrapper: rewrite the manifest
+client/decode/wasm/build/build.sh            # ~3 min on 4 cores; needs docker, git, curl, python3 with pip, npm
+UPDATE=1 client/decode/wasm/build/build.sh   # after a change to a pin, a flag or a wrapper: rewrite the manifest, commit both
 ```
 
 `build.sh` fetches every input into `.cache/` and checks each by commit or sha256, then builds in a container
 with no network, the repository mounted at its own path. The outputs land in `client/decode/wasm/built/`; it
-refuses to finish unless their sha256 match [`manifest.sha256`](manifest.sha256). Nothing fetched or built is
-committed. The page checks what it loads against the same manifest (`wasm-glue.js`, `built()`), and so does
-`scripts/gate.sh`, which also calls a build stale when its recipe or a wrapper is newer.
+refuses to finish unless their sha256 match [`manifest.sha256`](manifest.sha256). Nothing fetched is committed.
+The page checks what it loads against the same manifest (`wasm-glue.js`, `built()`). `scripts/gate.sh` checks the
+committed bytes against it, every file and no other; in full (not `--quick`) it rebuilds into `build/.rebuilt` and
+fails unless the rebuild is the committed bytes, so an input edited without a rebuild is caught by content, not mtime.
+Without docker on PATH the gate names the rebuild SKIPPED and runs every browser step on the committed builds; CI
+allows no such skip.
+
+**A decoder bump** changes a pin in [`pins.sh`](pins.sh) (or a flag or a wrapper), then runs one command,
+`UPDATE=1 client/decode/wasm/build/build.sh`, which rebuilds `built/` and rewrites `manifest.sha256` from it; commit
+both in the same commit. The next full gate rebuilds from the new pins and compares, so a `built/` committed without
+its manifest, or the reverse, fails it.
+
+## The container
+
+It runs unlabelled (`--security-opt label=disable`). On an SELinux-enforcing host (Fedora, RHEL) a container may
+read only files labelled for containers, and a checkout in a home directory is not: the build stops at
+`inside.sh: Permission denied`. The other way in, `:z`, relabels the whole checkout, `.git` included, for every
+container on the host. What unlabelled gives up is SELinux's hold on this one container: under rootless podman
+it then has the user's own rights, as the script's fetches on the host already do; under a root daemon, SELinux is
+one of the walls between an escaped root process and the host. Its inputs are pinned and checked, and it has no
+network. Where SELinux is off the flag changes nothing.
 
 ## Pins
 
@@ -26,7 +47,7 @@ Every pin is in [`pins.sh`](pins.sh) and [`requirements.txt`](requirements.txt);
 | emscripten | 3.1.74, release `c2655005…`, `wasm-binaries.tar.xz` | sha256, and `emcc --version` in the container |
 | Node (emscripten's) | 18.20.3, the emsdk 3.1.74 pin | sha256 |
 | cmake, meson, ninja | 3.31.6, 1.5.2, 1.11.1.4, wheels | `pip --require-hashes`, and `cmake --version` |
-| OpenJPH | 0.31.0, commit `c68064d0…` | commit, and `ojph_version.h` in the container |
+| OpenJPH | 0.33.0, commit `345a8bcd…` | commit, and `ojph_version.h` in the container |
 | dav1d | 1.5.4, commit `54706fc6…` | commit, and `meson.build`'s version in the container |
 | xxHash | v0.8.4, commit `c87183a7…` | commit, and `xxhash.h`'s version in the container |
 | hash-wasm (its `LICENSE`, for the notices) | 4.12.0 | `client/decode/wasm/fetch_xxh3.sh`'s tarball sha256 |

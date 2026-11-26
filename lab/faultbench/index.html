@@ -25,7 +25,7 @@
       digests: meta.digests.frames,
       decoderWorker,
       onFrame: (f) => {
-        frames[f.frameIndex] = { exact: f.info.exact, path: f.info.path, mismatchOn: f.info.mismatchOn ?? null,
+        frames[f.frameIndex] = { exact: f.info.exact, path: f.info.route, mismatchOn: f.info.mismatchOn ?? null,
                                  reason: f.info.reason ?? null };
         last = performance.now();
       },

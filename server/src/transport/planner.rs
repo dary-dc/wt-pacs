@@ -1,7 +1,7 @@
 //! What to serve next, decided without I/O. `docs/adr/disk-access.md`.
 
 use anyhow::Result;
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 
 /// Asks the server holds, the frame being served among them. A tile reader takes what fits (`slots − 1`).
 pub const ASKS_AHEAD: usize = 8;
@@ -40,12 +40,21 @@ struct Fill {
     frame: u32,
     to: u32,
     first: bool,
+    /// Frames of `frame..=to` an ask has served, which the fill skips.
+    served: BTreeSet<u32>,
+}
+
+impl Fill {
+    fn unserved_from(&self, from: u32) -> Option<u32> {
+        (from..=self.to).find(|f| !self.served.contains(f))
+    }
 }
 
 pub struct Planner {
     in_hand: VecDeque<Command>,
     fill: Option<Fill>,
     frames: u32,
+    fill_resumes: bool,
 }
 
 impl Planner {
@@ -54,7 +63,13 @@ impl Planner {
             in_hand: VecDeque::new(),
             fill: None,
             frames,
+            fill_resumes: false,
         }
+    }
+
+    /// Lab only: an ask no longer ends a fill but goes before it. docs/WIRE.md §Proposed: an ask during a fill
+    pub fn fill_resumes(self, on: bool) -> Self {
+        Self { fill_resumes: on, ..self }
     }
 
     pub fn push(&mut self, ask: Command) {
@@ -73,26 +88,29 @@ impl Planner {
             self.in_hand.push_back(ask);
         }
         loop {
-            if let Some(Fill { frame, to, first }) = self.fill.take() {
-                if self.in_hand.is_empty() {
-                    let after = (frame < to).then_some(frame + 1);
-                    self.fill = after.map(|frame| Fill { frame, to, first: false });
-                    let next = Next::Fill { after, first };
-                    return Ok(Step::Serve { frame, next });
+            if self.in_hand.is_empty() {
+                if let Some(step) = self.fill_step() {
+                    return Ok(step);
                 }
             }
-            match self.in_hand.pop_front() {
-                None => return Ok(Step::Wait),
-                Some(Command::EndSession) => return Ok(Step::End),
-                Some(Command::Failed(err)) => return Err(err),
-                Some(Command::EndStream) => continue,
-                Some(Command::Fill { from, to }) => match fill_range(from, to, self.frames) {
-                    Ok((frame, to)) => self.fill = Some(Fill { frame, to, first: true }),
+            let Some(ask) = self.in_hand.pop_front() else { return Ok(Step::Wait) };
+            if !(self.fill_resumes && matches!(ask, Command::Frame(_))) {
+                self.fill = None;
+            }
+            match ask {
+                Command::EndSession => return Ok(Step::End),
+                Command::Failed(err) => return Err(err),
+                Command::EndStream => continue,
+                Command::Fill { from, to } => match fill_range(from, to, self.frames) {
+                    Ok((frame, to)) => self.fill = Some(Fill { frame, to, first: true, served: BTreeSet::new() }),
                     Err(reason) => return Ok(Step::Refuse { frame: from.unwrap_or(0), reason }),
                 },
-                Some(Command::Frame(frame)) => {
+                Command::Frame(frame) => {
                     if let Err(reason) = frame_in_range(frame, self.frames) {
                         return Ok(Step::Refuse { frame, reason });
+                    }
+                    if let Some(fill) = self.fill.as_mut().filter(|f| (f.frame..=f.to).contains(&frame)) {
+                        fill.served.insert(frame);
                     }
                     let names = self
                         .in_hand
@@ -107,6 +125,22 @@ impl Planner {
                 }
             }
         }
+    }
+
+    /// The fill's next frame no ask has served, naming the one after it; `None` once none is left.
+    fn fill_step(&mut self) -> Option<Step> {
+        let fill = self.fill.as_mut()?;
+        let Some(frame) = fill.unserved_from(fill.frame) else {
+            self.fill = None;
+            return None;
+        };
+        let after = fill.unserved_from(frame + 1);
+        let first = std::mem::replace(&mut fill.first, false);
+        match after {
+            Some(after) => fill.frame = after,
+            None => self.fill = None,
+        }
+        Some(Step::Serve { frame, next: Next::Fill { after, first } })
     }
 }
 
@@ -338,6 +372,82 @@ mod tests {
             Step::Serve { frame: 5, next: tiles(&[]) },
             "a fill is queued, so 9 is not the next frame to read"
         );
+    }
+
+    /// Every frame served until the planner waits, with what each named next.
+    fn served(plan: &mut Planner) -> Vec<(u32, Next)> {
+        let mut out = Vec::new();
+        while let Step::Serve { frame, next } = plan.next(|| None).unwrap() {
+            out.push((frame, next));
+        }
+        out
+    }
+
+    fn frames_of(steps: &[(u32, Next)]) -> Vec<u32> {
+        steps.iter().map(|(f, _)| *f).collect()
+    }
+
+    /// A fill of `from..=to` that has served its first frame, with `fill_resumes` on.
+    fn resuming_fill(frames: u32, from: u32, to: u32) -> Planner {
+        let mut plan = Planner::new(frames).fill_resumes(true);
+        plan.push(Command::Fill { from: Some(from), to: Some(to) });
+        assert!(matches!(plan.next(|| None).unwrap(), Step::Serve { frame, .. } if frame == from));
+        plan
+    }
+
+    /// With `fill_resumes`, an ask mid-fill is served next and the fill then resumes where it stopped.
+    #[test]
+    fn with_fill_resumes_an_ask_mid_fill_is_served_next_and_the_fill_resumes() {
+        let mut plan = resuming_fill(10, 0, 4);
+        let mut arrived = Some(Command::Frame(9));
+        assert_eq!(plan.next(|| arrived.take()).unwrap(), Step::Serve { frame: 9, next: tiles(&[]) });
+        let fill = |after, first| Next::Fill { after, first };
+        assert_eq!(
+            served(&mut plan),
+            vec![(1, fill(Some(2), false)), (2, fill(Some(3), false)), (3, fill(Some(4), false)), (4, fill(None, false))]
+        );
+    }
+
+    /// With `fill_resumes`, a fill frame an ask already served is neither served again nor read ahead.
+    #[test]
+    fn with_fill_resumes_a_frame_an_ask_served_is_skipped() {
+        let mut plan = resuming_fill(10, 0, 5);
+        let mut arrived = Some(Command::Frame(3));
+        assert!(matches!(plan.next(|| arrived.take()).unwrap(), Step::Serve { frame: 3, .. }));
+        let rest = served(&mut plan);
+        assert_eq!(frames_of(&rest), vec![1, 2, 4, 5]);
+        assert_eq!(rest[1].1, Next::Fill { after: Some(4), first: false }, "the read-ahead named a frame already served");
+    }
+
+    /// With `fill_resumes`, several asks in hand all go before the fill, in ask order.
+    #[test]
+    fn with_fill_resumes_several_asks_go_before_the_fill_in_ask_order() {
+        let mut plan = resuming_fill(10, 0, 9);
+        let mut arrived = vec![Command::Frame(7), Command::Frame(2), Command::Frame(5)].into_iter();
+        assert_eq!(plan.next(|| arrived.next()).unwrap(), Step::Serve { frame: 7, next: tiles(&[2, 5]) });
+        assert_eq!(frames_of(&served(&mut plan)), vec![2, 5, 1, 3, 4, 6, 8, 9]);
+    }
+
+    /// With `fill_resumes`, a new fill still replaces the running one.
+    #[test]
+    fn with_fill_resumes_a_new_fill_replaces_the_running_one() {
+        let mut plan = resuming_fill(10, 0, 5);
+        let mut arrived = Some(Command::Fill { from: Some(7), to: Some(8) });
+        assert!(matches!(plan.next(|| arrived.take()).unwrap(), Step::Serve { frame: 7, .. }));
+        assert_eq!(frames_of(&served(&mut plan)), vec![8]);
+    }
+
+    /// With `fill_resumes`, `end_stream` and `end_session` still end the fill, also behind an ask.
+    #[test]
+    fn with_fill_resumes_end_stream_and_end_session_still_end_the_fill() {
+        let ends: [fn() -> Command; 2] = [|| Command::EndStream, || Command::EndSession];
+        for end in ends {
+            let mut plan = resuming_fill(10, 0, 5);
+            let mut arrived = vec![Command::Frame(8), end()].into_iter();
+            assert!(matches!(plan.next(|| arrived.next()).unwrap(), Step::Serve { frame: 8, .. }));
+            assert!(matches!(plan.next(|| None).unwrap(), Step::Wait | Step::End));
+            assert!(served(&mut plan).is_empty(), "the fill outlived {:?}", end());
+        }
     }
 
     /// An `Err` in hand makes `next` return it.

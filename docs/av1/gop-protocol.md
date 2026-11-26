@@ -1,7 +1,7 @@
 # Frame groups in lossless AV1: protocol and decision rule
 
 The frame-group measurement (queue row GOPMEASURE) runs this protocol. The measuring session reads this file alone, not
-[`gop-theory.md`](gop-theory.md); it reports the numbers first, then whether each prediction held. The rule
+[`frame-groups.md`](frame-groups.md); it reports the numbers first, then whether each prediction held. The rule
 in §5 was fixed on 2026-10-08, before any data.
 
 ## 1 · Content
