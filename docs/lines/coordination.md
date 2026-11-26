@@ -168,6 +168,12 @@ small enough that every open item has an owner and a next step.
    gives BEACON-Y, provisional; the race is plain beside it. #39 net (a build row, recommended yes); behind first not
    dropped (a build row, recommended yes, provisional); `engines` 3 the client's bug, 4 `ring` misses the fill on
    Firefox; `cache` Chromium only, provisional. PAGE-RUNS-VERDICT-FIX and its review appended.
+   PAGE-RUNS-VERDICT-FIX (2026-11-26, `page-runs.md` in place, each marked "corrected" or "added 2026-11-26, §Verdict
+   review"): B1, §2's D5a busy reads (b) `VOID`, the race beside, BEACON-Y by `reports.md` §6's rule, provisional
+   (Summary, and `claude/work-ledger:docs/queue/REPORT-RERUNS.md`'s Result); m1 O S1 warm held (paired A/A 0.945);
+   m2 O S3 warm ×1.31 beyond OPFS-SYNC's move, cold ×1.11; m3 WT-TS's CR fill 24.5 Mbit/s, under the credit's cap,
+   PF and AF's mechanism not shown; m4 §4's mechanism refuted by its controls; m5 40 of 72 lost (p 4.8 × 10⁻¹⁰; the
+   results' 4 × 10⁻⁷ was BEACON-* alone, as labelled, and stands); n1 T in 6 rounds. PAGE-RUNS-VERDICT-FIX-REVIEW next.
 
 ## Unification (the owner, 2026-11-09)
 
