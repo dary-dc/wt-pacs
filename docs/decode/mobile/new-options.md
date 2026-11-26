@@ -495,3 +495,34 @@ unresolved before and after, none new); the gate was not run.*
   or its page to set `matrix: "bt709"` (T).
 * **n1**: not taken. The struck paragraph of §5 is left as it is, since editing it again would be a second edit to
   retracted text.
+
+### Re-review 2
+
+*Queue row MOBILE-DECODE-OPTIONS-FIX-2-REVIEW, 2026-11-26, by a session that wrote none of this file, its reviews or
+either fix. Read: `git diff 63ec84ad0 3c3538094` (the fix's two commits). S1 and S2 fetched again on 2026-11-26 at
+the URLs of §8 (S1 "Last modified: 2023-05-25 12:27 PT"); aomenc's option table read from the release tarball
+`libaom-3.15.1.tar.gz` that `ingest/tools.sh` builds. Docs only: `scripts/check_links.py` (9 unresolved, the same
+nine, none in the changed lines); the gate was not run.*
+
+* **B2, closed.** Both false sentences are struck in place and corrected: §3 step 2 and `hw-inverted.md` §3. The
+  measured claims hold, re-read with `parsePayload`, `units` and `sequence()`: `grey420/g8.av1` gives
+  `"mono":0,"cp":2,"tc":2,"mc":2,"range":1`; `optimized/g8.av1` and `optimized/g10.av1` give `"mono":1,"mc":2` (M).
+  `encoder_args` adds nothing for `"420"` and `lossy_args` ends in `--monochrome`, as stated. The quotations are
+  verbatim: S1's colour config syntax ("matrix_coefficients = MC_UNSPECIFIED" when `color_description_present_flag`
+  is 0), §6.4.2's table ("2 MC_UNSPECIFIED Unspecified"), and S2 §9.12 ("Matrix coefficients used by BT.709, as
+  described by [H.273] section 8.3 table 4 value 1"), §7.6 ("will override any in-band values from the bitsream",
+  sic). The route's requirement is labelled T and called unbuilt. The flag it names exists: libaom 3.15.1
+  `av1/arg_defs.c`'s `matrix_coefficients_enum` lists `{ "bt709", AOM_CICP_MC_BT_709 }` for `matrix-coefficients`
+  (source).
+* **Nothing else changed.** The diff touches §3 step 2, the new §Fix 2, `hw-inverted.md` §3's one sentence and
+  `docs/lines/client.md`'s line, and nothing more.
+* **m1 (minor).** The fix cites S1 §5.5.2 (the colour config syntax) and S2 §9.9, and §8 still lists S1 as §6.4.2, §7.2
+  and A.3 only, and S2 without §9.9. One line in §8 would close it.
+* **n1.** A lossy view payload confirms the 4:0:0 claim directly, not only through `lossy_args`:
+  `depth-cut/000.av1` (q 8, g 4, 10-bit) gives `"mono":1,"mc":2,"range":0` (M, 2026-11-26).
+
+**Verdict.** B2 closed; no blocker open. Amendment 17's loop for this file ends here. m1 and n1 are left for
+whoever next edits §8.
+
+*Fixtures and limits: the sequence headers of four contract payloads (`grey420/g8`, `optimized/g8`, `optimized/g10`,
+`depth-cut/000`); nothing decoded and nothing run on a device.*
