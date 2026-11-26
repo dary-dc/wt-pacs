@@ -43,7 +43,7 @@ DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`), 19 DBT volumes for
 | --- | --- | --- |
 | 1 | No shipped browser route returns a hardware-decoded frame's samples | **Held**, as `claude/hw10-routes:docs/decode/hardware-10bit.md` §9 reads the sources; not re-verified here. |
 | 2 | A hardware frame reaches the page or the GPU as an 8-bit RGB image | **Held**, same file §5–§7; not re-verified here. |
-| 3 | So a hardware frame cannot be checked ("A converted picture cannot be checked: no spec defines a browser's YUV-to-RGB conversion", same file §2) | **Did not hold.** True for a digest *predicted at ingest* over the converted picture. It does not follow for a conversion inverted on the device and confirmed by the existing digest (§3). |
+| 3 | So a hardware frame cannot be checked ("A converted picture cannot be checked: no spec defines a browser's YUV-to-RGB conversion", same file §2) | **Did not hold, in theory** (T; asks M2 and M3 of §7 would confirm it, not run on 2026-11-22). True for a digest *predicted at ingest* over the converted picture. It does not follow for a conversion inverted on the device and confirmed by the existing digest (§3). |
 | 4 | The decode is the phone's bound | **Held, narrowly** (R, `claude/work-ledger:docs/queue/FILL-SPLIT.md`): 133–135 ms a frame on `dbts_b1-q8-g8`, 0.76–0.94 of every fill; the decoder Chrome took was not recorded and the decoder count not varied. |
 | 5 | A phone with a hardware AV1 decoder can decode these frames in it | **Unchecked, and not implied by the platform's minimum** (§2.1). |
 | 6 | The lossy view is AV1 | **A choice, not a constraint.** The view's contract is a visually lossless picture, checked, decodable everywhere (`docs/av1/payload-format.md` §Optimal quality); §5. |
@@ -66,7 +66,9 @@ be able to decode all bitstreams (that can be decoded by the general decoding pr
 What Android asks of a hardware AV1 decoder (S5): §5.3.9, "[C-2-2] MUST be able to decode at least HD 1080p video
 decoding profiles from the table below when the height reported by Display.getSupportedModes() method is equal or
 greater than 1080p."; and, for a handheld that declares the media performance class `VERSION_CODES.V` (§2.2.7.1), "[5.1/H-1-14] MUST support AV1 hardware decoder Main
-10, Level 4.1 with film grain effect over GPU composition." Neither reaches level 5.0. So whether a given phone's
+10, Level 4.1 with film grain effect over GPU composition." Neither reaches level 5.0. The next item, "[5.1/H-1-15] MUST have at least 1 hardware video decoder supporting
+4K60.", names no codec; 3840 × 2160 = 8 294 400 samples is a level-5 size (D), so a performance-class-V phone has
+some hardware decoder that takes a frame this large, not necessarily an AV1 one. So whether a given phone's
 hardware decoder accepts `dbts_b1` or `dbts_c1` is the vendor's choice and a device fact; a page learns it only by
 configuring and decoding (D). It binds MOBILE-OPT-AV1-HW-UNCHECKED as much as §3; the ask is in §7.
 
@@ -89,9 +91,18 @@ is decoded again in software, which is what the client already does on a refusal
    output order as those produced by the decoding process specified herein" (S1, §7.2, film grain off). So the
    ingest's digest over the 8-bit luma plane is the digest of any conformant decoder's output, hardware included.
 2. *The picture*: `texImage2D` takes a `VideoFrame` (S3: "source of type HTMLVideoElement or VideoFrame[WEBCODECS]";
-   S2 §9.4: "VideoFrame is a CanvasImageSource"). With chroma at its neutral value every colour matrix gives
-   R = G = B, a function of luma alone: H.273's luma is "E′Y = KR * E′R + ( 1 − KR − KB ) * E′G + KB * E′B" (S4,
-   eq. 45), whose three weights sum to 1, so equal E′R, E′G, E′B give E′Y equal to them, and conversely (D).
+   S2 §9.4: "VideoFrame is a CanvasImageSource"). With chroma at its neutral value the matrices of
+   H.273's equation 45 (1, 4, 5, 6, 7, 9, 12: "If MatrixCoefficients is not equal to 0, 8, 10, 11, 13, 14, 15, 16 or
+   17, equations 45 to 47 apply") give R = G = B, a function of luma alone: "E′Y = KR * E′R + ( 1 − KR − KB ) * E′G +
+   KB * E′B" (S4, §8.3, eq. 45), whose three weights sum to 1, so equal E′R, E′G, E′B give E′Y equal to them, and
+   conversely (D). The identity matrix does not: "Otherwise, if MatrixCoefficients is equal to 0, equations 48 to 50
+   apply", and they are "Y = Round( G )", "Cb = Round( B )", "Cr = Round( R )" (S4, §8.3), so constant chroma fixes B and R. AV1 forbids it at 4:2:0,
+   "If matrix_coefficients is equal to MC_IDENTITY, it is a requirement of bitstream conformance that subsampling_x is
+   equal to 0 and subsampling_y is equal to 0" (S1, §6.4.2), but the page can still impose it, since
+   `VideoDecoderConfig.colorSpace` overrides the stream (S2, §7.6) and its `"rgb"` is "Matrix coefficients used by
+   sRGB, as described by [H.273] section 8.3 table 4 value 0" (S2, §9.12). So the ingest signals 1 (BT.709) rather
+   than 2, which H.273 leaves "unknown or is determined by the application", and the page, if it sets `matrix`, sets
+   `"bt709"` (D).
 3. *The inverse*: read the picture's red channel through a 256-entry table measured on the device (§3.2), giving
    the luma sample back.
 4. *The check*: XXH3-64 over the recovered plane, against the ingest's digest. Either after a read-back
@@ -219,15 +230,29 @@ same throughput codec, lossy.
   `docs/usage_examples.md`). No WebCodecs probe, no engine differences in the decoder, no decoder lost by a hidden
   page (`docs/client/evidence/hidden-page-decode.md`), the resolution levels and strips of `claude/htj2k-tiles:docs/htj2k-tiles.md`
   available to the view as to the exact series.
-* *Decode time* (published, a desktop, not a phone): the HTJ2K authors' white paper (S8, §7, Table 9: "4K, 4:4:4
-  12b/channel video, irreversible 9/7 DWT with MSE(PSNR)-based rate allocation, with 64x64 code-blocks. Throughputs
-  are measured on a 4-core Intel i7-6700 CPU") gives HT decoding at "117", "112" and "91" frames a second at 1, 2
-  and 4 bits a sample, by Kakadu on eight threads. So a lossy stream at a quarter of the rate decodes in 91 ÷ 117 =
-  0.78 of the time: the transform's cost does not shrink with the bytes (D). Here (R, `docs/client/evidence/decode-speed-of-the-optimal-quality-picture.md`) the
-  AV1 view at Q 8 decodes in 1.24–1.74 lossless HTJ2K frames in the cloud; if the white paper's ratio carried to
-  OpenJPH-WASM, a lossy HTJ2K view would decode in 1 ÷ 0.78 × (1.24–1.74) = 1.6–2.2 of its own frames in the time of
-  one AV1 frame (T; two builds, two machines, neither a phone). HTJ2K's decode on the phone is unmeasured; it is the
-  next phone round's first cell.
+* *Decode time*: **the prediction below was refuted on 2026-11-26** and is kept as written. Measured (M,
+  [`htj2k-lossy.md`](htj2k-lossy.md) §5.2, Cell D: one cloud host, node 22, OpenJPH-WASM and dav1d-WASM on one thread,
+  the middle 16 frames of the three timed volumes, two runs): a lossy frame decodes in **1.12–1.21×** the time of the
+  same frame lossless, not 0.78×. So in one AV1 frame's time, 2.0–2.5 lossy frames against dav1d-WASM (D: lossy ÷ AV1
+  0.405–0.496, 1 ÷ 0.496 = 2.02, 1 ÷ 0.405 = 2.47), and 1.02–1.55 against WebCodecs AV1 (D: 1.24 ÷ 1.21 = 1.02,
+  1.74 ÷ 1.12 = 1.55, two hosts' cloud rows), not 1.6–2.2. *Why* (S8, D): 91 ÷ 117 compares two irreversible 9/7
+  streams at two rates, while the lossless frame is the reversible 5/3; the paper's Tables 7 and 8 compare the kernels,
+  "Table 8 is similar to Table 7, with 64x64 code-blocks, except that we use the more complex irreversible 9/7 DWT",
+  and give DEC:CPLEX "143 (9.0x)" against "115 (6.8x)" frames a second at 2 bpp, so the 9/7 decodes at 115 ÷ 143 =
+  0.80× the 5/3's rate. Table 7's 5/3 is the irreversible one of Part 2 ("the irreversible 5/3 DWT requires the ATK
+  (Arbitrary Transform Kernels) feature from JPEG 2000 Part-2"), not ours, so the source gave the direction, not
+  Cell D's ratio (T). The lossless frame's decode on the phone has since been measured (M, 2026-11-22,
+  `claude/phone-run:docs/phone-rows/next-round-results.md` Cell 1: `dbts_b1`, 58.9 ms a frame per decoder at three
+  decoders, the view's 110.2); the lossy frame's is not.
+  * ~~*Decode time* (published, a desktop, not a phone): the HTJ2K authors' white paper (S8, §7, Table 9: "4K, 4:4:4
+    12b/channel video, irreversible 9/7 DWT with MSE(PSNR)-based rate allocation, with 64x64 code-blocks. Throughputs
+    are measured on a 4-core Intel i7-6700 CPU") gives HT decoding at "117", "112" and "91" frames a second at 1, 2
+    and 4 bits a sample (its DEC:CPLEX column), by Kakadu on eight threads. So a lossy stream at a quarter of the rate decodes in 91 ÷ 117 =
+    0.78 of the time: the transform's cost does not shrink with the bytes (D). Here (R, `docs/client/evidence/decode-speed-of-the-optimal-quality-picture.md`) the
+    AV1 view at Q 8 decodes in 1.24–1.74 lossless HTJ2K frames in the cloud; if the white paper's ratio carried to
+    OpenJPH-WASM, a lossy HTJ2K view would decode in 1 ÷ 0.78 × (1.24–1.74) = 1.6–2.2 of its own frames in the time of
+    one AV1 frame (T; two builds, two machines, neither a phone). HTJ2K's decode on the phone is unmeasured; it is the
+    next phone round's first cell.~~
 * *Bytes*: **unknown here**, and the deciding number. `dbts_b1`'s exact frame is 107 410 134 B ÷ 50 = 2 148 203 B,
   2.02 bits a sample; its Q 8 G 8 view about 464 KB, 0.44 bits a sample (R; D). A lossy HTJ2K picture at the same
   coding error lies between; where is one cloud cell: `ojph_compress -reversible false -qstep` swept on the 19
@@ -315,29 +340,32 @@ and 1.14–1.86× bytes. §4 only if the owner reopens a second stream.
 
 ## 8. Sources
 
-Fetched 2026-11-15. Section numbers are the documents' own.
+Fetched 2026-11-15; S1, S2, S4, S5, S6 and S8 re-read 2026-11-26 for the review's fixes. Section numbers are the
+documents' own.
 
 * **S1** AV1 Bitstream & Decoding Process Specification, the AOMedia working document at
   <https://aomediacodec.github.io/av1-spec/>, "Last modified: 2023-05-25 12:27 PT": §6.4.2 *Color config
   semantics*, §7.2 *General decoding process*, Annex A.3 *Levels*.
 * **S2** WebCodecs, W3C Working Draft, 9 November 2026, <https://www.w3.org/TR/2026/WD-webcodecs-20261109/>: §7.6
-  *VideoDecoderConfig*, §9.4 *VideoFrame Interface*.
+  *VideoDecoderConfig*, §9.4 *VideoFrame Interface*, §9.12 *Video Matrix Coefficients*.
 * **S3** WebGL Specification, Editor's Draft, and WebGL 2.0 Specification, Editor's Draft,
   `KhronosGroup/WebGL` at `39443210f7f8`, `specs/latest/1.0/index.html` (*Texture objects*, *Pixel Storage
   Parameters*, *Reading back pixels*) and `specs/latest/2.0/index.html` (*Reading back pixels*):
   <https://github.com/KhronosGroup/WebGL/tree/39443210f7f8/specs/latest>. The drafts' section numbers were not in the
   text read; the headings are named instead.
 * **S4** Recommendation ITU-T H.273 (V4) (07/2024), *Coding-independent code points for video signal type
-  identification*, §8.3, equations 30, 36 and 45: <https://www.itu.int/rec/T-REC-H.273-202407-I>.
+  identification*, §8.3, equations 30, 36, 45 and 48 to 50: <https://www.itu.int/rec/T-REC-H.273-202407-I>.
 * **S5** Android 16 Compatibility Definition, "Last updated: December 2, 2025",
   <https://source.android.com/docs/compatibility/16/android-16-cdd>: §5.3.9 *AV1*, and §2.2.7.1 *Media*, item
   [5.1/H-1-14].
 * **S6** DICOM PS3.5 2026d, §8.2.14 *High-Throughput JPEG 2000 Image Compression* and Table 8.2.14-1:
-  <https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_8.2.14.html> (read as *current*, which
-  named itself 2026d).
+  <https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_8.2.14.html> (read as *current* on
+  2026-11-15, which then named itself 2026d; that edition's own URL is
+  <https://dicom.nema.org/medical/dicom/2026d/output/chtml/part05/sect_8.2.14.html>, re-read 2026-11-26 with the
+  sentence, the UID and "1-38" unchanged; *current* now names itself 2026e, the three unchanged there too).
 * **S7** OpenJPH, `aous72/OpenJPH` at `97a9579aed20`: `README.md`, `docs/usage_examples.md`.
 * **S8** D. Taubman, A. Naman, R. Mathew, M. Smith, O. Watanabe, P.-A. Lemieux, *High Throughput JPEG 2000
-  (HTJ2K): Algorithm, Performance and Potential*, "Last updated: 29 May 2020", §7, Tables 8 and 9:
+  (HTJ2K): Algorithm, Performance and Potential*, "Last updated: 29 May 2020", §7, Tables 7, 8 and 9:
   <https://htj2k.com/wp-content/uploads/white-paper.pdf>.
 
 ## Review
@@ -390,3 +418,16 @@ its file beside it, and the 1.6–2.2 replaced by what Cell D gives.
 
 **Verdict.** One blocker. Amendment 17's loop is appended: MOBILE-DECODE-OPTIONS-FIX for B1 and m1–m5, then
 MOBILE-DECODE-OPTIONS-FIX-REVIEW.
+
+### Fix
+
+*Queue row MOBILE-DECODE-OPTIONS-FIX, 2026-11-26, by a session that wrote neither this file nor its review. Docs
+only; the gate was not run.*
+
+* **B1**: §5's decode bullet now leads with Cell D's 1.12–1.21× and what it gives against both AV1 decoders; the
+  prediction is kept below it, struck as refuted; S8's Tables 7 and 8 are the reason, with the caveat the review did
+  not state: Table 7's 5/3 is the irreversible Part-2 kernel, not the reversible one of the lossless frame.
+* **m1**: §3 step 2 narrowed to the matrices equation 45 covers, the identity's equations quoted; AV1 forbids the
+  identity at 4:2:0, so the hazard is the page's `"rgb"` override (S1 §6.4.2, S2 §9.12); `hw-inverted.md` §3 says so.
+* **m2** premise 3 labelled theory; **m3** DEC:CPLEX named; **m4** S6 pinned to the 2026d edition's URL;
+  **m5** [5.1/H-1-15] in §2.1.
