@@ -1,0 +1,140 @@
+## transport
+ad-pub: 98 visits, 0 void {}, exact 4900, busiest max 0.86, WT-TS median 736
+  WT-TS     n 14 med 1.000 (1.000-1.000) better 0 pos [2, 2, 2, 2, 2, 2, 2]
+  WT-TS'    n 14 med 0.996 (0.963-1.028) better 8 pos [2, 2, 2, 2, 2, 2, 2]
+  H3-frame  n 14 med 1.829 (1.702-2.243) better 0 pos [2, 2, 2, 2, 2, 2, 2]
+  WT-TW     n 14 med 0.993 (0.969-1.015) better 9 pos [2, 2, 2, 2, 2, 2, 2]
+  H3-fill   n 14 med 0.548 (0.518-0.581) better 14 pos [2, 2, 2, 2, 2, 2, 2]
+  WT-PF     n 14 med 1.549 (1.278-1.598) better 0 pos [2, 2, 2, 2, 2, 2, 2]
+  WT-AF     n 14 med 0.780 (0.722-0.802) better 14 pos [2, 2, 2, 2, 2, 2, 2]
+ad-lte: 98 visits, 3 void {'relay guard p99 over 1 ms': 2, 'spoke h3,, not h3': 1}, exact 1568, busiest max 0.41, WT-TS median 5603
+  WT-TS     n 14 med 1.000 (1.000-1.000) better 0 pos [2, 2, 2, 2, 2, 2, 2]
+  WT-TS'    n 14 med 1.029 (0.881-1.389) better 6 pos [2, 2, 2, 2, 2, 2, 2]
+  H3-frame  n 13 med 1.671 (0.920-6.595) better 2 pos [2, 2, 2, 2, 2, 2, 2]
+  WT-TW     n 14 med 1.037 (0.803-1.227) better 4 pos [2, 2, 2, 2, 2, 2, 2]
+  H3-fill   n 14 med 0.564 (0.304-0.770) better 14 pos [2, 2, 2, 2, 2, 2, 2]
+  WT-PF     n 13 med 1.696 (1.239-2.253) better 0 pos [2, 2, 2, 2, 2, 2, 2]
+  WT-AF     n 13 med 0.535 (0.270-0.835) better 13 pos [2, 2, 2, 2, 2, 2, 2]
+cr: 98 visits, 2 void {'relay guard p99 over 1 ms': 2}, exact 4900, busiest max 0.47, WT-TS median 35020
+  WT-TS     n 14 med 1.000 (1.000-1.000) better 0 pos [2, 2, 2, 2, 2, 2, 2]
+  WT-TS'    n 13 med 1.000 (0.999-1.000) better 8 pos [2, 2, 2, 2, 2, 2, 2]
+  H3-frame  n 13 med 0.620 (0.610-0.663) better 13 pos [2, 2, 2, 2, 2, 2, 2]
+  WT-TW     n 14 med 1.000 (0.999-1.001) better 6 pos [2, 2, 2, 2, 2, 2, 2]
+  H3-fill   n 14 med 1.001 (1.000-1.002) better 2 pos [2, 2, 2, 2, 2, 2, 2]
+  WT-PF     n 14 med 0.571 (0.571-0.572) better 14 pos [2, 2, 2, 2, 2, 2, 2]
+  WT-AF     n 14 med 0.676 (0.675-0.678) better 14 pos [2, 2, 2, 2, 2, 2, 2]
+## reports
+D5a-busy 162 rows; rounds per unit {'off': 18, 'beacon:H': 18, "off'": 18, 'beacon:Y': 18, 'session:H': 18, 'keepalive:H': 18, 'session:Y': 18, 'keepalive:Y': 18, 'session:1': 18}
+  off                      n18 safety 6 fill 0 exp 13.2 late 4
+      lost at d [7.7, 8.5, 10.8, 12.3, 12.6, 13.9, 14.7, 16.0, 16.4, 26.7, 30.7, 34.8]
+      kept at d [12.7, 35.9, 38.9, 39.7, 40.9, 44.7]
+  beacon:H                 n18 safety 9 fill 0 exp 13.6 late 5
+      lost at d [6.8, 9.6, 10.2, 10.6, 11.6, 16.2, 21.3, 24.3, 36.2]
+      kept at d [14.6, 21.9, 29.2, 31.7, 33.1, 42.4, 42.9, 48.0, 48.5]
+  off'                     n18 safety 8 fill 0 exp 13.7 late 3
+      lost at d [3.6, 8.4, 11.5, 12.0, 18.8, 21.2, 22.3, 26.8, 31.9, 34.3]
+      kept at d [11.7, 14.5, 36.2, 38.1, 39.7, 40.1, 46.5, 48.6]
+  beacon:Y                 n18 safety 9 fill 6 exp 13.2 late 2
+      lost at d [7.1, 8.6, 10.8, 12.0, 16.9, 17.8, 19.3, 22.7, 42.5]
+      kept at d [15.9, 18.0, 20.1, 21.0, 31.3, 34.4, 36.4, 41.3, 45.1]
+  session:H                n18 safety 15 fill 0 exp 13.3 late 4
+      lost at d [4.3, 5.2, 7.0]
+      kept at d [8.5, 9.9, 10.6, 12.3, 15.6, 20.2, 20.3, 23.7, 29.9, 36.9, 43.0, 43.7, 44.0, 47.2, 48.0]
+  keepalive:H              n18 safety 18 fill 0 exp 14.0 late 1
+      lost at d []
+      kept at d [11.9, 14.7, 15.0, 15.0, 15.4, 18.1, 21.6, 24.2, 25.8, 27.4, 28.0, 32.4, 35.5, 36.4, 38.6, 46.9, 48.0, 48.1]
+  session:Y                n18 safety 16 fill 7 exp 13.3 late 2
+      lost at d [5.8, 10.6]
+      kept at d [9.5, 10.6, 13.3, 14.9, 15.4, 17.3, 21.0, 23.4, 26.2, 26.5, 30.1, 30.7, 33.0, 45.0, 48.0, 49.6]
+  keepalive:Y              n18 safety 18 fill 9 exp 13.7 late 4
+      lost at d []
+      kept at d [4.0, 7.4, 10.1, 10.2, 11.2, 14.8, 16.2, 17.2, 20.7, 21.6, 29.2, 32.0, 45.3, 45.6, 45.7, 46.3, 48.1, 49.1]
+  session:1                n18 safety 16 fill 9 exp 13.2 late 1
+      lost at d [5.3, 6.8]
+      kept at d [6.9, 13.4, 15.8, 17.7, 18.3, 20.4, 22.4, 23.8, 26.2, 26.3, 30.7, 30.7, 33.5, 34.1, 41.3, 44.7]
+  page-thread d 0-12.5: n 18 lost 17 (0.94); model P(lost) 0.44
+  page-thread d 12.5-25: n 23 lost 15 (0.65); model P(lost) 0.31
+  page-thread d 25-37.5: n 15 lost 7 (0.47); model P(lost) 0.19
+  page-thread d 37.5-50.01: n 16 lost 1 (0.06); model P(lost) 0.06
+Lbusy 162 {'off': 18, 'beacon:H': 18, "off'": 18, 'beacon:Y': 18, 'session:H': 18, 'keepalive:H': 18, 'session:Y': 18, 'keepalive:Y': 18, 'session:1': 18}
+  off          per-load p99 median 51.50 pooled 52.48
+  beacon:H     per-load p99 median 51.11 pooled 52.25
+  off'         per-load p99 median 51.03 pooled 52.52
+  beacon:Y     per-load p99 median 51.53 pooled 52.29
+  session:H    per-load p99 median 2.04 pooled 2.54
+  keepalive:H  per-load p99 median 2.81 pooled 4.10
+  session:Y    per-load p99 median 2.13 pooled 2.38
+  keepalive:Y  per-load p99 median 2.73 pooled 3.30
+  session:1    per-load p99 median 1.94 pooled 5.79
+  A/A floor beacon:H even 1.790 odd 1.722 ratio 1.040
+C 196
+  off                      n28 med 1.000 IQR 1.000-1.000 dms +0.0 slower 0 cost 0.55 longTasks 0
+  beacon:H                 n28 med 1.018 IQR 0.984-1.053 dms +1.8 slower 17 cost 1.91 longTasks 0
+  off'                     n28 med 1.053 IQR 0.997-1.130 dms +5.3 slower 21 cost 0.72 longTasks 0
+  beacon:Y                 n28 med 1.028 IQR 0.949-1.093 dms +2.8 slower 16 cost 1.60 longTasks 0
+  keepalive-offdecoder:Y   n28 med 1.038 IQR 0.936-1.091 dms +3.9 slower 19 cost 2.47 longTasks 0
+  keepalive:H              n28 med 1.096 IQR 1.026-1.195 dms +10.6 slower 22 cost 1.05 longTasks 0
+  keepalive:Y              n28 med 1.102 IQR 1.038-1.179 dms +9.8 slower 25 cost 1.50 longTasks 0
+## asking
+('P1-20', 'r20000rtt40') 51 visits 1 not counted; A/A med|d| 0.048 spread -0.059..0.048
+   behind     n10 wait   5.23 live  30% vs centred -0.88 below 9 above 0 of 9
+   ahead34    n10 wait   5.25 live  30% vs centred -0.88 below 9 above 0 of 9
+   centredaa  n10 wait   6.11 live  35% vs centred -0.02 below 1 above 1 of 9
+   struck     n10 wait   7.91 live  40% vs centred +1.76 below 0 above 9 of 9
+   centred    n10 wait   6.14 live  35% vs centred +0.00 below 0 above 0 of 10
+('P1-40', 'r20000rtt40') 50 visits 0 not counted; A/A med|d| 0.096 spread -0.178..0.225
+   struck     n10 wait  21.44 live  70% vs centred +1.35 below 0 above 10 of 10
+   centred    n10 wait  20.06 live  68% vs centred +0.00 below 0 above 0 of 10
+   centredaa  n10 wait  20.06 live  68% vs centred -0.05 below 1 above 1 of 10
+   ahead34    n10 wait  19.20 live  65% vs centred -0.91 below 10 above 0 of 10
+   behind     n10 wait  19.19 live  65% vs centred -0.86 below 10 above 0 of 10
+('P2', 'r20000rtt40') 50 visits 0 not counted; A/A med|d| 0.088 spread -0.048..0.180
+   ahead34    n10 wait  22.83 live  97% vs centred -0.61 below 10 above 0 of 10
+   centred    n10 wait  23.40 live 100% vs centred +0.00 below 0 above 0 of 10
+   behind     n10 wait  22.26 live  94% vs centred -1.20 below 10 above 0 of 10
+   struck     n10 wait  23.76 live 100% vs centred +0.30 below 0 above 9 of 10
+   centredaa  n10 wait  23.51 live 100% vs centred +0.06 below 1 above 1 of 10
+('P1c-12', 'r20000rtt40') 51 visits 1 not counted; A/A med|d| 0.000 spread -0.000..0.000
+   centredaa  n10 wait   0.00 live   0% vs centred -0.00 below 1 above 1 of 10
+   struck     n10 wait   0.00 live   0% vs centred +0.00 below 0 above 6 of 9
+   behind     n10 wait   0.42 live   2% vs centred +0.42 below 0 above 9 of 10
+   centred    n10 wait   0.00 live   0% vs centred +0.00 below 0 above 0 of 10
+   ahead34    n10 wait   0.10 live   1% vs centred +0.10 below 1 above 6 of 10
+('P1b-40', 'r20000rtt40') 48 visits 0 not counted; A/A med|d| 0.070 spread -0.090..0.135
+   behind     n12 wait  19.29 live  70% vs centred -1.10 below 12 above 0 of 12
+   centred    n12 wait  20.33 live  74% vs centred +0.00 below 0 above 0 of 12
+   rule       n12 wait  19.28 live  70% vs centred -1.07 below 12 above 0 of 12
+   centredaa  n12 wait  20.36 live  74% vs centred +0.03 below 1 above 1 of 12
+('P1c-80', 'r80000rtt40') 50 visits 0 not counted; A/A med|d| 0.089 spread -0.139..0.009
+   behind     n10 wait   0.00 live   0% vs centred -0.47 below 10 above 0 of 10
+   ahead34    n10 wait   0.03 live   3% vs centred -0.43 below 10 above 0 of 10
+   centredaa  n10 wait   0.40 live  25% vs centred -0.09 below 1 above 1 of 10
+   centred    n10 wait   0.47 live  27% vs centred +0.00 below 0 above 0 of 10
+   struck     n10 wait   0.57 live  34% vs centred +0.09 below 0 above 9 of 10
+## engines 3b and cache
+3b {'ring': 12, 'ring2': 12, 'today': 12, 'transfer': 12, 'disk': 12, 'transfer-k': 12} every row 80 exact and on disk: True
+  ring       growth 764 [691-831] diskMs 8269
+  ring2      growth 731 [663-824] diskMs 8086
+  today      growth 1900 [1713-2069] diskMs 6260
+  transfer   growth 1015 [897-1204] diskMs 9378
+  disk       growth 526 [477-594] diskMs 8011
+  transfer-k growth 965 [859-1093] diskMs 9581
+  bar 846; ring rounds under 12; least room 15
+  ring/today by diskMs: 1.241 [1.130-1.430], rounds over 1.10: 12
+  ring/today by fillMs: 1.366 [1.188-1.533], rounds over 1.10: 12
+  ring/today by diskSeenMs: 1.260 [1.122-1.435], rounds over 1.10: 12
+  ring-disk: of medians 237, paired 226
+  A/A |ring2-ring| 47 MiB, fill 0.980; cpu median 0.71
+  L-512-1x none          n12 growth   25.3 {'browser': 0.0, 'utility': 0.0, 'zygote': 0.0, 'renderer': 22.6, 'gpu': 2.5}
+  L-512-1x opfs-sync     n12 growth  112.1 {'browser': 0.2, 'utility': 0.0, 'zygote': 0.0, 'renderer': 109.6, 'gpu': 2.4}
+  L-512-1x opfs-async    n12 growth  129.4 {'browser': 18.1, 'utility': 0.0, 'zygote': 0.0, 'renderer': 111.7, 'gpu': 2.4}
+  L-512-1x opfs-sync-aa  n12 growth  121.4 {'browser': 0.1, 'utility': 0.0, 'zygote': 0.0, 'renderer': 118.5, 'gpu': 2.5}
+  L-2560-1x none          n12 growth   25.5 {'browser': 0.0, 'utility': 0.0, 'zygote': 0.0, 'renderer': 25.2, 'gpu': 0.3}
+  L-2560-1x opfs-sync     n12 growth  115.8 {'browser': 0.2, 'utility': 0.0, 'zygote': 0.0, 'renderer': 115.1, 'gpu': 0.3}
+  L-2560-1x opfs-async    n12 growth   92.7 {'browser': 6.3, 'utility': 0.0, 'zygote': 0.0, 'renderer': 90.9, 'gpu': 0.3}
+  L-2560-1x opfs-sync-aa  n12 growth  119.0 {'browser': 0.2, 'utility': 0.0, 'zygote': 0.0, 'renderer': 118.5, 'gpu': 0.3}
+  O-512-1x warm: medians {'opfs-sync': 97.5, 'opfs-sync-aa': 86.9, 'opfs-async': 146.0}; async 0.570 ms a frame; A/A median of paired ratios 0.945, ratio of medians 0.892; async/sync paired 1.510
+  O-512-1x cold: medians {'opfs-sync': 93.8, 'opfs-sync-aa': 91.7, 'opfs-async': 135.8}; async 0.530 ms a frame; A/A median of paired ratios 0.970, ratio of medians 0.977; async/sync paired 1.438
+  O-3328-1x warm: medians {'opfs-sync': 734.6, 'opfs-sync-aa': 683.8, 'opfs-async': 1132.4}; async 35.389 ms a frame; A/A median of paired ratios 0.940, ratio of medians 0.931; async/sync paired 1.517
+  O-3328-1x cold: medians {'opfs-sync': 709.0, 'opfs-sync-aa': 690.5, 'opfs-async': 887.2}; async 27.724 ms a frame; A/A median of paired ratios 0.933, ratio of medians 0.974; async/sync paired 1.266
+  T: 12 rounds, tab 2 349 indices, not exact {(False, 'NotReadableError'): 13} in rounds [1, 2, 6, 7, 9, 10], sha after xxh3 0
