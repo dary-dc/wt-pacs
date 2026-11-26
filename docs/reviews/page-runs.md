@@ -1220,7 +1220,7 @@ in what §2's results let the page carry; PAGE-RUNS-VERDICT-FIX corrects it in p
 
 * **B1 · §2(b), the race, is carried as shown; its cell is `VOID` by its own A/A.** §2's VOID line: "D's A/A `off` =
   `off′`". D5a busy gave `off` 6 and `off′` 8 of 18. The run named this "VOID by the letter" and left it here; its
-  Summary and `docs/queue/REPORT-RERUNS.md`'s Result then say "(b) the race exists" and "(b) shown" without it. **The
+  Summary and `claude/work-ledger:docs/queue/REPORT-RERUNS.md`'s Result then say "(b) the race exists" and "(b) shown" without it. **The
   verdict: the letter stands.** The rule was written before the delay was drawn and is a poor test for a race cell
   (two Binomial(18, ≈ 0.4) arms are rarely equal), but rewriting a VOID rule after the rows is what pre-registration
   forbids, and the run read C's VOID by the same letter. So neither (a) nor (b) is shown by a counted cell, and the
