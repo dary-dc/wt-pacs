@@ -9,6 +9,7 @@ export class FrameStore {
   #budget;
   #waiting = new Map();
   #order = [];
+  #wanted = new Set();
   /** The frames on disk already read under the current want; one evicted since is read again only by the next want. */
   #read = new Set();
   #reading = false;
@@ -61,6 +62,7 @@ export class FrameStore {
   /** The controller's want, in its order: its misses replace the last ones sent, unless they are the same. Returns them. */
   want(order) {
     this.#order = order;
+    this.#wanted = new Set(order);
     this.#read.clear();
     this.#readCache();
     const misses = order.filter((i) => !this.#frames.has(i) && !this.cache?.present.has(i));
@@ -124,11 +126,11 @@ export class FrameStore {
     this.#waiting.delete(i);
   }
 
-  /** The frame the want ranks last: the farthest, and at equal distance the earlier. */
+  /** The frame the want ranks last: one outside it first, then the farthest, and at equal distance the earlier. */
   #farthest() {
     const rank = (i) => 2 * Math.abs(i - this.near) + (i < this.near);
-    let far = null;
-    for (const i of this.#frames.keys()) if (far === null || rank(i) > rank(far)) far = i;
-    return far;
+    const last = (keys) => keys.reduce((far, i) => (far === null || rank(i) > rank(far) ? i : far), null);
+    const held = [...this.#frames.keys()];
+    return last(held.filter((i) => !this.#wanted.has(i))) ?? last(held);
   }
 }

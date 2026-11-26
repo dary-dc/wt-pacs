@@ -18,13 +18,24 @@ export function samplesOf(info) {
   return new View(info.pixels);
 }
 
-/** What frame `c` of `n` wants, `c` first, at most `w`: docs/client/evidence/what-a-view-asks-for.md, *M, the budget* */
-export function wantFrom(c, n, fillMode, ascending, w = n) {
+/** What frame `c` of `n` wants, `c` first, at most `w`; in groups of `g`, whole groups, the last want's `wanted` groups kept a frame longer, the reader `toward` -1, 0 or +1: docs/client/evidence/what-a-view-asks-for.md, *M, the budget* */
+export function wantFrom(c, n, fillMode, ascending, w = n, g = 1, wanted = new Set(), toward = 0) {
   if (!fillMode) return [c];
+  if (g > 1 && w < n) {
+    const kept = new Set(nearestGroups(c, n, w, g, wanted, toward).flatMap((j) => Array.from({ length: g }, (_, k) => j * g + k)));
+    return wantFrom(c, n, true, ascending).filter((i) => kept.has(i));
+  }
   if (ascending && w >= n) return Array.from({ length: n }, (_, d) => (c + d) % n);
   const order = [c];
   for (let d = 1; order.length < Math.min(n, w); d++) for (const i of [c + d, c - d]) if (i >= 0 && i < n && order.length < w) order.push(i);
   return ascending ? [...order.filter((i) => i >= c).sort((a, b) => a - b), ...order.filter((i) => i < c)] : order;
+}
+
+/** The groups of `g` frames nearest frame `c`, as many as `w` frames hold and at least two; a `wanted` group ranks one frame nearer, so no one-frame step back and forth changes the set, and the neighbour the reader moves `toward` a group nearer; at equal rank the later. */
+function nearestGroups(c, n, w, g, wanted, toward) {
+  const ahead = Math.floor(c / g) + toward;
+  const rank = (j) => Math.max(j * g - c, c - (j * g + g - 1), 0) - wanted.has(j) - g * (toward !== 0 && j === ahead);
+  return [...Array(Math.ceil(n / g)).keys()].sort((a, b) => rank(a) - rank(b) || b - a).slice(0, Math.max(2, Math.floor(w / g)));
 }
 
 /** The memory window a view holds by default, in frames: the series' whole decoded frames that fit in 256 MiB; a sample is one byte at 8 bits or in colour, else two. */
@@ -52,6 +63,13 @@ export class Controller {
   #n;
   /** The frames the store keeps; with no cache, the fill asks no more. */
   #window;
+  /** Frames per group: a series in groups is held and let go a whole group at a time. */
+  #group;
+  /** The groups the last want named: wantFrom's `wanted`. */
+  #wantedGroups = new Set();
+  /** The last step's sign, and wantFrom's `toward`: that sign once two steps in a row agree, else 0, so a rock sets no direction. */
+  #lastStep = 0;
+  #toward = 0;
   #fillMode;
   #emit;
   #voi = null;
@@ -76,7 +94,8 @@ export class Controller {
   constructor({ meta, fillMode, paint, emit, size, budget = memoryWindow(meta), paintAfter = null }) {
     this.#paintAfter = paintAfter;
     this.#window = budget;
-    this.store = new FrameStore({ arrived: (i, frame) => this.#arrived(i, frame), budget });
+    this.#group = meta.lossy?.g > 1 ? meta.lossy.g : 1;
+    this.store = new FrameStore({ arrived: (i, frame) => this.#arrived(i, frame), budget: this.#group > 1 ? Math.max(budget, 2 * this.#group) : budget });
     this.store.painted = () => this.#painting;
     this.#meta = meta;
     this.#n = meta.frameCount;
@@ -159,6 +178,8 @@ export class Controller {
   /** A step: its frame painted from here, or asked — ahead of the fill, and in on-demand mode the newest ask alone. */
   async show(i) {
     const n = this.#n;
+    const sign = Math.sign((i + n) % n - this.current);
+    if (sign) [this.#toward, this.#lastStep] = [sign === this.#lastStep ? sign : 0, sign];
     this.current = (i + n) % n;
     if (this.#exact?.i !== this.current) this.#exact = null;
     this.store.near = this.current;
@@ -188,7 +209,9 @@ export class Controller {
 
   /** A frame let go with no cache would be asked again, so the want stops at the window; with one, the whole series fills. */
   want() {
-    return wantFrom(this.current, this.#n, this.#fillMode, this.ascending, this.#fillSize());
+    const want = wantFrom(this.current, this.#n, this.#fillMode, this.ascending, this.store.cache ? this.#n : this.#window, this.#group, this.#wantedGroups, this.#toward);
+    this.#wantedGroups = new Set(want.map((i) => Math.floor(i / this.#group)));
+    return want;
   }
 
   /** The page view's downloader; past the window with no cache, each step's misses go through the store, as under the worker view. */
@@ -205,7 +228,7 @@ export class Controller {
   }
 
   #fillSize() {
-    return this.store.cache ? this.#n : Math.min(this.#n, this.#window);
+    return this.store.cache ? this.#n : wantFrom(this.current, this.#n, true, this.ascending, this.#window, this.#group, this.#wantedGroups, this.#toward).length;
   }
 
   /** The frame painted at `i`: its exact frame once that is here and checked, else the store's. */

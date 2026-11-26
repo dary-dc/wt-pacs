@@ -158,7 +158,7 @@ const connectOpts = {
 };
 try {
   // What the page dials with, under the lab's `pageDials`: the view worker's first want, unless a cache or a half-held store shapes it.
-  const firstWant = options.pageDials && !writer && !options.holdEveryOther ? wantFrom(0, n, fillMode, Boolean(options.waitAhead), memoryWindow(meta)) : undefined;
+  const firstWant = options.pageDials && !writer && !options.holdEveryOther ? wantFrom(0, n, fillMode, Boolean(options.waitAhead), memoryWindow(meta), meta.lossy?.g) : undefined;
   if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer, firstWant }, issuedAt);
   else {
     controller.issuedAt = issuedAt;
