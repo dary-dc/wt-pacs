@@ -1145,6 +1145,36 @@ frame is the original, checked.
 assumed viewport, the view at Q 8 G 8, no ultrasound; one 4-core container, software decode, Chromium 158 headless; a
 TUN relay ≤ 90 Mbit/s, scaled forms, no radio); *G*★ and the phone bounds rest on DEVICE-THEORY's ranges and one phone.
 
+### Re-review (2026-11-26, DELIVERY-VERDICT-2-FIX-REVIEW)
+
+*A session that wrote none of the protocol, §Amendment 2, the build, the run, §Verdict review 2 or its fix. Read: the
+fix `54248cc51` (`git diff 340968a91 54248cc51`: one hunk in §Results 2, §Against each prediction's lossy bullet to
+the host line, and `docs/lines/client.md`'s dated line), `claude/work-ledger` `2c5ca2d12` (`DELIVERY-RUN-2.md`'s
+Result); every number the fix states checked against `rows/run2/judged/recount2.txt` (`WIRE`, the LTE and LOSS
+lines) and `lab/delivery/inputs.json`. Nothing re-run; `scripts/check_links.py` 0 unresolved.*
+
+* **B1: closed.** The lossy bullet, the carry paragraph and the host line say no LTE view fill carries. Checked: of the
+  nine LTE A, A′, C1 fills, five hold (`dbts_a1` A′ and C1, `dbts_b1` A, `dbts_c1` A and A′), four of them regime misses
+  in 3, 6, 5, 5 rounds of 12; `dbts_b1` A has no regime count (predicted *near*); LTE's regime misses are six, all
+  `dbts_a1` and `dbts_c1`'s A, A′, C1. The views' dial → last byte on LTE: ×0.91–1.13 over A, A′, C1 and SPLIT on all
+  three volumes, as written. "Where the link binds" drops LTE from A's list and says neither side binds there.
+* **B2: closed.** LOSS `dbts_a1` and `dbts_c1` are put on the one-group decode term: their wire ×1.19, ×1.18, ×1.24
+  and ×1.06, ×1.09, ×1.10 (A, A′, C1), SPLIT ×0.98 and ×0.91; *d*₁ 54.41 and 57.23 ms in `inputs.json`; the loads'
+  decode 34–38 ms a frame on A, A′, C1 (the review's 31–38 included SPLIT, which reaches 30 on `dbts_c1`; the fix's
+  range is the right one for the arms it names); A `dbts_a1`'s fill 976 × 0.748 = 730 ms against its wire 644 ms.
+  LOSS `dbts_b1`: the curve's 4 311 ms, and 4 311 + 8 × 223.54 = 6 099 ms, the prediction; the wire 1 983, 2 876,
+  2 726 ms (A, A′, C1), decode 114–118 ms. The 6.1 s is gone from §Results 2; it survives only in §Verdict review 2's
+  quotation of it, which is the record.
+* **m1: closed.** LTE `dbts_c1`'s C1 press → painted and ask → last byte are 9/10, misses in band; the carry paragraph
+  says so and keeps PUB `dbts_b1` as cannot hold. m2 needed nothing.
+* `DELIVERY-RUN-2.md`'s Result and `docs/lines/client.md` match §Results 2. Nothing else in the file changed:
+  §A2.9's "A on CR, LTE and LOSS" (line 737) is the pre-registered prediction and stays.
+* **n1 (nit, no fix).** §Results 2's *How it serves the value statement* gives FIT "about A's time on CR and LTE";
+  on LTE that is the measured ratio (×1.02) on this host, with FIT `dbts_b1` missing in band (7/12); it is not a
+  carry, and PAGES-AFTER-RUNS should read it so.
+
+**Verdict.** Every finding of §Verdict review 2 closed; no blocker open. PAGES-AFTER-RUNS' delivery need is met.
+
 ## Fixtures and limits
 
 Three DBT volumes of one dataset (`dbts_a1`, `dbts_b1`, `dbts_c1`; 56, 50, 69 frames), the view at Q 8 G 8 only, no
