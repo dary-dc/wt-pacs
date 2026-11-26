@@ -1325,3 +1325,56 @@ m1–m5 and n1, each fixed or argued; PAGE-RUNS-VERDICT-FIX-REVIEW after it, bot
 `claude/work-ledger:docs/queue-2026-11-24.md`. PAGES-AFTER-RUNS' `reports` page waits on the re-review (or its
 latest); its other five pages may go from this review now. For BRIEF-WEEKEND's table: #39's build row (yes,
 recommended); behind first's build row (yes, recommended, provisional); D5a busy's rerun with a race A/A (yes or no).
+
+### Verdict re-review
+
+*PAGE-RUNS-VERDICT-FIX-REVIEW, 2026-11-26 19:27–19:29 UTC, by a session that wrote none of this file, ran none of its
+runs, and wrote none of §Verdict review or its fix (`by:` in
+`claude/work-ledger:docs/queue/PAGE-RUNS-VERDICT-FIX-REVIEW.md`). Read: the fix's commits `c4f91450c`, `01477bb02`, `eeb5900b4` (`git diff c4f91450c~1 eeb5900b4`: this file and
+`docs/lines/coordination.md` only, every hunk under B1, m1–m5 or n1) and `claude/work-ledger` `bc7c6350f`
+(`docs/queue/REPORT-RERUNS.md`'s Result). Recomputed apart from `recount.sh`, from the raw rows at `origin`:
+`claude/report-arms:lab/report-arms/rows/r3-chromium-D5a-busy.jsonl` (deliveries per arm, Fisher's exact tests) and
+`claude/cache-arms:lab/cache-arms/rows/chromium-1125/O-512-1x.jsonl`, `O-3328-1x.jsonl` (each round's
+`fromStartMs`, paired). Quotes checked on `claude/reviews-2026-11-28`: `reports.md` §6, `asking.md` §6. Taken at
+19:27, 17 minutes after the fix's last push (step 4 asks 20); nothing moved on either branch in between. Nothing else
+run; the gate not run (docs).*
+
+* **B1: closed.** §2 Results' D5a busy bullets, the A/A bullet, Lbusy's closing line, C's last bullet and the Summary
+  each read (b) `VOID` by its A/A (`off` 6, `off′` 8 of 18; Fisher two-sided p 0.733, *recomputed*), the race read
+  beside and not adopted, and the carrier by `reports.md` §6's rule, quoted as the page has it ("BEACON-Y wins if
+  neither holds"), **provisional**, the rerun named as the owner's yes or no. Each old line is kept, marked "corrected
+  2026-11-26, §Verdict review (B1)". The bins hold (*recomputed*): the four page-thread arms (`off`, `off′`,
+  `beacon:H`, `beacon:Y`) lose 17 of 18, 15 of 23, 7 of 15, 1 of 16 by quarter of the 0–50 ms delay, 40 of 72 in
+  all. `REPORT-RERUNS.md`'s Result matches. No line of this file outside the protocol's own band (:245) and the
+  quoted corrections still says the race "exists" or (b) is "shown".
+* **m1: closed.** O S1 warm reads **held**, the paired A/A 0.945 (rounds 1.042, 0.702, 1.015, 1.133, 0.875, 0.672;
+  cold 0.970), 146.0 ms over 256 frames = 0.570 ms a frame; the old reading kept. `cache.md` already carries it.
+* **m2: closed.** OPFS-ASYNC ÷ OPFS-SYNC paired on S3, 1.517 warm and 1.266 cold (*recomputed*); against CACHE-RUN's
+  1.156 and 1.138, ×1.312 and ×1.112; OPFS-SYNC's own move 735 ÷ 648 = ×1.134, ln 1.134 ÷ ln 1.511 = 0.31 of warm's,
+  so "about a third" holds. "Cold sits at the band's edge" is fair for ×1.11 against 1.10.
+* **m3: closed.** 107 407 602 B × 8 ÷ 35.02 s = 24.54 Mbit/s; 6 MiB over 0.8 s = 62.9, over 1.05 s = 47.9; 39 % and
+  51 %. Placed in §Transport results with the ratios as the reason; `transport-stack` already carries it.
+* **m4: closed.** The control clause is quoted as `asking.md` §6 has it (now at `asking.md:177`; §Verdict review's
+  `:138-139` predates the page's growth); P2 −1.20, P1 −0.88 and −0.86, P1c-80 −0.47 as §Asking's table.
+* **m5: closed, the argued part holds.** 40 of 72 lost against 0 of 36: p 4.76 × 10⁻¹⁰; BEACON-* alone, 18 of 36
+  against 0 of 36: p 4.38 × 10⁻⁷ (*recomputed*, two-sided). So the results' 4 × 10⁻⁷ was BEACON-* against KEEPALIVE-*,
+  as its sentence labels it, and §Verdict review's "neither" was the review's slip, as the fix argues.
+* **n1: closed.** T's 13 failed re-reads in rounds 1, 2, 6, 7, 9, 10. n2 and n3 were outside the fix's brief; left.
+
+**Minor (no fix row).**
+
+* **r-m1 · `claude/work-ledger:docs/queue/CACHE-CELLS.md`'s Result still reads "Warm is VOID (A/A 0.892)".** Outside
+  the fix's brief (which named `REPORT-RERUNS.md` and the line doc), and `cache.md` and this file read it held; but
+  BRIEF-WEEKEND reads each row's Result. BRIEF-WEEKEND takes O S1 warm from this file (m1), not from that line.
+
+**Nits.** **r-n1** · O S3's row gives the A/A two ways in one row: the ratio of medians (0.931, 0.974) in its second
+column, the paired (0.940, 0.933) in the added text. Both are inside 0.90–1.10; nothing moves. **r-n2** · Two
+reflowed paragraphs keep one over-long line (the Summary's "SESSION lost 2–3 of 18 …") and one short one (§Asking's
+"P1b meets its own refutation line, as the bounded").
+
+**Verdict.** No blocker open: B1, m1–m5 and n1 closed. PAGES-AFTER-RUNS-REPORTS' need is met (its `reports` page:
+BEACON-Y by the page's rule, provisional). For BRIEF-WEEKEND's table, unchanged from §Verdict review: #39's build row
+(yes, recommended); behind first's build row (yes, recommended, provisional); D5a busy's rerun with a race A/A (yes or
+no). Fixtures and limits as §Verdict review: `dbts_b1` as HTJ2K (§1, §4), synthetic sets (§2, §3, §5), no
+ultrasound; one 4-core cloud container without a GPU per run; headless Chromium 158, Firefox 159.0.1 and 160.0.1; a
+userspace relay, not a radio; §5 Chromium only.

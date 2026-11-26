@@ -174,6 +174,10 @@ small enough that every open item has an owner and a next step.
    m2 O S3 warm ×1.31 beyond OPFS-SYNC's move, cold ×1.11; m3 WT-TS's CR fill 24.5 Mbit/s, under the credit's cap,
    PF and AF's mechanism not shown; m4 §4's mechanism refuted by its controls; m5 40 of 72 lost (p 4.8 × 10⁻¹⁰; the
    results' 4 × 10⁻⁷ was BEACON-* alone, as labelled, and stands); n1 T in 6 rounds. PAGE-RUNS-VERDICT-FIX-REVIEW next.
+   PAGE-RUNS-VERDICT-FIX-REVIEW (2026-11-26, `page-runs.md` §Verdict re-review): no blocker open; B1, m1-m5, n1 closed,
+   each recomputed from the raw rows (Fisher 0.733, 4.76 × 10⁻¹⁰, 4.38 × 10⁻⁷; O paired 0.945, 1.517, 1.266). r-m1:
+   `CACHE-CELLS.md`'s Result still says O S1 warm `VOID`, so BRIEF-WEEKEND takes it from `page-runs.md`.
+   PAGES-AFTER-RUNS-REPORTS may go.
 
 ## Unification (the owner, 2026-11-09)
 
