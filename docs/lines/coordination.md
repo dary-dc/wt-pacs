@@ -97,6 +97,8 @@ small enough that every open item has an owner and a next step.
   (PAGES-AFTER-RUNS-REPORTS): `reports` read against `page-runs.md` §2 Results and its verdict, in place, dated: both
   reruns `VOID` by their A/A, so BEACON-Y by §6's rule, provisional; item 3 asks a D5a busy rerun with a race A/A
   (yes, recommended), C not rerun; §6's rule names no carrier if only (b) holds (the page's reading).
+  The weekend brief 2026-11-27 (BRIEF-WEEKEND): [`reviews-2026-11-27.md`](../reviews-2026-11-27.md), every page's yes or
+  no in one table with its edge of the order, the rows since BRIEF-MON, what did not fit; CACHE-DESIGN-1124 never ran.
 
 ## Open (ordered)
 
