@@ -163,6 +163,10 @@ small enough that every open item has an owner and a next step.
    `fe3cecb76`, conflict in this file only (both entries kept); `scripts/gate.sh` full on it, OK in 713 s, skipping
    the pair's invariants, the native painter and window, the stacks end to end, the viewer's cross-codec arm and
    Firefox, and the web host's check (one 4-core cloud container: no writer, lavapipe, fetched fixtures, GL or nginx).
+   EVAL-RELEASE-PR (2026-11-27): draft PR 450, `claude/eval-release` into `main`, "evaluation release candidate: the
+   owner's review"; `final-state.md` §5: conditions 1, 2 (a function check) and 6 (phase 2's merges) met, 3 met only
+   reworded, 4 and 5 not met, 7 not checked. CI on `be9f4eca8`: GATE OK in 882 s, the job failed on the unlisted skip
+   "the pair's invariants" (also on `claude/unified`). Owed: the owner's word on PR 450, condition 5's skip.
 
 ## Unification (the owner, 2026-11-09)
 
