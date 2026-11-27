@@ -4,9 +4,9 @@ name: gate
 
 on:
   pull_request:
-    branches: [claude/av1-unified-mainbase, claude/core, main]
+    branches: [claude/av1-unified-mainbase, claude/core, claude/unified, claude/eval-release, main]
   push:
-    branches: [claude/av1-unified-mainbase, claude/core, main]
+    branches: [claude/av1-unified-mainbase, claude/core, claude/unified, claude/eval-release, main]
 
 permissions:
   contents: read
@@ -52,11 +52,11 @@ jobs:
           cache-dependency-path: |
             lab/other-clients/go/go.sum
             lab/page-open/h3-host/go.sum
-      - name: Rust, nasm, meson, nginx, strace, lavapipe, Xvfb and xdotool
+      - name: Rust, nasm, meson, nginx, strace, lavapipe, Xvfb, xdotool and FFmpeg
         run: |
           rustup toolchain install "$RUST_VERSION" --profile minimal --target wasm32-unknown-unknown
           rustup default "$RUST_VERSION"
-          sudo apt-get update -q && sudo apt-get install -y -q nasm meson nginx strace mesa-vulkan-drivers xvfb xdotool libxkbcommon-x11-0
+          sudo apt-get update -q && sudo apt-get install -y -q nasm meson nginx strace mesa-vulkan-drivers xvfb xdotool libxkbcommon-x11-0 ffmpeg
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -82,6 +82,20 @@ jobs:
           npm i -g "playwright@$PLAYWRIGHT_VERSION"
           npx -y "playwright@$PLAYWRIGHT_VERSION" install --with-deps chromium firefox
       - run: pip install --require-hashes -r lab/av1/requirements.txt
+      # The stacks end to end's sets (docs/FIXTURES.md §Stacks end to end), fetched on a miss; the clips' 1.5 GB zip is not kept.
+      - id: stacks
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            lab/av1/data/usb_cine
+            lab/av1/data/usb_cine_rgb
+            lab/av1/data/dbts_a1
+            lab/av1/data/dicom
+          key: stacks-${{ hashFiles('lab/av1/data.json') }}
+      - if: steps.stacks.outputs.cache-hit != 'true'
+        run: |
+          OUT=lab/av1/data lab/av1/fetch_data.sh usb_cine usb_cine_rgb dbts_a1
+          rm -rf lab/av1/data/archives
       # The gate's ingest steps need ingest/tools.sh's coders: aomenc 3.15.1, dav1d and OpenJPH, each refused off its pin.
       - id: coders
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

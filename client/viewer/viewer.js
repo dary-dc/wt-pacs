@@ -19,6 +19,9 @@ const overlayEl = document.getElementById("overlay");
 const barEl = document.getElementById("bar");
 const sliceEl = document.getElementById("slice");
 statusEl.onclick = qualityEl.onclick = (e) => unfoldOnTap(barEl, e);
+// Beside the metadata, not after it, since the downloader's start carries the decoder: client/README.md §The viewer, *Opening*.
+const builds = { dav1d: built("dav1d"), openjph: built("openjph") };
+for (const b of Object.values(builds)) b.catch(() => {});
 
 const lab = await Promise.all([globalThis.viewerLab, globalThis.viewerTransport])
   .then(([levers, transport]) => ({ ...levers, pinned: Boolean(levers.transport), transport }), (e) => ({ refused: e.message }));
@@ -39,8 +42,9 @@ const meta = await globalThis.viewerMetadata;
 /** Epoch ms of the page's start, for the lab's ledger: docs/adr/frame-path.md §7, *The view worker's start, timed*. */
 const boot = { metadata: now() };
 const n = meta.frameCount;
-// An optimal-quality series is shown at optimal quality, each frame exact on request from its exact series.
-const pair = await (async () => {
+// An optimal-quality series is shown at optimal quality, each frame exact on request from its exact series; fetched while
+// the session dials, nothing painted before its check passes.
+const pairing = (async () => {
   const p = pairOf(meta);
   if (!p) return null;
   const [exactMeta, exactTransport] = await Promise.all([p.metadata, p.transport].map((u) => fetch(u).then((r) => {
@@ -49,11 +53,9 @@ const pair = await (async () => {
   })));
   checkPair(meta, exactMeta);
   return { ...p, meta: exactMeta, transport: exactTransport };
-})().catch((e) => {
-  statusEl.textContent = `error: ${e.message}`;
-  hooks?.report({ error: e.message });
-  throw e;
-});
+})();
+// A failed check holds every paint for good.
+const paintAfter = pairing.then(() => (boot.pair = now()), () => new Promise(() => {}));
 const fillMode = q.get("fill") !== "0";
 const transport = lab.transport;
 // Absolute: the downloader's worker would resolve a relative URL against its own script.
@@ -99,11 +101,12 @@ let worker = null;
 if (where === "page") {
   const painter = new Painter(canvas, { onLost: (why) => fail(`painter: ${why}`), lab: { settle: lab.settle } });
   painter.renderer.then((r) => ((boot.gl = now()), emit("renderer", { renderer: r })), (e) => emit("renderer", { error: e.message }));
-  controller = new Controller({ meta, fillMode, emit, size: size(), paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
+  controller = new Controller({ meta, fillMode, emit, size: size(), paintAfter, paint: (f, d, o) => painter.paint(asPainted(f.info), d, o) });
 } else {
   boot.viewWorker = now();
-  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit,
+  worker = new ViewWorker(canvas, { meta, fillMode, size: size(), emit, paintAfterPair: true,
     lab: { watch: hooks?.watch, settle: lab.settle, check: hooks?.check, booted, glAfterDial: Boolean(lab.opts.glAfterDial) } });
+  paintAfter.then(() => worker.paired());
 }
 
 /** The quality label says what is painted, as the controller judged it; the overlay, `?overlay=1`, how it got here. */
@@ -135,8 +138,8 @@ function status() {
 
 const options = lab.opts;
 const decoder = options.decoder ?? (meta.codec === "av1"
-  ? { codec: "av1", optimal: meta.lossy !== undefined, refuseWebCodecs: options.refuseWebCodecs, ...(await built("dav1d")) }
-  : await built("openjph"));
+  ? { codec: "av1", optimal: meta.lossy !== undefined, refuseWebCodecs: options.refuseWebCodecs, ...(await builds.dav1d) }
+  : await builds.openjph);
 const digests = meta.digests?.algorithm === "xxh3-64" ? meta.digests.frames : undefined;
 const groups = meta.lossy?.g > 1 ? { groupLength: meta.lossy.g, frameCount: n } : {};
 // A lab harness slows the CPU from here: lab/viewer/levers.js.
@@ -155,7 +158,7 @@ const connectOpts = {
 };
 try {
   // What the page dials with, under the lab's `pageDials`: the view worker's first want, unless a cache or a half-held store shapes it.
-  const firstWant = options.pageDials && !writer && !options.holdEveryOther ? wantFrom(0, n, fillMode, Boolean(options.waitAhead), memoryWindow(meta)) : undefined;
+  const firstWant = options.pageDials && !writer && !options.holdEveryOther ? wantFrom(0, n, fillMode, Boolean(options.waitAhead), memoryWindow(meta), meta.lossy?.g) : undefined;
   if (worker) await worker.connect(transport.wt_url, transport.cert_sha256, { ...connectOpts, writer, firstWant }, issuedAt);
   else {
     controller.issuedAt = issuedAt;
@@ -172,6 +175,12 @@ try {
   throw e;
 }
 
+const pair = await pairing.catch((e) => {
+  fail(e.message);
+  hooks?.report({ error: e.message });
+  (worker ?? controller.client).close();
+  throw e;
+});
 view = new View(n, controller ?? worker);
 sliceEl.hidden = false;
 if (pair) connectExact();
@@ -183,7 +192,7 @@ async function connectExact() {
     transportFile: new URL(`/wt/${pair.id}/dev-transport.json`, location).href,
     digests: pair.meta.digests.frames,
     decoders: 1,
-    decoder: await built("openjph"),
+    decoder: await builds.openjph,
   };
   try {
     if (worker) await worker.connectExact(pair.transport.wt_url, pair.transport.cert_sha256, opts);

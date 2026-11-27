@@ -1,6 +1,6 @@
 // node client/view/controller.test.mjs — the controller and the frame store, with a recording paint and a fake downloader client.
 import assert from "node:assert/strict";
-import { asPainted, Controller } from "./controller.js";
+import { asPainted, Controller, wantFrom } from "./controller.js";
 import { windowTable } from "../paint/voi.js";
 
 const tests = [];
@@ -13,7 +13,7 @@ const frame = (i, bits = 16) => ({
 });
 
 /** A controller on a series of `frames`, its paints and the client's calls recorded; `held` frames already here; `wants`, the worker view's store. */
-function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, lossy, bitsStored, channels, bits, width = 3, height = 2, window = { center: [3], width: [6] } } = {}) {
+function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, paintAfter, lossy, bitsStored, channels, bits, width = 3, height = 2, window = { center: [3], width: [6] } } = {}) {
   const painted = [];
   const calls = [];
   const events = [];
@@ -24,6 +24,7 @@ function rig({ frames = 4, held = [], fillMode = true, budget, wants, paint, los
     emit: (type, e) => events.push([type, e]),
     paint: paint ?? ((f, display) => (painted.push({ f, display }), { uploaded: painted.at(-2)?.f !== f })),
     budget,
+    paintAfter,
   });
   c.client = {
     requestFrame: (i) => (calls.push(`ask ${i}`), Promise.resolve(frame(i))),
@@ -216,6 +217,18 @@ test("the fill of a series over the window ends with the window", () => {
   c.take(frame(3));
   assert.notEqual(c.fillMs, null);
   assert.deepEqual(events.filter(([t]) => t === "progress").at(-1)[1].total, 4);
+});
+
+/** In groups past the window, the want is whole groups, at least two: the frame's own and the neighbour on the side it is nearer, nearest first; keyframe-only series keep the frame window. */
+test("in groups, the window is the frame's group and its nearer neighbour", () => {
+  const groups = (c) => [...new Set(wantFrom(c, 50, true, false, 15, 8).map((i) => i >> 3))].sort((a, b) => a - b).join();
+  assert.deepEqual([3, 4, 0, 49].map(groups), ["0,1", "0,1", "0,1", "5,6"]);
+  assert.deepEqual([19, 20].map(groups), ["1,2", "2,3"]);
+  const odd = [...new Set(wantFrom(4, 12, true, false, 3, 3).map((i) => Math.floor(i / 3)))].sort().join();
+  assert.equal(odd, "1,2", "at equal distance, the later group");
+  assert.deepEqual(wantFrom(20, 50, true, false, 15, 8).slice(0, 3), [20, 21, 19]);
+  assert.equal(wantFrom(20, 50, true, false, 40, 8).length, 40);
+  assert.deepEqual(wantFrom(20, 50, true, false, 4, 1), [20, 21, 19, 22]);
 });
 
 /** With a cache the whole series is still wanted past the window: a frame let go is on disk, not asked again. */
@@ -475,7 +488,7 @@ function optimalRig(answer = (i) => Promise.resolve(exactFrame(i)), opts = {}) {
 test("the exact request paints the exact series' frame in place, and nothing else", async () => {
   const { c, painted, calls, exactAsks, labels } = optimalRig();
   const before = [...c.store.keys()].map((i) => c.store.get(i));
-  await c.show(1);
+  c.show(1);
   await c.showExact();
   await c.repaint();
   assert.deepEqual(exactAsks, [1]);
@@ -486,7 +499,7 @@ test("the exact request paints the exact series' frame in place, and nothing els
   assert.equal(c.received, 4);
   await c.show(2);
   assert.equal(painted.at(-1).f, c.store.get(2));
-  await c.show(1);
+  c.show(1);
   assert.equal(painted.at(-1).f, c.store.get(1));
   assert.equal(labels().at(-1), "optimal");
   await c.showExact();
@@ -595,6 +608,34 @@ test("a series that is not optimal quality carries no quality label", async () =
   const { c, events } = rig({ held: [0] });
   await c.repaint();
   assert.equal(events.find(([t]) => t === "shown")[1].quality, null);
+});
+
+/** Frames that arrive while the pair is fetched are held, not painted or labelled; the check's pass paints the current one. */
+test("no frame is painted or labelled before the pair's check passes", async () => {
+  const check = Promise.withResolvers();
+  const { c, painted, events } = rig({ lossy: { q: 8, g: 1, depth: 16 }, paintAfter: check.promise });
+  c.take(frame(0));
+  c.take(frame(1));
+  c.show(1);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(painted.length, 0);
+  assert.equal(events.filter(([t]) => t === "shown").length, 0);
+  check.resolve();
+  await c.repaint();
+  assert.deepEqual(painted.map((p) => p.f), [c.store.get(1)]);
+  assert.deepEqual(events.filter(([t]) => t === "shown").map(([, e]) => [e.i, e.quality]), [[1, "optimal"]]);
+});
+
+/** A pair whose check fails holds the paint for good: every frame arrives, none is painted or labelled. */
+test("a pair that fails its check paints nothing", async () => {
+  const { c, painted, events } = rig({ lossy: { q: 8, g: 1, depth: 16 }, paintAfter: new Promise(() => {}) });
+  for (const i of [0, 1, 2, 3]) c.take(frame(i));
+  c.show(2);
+  c.setDisplay({ invert: true });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(c.received, 4);
+  assert.equal(painted.length, 0);
+  assert.equal(events.filter(([t]) => t === "shown").length, 0);
 });
 
 /** A jump mid-group then a scroll on through it: the group's frames arrived with the jump, so the scroll asks nothing. */

@@ -18,9 +18,12 @@ async function pinned(url, bytes, want) {
   if (got !== want) throw new Error(`${url} is not the pinned build: sha256 ${got}, not ${want}`);
 }
 
-/** The manifest's digest of a built file, by its path under wasm/built; a file it does not name is refused. */
+let manifestText = null;
+
+/** The manifest's digest of a built file, by its path under wasm/built; a file it does not name is refused. Fetched once a realm. */
 async function manifest() {
-  const text = await (await fetch(new URL("./wasm/build/manifest.sha256", import.meta.url))).text();
+  manifestText ??= fetch(new URL("./wasm/build/manifest.sha256", import.meta.url)).then((r) => r.text());
+  const text = await manifestText;
   return (path) => {
     const line = text.split("\n").find((l) => l.endsWith(`  ${path}`));
     if (!line) throw new Error(`no ${path} in the decoder manifest`);

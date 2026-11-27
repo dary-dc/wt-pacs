@@ -238,8 +238,9 @@ line only. To change series, Ctrl-C and start it again with another `ID`. **A re
 stopped: `NODE_PATH=$(npm root -g) node client/viewer/demo-check.mjs demo-series $ID` runs the same starter, opens the page in headless
 Chromium as below, and fails by name a frame not painted, a decode route other than WebCodecs (`--refuse-webcodecs`:
 the lab's lever refuses WebCodecs on a 10-bit series, so dav1d must take every frame with that refusal named, the
-fallback's check; `--route av1-dav1d` for a stored form), a console error, a label out of order, an on-demand jump that asked other than whole groups, or
-*Lossless* shown for an exact frame whose digest was made wrong. `--view worker` runs the same passes with the frames held in the view worker (`?view=worker`);
+fallback's check; `--route av1-dav1d` for a stored form), a console error, a label out of order, an on-demand jump that asked other than whole groups, a frame arriving on demand from a group no step has reached yet, or
+*Lossless* shown for an exact frame whose digest was made wrong; with the exact series' metadata held until a frame is
+here, a session that waited for it or a frame painted before its check, and a refused pair that paints anything. `--view worker` runs the same passes with the frames held in the view worker (`?view=worker`);
 the default is `page`.
 
 **Before the demo, from any state** — another branch checked out, stale builds, servers left running, an old
@@ -576,6 +577,7 @@ Each subject has one owner; a claim lives there, corrected in place when it is w
 | [`docs/decode/README.md`](docs/decode/README.md) | the decoder: builds, dispatch, warm-up, the range, the decode tail |
 | [`docs/adr/disk-access.md`](docs/adr/disk-access.md) | how the server reads frame bytes, and its deployment |
 | [`docs/rig-limits.md`](docs/rig-limits.md) | what the measurement hosts can and cannot claim |
+| [`docs/defaults.md`](docs/defaults.md) | every default the product ships, each with the measurement that chose it or "chosen by no measurement" |
 | [`docs/levers.md`](docs/levers.md) | every lever outside the codecs: tried, closed or open, and the rows proposed next |
 | [`lab/README.md`](lab/README.md) | which lab directory reproduces which claim; each lab README runs its cells — [`lab/page-open/README.md`](lab/page-open/README.md) the page open |
 | [`docs/adr/`](docs/adr/README.md) | the decisions, one per record, indexed with their status: stream shape, the session loop, ask window, stride, resolution fitting, what the server refuses to do, the read path, idle sessions, receive windows, telemetry |

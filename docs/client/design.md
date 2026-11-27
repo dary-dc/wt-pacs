@@ -93,7 +93,7 @@ they start with `../`.
 | Mobile on lossy wireless; no TCP for the fill unless proven; fill and on-demand latency optimized separately; resilience parked | 2026-11-11 | `claude/work-ledger:docs/queue-2026-11-10.md` |
 | Telemetry off by default (rate 0); the frame clock kept | 2026-11-11 | the same |
 | Telemetry is essential and built now, sampled; one implementation per job, so the phone's beacon becomes a switch over the load report | 2026-11-11 | [`what-a-load-report-sends.md`](evidence/what-a-load-report-sends.md) |
-| The core design reaches `main`; then two weeks with no merges but those the owner names, one question a branch and a draft PR | 2026-11-11 | [`../lines/coordination.md`](../lines/coordination.md) |
+| The core design reaches `main`; then two weeks with no merges but those the owner names, one question a branch and a draft PR | 2026-11-11 | [`../lines/release.md`](../lines/release.md) |
 | One home per subject, `docs/<subject>/` (this file, the page, `evidence/`), and the product statement's framing | 2026-11-14 | `CLAUDE.md` §Docs; [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §The product |
 | Exactness failures are a safety report, not telemetry: always on, never sampled, no pixels or patient data, the load report's endpoint and format; on a mismatch the second decode first, then the frame blocked, the reader told in that frame's view and the report sent at once. The sampled load report alone follows the rate | 2026-11-14 | [`../adr/exactness-in-production.md`](../adr/exactness-in-production.md) §4, §5, §8; [`where-a-frame-can-be-corrupted.md`](evidence/where-a-frame-can-be-corrupted.md) |
 | The cache: survey the options before designing further; if OPFS comes out best its design continues, if not the cache gets research of its own | 2026-11-14 | [`cache-options.md`](evidence/cache-options.md); *Open*, below |
@@ -233,7 +233,8 @@ owner's: an ask during a fill ([`ask-during-a-fill.md`](evidence/ask-during-a-fi
 3. The phone run's 10-minute rule stopped its Wi-Fi block after four of six octets: does the rule stand against a
    six-octet reading, and do the run's two `bbr` failures withdraw `bbr`? ([`view-target.md`](evidence/view-target.md),
    [`congestion-controller.md`](evidence/congestion-controller.md)).
-4. `readMin`'s cut-stream fix is not merged and its default is open ([`../merge-readiness.md`](../merge-readiness.md) H3).
+4. `readMin`'s default is open; its cut-stream fix, lost at `dd681539`, is restored (corrected 2026-11-23,
+   `claude/readmin-restore`) ([`../merge-readiness.md`](../merge-readiness.md) H3).
 5. The visually-lossless bar, 1.00 or 1.03 of the noise, and whether denoising counts (the owner's questions of
    2026-11-10; [`which-quality-is-visually-lossless.md`](evidence/which-quality-is-visually-lossless.md)).
 6. The ring's Firefox result was run on Firefox 155, not the 159 its bar was set on

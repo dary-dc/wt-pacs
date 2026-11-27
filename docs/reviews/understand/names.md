@@ -77,7 +77,7 @@ view". A presenter reading the status line's `view page` aloud means the other o
 
 * **Rename, prose only:** the picture is "optimal quality" or "the optimal-quality picture"; *view* stays `page |
   worker`.
-* **Every place:** `docs/glossary.md:37`, `README.md:195,302,310`, `docs/lines/optimal-quality.md:65,67,89`,
+* **Every place:** `docs/glossary.md:37`, `README.md:195,302,310`, `docs/lines/optimal-quality.md:65,67,89` (folded into `docs/lines/codecs.md` §Optimal quality 2026-11-24, in git),
   `docs/av1/payload-format.md:333,391,404,436`. The queue's decided approaches use "the OQ view" too; they are the
   owner's text and are left as written.
 

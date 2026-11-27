@@ -1,6 +1,6 @@
-# Coordination
+# Release
 
-Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 2026-11-24.
+Last verified 2026-11-11 23:10 UTC (branches and PRs read from `origin`); Open 8 added 2026-11-15, its reviews and PR triage 2026-11-16, AUDIT-MECHANICAL and its review 2026-11-17, DOCS-SYNC-1119 2026-11-19, DOCS-SYNC-1120 2026-11-20, UNIFIED-NAMES 2026-11-22; VALUE-STATEMENT 2026-11-23 (the value statement in `README.md` §Purpose, its one home; `docs/lines/README.md` points to it), SELINUX-BUILD-RESTORE and its review 2026-11-23, UNIFIED-SYNC-1124 2026-11-24, GATE-CI 2026-11-24, DEFAULTS-TABLE 2026-11-24 (`docs/defaults.md`: every default with what chose it; `final-state` condition 3's table), DEFAULTS-TABLE-FIX 2026-11-24 (each unmeasured default says why it stands), DEFAULTS-TABLE-FIX-2 2026-11-24 (the six `none` rows left without a why get one; the untested join the owner's list), US-END-TO-END 2026-11-24; LINES-FOLD 2026-11-24 (this file renamed from `coordination.md`, the line from *coordination* to *release*; `optimal-quality.md` folded into `codecs.md` §Optimal quality, `devices.md` into `client.md` §Devices; history in git).
 
 ## Goal
 
@@ -60,7 +60,7 @@ small enough that every open item has an owner and a next step.
    on `claude/core-next` (PR 351), `claude/demo-fixes-0` (PR 355) and `claude/demo-fixes-1` (PR 363), each carried by
    the next. After FREEZE-E2E the owner gives two merge words, PR 367 then PR 250, as merge commits; the PRs and
    branches they carry in full are listed by MERGE-PLAN (`claude/merge-plan:docs/reviews/merge-plan.md`) and closed
-   or deleted after. Nothing reaches `main` uncleaned ([`optimal-quality.md`](optimal-quality.md) §Open 2).
+   or deleted after. Nothing reaches `main` uncleaned (`docs/lines/optimal-quality.md` §Open 2 at `4c84013ed`).
    Pre-main review of `main...claude/demo-fixes-0` (2026-11-11, for MAIN-REVIEW): no blocker, 11 should-fix, the
    gate green; [`../reviews/pre-main.md`](../reviews/pre-main.md).
 3. The proposed order into `main` after that: `av1-unified-mainbase` ← `line-hygiene` ← `line-server` ← `core` ←
@@ -135,6 +135,28 @@ small enough that every open item has an owner and a next step.
    `docs/reviews/eval-release.md` with the page that holds them.
    EVAL-RELEASE-REVIEW (2026-11-25): no blocker; m1-m4 and two nits in `eval-release.md` §Review (`handoff/` is PR 412
    on item 1; PR 426's two minors taken for one commit). Owed: EVAL-RELEASE-PR.
+   UNIFIED-SYNC-1125 (2026-11-25, amendment 28 rule 1): 11 PRs merged `--no-ff` onto `b059388b6` (413, 418, 419,
+   439, 440, 442, 443, 444, 445, 447, 448), then `defaults.md`'s link to the folded `optimal-quality.md` and the deploy
+   image's copy of `lab/noise-ingest` (a workspace member since 413), tip `8459a0a7b`. CI run 45596759058: gate OK in
+   954 s, the job failing only on the known skip of the pair's invariants (as at `b059388b6`). Each PR commented.
+   Skipped: 438 (code conflict in `client/view/controller.js`, `client/viewer/viewer.js`); the rest as 1124 left them.
+   UNIFIED-SYNC-1126 (2026-11-26, amendment 28 rule 1): 441 and 446 merged `--no-ff` onto `07f700b78`, tip `da65e4530`
+   (446's merge kept both entries of `docs/lines/client.md`); `scripts/gate.sh` full on the merged tree, OK in 938 s, a
+   local cloud run that also skipped the native painter and window, the stacks end to end and the web host's check (no
+   lavapipe, fetched fixtures or nginx). The merge comments were refused to the session; GitHub closed both as merged.
+   Skipped: 438 (code conflict, as in 1125), 420 (VL-READS' commits after its last review); the rest as 1124 left them.
+   GATE-CI (2026-11-24, `claude/gate-ci`, draft PR into unified): `gate.yml` runs on PRs into and pushes to
+   `claude/unified` and `claude/eval-release`. Its run on unified's tip through PR 402 (run 45345879478, *measured*)
+   passed `scripts/gate.sh` in 620 s with the native painter, the window and the web host's check run, and failed
+   the job on one skip the workflow does not allow: `pair_contract_test.py`'s "the pair's invariants: no writer"
+   (a known gap held on `ingest-optimal-quality` item 1), so final-state condition 5 is unmet while it prints.
+   US-END-TO-END (2026-11-24, `claude/us-end-to-end`, draft PR into unified): the evaluation release's condition 2 as
+   a gate step, `scripts/stacks_end_to_end.sh` (`docs/FIXTURES.md` §Stacks end to end): `usb_cine`, `usb_cine_rgb` and
+   `dbts_a1` through the DICOM ingest, held to their pins, every frame exact in the page and the view worker; skipped by
+   name until the three sets are fetched. US-END-TO-END-REVIEW (one blocker) and US-END-TO-END-FIX (2026-11-24): the
+   gate workflow caches the three sets, fetching them on a miss, so CI runs the step; the served bundle's own digests,
+   not the metadata beside it, are held to the pin (the same-length swap now fails); the US object's limit named.
+   Owed: US-END-TO-END-FIX-REVIEW.
 
 ## Unification (the owner, 2026-11-09)
 

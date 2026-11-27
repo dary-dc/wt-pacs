@@ -36,6 +36,13 @@ const file = (name) => {
 const lossyMeta = JSON.parse(readFileSync(file(`${id}.metadata.json`)));
 const exactId = lossyMeta.exactSeries;
 const exactMetaPath = file(`${exactId}.metadata.json`);
+/** The frames of the groups that hold `frames`: what an on-demand view asks to show them. */
+const groupsOf = (frames) => {
+  const { lossy: { g = 1 } = {}, frameCount: n } = lossyMeta;
+  return [...new Set(frames.map((i) => Math.floor(i / g)))].reduce((s, k) => s + Math.min(g, n - k * g), 0);
+};
+/** On demand, 13 steps and a jump to the last frame: the frames of the whole groups they reach. */
+const ON_DEMAND = groupsOf([...Array(13).keys(), lossyMeta.frameCount - 1]);
 
 const started = (child, re) => new Promise((resolve, reject) => {
   let out = "";
@@ -100,15 +107,24 @@ async function pass(browser, query) {
   const n = lossyMeta.frameCount;
   const filling = !query.includes("fill=0");
   const status = async () => (await log()).findLast((e) => e.id === "status")?.text;
+  const arrived = async () => Number((await status())?.match(/received (\d+)/)?.[1] ?? 0);
+  const ahead = [];
+  /** On demand, before a step: nothing arrived from a group the steps so far have not reached. */
+  const notAhead = async (shown) => {
+    const k = await arrived();
+    if (!filling && k > groupsOf(shown)) ahead.push(`${k} frames after frames 1 to ${shown.length}`);
+  };
   if (filling) must(await until((l) => /fill \d+ ms/.test(l.findLast((e) => e.id === "status")?.text), 120000), `${query}: the fill completes in 120 s: ${await status()}`);
   must(await shown(0, 0), `${query}: frame 1 painted`);
   const steps = [];
   for (let i = 1; i < (filling ? n : Math.min(n, 13)); i++) {
+    await notAhead([...Array(i).keys()]);
     const t = await now();
     await page.keyboard.press("ArrowRight");
     must(await shown(i, t), `${query}: frame ${i + 1} painted after its step`);
     steps.push(Math.round((await log()).findLast((e) => e.id === "overlay").t - t));
   }
+  await notAhead([...Array(filling ? n : Math.min(n, 13)).keys()]);
   const home = await now();
   await page.keyboard.press("Home");
   must(await shown(0, home), `${query}: Home painted frame 1`);
@@ -119,6 +135,10 @@ async function pass(browser, query) {
   must(await shown(n - 1, before), `${query}: the jump to frame ${n} painted`);
   check(await page.locator("#slice").inputValue() === String(n - 1), `${query}: the slider not at frame ${n} after the jump`);
   const jumpMs = Math.round((await log()).findLast((e) => e.id === "overlay").t - before);
+  // The view worker posts its count at most every 100 ms (PROGRESS_MS, client/view/view-worker.js): read once it has come.
+  const count = (l) => Number(l.findLast((e) => e.id === "status")?.text.match(/received (\d+)/)?.[1] ?? 0);
+  if (!filling) await until((l) => count(l) >= ON_DEMAND, 2000);
+  const atJump = count(await log());
   const pressed = await now();
   await page.keyboard.press("l");
   await until((l) => /^✓ Lossless/.test(l.findLast((e) => e.id === "quality")?.text), 30000);
@@ -138,13 +158,46 @@ async function pass(browser, query) {
     while (received.length < k) received.push(Math.round(e.t));
   }
   return {
-    query, errors, steps, jumpMs, losslessMs,
+    query, errors, steps, jumpMs, losslessMs, ahead, atJump,
     labels: l.filter((e) => e.id === "quality" && e.text).map((e) => e.text).filter((t, k, a) => t !== a[k - 1]),
     firstPictureMs: Math.round(overlays[0]?.t), receivedMs: received,
     frames: Object.values(Object.fromEntries(overlays.filter((e) => !e.text.startsWith("htj2k")).map((e) => [e.frame, e.text]))),
     paintedWithLossless: lossless < 0 ? null : l.slice(lossless + 1).find((e) => e.id === "overlay")?.text,
     status: l.findLast((e) => e.id === "status")?.text,
   };
+}
+
+/**
+ * The exact series' metadata held until the page has a frame, then answered (`refused`: with a frame count that is not
+ * the pair's): the session dials without the pair, and nothing is painted or labelled before its check passes.
+ */
+async function heldPair(browser, refused) {
+  const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(watch);
+  const log = () => page.evaluate(() => globalThis.__log ?? []);
+  const received = (l) => l.some((e) => e.id === "status" && /received [1-9]/.test(e.text));
+  let releasedAt = null;
+  await page.route(`**/series/${exactId}/metadata`, async (route) => {
+    for (const end = Date.now() + 15000; Date.now() < end && !received(await log()); ) await page.waitForTimeout(20);
+    releasedAt = await page.evaluate(() => performance.now());
+    const meta = JSON.parse(readFileSync(exactMetaPath));
+    if (refused) meta.frameCount += 1;
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify(meta) });
+  });
+  await page.goto(`http://127.0.0.1:8765/?overlay=1&view=${VIEW}${LEVERS}`);
+  const painted = (l) => l.some((e) => ["overlay", "quality"].includes(e.id) && e.text);
+  const settled = (l) => releasedAt !== null && (refused ? l.some((e) => e.id === "status" && /error: refused/.test(e.text)) : painted(l));
+  for (const end = Date.now() + 60000; Date.now() < end && !settled(await log()); ) await page.waitForTimeout(20);
+  if (refused) await page.waitForTimeout(2000);
+  const l = await log();
+  const held = l.filter((e) => e.t < releasedAt);
+  const r = { receivedHeld: received(held), paintedHeld: painted(held), painted: painted(l), status: l.findLast((e) => e.id === "status")?.text,
+    slider: await page.locator("#slice").isVisible(), errors };
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await page.close();
+  return r;
 }
 
 const LABELS = ["Optimal quality", "Optimal quality · fetching lossless…", "✓ Lossless", "Optimal quality"];
@@ -155,6 +208,7 @@ function judge(r) {
   // The label and the overlay are written by one paint, the label first: the overlay after it names what was painted.
   check(r.paintedWithLossless?.startsWith("htj2k"), `${r.query}: Lossless written with ${r.paintedWithLossless ?? "no paint"}, not the exact frame's`);
   check(r.status?.includes(` · view ${VIEW} · `), `${r.query}: the frames held in ${r.status?.match(/view (\w+)/)?.[1]}, not ${VIEW}`);
+  check(r.ahead.length === 0, `${r.query}: on demand, frames arrived from a group no step had reached: ${r.ahead.join("; ")}`);
   check(r.errors.length === 0, `${r.query}: console errors ${JSON.stringify(r.errors)}`);
   for (const f of r.frames) {
     const m = routeOf(f);
@@ -173,10 +227,7 @@ try {
     judge(r);
     check(JSON.stringify(r.labels) === JSON.stringify(LABELS), `${query}: the label ran ${JSON.stringify(r.labels)}, not ${JSON.stringify(LABELS)}`);
     if (query) {
-      const g = lossyMeta.lossy.g;
-      const groups = new Set([...Array(13).keys()].map((i) => Math.floor(i / g))).add(Math.floor((lossyMeta.frameCount - 1) / g));
-      const want = [...groups].reduce((s, k) => s + Math.min(g, lossyMeta.frameCount - k * g), 0);
-      check(r.status.includes(`received ${want},`), `${query}: on demand, 13 steps and a jump asked the whole groups, ${want} frames: ${r.status}`);
+      check(r.atJump === ON_DEMAND, `${query}: on demand, 13 steps and a jump asked the whole groups, ${ON_DEMAND} frames, not ${r.atJump}: ${r.status}`);
     }
     report.passes.push(r);
   }
@@ -194,6 +245,15 @@ try {
   const RETRIED = [LABELS[0], LABELS[1], FAILED, LABELS[1], FAILED];
   check(JSON.stringify(r.labels) === JSON.stringify(RETRIED), `a wrong digest, \`l\` and its retry: the label ran ${JSON.stringify(r.labels)}, not ${JSON.stringify(RETRIED)}`);
   report.tampered = r.labels;
+  stop();
+  await serve(dir);
+  const held = await heldPair(browser, false);
+  check(held.receivedHeld, `the pair held: no frame received before its metadata came, so the dial waited for it: ${held.status}`);
+  check(!held.paintedHeld && held.painted, `the pair held: ${held.paintedHeld ? "a frame painted or labelled before its check" : "nothing painted after it"}`);
+  const refused = await heldPair(browser, true);
+  check(refused.receivedHeld && !refused.painted && !refused.slider && /error: refused: exact series .* has \d+ frames/.test(refused.status),
+    `a refused pair: a frame received before it ${refused.receivedHeld}, painted ${refused.painted}, the slider shown ${refused.slider}, status ${refused.status}`);
+  report.held = { held, refused };
 } catch (e) {
   failures.push(e.message);
 } finally {

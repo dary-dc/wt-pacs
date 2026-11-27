@@ -1,7 +1,7 @@
 # `lab/` off `main` entirely: a proposal
 
 A proposal for the owner (2026-11-11: "`lab/` off `main` entirely is a proposal for after the demo"), set against
-today's rule, `docs/lines/coordination.md` §Decisions: `lab/` on `main` is the measurement harness only; product code
+today's rule, `docs/lines/release.md` §Decisions: `lab/` on `main` is the measurement harness only; product code
 never imports `lab/`, no lab code sits inside product modules, nothing from `lab/` enters the deploy image or the
 default build, and `scripts/check_lab_absent.sh` enforces it in the gate. Structural, so nothing here is built.
 
