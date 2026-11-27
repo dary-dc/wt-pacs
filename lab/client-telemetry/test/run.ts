@@ -644,9 +644,9 @@ function sliceRiver(
 {
   let heads = 0;
   const session = wrapSession({
-    requestExactFrame: (frameIndex: number, onHead?: () => void) => (onHead?.(), Promise.resolve({ frameIndex })),
+    requestFrame: (frameIndex: number, onHead?: () => void) => (onHead?.(), Promise.resolve({ frameIndex })),
   });
-  void session.requestExactFrame(0, () => (heads += 1));
+  void session.requestFrame(0, () => (heads += 1));
   assertEq(heads, 1, "a wrapped ask's onHead runs");
 }
 

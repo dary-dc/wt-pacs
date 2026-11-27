@@ -1,0 +1,1241 @@
+block shard-1: host {'cpu': 'Intel(R) Xeon(R) Processor @ 2.80GHz', 'cores': 4, 'gb': 16}
+block shard-2: host {'cpu': 'Intel(R) Xeon(R) Processor @ 2.30GHz', 'cores': 4, 'gb': 16}
+block shard-3: host {'cpu': 'Intel(R) Xeon(R) Processor @ 2.10GHz', 'cores': 4, 'gb': 16}
+block shard-4: host {'cpu': 'Intel(R) Xeon(R) Processor @ 2.80GHz', 'cores': 4, 'gb': 16}
+block shard-5: host {'cpu': 'Intel(R) Xeon(R) Processor @ 2.10GHz', 'cores': 4, 'gb': 16}
+block shard-6: host {'cpu': 'Intel(R) Xeon(R) Processor @ 2.10GHz', 'cores': 4, 'gb': 16}
+block shard-1: 15 rounds, 2820 rows
+  ms, median over rounds, dbts_a1 Q16 1x: H 19  H′ 19  R|12bit 27  R|top10 28  S16|dav1d|jump 510  S16|dav1d|order 59  S16|webcodecs|jump 238  S16|webcodecs|order 28  S1|dav1d|jump 40  S1|dav1d|order 36  S1|webcodecs|jump 28  S1|webcodecs|order 23  S8|dav1d|jump 264  S8|dav1d|order 59  S8|webcodecs|jump 135  S8|webcodecs|order 26
+  ms, median over rounds, dbts_a1 Q16 4x: H 89  H′ 94  R|12bit 131  R|top10 133  S16|dav1d|jump 2428  S16|dav1d|order 270  S16|webcodecs|jump 683  S16|webcodecs|order 70  S1|dav1d|jump 179  S1|dav1d|order 175  S1|webcodecs|jump 100  S1|webcodecs|order 75  S8|dav1d|jump 1224  S8|dav1d|order 284  S8|webcodecs|jump 360  S8|webcodecs|order 72
+  ms, median over rounds, dbts_a1 Q32 1x: H 19  H′ 19  R|12bit 28  R|top10 27  S16|dav1d|jump 383  S16|dav1d|order 45  S16|webcodecs|jump 212  S16|webcodecs|order 23  S1|dav1d|jump 56  S1|dav1d|order 53  S1|webcodecs|jump 25  S1|webcodecs|order 20  S8|dav1d|jump 199  S8|dav1d|order 50  S8|webcodecs|jump 115  S8|webcodecs|order 23
+  ms, median over rounds, dbts_a1 Q8 1x: H 19  H′ 19  R|12bit 26  R|top10 26  S16|dav1d|jump 600  S16|dav1d|order 67  S16|webcodecs|jump 374  S16|webcodecs|order 44  S1|dav1d|jump 59  S1|dav1d|order 57  S1|webcodecs|jump 40  S1|webcodecs|order 37  S8|dav1d|jump 321  S8|dav1d|order 68  S8|webcodecs|jump 188  S8|webcodecs|order 41
+  ms, median over rounds, dbts_b1 Q16 1x: H 54  H′ 58  R|10bit 91  S16|dav1d|jump 1791  S16|dav1d|order 200  S16|webcodecs|jump 957  S16|webcodecs|order 111  S1|dav1d|jump 151  S1|dav1d|order 143  S1|webcodecs|jump 103  S1|webcodecs|order 92  S8|dav1d|jump 886  S8|dav1d|order 204  S8|webcodecs|jump 520  S8|webcodecs|order 109
+  ms, median over rounds, dbts_b1 Q32 1x: H 53  H′ 52  R|10bit 90  S16|dav1d|jump 1401  S16|dav1d|order 162  S16|webcodecs|jump 743  S16|webcodecs|order 90  S1|dav1d|jump 190  S1|dav1d|order 173  S1|webcodecs|jump 89  S1|webcodecs|order 74  S8|dav1d|jump 715  S8|dav1d|order 165  S8|webcodecs|jump 414  S8|webcodecs|order 82
+  ms, median over rounds, dbts_b1 Q32 4x: H 273  H′ 261  R|10bit 446  S16|dav1d|jump 6719  S16|dav1d|order 799  S16|webcodecs|jump 2554  S16|webcodecs|order 277  S1|dav1d|jump 858  S1|dav1d|order 860  S1|webcodecs|jump 312  S1|webcodecs|order 279  S8|dav1d|jump 3417  S8|dav1d|order 788  S8|webcodecs|jump 1331  S8|webcodecs|order 276
+  ms, median over rounds, dbts_b1 Q56 1x: H 54  H′ 53  R|10bit 91  S16|dav1d|jump 1109  S16|dav1d|order 97  S16|webcodecs|jump 690  S16|webcodecs|order 72  S1|dav1d|jump 302  S1|dav1d|order 283  S1|webcodecs|jump 89  S1|webcodecs|order 69  S8|dav1d|jump 611  S8|dav1d|order 95  S8|webcodecs|jump 386  S8|webcodecs|order 76
+  ms, median over rounds, dbts_c1 Q16 1x: H 18  H′ 19  R|12bit 28  R|top10 29  S16|dav1d|jump 500  S16|dav1d|order 55  S16|webcodecs|jump 279  S16|webcodecs|order 33  S1|dav1d|jump 40  S1|dav1d|order 39  S1|webcodecs|jump 33  S1|webcodecs|order 29  S8|dav1d|jump 257  S8|dav1d|order 53  S8|webcodecs|jump 150  S8|webcodecs|order 32
+  ms, median over rounds, dbts_c1 Q16 4x: H 91  H′ 91  R|12bit 136  R|top10 142  S16|dav1d|jump 2355  S16|dav1d|order 261  S16|webcodecs|jump 822  S16|webcodecs|order 85  S1|dav1d|jump 193  S1|dav1d|order 185  S1|webcodecs|jump 108  S1|webcodecs|order 80  S8|dav1d|jump 1179  S8|dav1d|order 273  S8|webcodecs|jump 416  S8|webcodecs|order 91
+  ms, median over rounds, dbts_c1 Q32 1x: H 19  H′ 19  R|12bit 29  R|top10 29  S16|dav1d|jump 406  S16|dav1d|order 40  S16|webcodecs|jump 239  S16|webcodecs|order 26  S1|dav1d|jump 86  S1|dav1d|order 83  S1|webcodecs|jump 30  S1|webcodecs|order 25  S8|dav1d|jump 204  S8|dav1d|order 41  S8|webcodecs|jump 133  S8|webcodecs|order 26
+  ms, median over rounds, dbts_c1 Q8 1x: H 19  H′ 19  R|12bit 28  R|top10 29  S16|dav1d|jump 572  S16|dav1d|order 63  S16|webcodecs|jump 389  S16|webcodecs|order 42  S1|dav1d|jump 56  S1|dav1d|order 52  S1|webcodecs|jump 45  S1|webcodecs|order 39  S8|dav1d|jump 279  S8|dav1d|order 61  S8|webcodecs|jump 198  S8|webcodecs|order 43
+  A/A 1x: H′ ÷ H 0.997 [0.977–1.017] over 135 pairs — kept
+  A/A 4x: H′ ÷ H 0.989 [0.952–1.052] over 45 pairs — kept
+block shard-2: 24 rounds, 4512 rows
+  ms, median over rounds, dbts_a1 Q16 1x: H 13  H′ 13  R|12bit 19  R|top10 18  S16|dav1d|jump 307  S16|dav1d|order 37  S16|webcodecs|jump 155  S16|webcodecs|order 17  S1|dav1d|jump 24  S1|dav1d|order 24  S1|webcodecs|jump 18  S1|webcodecs|order 15  S8|dav1d|jump 155  S8|dav1d|order 36  S8|webcodecs|jump 83  S8|webcodecs|order 16
+  ms, median over rounds, dbts_a1 Q16 4x: H 54  H′ 54  R|12bit 80  R|top10 78  S16|dav1d|jump 1296  S16|dav1d|order 154  S16|webcodecs|jump 443  S16|webcodecs|order 48  S1|dav1d|jump 101  S1|dav1d|order 99  S1|webcodecs|jump 97  S1|webcodecs|order 47  S8|dav1d|jump 647  S8|dav1d|order 154  S8|webcodecs|jump 238  S8|webcodecs|order 47
+  ms, median over rounds, dbts_a1 Q32 1x: H 13  H′ 13  R|12bit 19  R|top10 19  S16|dav1d|jump 238  S16|dav1d|order 30  S16|webcodecs|jump 139  S16|webcodecs|order 15  S1|dav1d|jump 33  S1|dav1d|order 32  S1|webcodecs|jump 17  S1|webcodecs|order 14  S8|dav1d|jump 125  S8|dav1d|order 31  S8|webcodecs|jump 74  S8|webcodecs|order 14
+  ms, median over rounds, dbts_a1 Q8 1x: H 13  H′ 13  R|12bit 18  R|top10 18  S16|dav1d|jump 356  S16|dav1d|order 42  S16|webcodecs|jump 234  S16|webcodecs|order 27  S1|dav1d|jump 35  S1|dav1d|order 35  S1|webcodecs|jump 25  S1|webcodecs|order 23  S8|dav1d|jump 186  S8|dav1d|order 42  S8|webcodecs|jump 122  S8|webcodecs|order 26
+  ms, median over rounds, dbts_b1 Q16 1x: H 36  H′ 36  R|10bit 60  S16|dav1d|jump 1059  S16|dav1d|order 128  S16|webcodecs|jump 639  S16|webcodecs|order 73  S1|dav1d|jump 95  S1|dav1d|order 95  S1|webcodecs|jump 72  S1|webcodecs|order 64  S8|dav1d|jump 547  S8|dav1d|order 127  S8|webcodecs|jump 341  S8|webcodecs|order 72
+  ms, median over rounds, dbts_b1 Q32 1x: H 36  H′ 36  R|10bit 60  S16|dav1d|jump 850  S16|dav1d|order 103  S16|webcodecs|jump 523  S16|webcodecs|order 59  S1|dav1d|jump 107  S1|dav1d|order 106  S1|webcodecs|jump 61  S1|webcodecs|order 54  S8|dav1d|jump 451  S8|dav1d|order 104  S8|webcodecs|jump 280  S8|webcodecs|order 58
+  ms, median over rounds, dbts_b1 Q32 4x: H 156  H′ 154  R|10bit 252  S16|dav1d|jump 3587  S16|dav1d|order 431  S16|webcodecs|jump 1711  S16|webcodecs|order 191  S1|dav1d|jump 456  S1|dav1d|order 444  S1|webcodecs|jump 219  S1|webcodecs|order 190  S8|dav1d|jump 1903  S8|dav1d|order 432  S8|webcodecs|jump 922  S8|webcodecs|order 193
+  ms, median over rounds, dbts_b1 Q56 1x: H 35  H′ 36  R|10bit 60  S16|dav1d|jump 669  S16|dav1d|order 66  S16|webcodecs|jump 489  S16|webcodecs|order 55  S1|dav1d|jump 166  S1|dav1d|order 162  S1|webcodecs|jump 58  S1|webcodecs|order 50  S8|dav1d|jump 382  S8|dav1d|order 67  S8|webcodecs|jump 262  S8|webcodecs|order 54
+  ms, median over rounds, dbts_c1 Q16 1x: H 13  H′ 13  R|12bit 20  R|top10 19  S16|dav1d|jump 300  S16|dav1d|order 35  S16|webcodecs|jump 180  S16|webcodecs|order 19  S1|dav1d|jump 25  S1|dav1d|order 25  S1|webcodecs|jump 21  S1|webcodecs|order 18  S8|dav1d|jump 152  S8|dav1d|order 35  S8|webcodecs|jump 96  S8|webcodecs|order 20
+  ms, median over rounds, dbts_c1 Q16 4x: H 55  H′ 55  R|12bit 84  R|top10 83  S16|dav1d|jump 1256  S16|dav1d|order 145  S16|webcodecs|jump 505  S16|webcodecs|order 54  S1|dav1d|jump 108  S1|dav1d|order 108  S1|webcodecs|jump 71  S1|webcodecs|order 55  S8|dav1d|jump 638  S8|dav1d|order 149  S8|webcodecs|jump 273  S8|webcodecs|order 56
+  ms, median over rounds, dbts_c1 Q32 1x: H 13  H′ 13  R|12bit 20  R|top10 20  S16|dav1d|jump 241  S16|dav1d|order 26  S16|webcodecs|jump 157  S16|webcodecs|order 16  S1|dav1d|jump 49  S1|dav1d|order 53  S1|webcodecs|jump 19  S1|webcodecs|order 15  S8|dav1d|jump 133  S8|dav1d|order 26  S8|webcodecs|jump 86  S8|webcodecs|order 17
+  ms, median over rounds, dbts_c1 Q8 1x: H 12  H′ 13  R|12bit 19  R|top10 19  S16|dav1d|jump 343  S16|dav1d|order 38  S16|webcodecs|jump 251  S16|webcodecs|order 28  S1|dav1d|jump 35  S1|dav1d|order 34  S1|webcodecs|jump 29  S1|webcodecs|order 26  S8|dav1d|jump 177  S8|dav1d|order 39  S8|webcodecs|jump 133  S8|webcodecs|order 28
+  A/A 1x: H′ ÷ H 1.002 [0.993–1.007] over 216 pairs — kept
+  A/A 4x: H′ ÷ H 0.998 [0.990–1.007] over 72 pairs — kept
+block shard-3: 22 rounds, 4136 rows
+  ms, median over rounds, dbts_a1 Q16 1x: H 17  H′ 17  R|12bit 24  R|top10 24  S16|dav1d|jump 436  S16|dav1d|order 52  S16|webcodecs|jump 198  S16|webcodecs|order 22  S1|dav1d|jump 34  S1|dav1d|order 33  S1|webcodecs|jump 23  S1|webcodecs|order 20  S8|dav1d|jump 226  S8|dav1d|order 52  S8|webcodecs|jump 104  S8|webcodecs|order 22
+  ms, median over rounds, dbts_a1 Q16 4x: H 76  H′ 76  R|12bit 108  R|top10 108  S16|dav1d|jump 1957  S16|dav1d|order 227  S16|webcodecs|jump 564  S16|webcodecs|order 59  S1|dav1d|jump 153  S1|dav1d|order 147  S1|webcodecs|jump 77  S1|webcodecs|order 59  S8|dav1d|jump 960  S8|dav1d|order 227  S8|webcodecs|jump 305  S8|webcodecs|order 59
+  ms, median over rounds, dbts_a1 Q32 1x: H 17  H′ 17  R|12bit 25  R|top10 25  S16|dav1d|jump 336  S16|dav1d|order 42  S16|webcodecs|jump 172  S16|webcodecs|order 19  S1|dav1d|jump 49  S1|dav1d|order 46  S1|webcodecs|jump 21  S1|webcodecs|order 17  S8|dav1d|jump 178  S8|dav1d|order 43  S8|webcodecs|jump 92  S8|webcodecs|order 18
+  ms, median over rounds, dbts_a1 Q8 1x: H 17  H′ 17  R|12bit 24  R|top10 24  S16|dav1d|jump 535  S16|dav1d|order 62  S16|webcodecs|jump 316  S16|webcodecs|order 36  S1|dav1d|jump 53  S1|dav1d|order 50  S1|webcodecs|jump 34  S1|webcodecs|order 30  S8|dav1d|jump 277  S8|dav1d|order 60  S8|webcodecs|jump 166  S8|webcodecs|order 35
+  ms, median over rounds, dbts_b1 Q16 1x: H 50  H′ 50  R|10bit 79  S16|dav1d|jump 1518  S16|dav1d|order 176  S16|webcodecs|jump 805  S16|webcodecs|order 94  S1|dav1d|jump 138  S1|dav1d|order 131  S1|webcodecs|jump 93  S1|webcodecs|order 83  S8|dav1d|jump 759  S8|dav1d|order 171  S8|webcodecs|jump 436  S8|webcodecs|order 91
+  ms, median over rounds, dbts_b1 Q32 1x: H 49  H′ 49  R|10bit 81  S16|dav1d|jump 1183  S16|dav1d|order 140  S16|webcodecs|jump 658  S16|webcodecs|order 73  S1|dav1d|jump 151  S1|dav1d|order 146  S1|webcodecs|jump 77  S1|webcodecs|order 67  S8|dav1d|jump 618  S8|dav1d|order 140  S8|webcodecs|jump 358  S8|webcodecs|order 74
+  ms, median over rounds, dbts_b1 Q32 4x: H 217  H′ 219  R|10bit 346  S16|dav1d|jump 5316  S16|dav1d|order 626  S16|webcodecs|jump 2196  S16|webcodecs|order 246  S1|dav1d|jump 657  S1|dav1d|order 646  S1|webcodecs|jump 292  S1|webcodecs|order 240  S8|dav1d|jump 2782  S8|dav1d|order 618  S8|webcodecs|jump 1185  S8|webcodecs|order 240
+  ms, median over rounds, dbts_b1 Q56 1x: H 49  H′ 50  R|10bit 81  S16|dav1d|jump 915  S16|dav1d|order 85  S16|webcodecs|jump 600  S16|webcodecs|order 68  S1|dav1d|jump 235  S1|dav1d|order 229  S1|webcodecs|jump 74  S1|webcodecs|order 63  S8|dav1d|jump 520  S8|dav1d|order 85  S8|webcodecs|jump 326  S8|webcodecs|order 68
+  ms, median over rounds, dbts_c1 Q16 1x: H 17  H′ 17  R|12bit 26  R|top10 26  S16|dav1d|jump 420  S16|dav1d|order 49  S16|webcodecs|jump 231  S16|webcodecs|order 24  S1|dav1d|jump 36  S1|dav1d|order 35  S1|webcodecs|jump 27  S1|webcodecs|order 24  S8|dav1d|jump 214  S8|dav1d|order 49  S8|webcodecs|jump 125  S8|webcodecs|order 25
+  ms, median over rounds, dbts_c1 Q16 4x: H 77  H′ 75  R|12bit 120  R|top10 113  S16|dav1d|jump 1824  S16|dav1d|order 216  S16|webcodecs|jump 649  S16|webcodecs|order 70  S1|dav1d|jump 167  S1|dav1d|order 159  S1|webcodecs|jump 88  S1|webcodecs|order 69  S8|dav1d|jump 953  S8|dav1d|order 217  S8|webcodecs|jump 349  S8|webcodecs|order 72
+  ms, median over rounds, dbts_c1 Q32 1x: H 17  H′ 17  R|12bit 26  R|top10 26  S16|dav1d|jump 337  S16|dav1d|order 35  S16|webcodecs|jump 198  S16|webcodecs|order 20  S1|dav1d|jump 74  S1|dav1d|order 73  S1|webcodecs|jump 24  S1|webcodecs|order 20  S8|dav1d|jump 179  S8|dav1d|order 36  S8|webcodecs|jump 107  S8|webcodecs|order 21
+  ms, median over rounds, dbts_c1 Q8 1x: H 17  H′ 17  R|12bit 26  R|top10 26  S16|dav1d|jump 511  S16|dav1d|order 56  S16|webcodecs|jump 333  S16|webcodecs|order 37  S1|dav1d|jump 50  S1|dav1d|order 49  S1|webcodecs|jump 38  S1|webcodecs|order 34  S8|dav1d|jump 251  S8|dav1d|order 57  S8|webcodecs|jump 174  S8|webcodecs|order 37
+  A/A 1x: H′ ÷ H 1.002 [0.999–1.011] over 198 pairs — kept
+  A/A 4x: H′ ÷ H 1.000 [0.994–1.013] over 66 pairs — kept
+block shard-4: 13 rounds, 2444 rows
+  ms, median over rounds, dbts_a1 Q16 1x: H 24  H′ 23  R|12bit 35  R|top10 34  S16|dav1d|jump 612  S16|dav1d|order 69  S16|webcodecs|jump 289  S16|webcodecs|order 34  S1|dav1d|jump 44  S1|dav1d|order 43  S1|webcodecs|jump 33  S1|webcodecs|order 30  S8|dav1d|jump 289  S8|dav1d|order 68  S8|webcodecs|jump 159  S8|webcodecs|order 31
+  ms, median over rounds, dbts_a1 Q16 4x: H 112  H′ 109  R|12bit 167  R|top10 160  S16|dav1d|jump 2660  S16|dav1d|order 326  S16|webcodecs|jump 819  S16|webcodecs|order 92  S1|dav1d|jump 195  S1|dav1d|order 190  S1|webcodecs|jump 114  S1|webcodecs|order 88  S8|dav1d|jump 1373  S8|dav1d|order 314  S8|webcodecs|jump 436  S8|webcodecs|order 89
+  ms, median over rounds, dbts_a1 Q32 1x: H 24  H′ 24  R|12bit 36  R|top10 35  S16|dav1d|jump 474  S16|dav1d|order 56  S16|webcodecs|jump 263  S16|webcodecs|order 29  S1|dav1d|jump 60  S1|dav1d|order 59  S1|webcodecs|jump 31  S1|webcodecs|order 25  S8|dav1d|jump 245  S8|dav1d|order 59  S8|webcodecs|jump 141  S8|webcodecs|order 29
+  ms, median over rounds, dbts_a1 Q8 1x: H 23  H′ 23  R|12bit 34  R|top10 34  S16|dav1d|jump 676  S16|dav1d|order 79  S16|webcodecs|jump 427  S16|webcodecs|order 50  S1|dav1d|jump 61  S1|dav1d|order 59  S1|webcodecs|jump 47  S1|webcodecs|order 42  S8|dav1d|jump 350  S8|dav1d|order 75  S8|webcodecs|jump 246  S8|webcodecs|order 49
+  ms, median over rounds, dbts_b1 Q16 1x: H 68  H′ 67  R|10bit 111  S16|dav1d|jump 2115  S16|dav1d|order 246  S16|webcodecs|jump 1233  S16|webcodecs|order 136  S1|dav1d|jump 177  S1|dav1d|order 173  S1|webcodecs|jump 131  S1|webcodecs|order 109  S8|dav1d|jump 1052  S8|dav1d|order 237  S8|webcodecs|jump 646  S8|webcodecs|order 133
+  ms, median over rounds, dbts_b1 Q32 1x: H 67  H′ 65  R|10bit 113  S16|dav1d|jump 1628  S16|dav1d|order 188  S16|webcodecs|jump 943  S16|webcodecs|order 106  S1|dav1d|jump 203  S1|dav1d|order 192  S1|webcodecs|jump 110  S1|webcodecs|order 91  S8|dav1d|jump 851  S8|dav1d|order 188  S8|webcodecs|jump 522  S8|webcodecs|order 104
+  ms, median over rounds, dbts_b1 Q32 4x: H 334  H′ 321  R|10bit 528  S16|dav1d|jump 7430  S16|dav1d|order 873  S16|webcodecs|jump 3163  S16|webcodecs|order 361  S1|dav1d|jump 910  S1|dav1d|order 926  S1|webcodecs|jump 389  S1|webcodecs|order 347  S8|dav1d|jump 3923  S8|dav1d|order 881  S8|webcodecs|jump 1667  S8|webcodecs|order 339
+  ms, median over rounds, dbts_b1 Q56 1x: H 66  H′ 66  R|10bit 115  S16|dav1d|jump 1308  S16|dav1d|order 126  S16|webcodecs|jump 863  S16|webcodecs|order 98  S1|dav1d|jump 319  S1|dav1d|order 304  S1|webcodecs|jump 109  S1|webcodecs|order 86  S8|dav1d|jump 736  S8|dav1d|order 125  S8|webcodecs|jump 479  S8|webcodecs|order 101
+  ms, median over rounds, dbts_c1 Q16 1x: H 23  H′ 24  R|12bit 38  R|top10 38  S16|dav1d|jump 554  S16|dav1d|order 66  S16|webcodecs|jump 341  S16|webcodecs|order 37  S1|dav1d|jump 48  S1|dav1d|order 46  S1|webcodecs|jump 40  S1|webcodecs|order 35  S8|dav1d|jump 292  S8|dav1d|order 66  S8|webcodecs|jump 187  S8|webcodecs|order 38
+  ms, median over rounds, dbts_c1 Q16 4x: H 104  H′ 107  R|12bit 176  R|top10 165  S16|dav1d|jump 2580  S16|dav1d|order 308  S16|webcodecs|jump 1009  S16|webcodecs|order 104  S1|dav1d|jump 218  S1|dav1d|order 214  S1|webcodecs|jump 125  S1|webcodecs|order 108  S8|dav1d|jump 1358  S8|dav1d|order 314  S8|webcodecs|jump 504  S8|webcodecs|order 108
+  ms, median over rounds, dbts_c1 Q32 1x: H 23  H′ 23  R|12bit 38  R|top10 37  S16|dav1d|jump 452  S16|dav1d|order 51  S16|webcodecs|jump 295  S16|webcodecs|order 31  S1|dav1d|jump 93  S1|dav1d|order 96  S1|webcodecs|jump 36  S1|webcodecs|order 29  S8|dav1d|jump 245  S8|dav1d|order 48  S8|webcodecs|jump 170  S8|webcodecs|order 34
+  ms, median over rounds, dbts_c1 Q8 1x: H 24  H′ 24  R|12bit 37  R|top10 37  S16|dav1d|jump 639  S16|dav1d|order 72  S16|webcodecs|jump 467  S16|webcodecs|order 51  S1|dav1d|jump 64  S1|dav1d|order 60  S1|webcodecs|jump 53  S1|webcodecs|order 48  S8|dav1d|jump 321  S8|dav1d|order 73  S8|webcodecs|jump 260  S8|webcodecs|order 53
+  A/A 1x: H′ ÷ H 0.993 [0.984–0.999] over 117 pairs — kept
+  A/A 4x: H′ ÷ H 0.996 [0.956–1.034] over 39 pairs — kept
+block shard-5: 11 rounds, 2068 rows
+  ms, median over rounds, dbts_a1 Q16 1x: H 16  H′ 16  R|12bit 23  R|top10 23  S16|dav1d|jump 410  S16|dav1d|order 48  S16|webcodecs|jump 198  S16|webcodecs|order 21  S1|dav1d|jump 33  S1|dav1d|order 32  S1|webcodecs|jump 22  S1|webcodecs|order 19  S8|dav1d|jump 212  S8|dav1d|order 48  S8|webcodecs|jump 102  S8|webcodecs|order 21
+  ms, median over rounds, dbts_a1 Q16 4x: H 74  H′ 71  R|12bit 110  R|top10 104  S16|dav1d|jump 1877  S16|dav1d|order 224  S16|webcodecs|jump 533  S16|webcodecs|order 58  S1|dav1d|jump 148  S1|dav1d|order 141  S1|webcodecs|jump 94  S1|webcodecs|order 60  S8|dav1d|jump 949  S8|dav1d|order 218  S8|webcodecs|jump 292  S8|webcodecs|order 60
+  ms, median over rounds, dbts_a1 Q32 1x: H 16  H′ 16  R|12bit 23  R|top10 22  S16|dav1d|jump 318  S16|dav1d|order 37  S16|webcodecs|jump 159  S16|webcodecs|order 18  S1|dav1d|jump 45  S1|dav1d|order 41  S1|webcodecs|jump 21  S1|webcodecs|order 16  S8|dav1d|jump 163  S8|dav1d|order 40  S8|webcodecs|jump 88  S8|webcodecs|order 18
+  ms, median over rounds, dbts_a1 Q8 1x: H 15  H′ 15  R|12bit 23  R|top10 23  S16|dav1d|jump 532  S16|dav1d|order 57  S16|webcodecs|jump 288  S16|webcodecs|order 34  S1|dav1d|jump 45  S1|dav1d|order 45  S1|webcodecs|jump 32  S1|webcodecs|order 29  S8|dav1d|jump 253  S8|dav1d|order 56  S8|webcodecs|jump 156  S8|webcodecs|order 33
+  ms, median over rounds, dbts_b1 Q16 1x: H 47  H′ 46  R|10bit 74  S16|dav1d|jump 1409  S16|dav1d|order 164  S16|webcodecs|jump 807  S16|webcodecs|order 87  S1|dav1d|jump 125  S1|dav1d|order 125  S1|webcodecs|jump 92  S1|webcodecs|order 79  S8|dav1d|jump 722  S8|dav1d|order 165  S8|webcodecs|jump 419  S8|webcodecs|order 93
+  ms, median over rounds, dbts_b1 Q32 1x: H 47  H′ 46  R|10bit 74  S16|dav1d|jump 1151  S16|dav1d|order 129  S16|webcodecs|jump 635  S16|webcodecs|order 70  S1|dav1d|jump 141  S1|dav1d|order 139  S1|webcodecs|jump 79  S1|webcodecs|order 68  S8|dav1d|jump 586  S8|dav1d|order 129  S8|webcodecs|jump 351  S8|webcodecs|order 72
+  ms, median over rounds, dbts_b1 Q32 4x: H 210  H′ 204  R|10bit 329  S16|dav1d|jump 5095  S16|dav1d|order 588  S16|webcodecs|jump 2096  S16|webcodecs|order 237  S1|dav1d|jump 644  S1|dav1d|order 625  S1|webcodecs|jump 292  S1|webcodecs|order 239  S8|dav1d|jump 2584  S8|dav1d|order 580  S8|webcodecs|jump 1163  S8|webcodecs|order 238
+  ms, median over rounds, dbts_b1 Q56 1x: H 46  H′ 45  R|10bit 75  S16|dav1d|jump 835  S16|dav1d|order 81  S16|webcodecs|jump 596  S16|webcodecs|order 67  S1|dav1d|jump 222  S1|dav1d|order 208  S1|webcodecs|jump 72  S1|webcodecs|order 63  S8|dav1d|jump 474  S8|dav1d|order 81  S8|webcodecs|jump 320  S8|webcodecs|order 66
+  ms, median over rounds, dbts_c1 Q16 1x: H 17  H′ 16  R|12bit 24  R|top10 23  S16|dav1d|jump 400  S16|dav1d|order 45  S16|webcodecs|jump 234  S16|webcodecs|order 24  S1|dav1d|jump 34  S1|dav1d|order 34  S1|webcodecs|jump 27  S1|webcodecs|order 23  S8|dav1d|jump 195  S8|dav1d|order 45  S8|webcodecs|jump 126  S8|webcodecs|order 26
+  ms, median over rounds, dbts_c1 Q16 4x: H 74  H′ 72  R|12bit 114  R|top10 112  S16|dav1d|jump 1766  S16|dav1d|order 195  S16|webcodecs|jump 672  S16|webcodecs|order 70  S1|dav1d|jump 156  S1|dav1d|order 150  S1|webcodecs|jump 136  S1|webcodecs|order 69  S8|dav1d|jump 881  S8|dav1d|order 204  S8|webcodecs|jump 345  S8|webcodecs|order 72
+  ms, median over rounds, dbts_c1 Q32 1x: H 16  H′ 16  R|12bit 24  R|top10 24  S16|dav1d|jump 311  S16|dav1d|order 34  S16|webcodecs|jump 190  S16|webcodecs|order 19  S1|dav1d|jump 67  S1|dav1d|order 66  S1|webcodecs|jump 24  S1|webcodecs|order 20  S8|dav1d|jump 170  S8|dav1d|order 34  S8|webcodecs|jump 106  S8|webcodecs|order 20
+  ms, median over rounds, dbts_c1 Q8 1x: H 16  H′ 16  R|12bit 24  R|top10 24  S16|dav1d|jump 462  S16|dav1d|order 51  S16|webcodecs|jump 306  S16|webcodecs|order 36  S1|dav1d|jump 45  S1|dav1d|order 46  S1|webcodecs|jump 35  S1|webcodecs|order 33  S8|dav1d|jump 235  S8|dav1d|order 51  S8|webcodecs|jump 169  S8|webcodecs|order 35
+  A/A 1x: H′ ÷ H 0.978 [0.962–0.997] over 99 pairs — kept
+  A/A 4x: H′ ÷ H 0.970 [0.949–0.998] over 33 pairs — kept
+block shard-6: 23 rounds, 4324 rows
+  ms, median over rounds, dbts_a1 Q16 1x: H 16  H′ 16  R|12bit 23  R|top10 23  S16|dav1d|jump 399  S16|dav1d|order 47  S16|webcodecs|jump 201  S16|webcodecs|order 22  S1|dav1d|jump 32  S1|dav1d|order 31  S1|webcodecs|jump 24  S1|webcodecs|order 20  S8|dav1d|jump 195  S8|dav1d|order 45  S8|webcodecs|jump 110  S8|webcodecs|order 22
+  ms, median over rounds, dbts_a1 Q16 4x: H 75  H′ 72  R|12bit 106  R|top10 103  S16|dav1d|jump 1760  S16|dav1d|order 207  S16|webcodecs|jump 576  S16|webcodecs|order 62  S1|dav1d|jump 140  S1|dav1d|order 135  S1|webcodecs|jump 98  S1|webcodecs|order 62  S8|dav1d|jump 877  S8|dav1d|order 205  S8|webcodecs|jump 301  S8|webcodecs|order 60
+  ms, median over rounds, dbts_a1 Q32 1x: H 16  H′ 16  R|12bit 24  R|top10 23  S16|dav1d|jump 299  S16|dav1d|order 38  S16|webcodecs|jump 176  S16|webcodecs|order 20  S1|dav1d|jump 42  S1|dav1d|order 41  S1|webcodecs|jump 21  S1|webcodecs|order 18  S8|dav1d|jump 162  S8|dav1d|order 39  S8|webcodecs|jump 96  S8|webcodecs|order 19
+  ms, median over rounds, dbts_a1 Q8 1x: H 16  H′ 16  R|12bit 22  R|top10 22  S16|dav1d|jump 457  S16|dav1d|order 54  S16|webcodecs|jump 305  S16|webcodecs|order 35  S1|dav1d|jump 45  S1|dav1d|order 45  S1|webcodecs|jump 33  S1|webcodecs|order 29  S8|dav1d|jump 245  S8|dav1d|order 53  S8|webcodecs|jump 160  S8|webcodecs|order 34
+  ms, median over rounds, dbts_b1 Q16 1x: H 47  H′ 47  R|10bit 74  S16|dav1d|jump 1364  S16|dav1d|order 157  S16|webcodecs|jump 833  S16|webcodecs|order 95  S1|dav1d|jump 127  S1|dav1d|order 120  S1|webcodecs|jump 93  S1|webcodecs|order 85  S8|dav1d|jump 682  S8|dav1d|order 161  S8|webcodecs|jump 451  S8|webcodecs|order 95
+  ms, median over rounds, dbts_b1 Q32 1x: H 47  H′ 46  R|10bit 76  S16|dav1d|jump 1095  S16|dav1d|order 128  S16|webcodecs|jump 665  S16|webcodecs|order 75  S1|dav1d|jump 137  S1|dav1d|order 135  S1|webcodecs|jump 79  S1|webcodecs|order 70  S8|dav1d|jump 574  S8|dav1d|order 129  S8|webcodecs|jump 360  S8|webcodecs|order 74
+  ms, median over rounds, dbts_b1 Q32 4x: H 208  H′ 206  R|10bit 332  S16|dav1d|jump 4799  S16|dav1d|order 573  S16|webcodecs|jump 2180  S16|webcodecs|order 241  S1|dav1d|jump 604  S1|dav1d|order 589  S1|webcodecs|jump 271  S1|webcodecs|order 246  S8|dav1d|jump 2540  S8|dav1d|order 571  S8|webcodecs|jump 1173  S8|webcodecs|order 243
+  ms, median over rounds, dbts_b1 Q56 1x: H 46  H′ 46  R|10bit 78  S16|dav1d|jump 833  S16|dav1d|order 83  S16|webcodecs|jump 629  S16|webcodecs|order 70  S1|dav1d|jump 213  S1|dav1d|order 207  S1|webcodecs|jump 74  S1|webcodecs|order 64  S8|dav1d|jump 495  S8|dav1d|order 81  S8|webcodecs|jump 331  S8|webcodecs|order 70
+  ms, median over rounds, dbts_c1 Q16 1x: H 16  H′ 16  R|12bit 25  R|top10 25  S16|dav1d|jump 378  S16|dav1d|order 44  S16|webcodecs|jump 243  S16|webcodecs|order 25  S1|dav1d|jump 33  S1|dav1d|order 33  S1|webcodecs|jump 28  S1|webcodecs|order 24  S8|dav1d|jump 195  S8|dav1d|order 45  S8|webcodecs|jump 130  S8|webcodecs|order 26
+  ms, median over rounds, dbts_c1 Q16 4x: H 74  H′ 74  R|12bit 115  R|top10 110  S16|dav1d|jump 1673  S16|dav1d|order 199  S16|webcodecs|jump 671  S16|webcodecs|order 72  S1|dav1d|jump 151  S1|dav1d|order 146  S1|webcodecs|jump 134  S1|webcodecs|order 71  S8|dav1d|jump 860  S8|dav1d|order 198  S8|webcodecs|jump 370  S8|webcodecs|order 72
+  ms, median over rounds, dbts_c1 Q32 1x: H 16  H′ 16  R|12bit 25  R|top10 25  S16|dav1d|jump 308  S16|dav1d|order 34  S16|webcodecs|jump 210  S16|webcodecs|order 21  S1|dav1d|jump 64  S1|dav1d|order 66  S1|webcodecs|jump 24  S1|webcodecs|order 20  S8|dav1d|jump 175  S8|dav1d|order 34  S8|webcodecs|jump 114  S8|webcodecs|order 22
+  ms, median over rounds, dbts_c1 Q8 1x: H 16  H′ 16  R|12bit 25  R|top10 24  S16|dav1d|jump 453  S16|dav1d|order 50  S16|webcodecs|jump 330  S16|webcodecs|order 37  S1|dav1d|jump 43  S1|dav1d|order 44  S1|webcodecs|jump 37  S1|webcodecs|order 34  S8|dav1d|jump 229  S8|dav1d|order 51  S8|webcodecs|jump 174  S8|webcodecs|order 37
+  A/A 1x: H′ ÷ H 0.995 [0.984–1.003] over 207 pairs — kept
+  A/A 4x: H′ ÷ H 0.990 [0.971–1.009] over 69 pairs — kept
+  dbts_a1 Q16 1x  A/A        H′ ÷ H: 0.998 [0.982–1.015]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.432)  read
+      derived at 5 Mbit/s: 1.000 [1.000–1.000]
+      derived at 50 Mbit/s: 1.001 [1.000–1.002]
+  dbts_a1 Q16 1x  D1         S1|webcodecs|order ÷ H: 1.226 [1.185–1.267]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.62)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.014 [0.013–0.014]
+      derived at 50 Mbit/s: 0.100 [0.096–0.104]
+  dbts_a1 Q16 1x  D1         S8|webcodecs|order ÷ H: 1.338 [1.273–1.407]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.995)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.011 [0.011–0.012]
+      derived at 50 Mbit/s: 0.110 [0.106–0.115]
+  dbts_a1 Q16 1x  D1         S16|webcodecs|order ÷ H: 1.369 [1.302–1.438]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.507)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.011 [0.011–0.012]
+      derived at 50 Mbit/s: 0.111 [0.107–0.116]
+  dbts_a1 Q16 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 12.917 [12.271–13.597]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 18% (p 0.05)  read  D2 (5.0, 9.0): refuted
+      derived at 5 Mbit/s: 7.693 [7.508–7.882]
+      derived at 50 Mbit/s: 11.899 [11.647–12.157]
+  dbts_a1 Q16 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.686 [8.449–8.930]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.165)  read  D2 (5.0, 9.0): held
+      derived at 5 Mbit/s: 4.532 [4.451–4.615]
+      derived at 50 Mbit/s: 7.863 [7.760–7.968]
+  dbts_a1 Q16 1x  D3         R|12bit ÷ H: 1.463 [1.448–1.478]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.608)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 0.998 [0.997–0.998]
+      derived at 50 Mbit/s: 0.996 [0.995–0.997]
+  dbts_a1 Q16 1x  D3         R|top10 ÷ H: 1.452 [1.415–1.490]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.63)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 0.995 [0.994–0.995]
+      derived at 50 Mbit/s: 0.993 [0.992–0.994]
+  dbts_a1 Q16 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 6.464 [6.107–6.842]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 14% (p 0.075)  read
+      derived at 5 Mbit/s: 4.129 [4.035–4.226]
+      derived at 50 Mbit/s: 6.091 [5.959–6.226]
+  dbts_a1 Q16 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.716 [4.545–4.893]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.37)  read
+      derived at 5 Mbit/s: 2.708 [2.659–2.759]
+      derived at 50 Mbit/s: 4.314 [4.247–4.382]
+  dbts_a1 Q16 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.556 [1.491–1.624]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.618)  read
+      derived at 5 Mbit/s: 1.537 [1.507–1.567]
+      derived at 50 Mbit/s: 1.545 [1.516–1.576]
+  dbts_a1 Q16 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.562 [1.506–1.620]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.502)  read
+      derived at 5 Mbit/s: 1.539 [1.510–1.568]
+      derived at 50 Mbit/s: 1.548 [1.519–1.577]
+  dbts_a1 Q16 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.101 [1.077–1.126]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.873)  read
+      derived at 5 Mbit/s: 0.815 [0.785–0.846]
+      derived at 50 Mbit/s: 1.100 [1.081–1.119]
+  dbts_a1 Q16 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.122 [1.091–1.153]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.295)  read
+      derived at 5 Mbit/s: 0.819 [0.788–0.852]
+      derived at 50 Mbit/s: 1.110 [1.092–1.129]
+  dbts_a1 Q16 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.595 [1.519–1.674]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.505)  read
+      derived at 5 Mbit/s: 1.171 [1.132–1.212]
+      derived at 50 Mbit/s: 1.582 [1.553–1.612]
+  dbts_a1 Q16 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.406 [1.332–1.484]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 18% (p 0.072)  read
+      derived at 5 Mbit/s: 1.146 [1.132–1.160]
+      derived at 50 Mbit/s: 1.365 [1.339–1.391]
+  dbts_a1 Q16 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 2.230 [2.095–2.375]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.873)  read
+      derived at 5 Mbit/s: 2.209 [2.161–2.257]
+      derived at 50 Mbit/s: 2.222 [2.174–2.271]
+  dbts_a1 Q16 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.956 [1.777–2.153]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.84)  read
+      derived at 5 Mbit/s: 1.747 [1.708–1.787]
+      derived at 50 Mbit/s: 1.927 [1.880–1.976]
+  dbts_a1 Q16 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 2.203 [2.101–2.309]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.917)  read
+      derived at 5 Mbit/s: 2.200 [2.158–2.243]
+      derived at 50 Mbit/s: 2.206 [2.164–2.249]
+  dbts_a1 Q16 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 2.086 [1.985–2.193]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.738)  read
+      derived at 5 Mbit/s: 1.945 [1.907–1.984]
+      derived at 50 Mbit/s: 2.066 [2.024–2.108]
+  dbts_a1 Q16 1x  ÷ H        S1|dav1d|order ÷ H: 1.923 [1.835–2.016]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 13% (p 0.05)  read
+      derived at 5 Mbit/s: 0.016 [0.015–0.017]
+      derived at 50 Mbit/s: 0.159 [0.153–0.165]
+  dbts_a1 Q16 1x  ÷ H        S1|dav1d|jump ÷ H: 1.984 [1.886–2.087]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.347)  read
+      derived at 5 Mbit/s: 0.029 [0.028–0.030]
+      derived at 50 Mbit/s: 0.179 [0.172–0.186]
+  dbts_a1 Q16 1x  ÷ H        S1|webcodecs|order ÷ H: 1.226 [1.185–1.267]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.62)  read
+      derived at 5 Mbit/s: 0.014 [0.013–0.014]
+      derived at 50 Mbit/s: 0.100 [0.096–0.104]
+  dbts_a1 Q16 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.420 [1.357–1.485]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.575)  read
+      derived at 5 Mbit/s: 0.025 [0.025–0.026]
+      derived at 50 Mbit/s: 0.131 [0.127–0.136]
+  dbts_a1 Q16 1x  ÷ H        S8|dav1d|order ÷ H: 2.953 [2.832–3.080]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.163)  read
+      derived at 5 Mbit/s: 0.024 [0.023–0.025]
+      derived at 50 Mbit/s: 0.245 [0.235–0.255]
+  dbts_a1 Q16 1x  ÷ H        S8|dav1d|jump ÷ H: 12.959 [12.205–13.760]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.912)  read
+      derived at 5 Mbit/s: 0.120 [0.115–0.125]
+      derived at 50 Mbit/s: 1.090 [1.043–1.139]
+  dbts_a1 Q16 1x  ÷ H        S8|webcodecs|order ÷ H: 1.338 [1.273–1.407]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.995)  read
+      derived at 5 Mbit/s: 0.011 [0.011–0.012]
+      derived at 50 Mbit/s: 0.110 [0.106–0.115]
+  dbts_a1 Q16 1x  ÷ H        S8|webcodecs|jump ÷ H: 6.602 [6.218–7.010]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.552)  read
+      derived at 5 Mbit/s: 0.069 [0.066–0.071]
+      derived at 50 Mbit/s: 0.565 [0.542–0.589]
+  dbts_a1 Q16 1x  ÷ H        S16|dav1d|order ÷ H: 2.955 [2.867–3.046]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.315)  read
+      derived at 5 Mbit/s: 0.024 [0.024–0.026]
+      derived at 50 Mbit/s: 0.245 [0.235–0.256]
+  dbts_a1 Q16 1x  ÷ H        S16|dav1d|jump ÷ H: 25.253 [24.544–25.982]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.477)  read
+      derived at 5 Mbit/s: 0.223 [0.214–0.233]
+      derived at 50 Mbit/s: 2.129 [2.038–2.224]
+  dbts_a1 Q16 1x  ÷ H        S16|webcodecs|order ÷ H: 1.369 [1.302–1.438]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.507)  read
+      derived at 5 Mbit/s: 0.011 [0.011–0.012]
+      derived at 50 Mbit/s: 0.111 [0.107–0.116]
+  dbts_a1 Q16 1x  ÷ H        S16|webcodecs|jump ÷ H: 12.189 [11.780–12.611]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 15% (p 0.043)  not read: order 15%, over 10 % and beyond its shuffles (p 0.043)
+      derived at 5 Mbit/s: 0.115 [0.111–0.119]
+      derived at 50 Mbit/s: 1.031 [0.992–1.071]
+  dbts_a1 Q16 4x  A/A        H′ ÷ H: 0.991 [0.979–1.003]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.235)  read
+      derived at 5 Mbit/s: 1.000 [0.999–1.001]
+      derived at 50 Mbit/s: 0.997 [0.993–1.001]
+  dbts_a1 Q16 4x  D1         S1|webcodecs|order ÷ H: 0.809 [0.768–0.851]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.412)  read  D1 (0.0, 1.0): held
+      derived at 5 Mbit/s: 0.030 [0.029–0.032]
+      derived at 50 Mbit/s: 0.305 [0.293–0.317]
+  dbts_a1 Q16 4x  D1         S8|webcodecs|order ÷ H: 0.808 [0.766–0.852]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.73)  read  D1 (0.0, 1.0): held
+      derived at 5 Mbit/s: 0.031 [0.029–0.032]
+      derived at 50 Mbit/s: 0.308 [0.295–0.320]
+  dbts_a1 Q16 4x  D1         S16|webcodecs|order ÷ H: 0.814 [0.771–0.859]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.385)  read  D1 (0.0, 1.0): held
+      derived at 5 Mbit/s: 0.031 [0.030–0.032]
+      derived at 50 Mbit/s: 0.309 [0.297–0.322]
+  dbts_a1 Q16 4x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 13.057 [12.553–13.582]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.19)  read  D2 (5.0, 9.0): refuted
+      derived at 5 Mbit/s: 11.226 [11.009–11.448]
+      derived at 50 Mbit/s: 12.795 [12.547–13.049]
+  dbts_a1 Q16 4x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 6.711 [6.056–7.438]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 35% (p 0.723)  read  D2 (5.0, 9.0): held
+      derived at 5 Mbit/s: 4.980 [4.639–5.346]
+      derived at 50 Mbit/s: 5.976 [5.520–6.470]
+  dbts_a1 Q16 4x  D3         R|12bit ÷ H: 1.456 [1.431–1.482]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.282)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 0.996 [0.995–0.997]
+      derived at 50 Mbit/s: 0.995 [0.991–1.000]
+  dbts_a1 Q16 4x  D3         R|top10 ÷ H: 1.445 [1.407–1.483]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 14% (p 0.022)  not read: order 14%, over 10 % and beyond its shuffles (p 0.022)
+      derived at 5 Mbit/s: 0.993 [0.992–0.994]
+      derived at 50 Mbit/s: 0.988 [0.983–0.992]
+  dbts_a1 Q16 4x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 6.455 [6.205–6.716]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.1)  read
+      derived at 5 Mbit/s: 5.625 [5.537–5.714]
+      derived at 50 Mbit/s: 6.334 [6.240–6.429]
+  dbts_a1 Q16 4x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 3.581 [3.125–4.104]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 38% (p 0.552)  read
+      derived at 5 Mbit/s: 2.786 [2.601–2.984]
+      derived at 50 Mbit/s: 3.235 [2.989–3.501]
+  dbts_a1 Q16 4x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.579 [1.532–1.628]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.403)  read
+      derived at 5 Mbit/s: 1.572 [1.546–1.597]
+      derived at 50 Mbit/s: 1.572 [1.546–1.597]
+  dbts_a1 Q16 4x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.578 [1.532–1.626]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.25)  read
+      derived at 5 Mbit/s: 1.574 [1.553–1.596]
+      derived at 50 Mbit/s: 1.574 [1.553–1.596]
+  dbts_a1 Q16 4x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.005 [0.984–1.026]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.147)  read
+      derived at 5 Mbit/s: 1.009 [0.991–1.027]
+      derived at 50 Mbit/s: 1.009 [0.991–1.027]
+  dbts_a1 Q16 4x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.018 [0.978–1.059]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.122)  read
+      derived at 5 Mbit/s: 1.014 [0.997–1.032]
+      derived at 50 Mbit/s: 1.014 [0.997–1.032]
+  dbts_a1 Q16 4x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 2.260 [2.134–2.393]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.42)  read
+      derived at 5 Mbit/s: 2.291 [2.250–2.334]
+      derived at 50 Mbit/s: 2.291 [2.250–2.334]
+  dbts_a1 Q16 4x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.569 [1.262–1.951]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 31% (p 0.733)  read
+      derived at 5 Mbit/s: 1.331 [1.259–1.407]
+      derived at 50 Mbit/s: 1.440 [1.347–1.540]
+  dbts_a1 Q16 4x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 3.573 [3.362–3.797]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.85)  read
+      derived at 5 Mbit/s: 3.571 [3.490–3.654]
+      derived at 50 Mbit/s: 3.571 [3.490–3.654]
+  dbts_a1 Q16 4x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 3.088 [2.846–3.350]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.46)  read
+      derived at 5 Mbit/s: 2.687 [2.564–2.816]
+      derived at 50 Mbit/s: 2.820 [2.685–2.961]
+  dbts_a1 Q16 4x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 3.571 [3.276–3.892]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.887)  read
+      derived at 5 Mbit/s: 3.556 [3.481–3.633]
+      derived at 50 Mbit/s: 3.556 [3.481–3.633]
+  dbts_a1 Q16 4x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 3.302 [3.058–3.565]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.688)  read
+      derived at 5 Mbit/s: 3.000 [2.849–3.158]
+      derived at 50 Mbit/s: 3.084 [2.926–3.250]
+  dbts_a1 Q16 4x  ÷ H        S1|dav1d|order ÷ H: 1.860 [1.773–1.950]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.367)  read
+      derived at 5 Mbit/s: 0.070 [0.067–0.073]
+      derived at 50 Mbit/s: 0.699 [0.670–0.729]
+  dbts_a1 Q16 4x  ÷ H        S1|dav1d|jump ÷ H: 1.913 [1.814–2.018]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.228)  read
+      derived at 5 Mbit/s: 0.085 [0.082–0.088]
+      derived at 50 Mbit/s: 0.742 [0.711–0.774]
+  dbts_a1 Q16 4x  ÷ H        S1|webcodecs|order ÷ H: 0.809 [0.768–0.851]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.412)  read
+      derived at 5 Mbit/s: 0.030 [0.029–0.032]
+      derived at 50 Mbit/s: 0.305 [0.293–0.317]
+  dbts_a1 Q16 4x  ÷ H        S1|webcodecs|jump ÷ H: 1.243 [0.973–1.588]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 50% (p 0.78)  read
+      derived at 5 Mbit/s: 0.064 [0.061–0.068]
+      derived at 50 Mbit/s: 0.515 [0.483–0.550]
+  dbts_a1 Q16 4x  ÷ H        S8|dav1d|order ÷ H: 2.869 [2.769–2.973]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.47)  read
+      derived at 5 Mbit/s: 0.109 [0.105–0.114]
+      derived at 50 Mbit/s: 1.098 [1.050–1.148]
+  dbts_a1 Q16 4x  ÷ H        S8|dav1d|jump ÷ H: 12.476 [11.868–13.114]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.897)  read
+      derived at 5 Mbit/s: 0.479 [0.458–0.502]
+      derived at 50 Mbit/s: 4.699 [4.488–4.920]
+  dbts_a1 Q16 4x  ÷ H        S8|webcodecs|order ÷ H: 0.808 [0.766–0.852]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.73)  read
+      derived at 5 Mbit/s: 0.031 [0.029–0.032]
+      derived at 50 Mbit/s: 0.308 [0.295–0.320]
+  dbts_a1 Q16 4x  ÷ H        S8|webcodecs|jump ÷ H: 4.051 [3.836–4.279]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 17% (p 0.26)  read
+      derived at 5 Mbit/s: 0.178 [0.170–0.188]
+      derived at 50 Mbit/s: 1.666 [1.579–1.758]
+  dbts_a1 Q16 4x  ÷ H        S16|dav1d|order ÷ H: 2.912 [2.849–2.976]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.76)  read
+      derived at 5 Mbit/s: 0.110 [0.105–0.115]
+      derived at 50 Mbit/s: 1.100 [1.051–1.152]
+  dbts_a1 Q16 4x  ÷ H        S16|dav1d|jump ÷ H: 24.781 [23.721–25.889]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 12% (p 0.08)  read
+      derived at 5 Mbit/s: 0.957 [0.915–1.000]
+      derived at 50 Mbit/s: 9.493 [9.076–9.928]
+  dbts_a1 Q16 4x  ÷ H        S16|webcodecs|order ÷ H: 0.814 [0.771–0.859]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.385)  read
+      derived at 5 Mbit/s: 0.031 [0.030–0.032]
+      derived at 50 Mbit/s: 0.309 [0.297–0.322]
+  dbts_a1 Q16 4x  ÷ H        S16|webcodecs|jump ÷ H: 7.617 [7.273–7.978]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.512)  read
+      derived at 5 Mbit/s: 0.319 [0.301–0.338]
+      derived at 50 Mbit/s: 3.078 [2.900–3.268]
+  dbts_a1 Q32 1x  A/A        H′ ÷ H: 0.996 [0.989–1.003]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 12% (p 0.06)  read
+      derived at 5 Mbit/s: 1.000 [1.000–1.000]
+      derived at 50 Mbit/s: 1.001 [1.000–1.002]
+  dbts_a1 Q32 1x  D1         S1|webcodecs|order ÷ H: 1.045 [0.996–1.097]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.805)  read  D1 (0.0, 1.0): not decided
+      derived at 5 Mbit/s: 0.009 [0.008–0.009]
+      derived at 50 Mbit/s: 0.088 [0.085–0.091]
+  dbts_a1 Q32 1x  D1         S8|webcodecs|order ÷ H: 1.144 [1.088–1.203]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.95)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.010 [0.009–0.010]
+      derived at 50 Mbit/s: 0.096 [0.092–0.101]
+  dbts_a1 Q32 1x  D1         S16|webcodecs|order ÷ H: 1.182 [1.139–1.228]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.603)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.010 [0.009–0.010]
+      derived at 50 Mbit/s: 0.098 [0.094–0.102]
+  dbts_a1 Q32 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 7.168 [6.871–7.478]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 16% (p 0.113)  read  D2 (5.0, 9.0): held
+      derived at 5 Mbit/s: 6.258 [6.130–6.390]
+      derived at 50 Mbit/s: 7.074 [6.923–7.228]
+  dbts_a1 Q32 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.240 [7.973–8.515]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.84)  read  D2 (5.0, 9.0): held
+      derived at 5 Mbit/s: 6.146 [6.049–6.243]
+      derived at 50 Mbit/s: 7.982 [7.866–8.100]
+  dbts_a1 Q32 1x  D3         R|12bit ÷ H: 1.480 [1.453–1.507]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.855)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 1.013 [1.012–1.013]
+      derived at 50 Mbit/s: 1.011 [1.010–1.012]
+  dbts_a1 Q32 1x  D3         R|top10 ÷ H: 1.441 [1.423–1.459]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.372)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 1.010 [1.009–1.010]
+      derived at 50 Mbit/s: 1.007 [1.006–1.008]
+  dbts_a1 Q32 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 3.776 [3.657–3.898]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.603)  read
+      derived at 5 Mbit/s: 3.329 [3.266–3.394]
+      derived at 50 Mbit/s: 3.690 [3.613–3.767]
+  dbts_a1 Q32 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.517 [4.427–4.608]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.547)  read
+      derived at 5 Mbit/s: 3.467 [3.414–3.520]
+      derived at 50 Mbit/s: 4.343 [4.280–4.406]
+  dbts_a1 Q32 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.958 [0.930–0.986]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.438)  read
+      derived at 5 Mbit/s: 0.950 [0.929–0.973]
+      derived at 50 Mbit/s: 0.950 [0.929–0.973]
+  dbts_a1 Q32 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.905 [0.883–0.926]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.762)  read
+      derived at 5 Mbit/s: 0.916 [0.896–0.938]
+      derived at 50 Mbit/s: 0.916 [0.896–0.938]
+  dbts_a1 Q32 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.092 [1.044–1.142]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.637)  read
+      derived at 5 Mbit/s: 1.094 [1.073–1.117]
+      derived at 50 Mbit/s: 1.094 [1.073–1.117]
+  dbts_a1 Q32 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.124 [1.062–1.190]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 12% (p 0.405)  read
+      derived at 5 Mbit/s: 1.116 [1.094–1.140]
+      derived at 50 Mbit/s: 1.116 [1.094–1.140]
+  dbts_a1 Q32 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 2.510 [2.354–2.678]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.475)  read
+      derived at 5 Mbit/s: 2.508 [2.441–2.576]
+      derived at 50 Mbit/s: 2.508 [2.441–2.576]
+  dbts_a1 Q32 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 2.109 [1.915–2.322]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.59)  read
+      derived at 5 Mbit/s: 1.760 [1.723–1.797]
+      derived at 50 Mbit/s: 2.064 [2.016–2.112]
+  dbts_a1 Q32 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 2.156 [1.982–2.346]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.762)  read
+      derived at 5 Mbit/s: 2.178 [2.129–2.228]
+      derived at 50 Mbit/s: 2.178 [2.129–2.228]
+  dbts_a1 Q32 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.778 [1.670–1.892]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.69)  read
+      derived at 5 Mbit/s: 1.690 [1.658–1.722]
+      derived at 50 Mbit/s: 1.754 [1.719–1.789]
+  dbts_a1 Q32 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 2.002 [1.863–2.153]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.555)  read
+      derived at 5 Mbit/s: 2.058 [2.019–2.099]
+      derived at 50 Mbit/s: 2.058 [2.019–2.099]
+  dbts_a1 Q32 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.849 [1.718–1.989]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 21% (p 0.065)  read
+      derived at 5 Mbit/s: 1.792 [1.752–1.833]
+      derived at 50 Mbit/s: 1.829 [1.787–1.872]
+  dbts_a1 Q32 1x  ÷ H        S1|dav1d|order ÷ H: 2.634 [2.507–2.768]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.438)  read
+      derived at 5 Mbit/s: 0.022 [0.021–0.023]
+      derived at 50 Mbit/s: 0.220 [0.211–0.230]
+  dbts_a1 Q32 1x  ÷ H        S1|dav1d|jump ÷ H: 2.743 [2.574–2.923]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 12% (p 0.398)  read
+      derived at 5 Mbit/s: 0.027 [0.026–0.028]
+      derived at 50 Mbit/s: 0.232 [0.222–0.242]
+  dbts_a1 Q32 1x  ÷ H        S1|webcodecs|order ÷ H: 1.045 [0.996–1.097]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.805)  read
+      derived at 5 Mbit/s: 0.009 [0.008–0.009]
+      derived at 50 Mbit/s: 0.088 [0.085–0.091]
+  dbts_a1 Q32 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.298 [1.247–1.351]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.152)  read
+      derived at 5 Mbit/s: 0.015 [0.015–0.016]
+      derived at 50 Mbit/s: 0.112 [0.108–0.117]
+  dbts_a1 Q32 1x  ÷ H        S8|dav1d|order ÷ H: 2.509 [2.408–2.614]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.927)  read
+      derived at 5 Mbit/s: 0.021 [0.020–0.022]
+      derived at 50 Mbit/s: 0.210 [0.201–0.218]
+  dbts_a1 Q32 1x  ÷ H        S8|dav1d|jump ÷ H: 10.247 [9.885–10.622]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.287)  read
+      derived at 5 Mbit/s: 0.089 [0.085–0.092]
+      derived at 50 Mbit/s: 0.856 [0.821–0.892]
+  dbts_a1 Q32 1x  ÷ H        S8|webcodecs|order ÷ H: 1.144 [1.088–1.203]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.95)  read
+      derived at 5 Mbit/s: 0.010 [0.009–0.010]
+      derived at 50 Mbit/s: 0.096 [0.092–0.101]
+  dbts_a1 Q32 1x  ÷ H        S8|webcodecs|jump ÷ H: 5.827 [5.589–6.075]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.855)  read
+      derived at 5 Mbit/s: 0.053 [0.051–0.055]
+      derived at 50 Mbit/s: 0.488 [0.469–0.508]
+  dbts_a1 Q32 1x  ÷ H        S16|dav1d|order ÷ H: 2.378 [2.317–2.440]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.403)  read
+      derived at 5 Mbit/s: 0.020 [0.019–0.021]
+      derived at 50 Mbit/s: 0.202 [0.194–0.210]
+  dbts_a1 Q32 1x  ÷ H        S16|dav1d|jump ÷ H: 19.646 [18.894–20.429]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 17% (p 0.068)  read
+      derived at 5 Mbit/s: 0.167 [0.160–0.174]
+      derived at 50 Mbit/s: 1.641 [1.569–1.716]
+  dbts_a1 Q32 1x  ÷ H        S16|webcodecs|order ÷ H: 1.182 [1.139–1.228]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.603)  read
+      derived at 5 Mbit/s: 0.010 [0.009–0.010]
+      derived at 50 Mbit/s: 0.098 [0.094–0.102]
+  dbts_a1 Q32 1x  ÷ H        S16|webcodecs|jump ÷ H: 10.636 [10.108–11.192]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.33)  read
+      derived at 5 Mbit/s: 0.093 [0.090–0.097]
+      derived at 50 Mbit/s: 0.897 [0.863–0.933]
+  dbts_a1 Q8 1x  A/A        H′ ÷ H: 0.988 [0.973–1.004]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.343)  read
+      derived at 5 Mbit/s: 1.000 [1.000–1.000]
+      derived at 50 Mbit/s: 1.001 [1.000–1.001]
+  dbts_a1 Q8 1x  D1         S1|webcodecs|order ÷ H: 1.824 [1.786–1.863]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.935)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.069 [0.069–0.069]
+      derived at 50 Mbit/s: 0.151 [0.145–0.157]
+  dbts_a1 Q8 1x  D1         S8|webcodecs|order ÷ H: 2.107 [2.056–2.159]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.735)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.070 [0.070–0.070]
+      derived at 50 Mbit/s: 0.173 [0.167–0.180]
+  dbts_a1 Q8 1x  D1         S16|webcodecs|order ÷ H: 2.157 [2.101–2.214]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.985)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.070 [0.070–0.070]
+      derived at 50 Mbit/s: 0.179 [0.172–0.187]
+  dbts_a1 Q8 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 10.336 [9.866–10.829]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.557)  read  D2 (5.0, 9.0): refuted
+      derived at 5 Mbit/s: 6.747 [6.688–6.806]
+      derived at 50 Mbit/s: 8.082 [7.925–8.242]
+  dbts_a1 Q8 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 9.234 [9.055–9.417]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.362)  read  D2 (5.0, 9.0): refuted
+      derived at 5 Mbit/s: 7.058 [7.012–7.105]
+      derived at 50 Mbit/s: 6.843 [6.726–6.963]
+  dbts_a1 Q8 1x  D3         R|12bit ÷ H: 1.421 [1.387–1.456]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.545)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 0.943 [0.943–0.944]
+      derived at 50 Mbit/s: 0.943 [0.942–0.944]
+  dbts_a1 Q8 1x  D3         R|top10 ÷ H: 1.422 [1.368–1.479]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.782)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 0.949 [0.948–0.949]
+      derived at 50 Mbit/s: 0.947 [0.946–0.948]
+  dbts_a1 Q8 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 5.393 [5.261–5.528]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.627)  read
+      derived at 5 Mbit/s: 3.707 [3.679–3.735]
+      derived at 50 Mbit/s: 4.287 [4.215–4.360]
+  dbts_a1 Q8 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.933 [4.821–5.046]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.49)  read
+      derived at 5 Mbit/s: 3.835 [3.814–3.856]
+      derived at 50 Mbit/s: 3.744 [3.688–3.801]
+  dbts_a1 Q8 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.209 [1.181–1.238]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.273)  read
+      derived at 5 Mbit/s: 1.011 [1.008–1.013]
+      derived at 50 Mbit/s: 1.200 [1.170–1.230]
+  dbts_a1 Q8 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.228 [1.196–1.261]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.64)  read
+      derived at 5 Mbit/s: 1.010 [1.008–1.012]
+      derived at 50 Mbit/s: 1.204 [1.175–1.235]
+  dbts_a1 Q8 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.146 [1.126–1.167]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.122)  read
+      derived at 5 Mbit/s: 1.004 [1.003–1.006]
+      derived at 50 Mbit/s: 1.150 [1.131–1.169]
+  dbts_a1 Q8 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.197 [1.172–1.223]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.507)  read
+      derived at 5 Mbit/s: 1.004 [1.002–1.005]
+      derived at 50 Mbit/s: 1.190 [1.170–1.211]
+  dbts_a1 Q8 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.559 [1.459–1.665]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.907)  read
+      derived at 5 Mbit/s: 1.078 [1.076–1.079]
+      derived at 50 Mbit/s: 1.574 [1.533–1.616]
+  dbts_a1 Q8 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.436 [1.325–1.557]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.998)  read
+      derived at 5 Mbit/s: 1.149 [1.142–1.156]
+      derived at 50 Mbit/s: 1.335 [1.312–1.358]
+  dbts_a1 Q8 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.624 [1.527–1.727]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.53)  read
+      derived at 5 Mbit/s: 1.084 [1.082–1.086]
+      derived at 50 Mbit/s: 1.642 [1.611–1.673]
+  dbts_a1 Q8 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.576 [1.451–1.711]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.845)  read
+      derived at 5 Mbit/s: 1.110 [1.108–1.113]
+      derived at 50 Mbit/s: 1.529 [1.498–1.560]
+  dbts_a1 Q8 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.597 [1.513–1.687]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.432)  read
+      derived at 5 Mbit/s: 1.084 [1.082–1.087]
+      derived at 50 Mbit/s: 1.593 [1.562–1.625]
+  dbts_a1 Q8 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.620 [1.510–1.737]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.772)  read
+      derived at 5 Mbit/s: 1.098 [1.097–1.099]
+      derived at 50 Mbit/s: 1.577 [1.545–1.609]
+  dbts_a1 Q8 1x  ÷ H        S1|dav1d|order ÷ H: 2.838 [2.688–2.997]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.185)  read
+      derived at 5 Mbit/s: 0.075 [0.075–0.075]
+      derived at 50 Mbit/s: 0.237 [0.227–0.248]
+  dbts_a1 Q8 1x  ÷ H        S1|dav1d|jump ÷ H: 2.890 [2.733–3.057]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.863)  read
+      derived at 5 Mbit/s: 0.099 [0.098–0.100]
+      derived at 50 Mbit/s: 0.319 [0.309–0.329]
+  dbts_a1 Q8 1x  ÷ H        S1|webcodecs|order ÷ H: 1.824 [1.786–1.863]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.935)  read
+      derived at 5 Mbit/s: 0.069 [0.069–0.069]
+      derived at 50 Mbit/s: 0.151 [0.145–0.157]
+  dbts_a1 Q8 1x  ÷ H        S1|webcodecs|jump ÷ H: 2.041 [1.977–2.107]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.875)  read
+      derived at 5 Mbit/s: 0.087 [0.086–0.087]
+      derived at 50 Mbit/s: 0.239 [0.232–0.245]
+  dbts_a1 Q8 1x  ÷ H        S8|dav1d|order ÷ H: 3.441 [3.265–3.626]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.998)  read
+      derived at 5 Mbit/s: 0.076 [0.075–0.076]
+      derived at 50 Mbit/s: 0.284 [0.273–0.296]
+  dbts_a1 Q8 1x  ÷ H        S8|dav1d|jump ÷ H: 15.615 [14.712–16.573]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.618)  read
+      derived at 5 Mbit/s: 0.368 [0.367–0.370]
+      derived at 50 Mbit/s: 1.366 [1.313–1.422]
+  dbts_a1 Q8 1x  ÷ H        S8|webcodecs|order ÷ H: 2.107 [2.056–2.159]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.735)  read
+      derived at 5 Mbit/s: 0.070 [0.070–0.070]
+      derived at 50 Mbit/s: 0.173 [0.167–0.180]
+  dbts_a1 Q8 1x  ÷ H        S8|webcodecs|jump ÷ H: 9.895 [9.518–10.287]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.897)  read
+      derived at 5 Mbit/s: 0.332 [0.331–0.333]
+      derived at 50 Mbit/s: 0.894 [0.861–0.928]
+  dbts_a1 Q8 1x  ÷ H        S16|dav1d|order ÷ H: 3.494 [3.306–3.693]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.69)  read
+      derived at 5 Mbit/s: 0.076 [0.075–0.076]
+      derived at 50 Mbit/s: 0.286 [0.274–0.298]
+  dbts_a1 Q8 1x  ÷ H        S16|dav1d|jump ÷ H: 30.004 [28.456–31.637]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.733)  read
+      derived at 5 Mbit/s: 0.671 [0.669–0.672]
+      derived at 50 Mbit/s: 2.576 [2.473–2.684]
+  dbts_a1 Q8 1x  ÷ H        S16|webcodecs|order ÷ H: 2.157 [2.101–2.214]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.985)  read
+      derived at 5 Mbit/s: 0.070 [0.070–0.070]
+      derived at 50 Mbit/s: 0.179 [0.172–0.187]
+  dbts_a1 Q8 1x  ÷ H        S16|webcodecs|jump ÷ H: 18.676 [17.993–19.386]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.973)  read
+      derived at 5 Mbit/s: 0.611 [0.610–0.612]
+      derived at 50 Mbit/s: 1.634 [1.571–1.699]
+  dbts_b1 Q16 1x  A/A        H′ ÷ H: 0.994 [0.985–1.004]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 3% (p 0.93)  read
+      derived at 5 Mbit/s: 1.000 [1.000–1.000]
+      derived at 50 Mbit/s: 1.000 [1.000–1.001]
+  dbts_b1 Q16 1x  D1         S1|webcodecs|order ÷ H: 1.714 [1.638–1.794]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.615)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.054 [0.054–0.054]
+      derived at 50 Mbit/s: 0.236 [0.228–0.244]
+  dbts_b1 Q16 1x  D1         S8|webcodecs|order ÷ H: 1.978 [1.901–2.058]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.858)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.044 [0.044–0.045]
+      derived at 50 Mbit/s: 0.270 [0.260–0.280]
+  dbts_b1 Q16 1x  D1         S16|webcodecs|order ÷ H: 1.966 [1.884–2.051]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.983)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.044 [0.044–0.044]
+      derived at 50 Mbit/s: 0.271 [0.261–0.282]
+  dbts_b1 Q16 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 11.274 [10.589–12.003]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.323)  read  D2 (5.0, 9.0): refuted
+      derived at 5 Mbit/s: 5.342 [5.241–5.445]
+      derived at 50 Mbit/s: 9.862 [9.682–10.046]
+  dbts_b1 Q16 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.955 [8.720–9.196]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.043)  read  D2 (5.0, 9.0): not decided
+      derived at 5 Mbit/s: 5.045 [4.980–5.111]
+      derived at 50 Mbit/s: 7.517 [7.378–7.659]
+  dbts_b1 Q16 1x  D3         R|10bit ÷ H: 1.627 [1.590–1.665]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.46)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 0.957 [0.957–0.957]
+      derived at 50 Mbit/s: 0.957 [0.955–0.958]
+  dbts_b1 Q16 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 5.590 [5.381–5.807]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.63)  read
+      derived at 5 Mbit/s: 3.009 [2.972–3.045]
+      derived at 50 Mbit/s: 5.030 [4.962–5.100]
+  dbts_b1 Q16 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.804 [4.605–5.011]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 3% (p 0.845)  read
+      derived at 5 Mbit/s: 2.929 [2.899–2.960]
+      derived at 50 Mbit/s: 4.187 [4.110–4.265]
+  dbts_b1 Q16 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.354 [1.305–1.406]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.292)  read
+      derived at 5 Mbit/s: 0.934 [0.907–0.963]
+      derived at 50 Mbit/s: 1.336 [1.315–1.358]
+  dbts_b1 Q16 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.357 [1.312–1.403]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.762)  read
+      derived at 5 Mbit/s: 0.932 [0.904–0.960]
+      derived at 50 Mbit/s: 1.331 [1.306–1.355]
+  dbts_b1 Q16 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.140 [1.094–1.187]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.268)  read
+      derived at 5 Mbit/s: 0.826 [0.823–0.829]
+      derived at 50 Mbit/s: 1.144 [1.127–1.161]
+  dbts_b1 Q16 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.148 [1.091–1.209]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 3% (p 0.955)  read
+      derived at 5 Mbit/s: 0.820 [0.816–0.824]
+      derived at 50 Mbit/s: 1.152 [1.135–1.168]
+  dbts_b1 Q16 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.530 [1.451–1.612]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.677)  read
+      derived at 5 Mbit/s: 1.008 [1.001–1.015]
+      derived at 50 Mbit/s: 1.538 [1.510–1.566]
+  dbts_b1 Q16 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.380 [1.312–1.451]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 12% (p 0.092)  read
+      derived at 5 Mbit/s: 1.128 [1.115–1.140]
+      derived at 50 Mbit/s: 1.319 [1.292–1.347]
+  dbts_b1 Q16 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.800 [1.720–1.884]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.578)  read
+      derived at 5 Mbit/s: 1.140 [1.105–1.177]
+      derived at 50 Mbit/s: 1.796 [1.769–1.823]
+  dbts_b1 Q16 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.647 [1.559–1.741]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.72)  read
+      derived at 5 Mbit/s: 1.158 [1.134–1.182]
+      derived at 50 Mbit/s: 1.585 [1.546–1.625]
+  dbts_b1 Q16 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.798 [1.705–1.896]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.765)  read
+      derived at 5 Mbit/s: 1.145 [1.109–1.181]
+      derived at 50 Mbit/s: 1.777 [1.748–1.806]
+  dbts_b1 Q16 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.750 [1.650–1.855]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.61)  read
+      derived at 5 Mbit/s: 1.194 [1.161–1.228]
+      derived at 50 Mbit/s: 1.731 [1.698–1.764]
+  dbts_b1 Q16 1x  ÷ H        S1|dav1d|order ÷ H: 2.623 [2.564–2.682]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.445)  read
+      derived at 5 Mbit/s: 0.054 [0.054–0.055]
+      derived at 50 Mbit/s: 0.362 [0.348–0.377]
+  dbts_b1 Q16 1x  ÷ H        S1|dav1d|jump ÷ H: 2.705 [2.639–2.773]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 13% (p 0.215)  read
+      derived at 5 Mbit/s: 0.092 [0.090–0.093]
+      derived at 50 Mbit/s: 0.428 [0.414–0.443]
+  dbts_b1 Q16 1x  ÷ H        S1|webcodecs|order ÷ H: 1.714 [1.638–1.794]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.615)  read
+      derived at 5 Mbit/s: 0.054 [0.054–0.054]
+      derived at 50 Mbit/s: 0.236 [0.228–0.244]
+  dbts_b1 Q16 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.944 [1.872–2.018]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.37)  read
+      derived at 5 Mbit/s: 0.081 [0.080–0.083]
+      derived at 50 Mbit/s: 0.325 [0.313–0.336]
+  dbts_b1 Q16 1x  ÷ H        S8|dav1d|order ÷ H: 3.507 [3.412–3.605]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.6)  read
+      derived at 5 Mbit/s: 0.051 [0.049–0.052]
+      derived at 50 Mbit/s: 0.484 [0.465–0.504]
+  dbts_b1 Q16 1x  ÷ H        S8|dav1d|jump ÷ H: 15.477 [14.769–16.220]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.53)  read
+      derived at 5 Mbit/s: 0.276 [0.270–0.283]
+      derived at 50 Mbit/s: 2.154 [2.071–2.240]
+  dbts_b1 Q16 1x  ÷ H        S8|webcodecs|order ÷ H: 1.978 [1.901–2.058]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.858)  read
+      derived at 5 Mbit/s: 0.044 [0.044–0.045]
+      derived at 50 Mbit/s: 0.270 [0.260–0.280]
+  dbts_b1 Q16 1x  ÷ H        S8|webcodecs|jump ÷ H: 9.328 [8.964–9.706]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.807)  read
+      derived at 5 Mbit/s: 0.239 [0.235–0.242]
+      derived at 50 Mbit/s: 1.359 [1.300–1.421]
+  dbts_b1 Q16 1x  ÷ H        S16|dav1d|order ÷ H: 3.559 [3.416–3.707]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.432)  read
+      derived at 5 Mbit/s: 0.051 [0.049–0.052]
+      derived at 50 Mbit/s: 0.482 [0.463–0.502]
+  dbts_b1 Q16 1x  ÷ H        S16|dav1d|jump ÷ H: 30.359 [28.838–31.960]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 23% (p 0.085)  read
+      derived at 5 Mbit/s: 0.491 [0.476–0.506]
+      derived at 50 Mbit/s: 4.223 [4.045–4.409]
+  dbts_b1 Q16 1x  ÷ H        S16|webcodecs|order ÷ H: 1.966 [1.884–2.051]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.983)  read
+      derived at 5 Mbit/s: 0.044 [0.044–0.044]
+      derived at 50 Mbit/s: 0.271 [0.261–0.282]
+  dbts_b1 Q16 1x  ÷ H        S16|webcodecs|jump ÷ H: 17.362 [16.689–18.062]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.985)  read
+      derived at 5 Mbit/s: 0.411 [0.409–0.413]
+      derived at 50 Mbit/s: 2.440 [2.352–2.531]
+  dbts_b1 Q32 1x  A/A        H′ ÷ H: 0.984 [0.970–0.998]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 3% (p 0.955)  read
+      derived at 5 Mbit/s: 1.000 [1.000–1.000]
+      derived at 50 Mbit/s: 1.000 [0.999–1.001]
+  dbts_b1 Q32 1x  D1         S1|webcodecs|order ÷ H: 1.418 [1.343–1.498]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.345)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.020 [0.019–0.020]
+      derived at 50 Mbit/s: 0.196 [0.189–0.202]
+  dbts_b1 Q32 1x  D1         S8|webcodecs|order ÷ H: 1.565 [1.506–1.625]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.637)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.021 [0.021–0.022]
+      derived at 50 Mbit/s: 0.213 [0.206–0.220]
+  dbts_b1 Q32 1x  D1         S16|webcodecs|order ÷ H: 1.567 [1.514–1.622]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.435)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.022 [0.021–0.022]
+      derived at 50 Mbit/s: 0.215 [0.207–0.223]
+  dbts_b1 Q32 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 7.939 [7.695–8.191]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.608)  read  D2 (5.0, 9.0): held
+      derived at 5 Mbit/s: 6.369 [6.251–6.490]
+      derived at 50 Mbit/s: 7.766 [7.616–7.919]
+  dbts_b1 Q32 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.412 [8.040–8.800]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.72)  read  D2 (5.0, 9.0): held
+      derived at 5 Mbit/s: 5.835 [5.737–5.935]
+      derived at 50 Mbit/s: 8.074 [7.941–8.209]
+  dbts_b1 Q32 1x  D3         R|10bit ÷ H: 1.647 [1.596–1.699]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 15% (p 0.333)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 0.991 [0.991–0.991]
+      derived at 50 Mbit/s: 0.991 [0.990–0.992]
+  dbts_b1 Q32 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 4.115 [3.947–4.289]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.438)  read
+      derived at 5 Mbit/s: 3.438 [3.383–3.493]
+      derived at 50 Mbit/s: 4.072 [4.002–4.142]
+  dbts_b1 Q32 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.587 [4.463–4.713]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.97)  read
+      derived at 5 Mbit/s: 3.303 [3.260–3.346]
+      derived at 50 Mbit/s: 4.368 [4.312–4.425]
+  dbts_b1 Q32 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.953 [0.939–0.966]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.767)  read
+      derived at 5 Mbit/s: 0.947 [0.934–0.961]
+      derived at 50 Mbit/s: 0.947 [0.934–0.961]
+  dbts_b1 Q32 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.949 [0.922–0.977]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.297)  read
+      derived at 5 Mbit/s: 0.958 [0.946–0.971]
+      derived at 50 Mbit/s: 0.958 [0.946–0.971]
+  dbts_b1 Q32 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.094 [1.057–1.133]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.855)  read
+      derived at 5 Mbit/s: 1.088 [1.070–1.107]
+      derived at 50 Mbit/s: 1.088 [1.070–1.107]
+  dbts_b1 Q32 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.102 [1.052–1.155]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.815)  read
+      derived at 5 Mbit/s: 1.100 [1.082–1.118]
+      derived at 50 Mbit/s: 1.100 [1.082–1.118]
+  dbts_b1 Q32 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 2.103 [1.964–2.252]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.833)  read
+      derived at 5 Mbit/s: 2.092 [2.055–2.129]
+      derived at 50 Mbit/s: 2.092 [2.055–2.129]
+  dbts_b1 Q32 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.849 [1.715–1.994]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.892)  read
+      derived at 5 Mbit/s: 1.541 [1.515–1.568]
+      derived at 50 Mbit/s: 1.789 [1.752–1.827]
+  dbts_b1 Q32 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.828 [1.743–1.918]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.825)  read
+      derived at 5 Mbit/s: 1.821 [1.788–1.854]
+      derived at 50 Mbit/s: 1.821 [1.788–1.854]
+  dbts_b1 Q32 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.666 [1.605–1.730]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.76)  read
+      derived at 5 Mbit/s: 1.604 [1.580–1.629]
+      derived at 50 Mbit/s: 1.668 [1.641–1.695]
+  dbts_b1 Q32 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.837 [1.738–1.943]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.703)  read
+      derived at 5 Mbit/s: 1.823 [1.793–1.853]
+      derived at 50 Mbit/s: 1.823 [1.793–1.853]
+  dbts_b1 Q32 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.740 [1.632–1.855]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.613)  read
+      derived at 5 Mbit/s: 1.682 [1.647–1.718]
+      derived at 50 Mbit/s: 1.721 [1.683–1.759]
+  dbts_b1 Q32 1x  ÷ H        S1|dav1d|order ÷ H: 2.995 [2.880–3.115]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.86)  read
+      derived at 5 Mbit/s: 0.041 [0.039–0.043]
+      derived at 50 Mbit/s: 0.409 [0.393–0.425]
+  dbts_b1 Q32 1x  ÷ H        S1|dav1d|jump ÷ H: 3.063 [2.901–3.233]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.598)  read
+      derived at 5 Mbit/s: 0.054 [0.052–0.056]
+      derived at 50 Mbit/s: 0.429 [0.412–0.447]
+  dbts_b1 Q32 1x  ÷ H        S1|webcodecs|order ÷ H: 1.418 [1.343–1.498]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.345)  read
+      derived at 5 Mbit/s: 0.020 [0.019–0.020]
+      derived at 50 Mbit/s: 0.196 [0.189–0.202]
+  dbts_b1 Q32 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.659 [1.609–1.709]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.37)  read
+      derived at 5 Mbit/s: 0.035 [0.034–0.036]
+      derived at 50 Mbit/s: 0.240 [0.231–0.249]
+  dbts_b1 Q32 1x  ÷ H        S8|dav1d|order ÷ H: 2.837 [2.746–2.931]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.823)  read
+      derived at 5 Mbit/s: 0.039 [0.037–0.040]
+      derived at 50 Mbit/s: 0.387 [0.373–0.403]
+  dbts_b1 Q32 1x  ÷ H        S8|dav1d|jump ÷ H: 12.711 [12.242–13.199]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.843)  read
+      derived at 5 Mbit/s: 0.186 [0.179–0.193]
+      derived at 50 Mbit/s: 1.746 [1.676–1.819]
+  dbts_b1 Q32 1x  ÷ H        S8|webcodecs|order ÷ H: 1.565 [1.506–1.625]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.637)  read
+      derived at 5 Mbit/s: 0.021 [0.021–0.022]
+      derived at 50 Mbit/s: 0.213 [0.206–0.220]
+  dbts_b1 Q32 1x  ÷ H        S8|webcodecs|jump ÷ H: 7.627 [7.428–7.832]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.583)  read
+      derived at 5 Mbit/s: 0.116 [0.112–0.120]
+      derived at 50 Mbit/s: 1.047 [1.010–1.086]
+  dbts_b1 Q32 1x  ÷ H        S16|dav1d|order ÷ H: 2.864 [2.790–2.940]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.765)  read
+      derived at 5 Mbit/s: 0.039 [0.038–0.041]
+      derived at 50 Mbit/s: 0.392 [0.377–0.408]
+  dbts_b1 Q32 1x  ÷ H        S16|dav1d|jump ÷ H: 24.169 [23.382–24.983]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 30% (p 0.028)  not read: order 30%, over 10 % and beyond its shuffles (p 0.028)
+      derived at 5 Mbit/s: 0.344 [0.331–0.358]
+      derived at 50 Mbit/s: 3.330 [3.195–3.471]
+  dbts_b1 Q32 1x  ÷ H        S16|webcodecs|order ÷ H: 1.567 [1.514–1.622]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.435)  read
+      derived at 5 Mbit/s: 0.022 [0.021–0.022]
+      derived at 50 Mbit/s: 0.215 [0.207–0.223]
+  dbts_b1 Q32 1x  ÷ H        S16|webcodecs|jump ÷ H: 13.911 [13.368–14.476]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.907)  read
+      derived at 5 Mbit/s: 0.205 [0.197–0.212]
+      derived at 50 Mbit/s: 1.935 [1.863–2.009]
+  dbts_b1 Q32 4x  A/A        H′ ÷ H: 0.979 [0.953–1.005]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 21% (p 0.028)  not read: order 21%, over 10 % and beyond its shuffles (p 0.028)
+      derived at 5 Mbit/s: 1.000 [0.999–1.001]
+      derived at 50 Mbit/s: 0.994 [0.970–1.019]
+  dbts_b1 Q32 4x  D1         S1|webcodecs|order ÷ H: 1.115 [1.040–1.195]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 26% (p 0.007)  not read: order 26%, over 10 % and beyond its shuffles (p 0.007)
+      derived at 5 Mbit/s: 0.070 [0.067–0.072]
+      derived at 50 Mbit/s: 0.689 [0.664–0.715]
+  dbts_b1 Q32 4x  D1         S8|webcodecs|order ÷ H: 1.134 [1.060–1.213]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 24% (p 0.013)  not read: order 24%, over 10 % and beyond its shuffles (p 0.013)
+      derived at 5 Mbit/s: 0.070 [0.068–0.073]
+      derived at 50 Mbit/s: 0.692 [0.668–0.718]
+  dbts_b1 Q32 4x  D1         S16|webcodecs|order ÷ H: 1.120 [1.047–1.198]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 27% (p 0.007)  not read: order 27%, over 10 % and beyond its shuffles (p 0.007)
+      derived at 5 Mbit/s: 0.070 [0.068–0.073]
+      derived at 50 Mbit/s: 0.692 [0.667–0.719]
+  dbts_b1 Q32 4x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 7.955 [7.809–8.103]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.242)  read  D2 (5.0, 9.0): held
+      derived at 5 Mbit/s: 7.508 [7.428–7.589]
+      derived at 50 Mbit/s: 7.902 [7.819–7.987]
+  dbts_b1 Q32 4x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 7.957 [7.659–8.267]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 16% (p 0.38)  read  D2 (5.0, 9.0): held
+      derived at 5 Mbit/s: 6.901 [6.667–7.142]
+      derived at 50 Mbit/s: 7.670 [7.400–7.950]
+  dbts_b1 Q32 4x  D3         R|10bit ÷ H: 1.622 [1.563–1.683]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 20% (p 0.01)  not read: order 20%, over 10 % and beyond its shuffles (p 0.010)
+      derived at 5 Mbit/s: 0.991 [0.991–0.992]
+      derived at 50 Mbit/s: 1.104 [1.058–1.152]
+  dbts_b1 Q32 4x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 4.159 [4.039–4.283]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.652)  read
+      derived at 5 Mbit/s: 3.980 [3.937–4.025]
+      derived at 50 Mbit/s: 4.161 [4.114–4.209]
+  dbts_b1 Q32 4x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.243 [4.149–4.339]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.98)  read
+      derived at 5 Mbit/s: 3.708 [3.597–3.822]
+      derived at 50 Mbit/s: 4.061 [3.932–4.194]
+  dbts_b1 Q32 4x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.949 [0.923–0.975]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 3% (p 0.917)  read
+      derived at 5 Mbit/s: 0.954 [0.942–0.966]
+      derived at 50 Mbit/s: 0.954 [0.942–0.966]
+  dbts_b1 Q32 4x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.953 [0.935–0.972]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.04)  read
+      derived at 5 Mbit/s: 0.958 [0.945–0.972]
+      derived at 50 Mbit/s: 0.958 [0.945–0.972]
+  dbts_b1 Q32 4x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 0.999 [0.986–1.012]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.557)  read
+      derived at 5 Mbit/s: 1.005 [0.994–1.017]
+      derived at 50 Mbit/s: 1.005 [0.994–1.017]
+  dbts_b1 Q32 4x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.005 [0.986–1.024]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.233)  read
+      derived at 5 Mbit/s: 1.005 [0.993–1.017]
+      derived at 50 Mbit/s: 1.005 [0.993–1.017]
+  dbts_b1 Q32 4x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 2.618 [2.384–2.874]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.685)  read
+      derived at 5 Mbit/s: 2.609 [2.553–2.666]
+      derived at 50 Mbit/s: 2.609 [2.553–2.666]
+  dbts_b1 Q32 4x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 2.357 [2.136–2.601]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.81)  read
+      derived at 5 Mbit/s: 2.043 [1.980–2.108]
+      derived at 50 Mbit/s: 2.178 [2.107–2.252]
+  dbts_b1 Q32 4x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 2.477 [2.278–2.694]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.988)  read
+      derived at 5 Mbit/s: 2.475 [2.432–2.519]
+      derived at 50 Mbit/s: 2.475 [2.432–2.519]
+  dbts_b1 Q32 4x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 2.290 [2.104–2.493]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.9)  read
+      derived at 5 Mbit/s: 2.194 [2.141–2.248]
+      derived at 50 Mbit/s: 2.232 [2.177–2.288]
+  dbts_b1 Q32 4x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 2.486 [2.286–2.704]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.573)  read
+      derived at 5 Mbit/s: 2.488 [2.447–2.530]
+      derived at 50 Mbit/s: 2.488 [2.447–2.530]
+  dbts_b1 Q32 4x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 2.350 [2.162–2.554]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.75)  read
+      derived at 5 Mbit/s: 2.223 [2.155–2.294]
+      derived at 50 Mbit/s: 2.244 [2.175–2.316]
+  dbts_b1 Q32 4x  ÷ H        S1|dav1d|order ÷ H: 2.933 [2.773–3.102]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 16% (p 0.028)  not read: order 16%, over 10 % and beyond its shuffles (p 0.028)
+      derived at 5 Mbit/s: 0.182 [0.174–0.191]
+      derived at 50 Mbit/s: 1.797 [1.714–1.885]
+  dbts_b1 Q32 4x  ÷ H        S1|dav1d|jump ÷ H: 2.991 [2.819–3.173]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 12% (p 0.083)  read
+      derived at 5 Mbit/s: 0.197 [0.189–0.206]
+      derived at 50 Mbit/s: 1.831 [1.747–1.919]
+  dbts_b1 Q32 4x  ÷ H        S1|webcodecs|order ÷ H: 1.115 [1.040–1.195]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 26% (p 0.007)  not read: order 26%, over 10 % and beyond its shuffles (p 0.007)
+      derived at 5 Mbit/s: 0.070 [0.067–0.072]
+      derived at 50 Mbit/s: 0.689 [0.664–0.715]
+  dbts_b1 Q32 4x  ÷ H        S1|webcodecs|jump ÷ H: 1.274 [1.178–1.378]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 23% (p 0.195)  read
+      derived at 5 Mbit/s: 0.096 [0.093–0.100]
+      derived at 50 Mbit/s: 0.841 [0.809–0.874]
+  dbts_b1 Q32 4x  ÷ H        S8|dav1d|order ÷ H: 2.809 [2.713–2.907]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 15% (p 0.035)  not read: order 15%, over 10 % and beyond its shuffles (p 0.035)
+      derived at 5 Mbit/s: 0.174 [0.166–0.182]
+      derived at 50 Mbit/s: 1.714 [1.638–1.794]
+  dbts_b1 Q32 4x  ÷ H        S8|dav1d|jump ÷ H: 12.382 [12.037–12.736]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 22% (p 0.018)  not read: order 22%, over 10 % and beyond its shuffles (p 0.018)
+      derived at 5 Mbit/s: 0.785 [0.751–0.820]
+      derived at 50 Mbit/s: 7.619 [7.275–7.980]
+  dbts_b1 Q32 4x  ÷ H        S8|webcodecs|order ÷ H: 1.134 [1.060–1.213]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 24% (p 0.013)  not read: order 24%, over 10 % and beyond its shuffles (p 0.013)
+      derived at 5 Mbit/s: 0.070 [0.068–0.073]
+      derived at 50 Mbit/s: 0.692 [0.668–0.718]
+  dbts_b1 Q32 4x  ÷ H        S8|webcodecs|jump ÷ H: 5.435 [5.069–5.827]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 27% (p 0.03)  not read: order 27%, over 10 % and beyond its shuffles (p 0.030)
+      derived at 5 Mbit/s: 0.358 [0.345–0.371]
+      derived at 50 Mbit/s: 3.414 [3.278–3.555]
+  dbts_b1 Q32 4x  ÷ H        S16|dav1d|order ÷ H: 2.808 [2.694–2.928]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 24% (p 0.018)  not read: order 24%, over 10 % and beyond its shuffles (p 0.018)
+      derived at 5 Mbit/s: 0.175 [0.167–0.183]
+      derived at 50 Mbit/s: 1.722 [1.644–1.804]
+  dbts_b1 Q32 4x  ÷ H        S16|dav1d|jump ÷ H: 23.691 [22.700–24.726]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.297)  read
+      derived at 5 Mbit/s: 1.480 [1.414–1.549]
+      derived at 50 Mbit/s: 14.470 [13.789–15.184]
+  dbts_b1 Q32 4x  ÷ H        S16|webcodecs|order ÷ H: 1.120 [1.047–1.198]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 27% (p 0.007)  not read: order 27%, over 10 % and beyond its shuffles (p 0.007)
+      derived at 5 Mbit/s: 0.070 [0.068–0.073]
+      derived at 50 Mbit/s: 0.692 [0.667–0.719]
+  dbts_b1 Q32 4x  ÷ H        S16|webcodecs|jump ÷ H: 10.156 [9.646–10.694]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.278)  read
+      derived at 5 Mbit/s: 0.666 [0.638–0.694]
+      derived at 50 Mbit/s: 6.448 [6.218–6.687]
+  dbts_b1 Q56 1x  A/A        H′ ÷ H: 0.994 [0.983–1.005]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.7)  read
+      derived at 5 Mbit/s: 1.000 [1.000–1.000]
+      derived at 50 Mbit/s: 1.000 [0.999–1.001]
+  dbts_b1 Q56 1x  D1         S1|webcodecs|order ÷ H: 1.346 [1.277–1.419]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.217)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.018 [0.018–0.019]
+      derived at 50 Mbit/s: 0.182 [0.176–0.188]
+  dbts_b1 Q56 1x  D1         S8|webcodecs|order ÷ H: 1.473 [1.405–1.543]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.158)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.020 [0.019–0.021]
+      derived at 50 Mbit/s: 0.199 [0.191–0.206]
+  dbts_b1 Q56 1x  D1         S16|webcodecs|order ÷ H: 1.442 [1.370–1.516]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.613)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.020 [0.019–0.020]
+      derived at 50 Mbit/s: 0.197 [0.191–0.204]
+  dbts_b1 Q56 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 3.844 [3.647–4.051]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.273)  read  D2 (5.0, 9.0): refuted
+      derived at 5 Mbit/s: 3.806 [3.739–3.874]
+      derived at 50 Mbit/s: 3.871 [3.801–3.941]
+  dbts_b1 Q56 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.241 [7.983–8.506]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.695)  read  D2 (5.0, 9.0): held
+      derived at 5 Mbit/s: 7.762 [7.637–7.891]
+      derived at 50 Mbit/s: 8.234 [8.095–8.376]
+  dbts_b1 Q56 1x  D3         R|10bit ÷ H: 1.693 [1.645–1.743]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.275)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 1.009 [1.009–1.010]
+      derived at 50 Mbit/s: 1.011 [1.009–1.013]
+  dbts_b1 Q56 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 2.228 [2.114–2.348]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.875)  read
+      derived at 5 Mbit/s: 2.205 [2.168–2.243]
+      derived at 50 Mbit/s: 2.233 [2.195–2.272]
+  dbts_b1 Q56 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.443 [4.384–4.503]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 3% (p 0.985)  read
+      derived at 5 Mbit/s: 4.208 [4.151–4.266]
+      derived at 50 Mbit/s: 4.431 [4.368–4.495]
+  dbts_b1 Q56 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.383 [0.354–0.415]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.662)  read
+      derived at 5 Mbit/s: 0.392 [0.384–0.400]
+      derived at 50 Mbit/s: 0.392 [0.384–0.400]
+  dbts_b1 Q56 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.386 [0.361–0.413]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.912)  read
+      derived at 5 Mbit/s: 0.397 [0.387–0.406]
+      derived at 50 Mbit/s: 0.397 [0.387–0.406]
+  dbts_b1 Q56 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.093 [1.060–1.128]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.388)  read
+      derived at 5 Mbit/s: 1.095 [1.077–1.112]
+      derived at 50 Mbit/s: 1.095 [1.077–1.112]
+  dbts_b1 Q56 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.092 [1.059–1.126]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.882)  read
+      derived at 5 Mbit/s: 1.087 [1.069–1.106]
+      derived at 50 Mbit/s: 1.087 [1.069–1.106]
+  dbts_b1 Q56 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 3.475 [3.184–3.792]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.38)  read
+      derived at 5 Mbit/s: 3.490 [3.422–3.559]
+      derived at 50 Mbit/s: 3.490 [3.422–3.559]
+  dbts_b1 Q56 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 3.104 [2.810–3.429]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.985)  read
+      derived at 5 Mbit/s: 2.902 [2.849–2.957]
+      derived at 50 Mbit/s: 3.034 [2.978–3.092]
+  dbts_b1 Q56 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.230 [1.198–1.263]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.502)  read
+      derived at 5 Mbit/s: 1.249 [1.227–1.271]
+      derived at 50 Mbit/s: 1.249 [1.227–1.271]
+  dbts_b1 Q56 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.528 [1.472–1.587]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.667)  read
+      derived at 5 Mbit/s: 1.521 [1.496–1.546]
+      derived at 50 Mbit/s: 1.529 [1.504–1.555]
+  dbts_b1 Q56 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.241 [1.199–1.285]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.588)  read
+      derived at 5 Mbit/s: 1.273 [1.244–1.302]
+      derived at 50 Mbit/s: 1.273 [1.244–1.302]
+  dbts_b1 Q56 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.449 [1.371–1.532]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.828)  read
+      derived at 5 Mbit/s: 1.423 [1.393–1.453]
+      derived at 50 Mbit/s: 1.426 [1.397–1.457]
+  dbts_b1 Q56 1x  ÷ H        S1|dav1d|order ÷ H: 4.668 [4.386–4.969]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.39)  read
+      derived at 5 Mbit/s: 0.063 [0.061–0.066]
+      derived at 50 Mbit/s: 0.634 [0.608–0.661]
+  dbts_b1 Q56 1x  ÷ H        S1|dav1d|jump ÷ H: 4.824 [4.496–5.176]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.562)  read
+      derived at 5 Mbit/s: 0.067 [0.064–0.070]
+      derived at 50 Mbit/s: 0.657 [0.629–0.686]
+  dbts_b1 Q56 1x  ÷ H        S1|webcodecs|order ÷ H: 1.346 [1.277–1.419]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.217)  read
+      derived at 5 Mbit/s: 0.018 [0.018–0.019]
+      derived at 50 Mbit/s: 0.182 [0.176–0.188]
+  dbts_b1 Q56 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.570 [1.518–1.623]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.113)  read
+      derived at 5 Mbit/s: 0.023 [0.022–0.024]
+      derived at 50 Mbit/s: 0.217 [0.208–0.225]
+  dbts_b1 Q56 1x  ÷ H        S8|dav1d|order ÷ H: 1.799 [1.733–1.866]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.285)  read
+      derived at 5 Mbit/s: 0.025 [0.024–0.026]
+      derived at 50 Mbit/s: 0.248 [0.238–0.258]
+  dbts_b1 Q56 1x  ÷ H        S8|dav1d|jump ÷ H: 10.777 [10.286–11.291]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.13)  read
+      derived at 5 Mbit/s: 0.148 [0.143–0.154]
+      derived at 50 Mbit/s: 1.468 [1.410–1.527]
+  dbts_b1 Q56 1x  ÷ H        S8|webcodecs|order ÷ H: 1.473 [1.405–1.543]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.158)  read
+      derived at 5 Mbit/s: 0.020 [0.019–0.021]
+      derived at 50 Mbit/s: 0.199 [0.191–0.206]
+  dbts_b1 Q56 1x  ÷ H        S8|webcodecs|jump ÷ H: 7.020 [6.733–7.320]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.158)  read
+      derived at 5 Mbit/s: 0.098 [0.094–0.101]
+      derived at 50 Mbit/s: 0.960 [0.926–0.995]
+  dbts_b1 Q56 1x  ÷ H        S16|dav1d|order ÷ H: 1.811 [1.764–1.860]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.355)  read
+      derived at 5 Mbit/s: 0.025 [0.024–0.026]
+      derived at 50 Mbit/s: 0.251 [0.241–0.262]
+  dbts_b1 Q56 1x  ÷ H        S16|dav1d|jump ÷ H: 18.638 [17.859–19.450]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 36% (p 0.003)  not read: order 36%, over 10 % and beyond its shuffles (p 0.003)
+      derived at 5 Mbit/s: 0.256 [0.245–0.267]
+      derived at 50 Mbit/s: 2.544 [2.439–2.653]
+  dbts_b1 Q56 1x  ÷ H        S16|webcodecs|order ÷ H: 1.442 [1.370–1.516]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.613)  read
+      derived at 5 Mbit/s: 0.020 [0.019–0.020]
+      derived at 50 Mbit/s: 0.197 [0.191–0.204]
+  dbts_b1 Q56 1x  ÷ H        S16|webcodecs|jump ÷ H: 12.944 [12.295–13.628]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.815)  read
+      derived at 5 Mbit/s: 0.180 [0.174–0.186]
+      derived at 50 Mbit/s: 1.784 [1.721–1.848]
+  dbts_c1 Q16 1x  A/A        H′ ÷ H: 0.991 [0.966–1.016]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.343)  read
+      derived at 5 Mbit/s: 1.000 [1.000–1.000]
+      derived at 50 Mbit/s: 1.000 [0.999–1.001]
+  dbts_c1 Q16 1x  D1         S1|webcodecs|order ÷ H: 1.453 [1.378–1.532]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 14% (p 0.55)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.018 [0.018–0.018]
+      derived at 50 Mbit/s: 0.143 [0.137–0.149]
+  dbts_c1 Q16 1x  D1         S8|webcodecs|order ÷ H: 1.585 [1.485–1.692]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 13% (p 0.345)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.016 [0.015–0.016]
+      derived at 50 Mbit/s: 0.157 [0.151–0.164]
+  dbts_c1 Q16 1x  D1         S16|webcodecs|order ÷ H: 1.523 [1.422–1.632]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.958)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.015 [0.015–0.016]
+      derived at 50 Mbit/s: 0.150 [0.144–0.157]
+  dbts_c1 Q16 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 11.598 [11.153–12.061]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.233)  read  D2 (5.0, 9.0): refuted
+      derived at 5 Mbit/s: 7.073 [6.915–7.235]
+      derived at 50 Mbit/s: 10.933 [10.713–11.156]
+  dbts_c1 Q16 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.513 [8.413–8.614]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.357)  read  D2 (5.0, 9.0): held
+      derived at 5 Mbit/s: 4.650 [4.565–4.738]
+      derived at 50 Mbit/s: 7.804 [7.688–7.922]
+  dbts_c1 Q16 1x  D3         R|12bit ÷ H: 1.564 [1.539–1.590]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.207)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 0.993 [0.992–0.993]
+      derived at 50 Mbit/s: 0.993 [0.992–0.995]
+  dbts_c1 Q16 1x  D3         R|top10 ÷ H: 1.524 [1.464–1.587]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.362)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 0.989 [0.988–0.989]
+      derived at 50 Mbit/s: 0.989 [0.987–0.990]
+  dbts_c1 Q16 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 6.089 [5.814–6.377]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 14% (p 0.125)  read
+      derived at 5 Mbit/s: 3.869 [3.783–3.958]
+      derived at 50 Mbit/s: 5.679 [5.554–5.805]
+  dbts_c1 Q16 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.635 [4.490–4.786]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.792)  read
+      derived at 5 Mbit/s: 2.753 [2.711–2.796]
+      derived at 50 Mbit/s: 4.254 [4.202–4.308]
+  dbts_c1 Q16 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.383 [1.349–1.417]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.405)  read
+      derived at 5 Mbit/s: 1.372 [1.344–1.401]
+      derived at 50 Mbit/s: 1.377 [1.348–1.406]
+  dbts_c1 Q16 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.389 [1.343–1.436]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.22)  read
+      derived at 5 Mbit/s: 1.363 [1.335–1.392]
+      derived at 50 Mbit/s: 1.368 [1.340–1.396]
+  dbts_c1 Q16 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.108 [1.074–1.144]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.748)  read
+      derived at 5 Mbit/s: 0.880 [0.852–0.909]
+      derived at 50 Mbit/s: 1.098 [1.080–1.117]
+  dbts_c1 Q16 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.058 [1.027–1.089]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.34)  read
+      derived at 5 Mbit/s: 0.844 [0.816–0.873]
+      derived at 50 Mbit/s: 1.052 [1.032–1.073]
+  dbts_c1 Q16 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.404 [1.319–1.494]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 13% (p 0.273)  read
+      derived at 5 Mbit/s: 1.135 [1.098–1.173]
+      derived at 50 Mbit/s: 1.421 [1.387–1.455]
+  dbts_c1 Q16 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.234 [1.171–1.300]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.675)  read
+      derived at 5 Mbit/s: 1.054 [1.041–1.067]
+      derived at 50 Mbit/s: 1.204 [1.180–1.228]
+  dbts_c1 Q16 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.769 [1.659–1.886]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.588)  read
+      derived at 5 Mbit/s: 1.769 [1.737–1.802]
+      derived at 50 Mbit/s: 1.781 [1.748–1.814]
+  dbts_c1 Q16 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.617 [1.509–1.733]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 13% (p 0.302)  read
+      derived at 5 Mbit/s: 1.481 [1.454–1.510]
+      derived at 50 Mbit/s: 1.607 [1.573–1.641]
+  dbts_c1 Q16 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.869 [1.769–1.976]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.968)  read
+      derived at 5 Mbit/s: 1.832 [1.790–1.875]
+      derived at 50 Mbit/s: 1.846 [1.804–1.889]
+  dbts_c1 Q16 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.702 [1.588–1.825]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 13% (p 0.113)  read
+      derived at 5 Mbit/s: 1.603 [1.573–1.634]
+      derived at 50 Mbit/s: 1.686 [1.653–1.721]
+  dbts_c1 Q16 1x  ÷ H        S1|dav1d|order ÷ H: 2.053 [1.986–2.123]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.522)  read
+      derived at 5 Mbit/s: 0.020 [0.020–0.021]
+      derived at 50 Mbit/s: 0.203 [0.195–0.211]
+  dbts_c1 Q16 1x  ÷ H        S1|dav1d|jump ÷ H: 2.076 [1.995–2.162]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.302)  read
+      derived at 5 Mbit/s: 0.036 [0.035–0.037]
+      derived at 50 Mbit/s: 0.222 [0.213–0.230]
+  dbts_c1 Q16 1x  ÷ H        S1|webcodecs|order ÷ H: 1.453 [1.378–1.532]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 14% (p 0.55)  read
+      derived at 5 Mbit/s: 0.018 [0.018–0.018]
+      derived at 50 Mbit/s: 0.143 [0.137–0.149]
+  dbts_c1 Q16 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.659 [1.567–1.757]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.275)  read
+      derived at 5 Mbit/s: 0.034 [0.034–0.035]
+      derived at 50 Mbit/s: 0.184 [0.177–0.191]
+  dbts_c1 Q16 1x  ÷ H        S8|dav1d|order ÷ H: 2.780 [2.702–2.860]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.482)  read
+      derived at 5 Mbit/s: 0.028 [0.027–0.029]
+      derived at 50 Mbit/s: 0.280 [0.268–0.291]
+  dbts_c1 Q16 1x  ÷ H        S8|dav1d|jump ÷ H: 12.437 [11.831–13.073]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.618)  read
+      derived at 5 Mbit/s: 0.140 [0.135–0.146]
+      derived at 50 Mbit/s: 1.258 [1.204–1.314]
+  dbts_c1 Q16 1x  ÷ H        S8|webcodecs|order ÷ H: 1.585 [1.485–1.692]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 13% (p 0.345)  read
+      derived at 5 Mbit/s: 0.016 [0.015–0.016]
+      derived at 50 Mbit/s: 0.157 [0.151–0.164]
+  dbts_c1 Q16 1x  ÷ H        S8|webcodecs|jump ÷ H: 7.666 [7.298–8.052]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 13% (p 0.125)  read
+      derived at 5 Mbit/s: 0.095 [0.092–0.098]
+      derived at 50 Mbit/s: 0.783 [0.752–0.814]
+  dbts_c1 Q16 1x  ÷ H        S16|dav1d|order ÷ H: 2.805 [2.686–2.930]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.65)  read
+      derived at 5 Mbit/s: 0.028 [0.027–0.029]
+      derived at 50 Mbit/s: 0.278 [0.266–0.290]
+  dbts_c1 Q16 1x  ÷ H        S16|dav1d|jump ÷ H: 24.252 [22.829–25.763]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.64)  read
+      derived at 5 Mbit/s: 0.256 [0.246–0.267]
+      derived at 50 Mbit/s: 2.422 [2.321–2.526]
+  dbts_c1 Q16 1x  ÷ H        S16|webcodecs|order ÷ H: 1.523 [1.422–1.632]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.958)  read
+      derived at 5 Mbit/s: 0.015 [0.015–0.016]
+      derived at 50 Mbit/s: 0.150 [0.144–0.157]
+  dbts_c1 Q16 1x  ÷ H        S16|webcodecs|jump ÷ H: 14.230 [13.498–15.000]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.68)  read
+      derived at 5 Mbit/s: 0.160 [0.154–0.166]
+      derived at 50 Mbit/s: 1.436 [1.381–1.494]
+  dbts_c1 Q16 4x  A/A        H′ ÷ H: 0.995 [0.979–1.012]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.61)  read
+      derived at 5 Mbit/s: 0.999 [0.997–1.001]
+      derived at 50 Mbit/s: 1.005 [1.000–1.009]
+  dbts_c1 Q16 4x  D1         S1|webcodecs|order ÷ H: 0.955 [0.914–0.997]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.383)  read  D1 (0.0, 1.0): held
+      derived at 5 Mbit/s: 0.042 [0.040–0.044]
+      derived at 50 Mbit/s: 0.422 [0.405–0.439]
+  dbts_c1 Q16 4x  D1         S8|webcodecs|order ÷ H: 0.971 [0.936–1.007]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.575)  read  D1 (0.0, 1.0): not decided
+      derived at 5 Mbit/s: 0.044 [0.042–0.045]
+      derived at 50 Mbit/s: 0.436 [0.419–0.454]
+  dbts_c1 Q16 4x  D1         S16|webcodecs|order ÷ H: 0.958 [0.921–0.997]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 12% (p 0.245)  read  D1 (0.0, 1.0): held
+      derived at 5 Mbit/s: 0.043 [0.041–0.045]
+      derived at 50 Mbit/s: 0.429 [0.411–0.447]
+  dbts_c1 Q16 4x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 11.559 [11.096–12.040]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.292)  read  D2 (5.0, 9.0): refuted
+      derived at 5 Mbit/s: 9.707 [9.136–10.312]
+      derived at 50 Mbit/s: 11.017 [10.346–11.732]
+  dbts_c1 Q16 4x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 6.973 [5.965–8.151]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 38% (p 0.61)  read  D2 (5.0, 9.0): held
+      derived at 5 Mbit/s: 5.148 [4.842–5.472]
+      derived at 50 Mbit/s: 6.160 [5.744–6.607]
+  dbts_c1 Q16 4x  D3         R|12bit ÷ H: 1.565 [1.509–1.623]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.138)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 0.992 [0.991–0.994]
+      derived at 50 Mbit/s: 1.006 [0.993–1.019]
+  dbts_c1 Q16 4x  D3         R|top10 ÷ H: 1.522 [1.482–1.563]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.343)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 0.988 [0.987–0.989]
+      derived at 50 Mbit/s: 0.988 [0.982–0.995]
+  dbts_c1 Q16 4x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 5.922 [5.663–6.193]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.482)  read
+      derived at 5 Mbit/s: 5.038 [4.762–5.331]
+      derived at 50 Mbit/s: 5.645 [5.325–5.985]
+  dbts_c1 Q16 4x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 3.769 [3.311–4.292]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 38% (p 0.748)  read
+      derived at 5 Mbit/s: 2.834 [2.668–3.011]
+      derived at 50 Mbit/s: 3.281 [3.059–3.519]
+  dbts_c1 Q16 4x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.405 [1.345–1.468]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.897)  read
+      derived at 5 Mbit/s: 1.388 [1.363–1.414]
+      derived at 50 Mbit/s: 1.388 [1.363–1.414]
+  dbts_c1 Q16 4x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.376 [1.327–1.427]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.385)  read
+      derived at 5 Mbit/s: 1.364 [1.337–1.391]
+      derived at 50 Mbit/s: 1.364 [1.337–1.391]
+  dbts_c1 Q16 4x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.020 [1.002–1.039]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.677)  read
+      derived at 5 Mbit/s: 1.034 [1.018–1.050]
+      derived at 50 Mbit/s: 1.034 [1.018–1.050]
+  dbts_c1 Q16 4x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.007 [0.981–1.033]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.552)  read
+      derived at 5 Mbit/s: 1.016 [0.995–1.036]
+      derived at 50 Mbit/s: 1.016 [0.995–1.036]
+  dbts_c1 Q16 4x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 2.129 [1.976–2.294]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.975)  read
+      derived at 5 Mbit/s: 2.140 [2.091–2.191]
+      derived at 50 Mbit/s: 2.140 [2.091–2.191]
+  dbts_c1 Q16 4x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.495 [1.183–1.890]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 29% (p 0.915)  read
+      derived at 5 Mbit/s: 1.317 [1.217–1.425]
+      derived at 50 Mbit/s: 1.424 [1.305–1.555]
+  dbts_c1 Q16 4x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 2.892 [2.743–3.049]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.53)  read
+      derived at 5 Mbit/s: 2.874 [2.817–2.932]
+      derived at 50 Mbit/s: 2.874 [2.817–2.932]
+  dbts_c1 Q16 4x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 2.574 [2.391–2.771]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 24% (p 0.075)  read
+      derived at 5 Mbit/s: 2.342 [2.265–2.421]
+      derived at 50 Mbit/s: 2.450 [2.367–2.536]
+  dbts_c1 Q16 4x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 2.883 [2.736–3.039]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.61)  read
+      derived at 5 Mbit/s: 2.874 [2.815–2.935]
+      derived at 50 Mbit/s: 2.874 [2.815–2.935]
+  dbts_c1 Q16 4x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 2.684 [2.527–2.851]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 15% (p 0.242)  read
+      derived at 5 Mbit/s: 2.484 [2.400–2.571]
+      derived at 50 Mbit/s: 2.547 [2.459–2.639]
+  dbts_c1 Q16 4x  ÷ H        S1|dav1d|order ÷ H: 2.024 [1.964–2.086]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.275)  read
+      derived at 5 Mbit/s: 0.090 [0.086–0.094]
+      derived at 50 Mbit/s: 0.903 [0.865–0.944]
+  dbts_c1 Q16 4x  ÷ H        S1|dav1d|jump ÷ H: 2.086 [1.986–2.190]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 12% (p 0.253)  read
+      derived at 5 Mbit/s: 0.112 [0.104–0.120]
+      derived at 50 Mbit/s: 0.974 [0.902–1.051]
+  dbts_c1 Q16 4x  ÷ H        S1|webcodecs|order ÷ H: 0.955 [0.914–0.997]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.383)  read
+      derived at 5 Mbit/s: 0.042 [0.040–0.044]
+      derived at 50 Mbit/s: 0.422 [0.405–0.439]
+  dbts_c1 Q16 4x  ÷ H        S1|webcodecs|jump ÷ H: 1.358 [1.092–1.688]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 52% (p 0.805)  read
+      derived at 5 Mbit/s: 0.085 [0.080–0.090]
+      derived at 50 Mbit/s: 0.683 [0.639–0.731]
+  dbts_c1 Q16 4x  ÷ H        S8|dav1d|order ÷ H: 2.833 [2.678–2.998]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.367)  read
+      derived at 5 Mbit/s: 0.125 [0.119–0.131]
+      derived at 50 Mbit/s: 1.254 [1.197–1.314]
+  dbts_c1 Q16 4x  ÷ H        S8|dav1d|jump ÷ H: 12.430 [11.866–13.020]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 18% (p 0.015)  not read: order 18%, over 10 % and beyond its shuffles (p 0.015)
+      derived at 5 Mbit/s: 0.563 [0.537–0.590]
+      derived at 50 Mbit/s: 5.496 [5.241–5.763]
+  dbts_c1 Q16 4x  ÷ H        S8|webcodecs|order ÷ H: 0.971 [0.936–1.007]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.575)  read
+      derived at 5 Mbit/s: 0.044 [0.042–0.045]
+      derived at 50 Mbit/s: 0.436 [0.419–0.454]
+  dbts_c1 Q16 4x  ÷ H        S8|webcodecs|jump ÷ H: 4.828 [4.614–5.051]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 16% (p 0.172)  read
+      derived at 5 Mbit/s: 0.240 [0.230–0.252]
+      derived at 50 Mbit/s: 2.243 [2.135–2.356]
+  dbts_c1 Q16 4x  ÷ H        S16|dav1d|order ÷ H: 2.769 [2.617–2.930]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.497)  read
+      derived at 5 Mbit/s: 0.123 [0.117–0.129]
+      derived at 50 Mbit/s: 1.232 [1.177–1.290]
+  dbts_c1 Q16 4x  ÷ H        S16|dav1d|jump ÷ H: 24.261 [22.862–25.746]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.573)  read
+      derived at 5 Mbit/s: 1.085 [1.036–1.135]
+      derived at 50 Mbit/s: 10.725 [10.242–11.232]
+  dbts_c1 Q16 4x  ÷ H        S16|webcodecs|order ÷ H: 0.958 [0.921–0.997]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 12% (p 0.245)  read
+      derived at 5 Mbit/s: 0.043 [0.041–0.045]
+      derived at 50 Mbit/s: 0.429 [0.411–0.447]
+  dbts_c1 Q16 4x  ÷ H        S16|webcodecs|jump ÷ H: 9.026 [8.631–9.439]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 14% (p 0.215)  read
+      derived at 5 Mbit/s: 0.437 [0.416–0.458]
+      derived at 50 Mbit/s: 4.210 [4.006–4.425]
+  dbts_c1 Q32 1x  A/A        H′ ÷ H: 0.998 [0.986–1.011]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.723)  read
+      derived at 5 Mbit/s: 1.000 [1.000–1.000]
+      derived at 50 Mbit/s: 1.000 [0.999–1.001]
+  dbts_c1 Q32 1x  D1         S1|webcodecs|order ÷ H: 1.233 [1.173–1.296]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.68)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.012 [0.012–0.013]
+      derived at 50 Mbit/s: 0.121 [0.116–0.126]
+  dbts_c1 Q32 1x  D1         S8|webcodecs|order ÷ H: 1.345 [1.274–1.420]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.953)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.013 [0.013–0.014]
+      derived at 50 Mbit/s: 0.132 [0.127–0.138]
+  dbts_c1 Q32 1x  D1         S16|webcodecs|order ÷ H: 1.282 [1.181–1.393]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.81)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.013 [0.012–0.013]
+      derived at 50 Mbit/s: 0.127 [0.122–0.132]
+  dbts_c1 Q32 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 4.779 [4.619–4.945]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.47)  read  D2 (5.0, 9.0): refuted
+      derived at 5 Mbit/s: 4.453 [4.385–4.523]
+      derived at 50 Mbit/s: 4.764 [4.689–4.841]
+  dbts_c1 Q32 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.312 [7.894–8.752]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.463)  read  D2 (5.0, 9.0): held
+      derived at 5 Mbit/s: 6.593 [6.484–6.705]
+      derived at 50 Mbit/s: 8.134 [7.996–8.276]
+  dbts_c1 Q32 1x  D3         R|12bit ÷ H: 1.577 [1.541–1.613]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.833)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 1.008 [1.007–1.008]
+      derived at 50 Mbit/s: 1.008 [1.007–1.010]
+  dbts_c1 Q32 1x  D3         R|top10 ÷ H: 1.547 [1.515–1.579]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.302)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 1.007 [1.007–1.007]
+      derived at 50 Mbit/s: 1.006 [1.004–1.007]
+  dbts_c1 Q32 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 2.617 [2.505–2.733]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.853)  read
+      derived at 5 Mbit/s: 2.464 [2.423–2.505]
+      derived at 50 Mbit/s: 2.594 [2.548–2.640]
+  dbts_c1 Q32 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.533 [4.364–4.708]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.485)  read
+      derived at 5 Mbit/s: 3.709 [3.654–3.766]
+      derived at 50 Mbit/s: 4.448 [4.378–4.520]
+  dbts_c1 Q32 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 0.492 [0.472–0.513]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.472)  read
+      derived at 5 Mbit/s: 0.504 [0.494–0.514]
+      derived at 50 Mbit/s: 0.504 [0.494–0.514]
+  dbts_c1 Q32 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 0.500 [0.484–0.517]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.677)  read
+      derived at 5 Mbit/s: 0.503 [0.489–0.517]
+      derived at 50 Mbit/s: 0.503 [0.489–0.517]
+  dbts_c1 Q32 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.096 [1.041–1.154]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 12% (p 0.23)  read
+      derived at 5 Mbit/s: 1.098 [1.077–1.119]
+      derived at 50 Mbit/s: 1.098 [1.077–1.119]
+  dbts_c1 Q32 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.043 [1.018–1.068]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 19% (p 0.02)  not read: order 19%, over 10 % and beyond its shuffles (p 0.020)
+      derived at 5 Mbit/s: 1.052 [1.030–1.074]
+      derived at 50 Mbit/s: 1.052 [1.030–1.074]
+  dbts_c1 Q32 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 3.408 [3.218–3.610]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 10% (p 0.318)  read
+      derived at 5 Mbit/s: 3.453 [3.382–3.525]
+      derived at 50 Mbit/s: 3.453 [3.382–3.525]
+  dbts_c1 Q32 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 2.740 [2.546–2.949]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.718)  read
+      derived at 5 Mbit/s: 2.303 [2.267–2.341]
+      derived at 50 Mbit/s: 2.695 [2.649–2.742]
+  dbts_c1 Q32 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.542 [1.473–1.615]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.398)  read
+      derived at 5 Mbit/s: 1.584 [1.553–1.615]
+      derived at 50 Mbit/s: 1.584 [1.553–1.615]
+  dbts_c1 Q32 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.558 [1.473–1.648]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.96)  read
+      derived at 5 Mbit/s: 1.530 [1.501–1.559]
+      derived at 50 Mbit/s: 1.572 [1.541–1.603]
+  dbts_c1 Q32 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.663 [1.552–1.782]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 14% (p 0.188)  read
+      derived at 5 Mbit/s: 1.650 [1.607–1.694]
+      derived at 50 Mbit/s: 1.650 [1.607–1.694]
+  dbts_c1 Q32 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.598 [1.493–1.709]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 15% (p 0.16)  read
+      derived at 5 Mbit/s: 1.556 [1.522–1.590]
+      derived at 50 Mbit/s: 1.579 [1.543–1.615]
+  dbts_c1 Q32 1x  ÷ H        S1|dav1d|order ÷ H: 4.271 [4.093–4.457]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.785)  read
+      derived at 5 Mbit/s: 0.042 [0.040–0.043]
+      derived at 50 Mbit/s: 0.417 [0.400–0.434]
+  dbts_c1 Q32 1x  ÷ H        S1|dav1d|jump ÷ H: 4.092 [3.853–4.347]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.615)  read
+      derived at 5 Mbit/s: 0.045 [0.043–0.046]
+      derived at 50 Mbit/s: 0.409 [0.392–0.426]
+  dbts_c1 Q32 1x  ÷ H        S1|webcodecs|order ÷ H: 1.233 [1.173–1.296]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.68)  read
+      derived at 5 Mbit/s: 0.012 [0.012–0.013]
+      derived at 50 Mbit/s: 0.121 [0.116–0.126]
+  dbts_c1 Q32 1x  ÷ H        S1|webcodecs|jump ÷ H: 1.495 [1.438–1.554]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.435)  read
+      derived at 5 Mbit/s: 0.019 [0.019–0.020]
+      derived at 50 Mbit/s: 0.152 [0.146–0.158]
+  dbts_c1 Q32 1x  ÷ H        S8|dav1d|order ÷ H: 2.098 [2.066–2.130]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.757)  read
+      derived at 5 Mbit/s: 0.021 [0.020–0.022]
+      derived at 50 Mbit/s: 0.210 [0.202–0.218]
+  dbts_c1 Q32 1x  ÷ H        S8|dav1d|jump ÷ H: 10.839 [10.457–11.234]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.61)  read
+      derived at 5 Mbit/s: 0.110 [0.106–0.114]
+      derived at 50 Mbit/s: 1.060 [1.018–1.103]
+  dbts_c1 Q32 1x  ÷ H        S8|webcodecs|order ÷ H: 1.345 [1.274–1.420]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.953)  read
+      derived at 5 Mbit/s: 0.013 [0.013–0.014]
+      derived at 50 Mbit/s: 0.132 [0.127–0.138]
+  dbts_c1 Q32 1x  ÷ H        S8|webcodecs|jump ÷ H: 6.758 [6.405–7.130]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.51)  read
+      derived at 5 Mbit/s: 0.072 [0.069–0.074]
+      derived at 50 Mbit/s: 0.674 [0.648–0.702]
+  dbts_c1 Q32 1x  ÷ H        S16|dav1d|order ÷ H: 2.109 [2.078–2.140]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.575)  read
+      derived at 5 Mbit/s: 0.021 [0.020–0.022]
+      derived at 50 Mbit/s: 0.210 [0.200–0.219]
+  dbts_c1 Q32 1x  ÷ H        S16|dav1d|jump ÷ H: 19.777 [18.502–21.140]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.53)  read
+      derived at 5 Mbit/s: 0.198 [0.190–0.207]
+      derived at 50 Mbit/s: 1.947 [1.866–2.031]
+  dbts_c1 Q32 1x  ÷ H        S16|webcodecs|order ÷ H: 1.282 [1.181–1.393]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.81)  read
+      derived at 5 Mbit/s: 0.013 [0.012–0.013]
+      derived at 50 Mbit/s: 0.127 [0.122–0.132]
+  dbts_c1 Q32 1x  ÷ H        S16|webcodecs|jump ÷ H: 12.307 [11.577–13.084]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.547)  read
+      derived at 5 Mbit/s: 0.127 [0.123–0.132]
+      derived at 50 Mbit/s: 1.233 [1.185–1.284]
+  dbts_c1 Q8 1x  A/A        H′ ÷ H: 0.990 [0.968–1.013]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.98)  read
+      derived at 5 Mbit/s: 1.000 [1.000–1.000]
+      derived at 50 Mbit/s: 1.000 [0.999–1.001]
+  dbts_c1 Q8 1x  D1         S1|webcodecs|order ÷ H: 2.040 [1.974–2.108]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 3% (p 0.998)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.089 [0.089–0.089]
+      derived at 50 Mbit/s: 0.201 [0.193–0.208]
+  dbts_c1 Q8 1x  D1         S8|webcodecs|order ÷ H: 2.235 [2.183–2.289]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 3% (p 0.995)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.088 [0.088–0.088]
+      derived at 50 Mbit/s: 0.220 [0.212–0.228]
+  dbts_c1 Q8 1x  D1         S16|webcodecs|order ÷ H: 2.214 [2.170–2.259]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.87)  read  D1 (0.0, 1.0): refuted
+      derived at 5 Mbit/s: 0.088 [0.088–0.088]
+      derived at 50 Mbit/s: 0.217 [0.209–0.225]
+  dbts_c1 Q8 1x  D2         S16|dav1d|jump ÷ S1|dav1d|jump: 10.091 [9.922–10.263]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.815)  read  D2 (5.0, 9.0): refuted
+      derived at 5 Mbit/s: 6.861 [6.804–6.917]
+      derived at 50 Mbit/s: 7.739 [7.621–7.858]
+  dbts_c1 Q8 1x  D2         S16|webcodecs|jump ÷ S1|webcodecs|jump: 8.820 [8.682–8.961]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.18)  read  D2 (5.0, 9.0): held
+      derived at 5 Mbit/s: 6.983 [6.934–7.033]
+      derived at 50 Mbit/s: 6.505 [6.415–6.597]
+  dbts_c1 Q8 1x  D3         R|12bit ÷ H: 1.532 [1.505–1.559]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.905)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 0.923 [0.923–0.924]
+      derived at 50 Mbit/s: 0.924 [0.923–0.926]
+  dbts_c1 Q8 1x  D3         R|top10 ÷ H: 1.520 [1.489–1.551]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.825)  read  D3 (0.9, 1.1): refuted
+      derived at 5 Mbit/s: 0.930 [0.930–0.931]
+      derived at 50 Mbit/s: 0.931 [0.929–0.932]
+  dbts_c1 Q8 1x  jump G     S8|dav1d|jump ÷ S1|dav1d|jump: 5.097 [4.972–5.224]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.5)  read
+      derived at 5 Mbit/s: 3.739 [3.712–3.766]
+      derived at 50 Mbit/s: 4.046 [3.988–4.104]
+  dbts_c1 Q8 1x  jump G     S8|webcodecs|jump ÷ S1|webcodecs|jump: 4.690 [4.513–4.874]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.318)  read
+      derived at 5 Mbit/s: 3.785 [3.762–3.808]
+      derived at 50 Mbit/s: 3.602 [3.546–3.658]
+  dbts_c1 Q8 1x  in order G S8|dav1d|order ÷ S1|dav1d|order: 1.164 [1.133–1.195]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.96)  read
+      derived at 5 Mbit/s: 0.994 [0.992–0.997]
+      derived at 50 Mbit/s: 1.170 [1.153–1.188]
+  dbts_c1 Q8 1x  in order G S16|dav1d|order ÷ S1|dav1d|order: 1.152 [1.121–1.183]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.605)  read
+      derived at 5 Mbit/s: 0.988 [0.986–0.990]
+      derived at 50 Mbit/s: 1.153 [1.134–1.173]
+  dbts_c1 Q8 1x  in order G S8|webcodecs|order ÷ S1|webcodecs|order: 1.093 [1.078–1.108]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.907)  read
+      derived at 5 Mbit/s: 0.988 [0.986–0.990]
+      derived at 50 Mbit/s: 1.096 [1.082–1.109]
+  dbts_c1 Q8 1x  in order G S16|webcodecs|order ÷ S1|webcodecs|order: 1.081 [1.067–1.097]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.608)  read
+      derived at 5 Mbit/s: 0.988 [0.987–0.990]
+      derived at 50 Mbit/s: 1.081 [1.069–1.094]
+  dbts_c1 Q8 1x  decoder    S1|dav1d|order ÷ S1|webcodecs|order: 1.334 [1.254–1.418]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.828)  read
+      derived at 5 Mbit/s: 1.068 [1.066–1.070]
+      derived at 50 Mbit/s: 1.345 [1.321–1.369]
+  dbts_c1 Q8 1x  decoder    S1|dav1d|jump ÷ S1|webcodecs|jump: 1.245 [1.178–1.314]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 9% (p 0.395)  read
+      derived at 5 Mbit/s: 1.102 [1.097–1.108]
+      derived at 50 Mbit/s: 1.192 [1.173–1.211]
+  dbts_c1 Q8 1x  decoder    S8|dav1d|order ÷ S8|webcodecs|order: 1.432 [1.342–1.528]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.95)  read
+      derived at 5 Mbit/s: 1.075 [1.073–1.077]
+      derived at 50 Mbit/s: 1.436 [1.408–1.465]
+  dbts_c1 Q8 1x  decoder    S8|dav1d|jump ÷ S8|webcodecs|jump: 1.366 [1.296–1.441]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.843)  read
+      derived at 5 Mbit/s: 1.089 [1.088–1.090]
+      derived at 50 Mbit/s: 1.339 [1.317–1.361]
+  dbts_c1 Q8 1x  decoder    S16|dav1d|order ÷ S16|webcodecs|order: 1.426 [1.364–1.491]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.927)  read
+      derived at 5 Mbit/s: 1.068 [1.066–1.070]
+      derived at 50 Mbit/s: 1.434 [1.408–1.461]
+  dbts_c1 Q8 1x  decoder    S16|dav1d|jump ÷ S16|webcodecs|jump: 1.434 [1.362–1.511]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.385)  read
+      derived at 5 Mbit/s: 1.083 [1.082–1.084]
+      derived at 50 Mbit/s: 1.418 [1.397–1.440]
+  dbts_c1 Q8 1x  ÷ H        S1|dav1d|order ÷ H: 2.752 [2.590–2.924]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.912)  read
+      derived at 5 Mbit/s: 0.095 [0.095–0.095]
+      derived at 50 Mbit/s: 0.270 [0.260–0.280]
+  dbts_c1 Q8 1x  ÷ H        S1|dav1d|jump ÷ H: 2.790 [2.680–2.905]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 11% (p 0.175)  read
+      derived at 5 Mbit/s: 0.124 [0.123–0.125]
+      derived at 50 Mbit/s: 0.377 [0.365–0.389]
+  dbts_c1 Q8 1x  ÷ H        S1|webcodecs|order ÷ H: 2.040 [1.974–2.108]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 3% (p 0.998)  read
+      derived at 5 Mbit/s: 0.089 [0.089–0.089]
+      derived at 50 Mbit/s: 0.201 [0.193–0.208]
+  dbts_c1 Q8 1x  ÷ H        S1|webcodecs|jump ÷ H: 2.251 [2.213–2.291]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 8% (p 0.302)  read
+      derived at 5 Mbit/s: 0.112 [0.111–0.113]
+      derived at 50 Mbit/s: 0.316 [0.307–0.325]
+  dbts_c1 Q8 1x  ÷ H        S8|dav1d|order ÷ H: 3.178 [3.039–3.323]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.915)  read
+      derived at 5 Mbit/s: 0.095 [0.094–0.095]
+      derived at 50 Mbit/s: 0.316 [0.303–0.329]
+  dbts_c1 Q8 1x  ÷ H        S8|dav1d|jump ÷ H: 14.309 [13.680–14.967]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.75)  read
+      derived at 5 Mbit/s: 0.463 [0.461–0.464]
+      derived at 50 Mbit/s: 1.524 [1.469–1.581]
+  dbts_c1 Q8 1x  ÷ H        S8|webcodecs|order ÷ H: 2.235 [2.183–2.289]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 3% (p 0.995)  read
+      derived at 5 Mbit/s: 0.088 [0.088–0.088]
+      derived at 50 Mbit/s: 0.220 [0.212–0.228]
+  dbts_c1 Q8 1x  ÷ H        S8|webcodecs|jump ÷ H: 10.640 [10.369–10.917]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 5% (p 0.738)  read
+      derived at 5 Mbit/s: 0.425 [0.424–0.426]
+      derived at 50 Mbit/s: 1.138 [1.098–1.180]
+  dbts_c1 Q8 1x  ÷ H        S16|dav1d|order ÷ H: 3.147 [3.004–3.296]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.963)  read
+      derived at 5 Mbit/s: 0.094 [0.094–0.094]
+      derived at 50 Mbit/s: 0.311 [0.299–0.324]
+  dbts_c1 Q8 1x  ÷ H        S16|dav1d|jump ÷ H: 28.463 [27.375–29.594]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 6% (p 0.82)  read
+      derived at 5 Mbit/s: 0.849 [0.847–0.850]
+      derived at 50 Mbit/s: 2.915 [2.805–3.030]
+  dbts_c1 Q8 1x  ÷ H        S16|webcodecs|order ÷ H: 2.214 [2.170–2.259]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 4% (p 0.87)  read
+      derived at 5 Mbit/s: 0.088 [0.088–0.088]
+      derived at 50 Mbit/s: 0.217 [0.209–0.225]
+  dbts_c1 Q8 1x  ÷ H        S16|webcodecs|jump ÷ H: 19.830 [19.211–20.469]  blocks 6 n [15, 24, 22, 13, 11, 23]  order 7% (p 0.325)  read
+      derived at 5 Mbit/s: 0.784 [0.783–0.784]
+      derived at 50 Mbit/s: 2.055 [1.985–2.129]
+
+D1–D3, pooled over the kept blocks (held: the 95 % interval inside the band in every cell; refuted: outside it in one)
+  D1 band (0.0, 1.0): refuted
+  D2 band (5.0, 9.0): refuted
+  D3 band (0.9, 1.1): refuted

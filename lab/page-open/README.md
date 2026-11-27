@@ -18,7 +18,8 @@ HOST=h2 NODE_PATH=$(npm root -g) node lab/page-open/run.mjs 3   # nginx over TLS
 `run.mjs` takes `RTTS=` (default `0,40,80`), `STAGES=` (the first-byte ladder's rungs in place of
 the default variants, cold only), `THROTTLE=N` (every browser thread N× slower,
 [`../scripts/cpu_throttle.mjs`](../scripts/cpu_throttle.mjs)), `RELAY_ARGS=` (shapes each relay
-beyond its delay), `ONLY=`, `SERVERS=`, `NETLOG=`, `ROWS=` and `PORT_BASE=`. `HOST=dns` runs as root.
+beyond its delay), `ONLY=`, `SERVERS=`, `NETLOG=`, `ROWS=`, `PORT_BASE=`, `OWN_HOST=` and `RELAY_CPU=` (§The page
+without the transport file). `HOST=dns` runs as root.
 
 A HOST run trusts its certificate through an NSS store of the browser's own (`certutil`, from
 libnss3-tools), not `--ignore-certificate-errors`. Chrome caches nothing whose certificate had
@@ -456,9 +457,88 @@ while the first frame does; a WebCodecs payload that probes exact never uses it 
 Config and session are unmoved at every delay. A variant that initialised dav1d at start
 (`-init`, `151c1d9`) saved less — 10.56 round trips over 0–100 ms on the dav1d path against
 `-after`'s 8.28, 1.29 against 1.55 through WebCodecs — and cost the same at 0 ms; it was replaced.
-**Not built:** a depth hint in the decoder config that would skip dav1d's WASM on a ≤ 10-bit series;
+**Not built** (*the depth hint was built since: §A depth hint below*): a depth hint in the decoder config that would skip dav1d's WASM on a ≤ 10-bit series;
 one bundle per worker, which the `-pre` preloads make unnecessary here (every hop already starts at
 the HTML). **Not measured:** a large first frame, 4× CPU, HTTP/3, a real phone.
+
+### A depth hint
+
+**COLDRTT's hint, 2026-10-28.** *Protocol, predictions and rule committed before any timed run.* The cost is
+still there on `claude/av1-unified-mainbase` (`ea581ac`): `client/viewer/head.js` preloads `dav1d.js` and
+`dav1d.wasm` for every AV1 series and `av1.js`'s `init` fetches them again, whatever the depth; open PRs #136
+(transport) and #138 (decode order) do not touch either line.
+
+**The hint.** The series' metadata (`/series/metadata`, which the page already fetches before the decoders
+start, so no round trip) carries `depth`, the payload header's depth of the top stream, written by
+`ingest.py`'s `metadata`. At `depth` ≤ 10 the page and each decoder run WebCodecs' probe of `g{depth}` first
+and preload or fetch dav1d's glue and WASM only if it fails; a payload WebCodecs then fails on still loads
+dav1d on demand. A series without `depth` (every one ingested before) loads both as today.
+
+**Arms.** [`codec.html`](codec.html) `?pre=1` is the product page's preloads (`head.js`); `?hint=1` adds the
+hint. `wc-pre` (A, hint off), `wc-pre2` (A′, the same page again) and `wc-hint` (B), the g10 series (10-bit
+grey, WebCodecs on Chromium), Williams-ordered in each round, 8 rounds, at 10 and then 40 ms, cold profile
+(a fresh one a visit) and warm, headless Chromium, 100 Mbit relay, the dav1d build `client/decode/wasm/build`
+makes, every frame 0 checked against the source's checksum:
+
+```bash
+BEFORE=aeb038e ONLY=wc-pre,wc-pre2,wc-hint RTTS=10,40 ROWS=hint.json NODE_PATH=$(npm root -g) \
+  node lab/page-open/coldrtt.mjs /tmp/coldrtt 8
+# then FIRST_ROUND=8 PRIOR=hint.json ROWS=hint2.json …, 8 more, until every cell keeps ≥ 7 rounds
+```
+
+Each visit records whether `dav1d.wasm` was asked for (the page's or a decoder's request): every A and A′
+visit must ask, no B visit may.
+
+**What is quoted: latency** — ms from navigation to the first exact frame, cold, as the paired B − A and
+A′ − A per round, median, and the rounds B was earlier in.
+
+**Predictions.** At 10 ms B − A is −15 to −40 ms (row 79's +26 ms was this WASM beside the frame) and B is
+earlier in ≥ 6 of 8 rounds; at 40 ms −10 to −60 ms (more of the WASM's slow start overlaps the frame);
+warm a tie (the cache holds the WASM); the session and config unmoved.
+
+**The rule.** A cell is `VOID` — decides nothing — when |median A′ − A| > 10 ms or fewer than 7 rounds kept
+after the relay's `VOID`s. Otherwise B **wins** a cell when the median B − A < −10 ms and B is earlier in
+≥ 80 % of the rounds kept, **loses** with the same thresholds the other way, and **ties** otherwise. The hint
+goes on by default only if it wins at least one cold cell and loses none, and the fallback test (below)
+passes with its mutations caught; otherwise it stays behind the metadata key's absence, as a flag.
+
+**The fallback.** `av1.test.mjs`: a ≤ 10-bit series whose probe fails fetches the WASM at `init` and
+decodes through dav1d; one whose probe passes never fetches it.
+
+**Where the host saturates.** Not measured here past one visit at a time on one 4-core container; the relay
+voids a visit it was late for. Nothing is claimed for Firefox (its probe of `g10` and `g8` fails, so it
+loads the WASM as today, a probe later — not timed), a large first frame, 4× CPU or a device.
+
+**Run 2026-10-28, `34417ca` + the rig's `7f4a749`**, headless Chromium 153, 16 rounds (8, then the 8 the rule's
+top-up asks for: the 10 ms cell had kept 6), 7 of 96 relays `VOID` and dropped, 0 failed, every frame 0 exact;
+`dav1d.wasm` asked in every A and A′ visit (58 cold, 58 warm) and in none of B's (31, 31). The frames are the golden g10
+payload and its `.sha256` copied as `coldrtt_frames.py` copies them (its HTJ2K half needs an encoder this
+container lacks; no HTJ2K arm ran). Rows: [`rows-coldrtt-hint.json`](rows-coldrtt-hint.json). Cold, ms to
+the first exact frame, median [range], and paired against A: rounds earlier / paired, median difference —
+
+| RTT | A `wc-pre` | A′ − A | B `wc-hint` | B − A | cell |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 10 ms | 262 [220–305] | 4/12, +4 | 225 [188–256] | 13/13, **−41** | B wins |
+| 40 ms | 417 [393–448] | 6/14, +8 | 393 [382–419] | 12/14, **−24** | B wins |
+
+Warm, B − A −10.4 (12/13) at 10 ms and −7 (9/14) at 40, A′ − A +5 and +3: by the rule's thresholds a B win at
+10 ms and a tie at 40 (*corrected:* first written as two ties; −10.4 is past the −10 threshold). The spread, cold:
+per round A′ − A runs −22 to +39 ms at 10 and −40 to +26 at 40 (SD ≈ 20); a bootstrap 95 % interval of the median
+B − A is −48 to −25 ms at 10 and −35 to −3 at 40; B − A′ is −44 (15/15) and −15 (13/14). The 40 ms win holds, its
+size is loose.
+
+**Verdict: the hint wins both cold cells and loses none, so it is on by default** — ingest writes `depth`,
+the viewer passes it, a series ingested before keeps today's loads. The predictions: 40 ms inside its
+−10 to −60; 10 ms just past its −15 to −40; warm a tie at 40 ms, and at 10 ms a win the prediction missed. The fallback test holds with 4/4
+mutations caught (the fetch on a failed probe dropped, the hint ignored, the fetch made on a pass, the probe
+of the wrong layout). After the first 8 rounds the 10 ms cell was `VOID` (A′ − A +23, 6 kept) and the 40 ms
+one already won (−26, 6/7); the top-up is the rule's, not a second look chosen after the fact. **Not
+measured:** Firefox, a series whose probe fails (dav1d then loads as before the hint, a probe later), the
+product page itself (`codec.html` mirrors `head.js`'s preloads), HTTP/3, 4× CPU, a device, and a series whose
+first layout is not `g{depth}` — the hint probes `g10` for an RCT colour series' `c10` and `g8` for a 4:2:0 grey's
+`g8f`, and not a split's low `g8`: a wrong guess changes only whether the WASM is fetched ahead, never the decoder.
+*The hint's product code (`av1.js`, `head.js`, `viewer.js`, `ingest.py`) stays on `claude/coldrtt-hint` (PR 208): the
+owner's decision in `docs/av1/queue.md` row 79 is open, so the unified client does not carry it (MERGE-A-CLIENT).*
 
 ## The WASM client's load
 
@@ -539,7 +619,8 @@ client costs a cold open 5.9 round trips to the first frame at 1× and 5.7 at 4�
 adapter, glue and `.wasm` are found one after another in the worker, and 247 KB leave in slow start. Warm, it costs
 no round trip, +15 to +119 ms. The preloaded page shows what is left once the fetches start at the HTML: no round
 trip, a fixed 20–160 ms. Row 277's selection (draft #98) preloads the WASM client once the transport file lands,
-about 4 round trips into the page rather than at the HTML: not measured, and between the two. The TS default keeps
+about 4 round trips into the page rather than at the HTML: not measured, and between the two. (*Corrected 2026-10-19:* the
+page's HTML preloads it now, as the preloaded page above does.) The TS default keeps
 the HTML's preload (*corrected 2026-10-17*: #99 had moved it after the transport file too; the owner ruled it back).
 
 **`console_error` stays.** Without it the `.wasm` is 244 662 B against 247 214 (105 209 against 106 296 with
@@ -547,6 +628,73 @@ the HTML's preload (*corrected 2026-10-17*: #99 had moved it after the transport
 [1.48–4.50] with it and 1.77 [1.44–6.01] without, faster in 20 of 30 rounds: 3 %. Node's V8 compiles the functions
 lazily, so that is the decode and validation; the functions' compile on first call is inside the fixed cost above.
 **Not measured:** the linear memory's peak; the image (gzip, HTTP/2); #98's WASM preload.
+
+## The page without the transport file
+
+**2026-10-19, [`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §A page with nothing to follow.** *Protocol
+and rule committed before any timed run.* A deployment whose certificate the browser trusts now serves a page that
+dials its own host and reads no transport file. The claim to test: **that page opens no slower than the one reading
+the file** — the file was preloaded beside the metadata, so in theory it cost no round trip.
+
+**The page open.** `OWN_HOST=1` swaps `run.mjs`'s variants for two renderings of the product page, TS, written by
+`client/viewer/page.sh` into this directory for the run and removed after it, an hour old as every file a visit
+fetches:
+
+* `viewer-file` — `--transport-file /wt/dev-transport.json`: the file preloaded and read, its hash pinned;
+* `viewer-own-host` — `--wt-port` the relay's port: `https://127.0.0.1:PORT/`, nothing pinned, nothing read.
+
+Both are opened with the lab hook's `?opts={}&post=…&origin=navigation`, so both pay the import of
+`lab/viewer/levers.js`, and under the same browser flags: the server's certificate trusted by its key and QUIC forced
+to the relay's origin, so the file's page dials by its pin and the other's by that trust. A visit fails if
+`viewer-own-host` asks for the file or `viewer-file` does not.
+
+```bash
+OWN_HOST=1 RELAY_ARGS="--rate-kbit 100000 --queue-pkts 1000" RTTS=40,80,160 ROWS=own.json \
+  NODE_PATH=$(npm root -g) taskset -c 0-2 node lab/page-open/run.mjs 12
+```
+
+12 rounds, the two variants Williams-ordered in each, cold and warm profile, 1× only. The dev host: HTTP/1.1,
+plaintext, no gzip. 100 Mbit, as WASMLOAD ran. Off core 3.
+
+**What is quoted: latency.** `frame` is ms from navigation to frame 0 in the page and `fill` to the last of the 12,
+each as the slope over 40/80/160 ms (round trips) and as the paired own-host − file at each delay.
+
+**The rule** (WASMLOAD's). On `frame` and on `fill`, per profile, the page without the file **costs round trips**
+when its slope exceeds the file's by 0.5 or more, and **costs a fixed time** when its paired difference at 40 ms has
+one sign in at least 80 % of the rounds kept and at least 8 of them; the same thresholds the other way are a
+**saving**; otherwise it **ties**. The claim holds where neither cost is found.
+
+**Where the host saturates.** A relay that could not keep time voids its visit (§6 of
+[`../../docs/rig-limits.md`](../../docs/rig-limits.md)); the void count is reported and nothing is claimed for a cell
+left with fewer than 8 paired rounds. Nothing is claimed for a link faster than 100 Mbit, a delay under 40 ms, gzip,
+HTTP/2, the image, a device, or a CA-issued certificate, whose chain the browser verifies where this rig's trust by
+key does not.
+
+**Run 1, 2026-10-19, `cf75ba64`**, 16:54–17:01 UTC, a 4-core cloud container, nothing else running. **The host
+saturated: 45 of 72 visits' relays `VOID`** (16, 12 and 17 of 24 at 40, 80 and 160 ms), so 2, 3 and 0 rounds are
+paired and **the rule claims nothing**. 0 failed; all 144 visits bit-exact, every frame. Outside the rule, from the
+medians of the visits kept: cold, `frame` 17.08 round trips with the file and 16.95 without, `fill` 19.25 and 19.68;
+warm, `frame` 10.71 and 9.95, `fill` 13.71 and 12.55; the file itself landed 3.9 round trips in, cold and warm.
+
+**Run 2, registered after run 1 and before it ran.** The same, with `RELAY_CPU=3`: each relay alone on core 3, which
+the browser, the server and the static host (`taskset -c 0-2`) never take, so the decoders cannot preempt it. Same
+rule, same thresholds.
+
+```bash
+OWN_HOST=1 RELAY_CPU=3 RELAY_ARGS="--rate-kbit 100000 --queue-pkts 1000" RTTS=40,80,160 ROWS=own2.json \
+  NODE_PATH=$(npm root -g) taskset -c 0-2 node lab/page-open/run.mjs 12
+```
+
+**Run 2, 2026-10-19, `3522788e`**, 17:02–17:09 UTC, the same container. **Saturated again: 39 of 72 visits `VOID`**
+(8, 16 and 15 of 24), the relay late on a core nothing else ran on, so the lateness is this host's, not the page's
+threads'. 4, 0 and 1 rounds paired: **the rule claims nothing.** 0 failed; all 144 visits bit-exact. Outside the rule:
+cold, `frame` 17.07 round trips with the file and 17.26 without, `fill` 19.85 and 19.93; warm, `frame` 11.09 and
+9.89, `fill` 13.75 and 12.55.
+
+**Verdict: not measured.** On this host the relay keeps time in about four visits of ten at any delay, and the claim
+rests on none of them. What the kept visits show, below the rule, is no cold difference past 0.43 round trips either
+way in two runs, and a warm page without the file earlier by 0.8–1.2 round trips to its first frame in both,
+unconfirmed and not explained here. The protocol stands for a host whose relay keeps time.
 
 ## What this rig does not decide
 

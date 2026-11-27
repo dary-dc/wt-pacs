@@ -76,7 +76,8 @@ def leb128(buf, pos):
             return v, k
 
 
-def drop_top(src, dst):
+def drop_top(src, dst, above=0):
+    """The unit without the OBUs of spatial layers above `above`."""
     buf, pos, kept = Path(src).read_bytes(), 0, b""
     while pos < len(buf):
         head = buf[pos]
@@ -84,10 +85,10 @@ def drop_top(src, dst):
         assert head >> 1 & 1, "an OBU without a size field"
         size, k = leb128(buf, pos + 1 + ext)
         end = pos + 1 + ext + k + size
-        if not (ext and buf[pos + 1] >> 3 & 3):
+        if not (ext and buf[pos + 1] >> 3 & 3 > above):
             kept += buf[pos:end]
         pos = end
-    assert len(kept) < len(buf), "no OBU above spatial layer 0"
+    assert len(kept) < len(buf), f"no OBU above spatial layer {above}"
     Path(dst).write_bytes(kept)
 
 

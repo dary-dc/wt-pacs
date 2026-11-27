@@ -10,7 +10,8 @@ pub enum StreamMode {
     Shared,
     /// Independent delivery per frame; allows `set_priority` and `reset`.
     PerFrame,
-    /// Lab only: per-frame, every ask's stream ranked above every fill stream. `docs/native/quic-compared.md` §9.5.
+    /// Lab only, a `lab-levers` build's: per-frame, every ask's stream ranked above every fill stream. `docs/native/quic-compared.md` §9.5.
+    #[cfg(feature = "lab-levers")]
     PerFrameAsksFirst,
 }
 
@@ -27,7 +28,8 @@ mod tests {
     /// Every spelling the CLI and the lab scripts pass round-trips through its own label.
     #[test]
     fn every_mode_round_trips_through_its_label() {
-        for s in ["shared", "per-frame", "per-frame-asks-first"] {
+        let lab = if cfg!(feature = "lab-levers") { &["per-frame-asks-first"][..] } else { &[] };
+        for &s in ["shared", "per-frame"].iter().chain(lab) {
             let mode = StreamMode::from_str(s, false).expect("parses");
             assert_eq!(mode.to_string(), s, "`{s}` did not round-trip");
         }

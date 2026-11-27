@@ -1,0 +1,5 @@
+# pip install --require-hashes -r lab/metadata-store/sync/requirements.txt — §Repetition's pins, and xxhash for XXH3-64
+-r ../repetition/requirements.txt
+xxhash==3.6.0 \
+    --hash=sha256:297b7fbf86c82c550e12e8fb71968b3f033d27b874276ba3624ea868c11165a8 \
+    --hash=sha256:f0162a78b13a0d7617b2845b90c763339d1f1d82bb04a4b07f4ab535cc5e05d6

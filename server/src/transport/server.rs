@@ -2,28 +2,27 @@
 //! `docs/adr/reject-server-ordering.md`. Per-frame work is [`pipeline::FramePipeline`].
 
 use crate::media::frame_store::FrameStore;
+use crate::media::series_tree::{SeriesRefusal, SeriesName, SeriesTree};
 use crate::media::read_path::ReadMode;
-use crate::transport::link::{ControlStream, Link};
+use crate::transport::link::{ControlStream, Link, QuicSend, QuicSession};
 use crate::transport::pipeline::{FramePipeline, ProductPipeline};
 use crate::transport::planner::{fill_range, frame_in_range, Command, Planner, Step, ASKS_AHEAD};
 use crate::transport::stream_mode::StreamMode;
 use crate::transport::tuning::TransportTuning;
 use crate::transport::{banner, websocket};
-use crate::transport::wire::read_fod_msg;
+use crate::transport::wire::{read_fod_msg, QuicStream};
 use anyhow::{Context, Result};
 use fod::FodMsg;
 use std::future::Future;
 use std::ops::ControlFlow;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
-use wtransport::config::IpBindConfig;
-use wtransport::endpoint::endpoint_side;
-use wtransport::stream::RecvStream;
-use wtransport::{Endpoint, Identity, ServerConfig, VarInt};
+use wtransport::endpoint::IncomingSessionFuture;
+use wtransport::{quinn, Identity, VarInt};
 
 #[cfg(feature = "lab-levers")]
 use crate::transport::lab_levers::{self, LabLevers};
@@ -36,13 +35,17 @@ use crate::transport::pipeline::RecordedPipeline;
 pub struct ServeConfig {
     #[arg(long = "port", value_name = "PORT", default_value = "4433")]
     pub wt_port: u16,
-    #[arg(long = "series", value_name = "SERIES")]
-    pub series_path: PathBuf,
+    /// One series for every session, the URL's path not read; or `--root`.
+    #[arg(long = "series", value_name = "SERIES", required_unless_present = "root", conflicts_with = "root")]
+    pub series_path: Option<PathBuf>,
+    /// Many series, each session's named by its URL, `/<Study>/<Series>`. docs/WIRE.md §Naming the series
+    #[arg(long, value_name = "DIR")]
+    pub root: Option<PathBuf>,
     #[arg(long, default_value = "server/dev-cert/cert.pem")]
     pub cert_pem: PathBuf,
     #[arg(long, default_value = "server/dev-cert/key.pem")]
     pub key_pem: PathBuf,
-    /// How frames reach the client: `shared` or `per-frame` (lab only: `per-frame-asks-first`).
+    /// How frames reach the client: `shared` or `per-frame`; a `lab-levers` build adds a third, `transport/stream_mode.rs`.
     #[arg(long = "stream-mode", value_name = "STREAM_MODE", value_enum, default_value_t = StreamMode::Shared)]
     pub mode: StreamMode,
     /// Bind address for the QUIC endpoint. Default: dual-stack `[::]`, falling back to `0.0.0.0`
@@ -54,10 +57,6 @@ pub struct ServeConfig {
     /// Honour `?ask=frame:N` / `?ask=fill:A-B` in the session URL; `--opening-ask false` turns it off. docs/ARCHITECTURE.md
     #[arg(long, default_value_t = true, num_args = 0..=1, default_missing_value = "true", action = clap::ArgAction::Set)]
     pub opening_ask: bool,
-    /// Lab only: before each frame, the send window is the congestion window plus two of the series' largest frames.
-    /// docs/transport/link-conditions.md §ASKAHEAD
-    #[arg(long, default_value_t = false)]
-    pub send_window_follows_cwnd: bool,
     /// Also serve the same envelopes over a WebSocket, TCP on `--port`. docs/WIRE.md §The WebSocket mapping
     #[arg(long, default_value_t = false)]
     pub websocket: bool,
@@ -68,6 +67,9 @@ pub struct ServeConfig {
 
 /// `H3_NO_ERROR`, HTTP/3's code for a graceful close.
 const STOPPING: VarInt = VarInt::from_u32(0x100);
+
+/// The native client's ALPN, offered beside WebTransport's `h3`. `docs/WIRE.md` §The raw QUIC mapping.
+pub const NATIVE_ALPN: &[u8] = b"wt-pacs/1";
 
 /// Serves until `stop`, then closes every session with `STOPPING` and waits up to 250 ms for them. deploy/README.md
 pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> Result<()> {
@@ -85,20 +87,25 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
         None
     };
 
-    let store = FrameStore::open(&config.series_path).context("open series")?;
-    #[cfg(feature = "lab-levers")]
-    let store = config.lab.forcing_misses(store);
-    let store = Arc::new(store);
+    let series = match (&config.series_path, &config.root) {
+        (Some(path), _) => {
+            let store = FrameStore::open(path).context("open series")?;
+            #[cfg(feature = "lab-levers")]
+            let store = config.lab.forcing_misses(store);
+            #[cfg(feature = "telemetry")]
+            crate::record::set_run_meta(crate::record::RunMeta {
+                stream_mode: config.mode.to_string(),
+                series: path.display().to_string(),
+                series_frames: store.frame_count(),
+            });
+            Series::One(Arc::new(store))
+        }
+        (None, Some(root)) => Series::Tree(Arc::new(SeriesTree::new(root.clone()))),
+        (None, None) => anyhow::bail!("--series or --root"),
+    };
 
-    #[cfg(feature = "telemetry")]
-    crate::record::set_run_meta(crate::record::RunMeta {
-        stream_mode: config.mode.to_string(),
-        series: config.series_path.display().to_string(),
-        series_frames: store.frame_count(),
-    });
-
-    banner::print(&config, &store, &bound, &cert_sha256);
-    let sessions = Sessions::new(&config, store);
+    banner::print(&config, &series, &bound, &cert_sha256);
+    let sessions = Sessions::new(&config, series);
     if let Some((listener, tls)) = websocket {
         tokio::spawn(websocket::serve(listener, tls, sessions.clone()));
     }
@@ -107,7 +114,7 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
     let mut stop = std::pin::pin!(stop);
     loop {
         let incoming = tokio::select! {
-            incoming = endpoint.accept() => incoming,
+            incoming = endpoint.accept() => incoming.context("the QUIC endpoint stopped")?,
             () = &mut stop => break,
         };
         let sessions = sessions.clone();
@@ -121,56 +128,75 @@ pub async fn run_server(config: ServeConfig, stop: impl Future<Output = ()>) -> 
             }
         });
     }
-    endpoint.close(STOPPING, b"server stopping");
+    endpoint.close(STOPPING.into_inner().try_into()?, b"server stopping");
     let _ = tokio::time::timeout(Duration::from_millis(250), endpoint.wait_idle()).await;
     Ok(())
+}
+
+/// `--series`: one store for every session. `--root`: the store each session's URL names.
+#[derive(Clone)]
+pub(super) enum Series {
+    One(Arc<FrameStore>),
+    Tree(Arc<SeriesTree>),
 }
 
 /// What every session is served with, fixed at start.
 #[derive(Clone)]
 pub(super) struct Sessions {
-    pub(super) store: Arc<FrameStore>,
+    pub(super) series: Series,
     read_mode: ReadMode,
     mode: StreamMode,
     pub(super) opening_ask: bool,
-    stall: Option<u64>,
-    cwnd_ahead: Option<u64>,
+    // Lab levers, all off unless `lab_levers.rs` sets them.
+    pub(super) advise_tile_names: bool,
+    pub(super) stall: Option<u64>,
+    pub(super) cwnd_ahead: Option<u64>,
+    pub(super) fill_resumes: bool,
+    pub(super) ask_stream: Option<i32>,
     #[cfg(feature = "telemetry")]
     taps: Arc<dyn Fn() -> Option<Tap> + Send + Sync>,
 }
 
 impl Sessions {
-    /// Warns for each lab lever that is on, so a lab flag is never mistaken for a deployment.
-    fn new(config: &ServeConfig, store: Arc<FrameStore>) -> Self {
-        let cwnd_ahead = config.send_window_follows_cwnd.then(|| {
-            let largest = (0..store.frame_count()).map(|i| store.frame_span(i).len).max().unwrap_or(0);
-            2 * u64::from(largest)
-        });
-        if let Some(bytes) = cwnd_ahead {
-            warn!(bytes, "--send-window-follows-cwnd: the send window is cwnd + this; a lab flag, not a deployment one");
-        }
+    fn new(config: &ServeConfig, series: Series) -> Self {
         let read_mode = ReadMode::parse(std::env::var("WTPACS_READ_PATH").ok().as_deref())
             .unwrap_or_else(|err| {
                 warn!("{err}; using auto");
                 ReadMode::Auto
             });
-        Sessions {
-            store,
+        let sessions = Sessions {
+            series,
             read_mode,
             mode: config.mode,
             opening_ask: config.opening_ask,
-            #[cfg(feature = "lab-levers")]
-            stall: config.lab.stall_after_bytes,
-            #[cfg(not(feature = "lab-levers"))]
+            advise_tile_names: false,
             stall: None,
-            cwnd_ahead,
+            cwnd_ahead: None,
+            fill_resumes: false,
+            ask_stream: None,
             #[cfg(feature = "telemetry")]
             taps: Arc::new(Tap::for_session),
-        }
+        };
+        #[cfg(feature = "lab-levers")]
+        let sessions = config.lab.onto(sessions);
+        sessions
     }
 
-    pub(super) fn pipeline(&self, link: Link) -> ProductPipeline {
-        ProductPipeline::new(Arc::clone(&self.store), link, self.read_mode)
+    pub(super) fn pipeline(&self, store: Arc<FrameStore>, link: Link) -> ProductPipeline {
+        ProductPipeline::new(store, link, self.read_mode, self.advise_tile_names)
+    }
+
+    /// The store a session dialled at `url` (path and query) reads; under `--series` the path is not read.
+    pub(super) async fn store_for(&self, url: &str) -> Result<Arc<FrameStore>, SeriesRefusal> {
+        let tree = match &self.series {
+            Series::One(store) => return Ok(Arc::clone(store)),
+            Series::Tree(tree) => Arc::clone(tree),
+        };
+        let path = url.split('?').next().unwrap_or_default();
+        let name = SeriesName::parse(path).ok_or(SeriesRefusal::BadName)?;
+        let digest = query(url, "digest").map(str::to_owned);
+        let found = tokio::task::spawn_blocking(move || tree.find(&name, digest.as_deref())).await;
+        found.unwrap_or(Err(SeriesRefusal::Busy))
     }
 
     /// One session, whatever carries it: `opening` first, then each ask `read` forwards, until
@@ -191,11 +217,11 @@ impl Sessions {
         let reader = tokio::spawn(read(tx));
         #[cfg(feature = "telemetry")]
         let result = match (self.taps)() {
-            Some(tap) => drive(&mut RecordedPipeline::new(product, tap), &mut asks).await,
-            None => drive(&mut product, &mut asks).await,
+            Some(tap) => drive(&mut RecordedPipeline::new(product, tap), &mut asks, self.fill_resumes).await,
+            None => drive(&mut product, &mut asks, self.fill_resumes).await,
         };
         #[cfg(not(feature = "telemetry"))]
-        let result = drive(&mut product, &mut asks).await;
+        let result = drive(&mut product, &mut asks, self.fill_resumes).await;
         reader.abort();
         let _ = reader.await;
         result
@@ -218,53 +244,83 @@ fn cert_sha256_hex(identity: &Identity) -> Result<String> {
         .collect())
 }
 
-/// Tried in order: a host without an IPv6 stack refuses the dual-stack socket, so IPv4 any follows it.
-fn build_endpoint(
-    config: &ServeConfig,
-    identity: &Identity,
-) -> Result<(Endpoint<endpoint_side::Server>, String)> {
+/// One endpoint for both ALPNs, configured as wtransport's `ServerConfigBuilder::build` does. Binds are
+/// tried in order: a host without an IPv6 stack refuses the dual-stack socket, so IPv4 any follows it.
+fn build_endpoint(config: &ServeConfig, identity: &Identity) -> Result<(quinn::Endpoint, String)> {
     let port = config.wt_port;
     let binds = match config.bind {
-        Some(ip) => vec![(ServerConfig::builder().with_bind_address(SocketAddr::new(ip, port)), ip.to_string())],
+        Some(ip) => vec![(SocketAddr::new(ip, port), false, ip.to_string())],
         None => vec![
-            (ServerConfig::builder().with_bind_default(port), "[::] dual-stack".to_string()),
-            (
-                ServerConfig::builder().with_bind_config(IpBindConfig::InAddrAnyV4, port),
-                "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string(),
-            ),
+            (SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), port), true, "[::] dual-stack".to_string()),
+            (SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port), false, "0.0.0.0 (IPv4 fallback: no dual-stack)".to_string()),
         ],
     };
+    let mut tls = wtransport::tls::server::build_default_tls_config(identity.clone_identity());
+    tls.alpn_protocols.push(NATIVE_ALPN.to_vec());
+    let mut quic = quinn::ServerConfig::with_crypto(Arc::new(quinn::crypto::rustls::QuicServerConfig::try_from(tls)?));
+    quic.transport_config(Arc::new(config.tuning.to_transport_config()?));
+    quic.migration(true);
     let mut binds = binds.into_iter().peekable();
-    while let Some((bind, label)) = binds.next() {
-        let server_config = bind
-            .with_custom_transport(identity.clone_identity(), config.tuning.to_transport_config()?)
-            .build();
-        match Endpoint::server(server_config) {
+    while let Some((addr, dual_stack, label)) = binds.next() {
+        let endpoint = bind_udp(addr, dual_stack).and_then(|socket| {
+            quinn::Endpoint::new(quinn::EndpointConfig::default(), Some(quic.clone()), socket, Arc::new(quinn::TokioRuntime))
+        });
+        match endpoint {
             Ok(endpoint) => return Ok((endpoint, label)),
             Err(err) if binds.peek().is_some() => warn!(%err, "{label} bind failed; trying the next"),
-            Err(err) => return Err(err).with_context(|| format!("wtransport endpoint on {label}, port {port}")),
+            Err(err) => return Err(err).with_context(|| format!("QUIC endpoint on {label}, port {port}")),
         }
     }
     unreachable!("the last bind returns its own error")
 }
 
-async fn handle_incoming(
-    incoming: wtransport::endpoint::IncomingSession,
-    sessions: Sessions,
-) -> Result<()> {
-    let session_request = incoming.await.context("incoming session")?;
-    // Read before accepting: the whole point of an opening ask is to serve behind the accept
-    // rather than behind the client's control stream. `docs/ARCHITECTURE.md`.
-    let opening = sessions
-        .opening_ask
-        .then(|| parse_opening_ask(session_request.path(), sessions.store.frame_count()))
-        .flatten();
+fn bind_udp(addr: SocketAddr, dual_stack: bool) -> std::io::Result<std::net::UdpSocket> {
+    use socket2::{Domain, Protocol, Socket, Type};
+    let socket = Socket::new(Domain::for_address(addr), Type::DGRAM, Some(Protocol::UDP))?;
+    if dual_stack {
+        socket.set_only_v6(false)?;
+    }
+    socket.bind(&addr.into())?;
+    Ok(socket.into())
+}
+
+/// The ALPN TLS chose routes the session: `docs/native/README.md` §8.1.
+async fn handle_incoming(incoming: quinn::Incoming, sessions: Sessions) -> Result<()> {
+    let mut connecting = incoming.accept().context("incoming connection")?;
+    let raw = connecting
+        .handshake_data()
+        .await
+        .context("handshake")?
+        .downcast::<quinn::crypto::rustls::HandshakeData>()
+        .is_ok_and(|handshake| handshake.protocol.as_deref() == Some(NATIVE_ALPN));
+    if raw {
+        let connection = connecting.await.context("raw QUIC session")?;
+        #[cfg(feature = "telemetry")]
+        tokio::spawn(crate::record::path::run(connection.clone()));
+        let result = serve_raw(&connection, &sessions).await;
+        return ended(&connection, result);
+    }
+    let session_request = IncomingSessionFuture::with_quic_connecting(connecting).await.context("incoming session")?;
+    let url = session_request.path().to_owned();
+    let found = sessions.store_for(&url).await;
     let connection = session_request.accept().await.context("accept session")?;
+    let store = match found {
+        Ok(store) => store,
+        Err(refusal) => {
+            log_series_refusal(refusal, &url);
+            connection.close(VarInt::from_u32(refusal.code()), refusal.reason().as_bytes());
+            return Ok(());
+        }
+    };
+    // Read before the first frame: the whole point of an opening ask is to serve behind the accept
+    // rather than behind the client's control stream. `docs/ARCHITECTURE.md`.
+    let opening = sessions.opening_ask.then(|| parse_opening_ask(&url, store.frame_count())).flatten();
 
     #[cfg(feature = "telemetry")]
-    tokio::spawn(crate::record::path::run(connection.clone()));
+    tokio::spawn(crate::record::path::run(connection.quic_connection().clone()));
 
-    let link = |control| Link::quic(sessions.mode, connection.clone(), control, sessions.stall, sessions.cwnd_ahead);
+    let session = || QuicSession::WebTransport(connection.clone());
+    let link = |control| Link::quic(sessions.mode, session(), control, sessions.stall, sessions.cwnd_ahead, sessions.ask_stream);
     let result = async {
         match opening {
             Some(ask) => {
@@ -273,23 +329,47 @@ async fn handle_incoming(
                 let control = connection.clone();
                 let read = |tx| async move {
                     let Ok((send, mut recv)) = control.accept_bi().await else { return };
-                    ctl_tx.send(send).ok();
+                    ctl_tx.send(QuicSend::WebTransport(send)).ok();
                     while read_asks(&mut recv, &tx).await.is_continue() {}
                 };
-                sessions.serve(sessions.pipeline(link), Some(ask), read).await
+                sessions.serve(sessions.pipeline(store, link), Some(ask), read).await
             }
             None => {
                 let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
-                let link = link(ControlStream::Open(send)).await?;
+                let link = link(ControlStream::Open(QuicSend::WebTransport(send))).await?;
                 let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_continue() {} };
-                sessions.serve(sessions.pipeline(link), None, read).await
+                sessions.serve(sessions.pipeline(store, link), None, read).await
             }
         }
     }
     .await;
-    report_path(&connection);
+    ended(connection.quic_connection(), result)
+}
+
+/// No opening ask: the first FoD message rides the client's first flight. `docs/WIRE.md` §The raw QUIC mapping.
+/// A raw session names no series, so under `--root` it is refused as a bad series name.
+async fn serve_raw(connection: &quinn::Connection, sessions: &Sessions) -> Result<()> {
+    let store = match sessions.store_for("").await {
+        Ok(store) => store,
+        Err(refusal) => {
+            log_series_refusal(refusal, "");
+            connection.close(quinn::VarInt::from_u32(refusal.code()), refusal.reason().as_bytes());
+            return Ok(());
+        }
+    };
+    let (send, mut recv) = connection.accept_bi().await.context("accept control bidi")?;
+    let session = QuicSession::Raw(connection.clone());
+    let control = ControlStream::Open(QuicSend::Raw(send));
+    let link = Link::quic(sessions.mode, session, control, sessions.stall, sessions.cwnd_ahead, sessions.ask_stream).await?;
+    let read = |tx| async move { while read_asks(&mut recv, &tx).await.is_continue() {} };
+    sessions.serve(sessions.pipeline(store, link), None, read).await
+}
+
+/// However a session ended, its path is reported and a goodbye is not an error.
+fn ended(connection: &quinn::Connection, result: Result<()>) -> Result<()> {
+    report_path(connection);
     match result {
-        Err(err) if closed_by_peer(&connection, &err) => {
+        Err(err) if closed_by_peer(connection, &err) => {
             info!(err = %format_args!("{err:#}"), "session closed by peer");
             Ok(())
         }
@@ -297,23 +377,27 @@ async fn handle_incoming(
     }
 }
 
+/// A client's mistake at INFO, the operator's at WARN.
+pub(super) fn log_series_refusal(refusal: SeriesRefusal, url: &str) {
+    let (code, reason) = (refusal.code(), refusal.reason());
+    if refusal.is_the_servers() {
+        warn!(code, url, "session refused: {reason}");
+    } else {
+        info!(code, url, "session refused: {reason}");
+    }
+}
+
 /// The peer went: it stopped a stream the server was writing, or closed. `docs/WIRE.md` §FoD messages.
-fn closed_by_peer(connection: &wtransport::Connection, err: &anyhow::Error) -> bool {
-    use wtransport::error::{ConnectionError, StreamOpeningError, StreamReadError, StreamWriteError};
-    use wtransport::quinn;
-    let stopped = err.chain().any(|e| {
-        matches!(e.downcast_ref(), Some(quinn::WriteError::Stopped(_)))
-            || matches!(e.downcast_ref(), Some(StreamWriteError::Stopped(_)))
-    });
+fn closed_by_peer(connection: &quinn::Connection, err: &anyhow::Error) -> bool {
+    use wtransport::error::{ConnectionError, StreamOpeningError};
+    let stopped = err.chain().any(|e| matches!(e.downcast_ref(), Some(quinn::WriteError::Stopped(_))));
     let gone = err.chain().any(|e| {
-        matches!(e.downcast_ref(), Some(StreamReadError::NotConnected))
-            || matches!(e.downcast_ref(), Some(StreamWriteError::NotConnected))
-            || matches!(e.downcast_ref(), Some(StreamOpeningError::NotConnected))
-            || matches!(e.downcast_ref(), Some(quinn::WriteError::ConnectionLost(_)))
+        matches!(e.downcast_ref(), Some(StreamOpeningError::NotConnected))
             || e.downcast_ref::<ConnectionError>().is_some()
+            || e.downcast_ref::<quinn::ConnectionError>().is_some()
     });
     let closed = matches!(
-        connection.quic_connection().close_reason(),
+        connection.close_reason(),
         Some(quinn::ConnectionError::ApplicationClosed(_) | quinn::ConnectionError::LocallyClosed)
     );
     stopped || (gone && closed)
@@ -322,12 +406,7 @@ fn closed_by_peer(connection: &wtransport::Connection, err: &anyhow::Error) -> b
 /// `?ask=frame:N` or `?ask=fill:A-B`. `None` for absent, malformed, or out of range — the
 /// session then proceeds as without it.
 pub(super) fn parse_opening_ask(path: &str, frames: u32) -> Option<Command> {
-    let value = path
-        .split_once('?')?
-        .1
-        .split('&')
-        .find_map(|f| f.strip_prefix("ask="))?;
-    match value.split_once(':')? {
+    match query(path, "ask")?.split_once(':')? {
         ("frame", n) => {
             let frame = n.parse().ok()?;
             frame_in_range(frame, frames).ok()?;
@@ -343,9 +422,14 @@ pub(super) fn parse_opening_ask(path: &str, frames: u32) -> Option<Command> {
     }
 }
 
+/// The first `key=` of the URL's query, as sent: a value is never unescaped.
+fn query<'a>(url: &'a str, key: &str) -> Option<&'a str> {
+    url.split_once('?')?.1.split('&').find_map(|f| f.strip_prefix(key)?.strip_prefix('='))
+}
+
 /// Once per session, so a deployment can see the MTU, loss and RTT it actually got.
-fn report_path(connection: &wtransport::Connection) {
-    let s = connection.quic_connection().stats();
+fn report_path(connection: &quinn::Connection) {
+    let s = connection.stats();
     info!(
         mtu = s.path.current_mtu,
         rtt_us = s.path.rtt.as_micros() as u64,
@@ -361,14 +445,18 @@ fn report_path(connection: &wtransport::Connection) {
 
 /// The loop over `Command`, with no stream in it, so a test can drive it without QUIC. However it
 /// ends, outstanding finishes get their grace.
-pub(super) async fn drive<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Command>) -> Result<()> {
-    let result = steps(pipeline, asks).await;
+pub(super) async fn drive<P: FramePipeline>(
+    pipeline: &mut P,
+    asks: &mut mpsc::Receiver<Command>,
+    fill_resumes: bool,
+) -> Result<()> {
+    let result = steps(pipeline, asks, fill_resumes).await;
     pipeline.finish().await;
     result
 }
 
-async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Command>) -> Result<()> {
-    let mut plan = Planner::new(pipeline.store().frame_count());
+async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Command>, fill_resumes: bool) -> Result<()> {
+    let mut plan = Planner::new(pipeline.store().frame_count()).fill_resumes(fill_resumes);
     loop {
         match plan.next(|| asks.try_recv().ok())? {
             Step::Serve { frame, next } => pipeline.serve(frame, &next).await?,
@@ -382,7 +470,7 @@ async fn steps<P: FramePipeline>(pipeline: &mut P, asks: &mut mpsc::Receiver<Com
     }
 }
 
-async fn read_asks(control_recv: &mut RecvStream, tx: &mpsc::Sender<Command>) -> ControlFlow<()> {
+async fn read_asks(control_recv: &mut impl QuicStream<quinn::RecvStream>, tx: &mpsc::Sender<Command>) -> ControlFlow<()> {
     forward(read_fod_msg(control_recv).await, tx).await
 }
 
@@ -416,8 +504,11 @@ mod tests {
     use std::io::Write;
     use std::path::Path;
     use std::time::Duration;
-    use wtransport::stream::SendStream;
-    use wtransport::ClientConfig;
+    use wtransport::config::IpBindConfig;
+    use wtransport::endpoint::endpoint_side;
+    use wtransport::stream::{RecvStream, SendStream};
+    use wtransport::{ClientConfig, Endpoint, ServerConfig};
+    use tokio_tungstenite::tungstenite;
 
     /// The server with no stop, for every test but the stop's own.
     fn run_server(config: ServeConfig) -> impl Future<Output = Result<()>> {
@@ -453,20 +544,43 @@ mod tests {
         fn config(&self) -> ServeConfig {
             ServeConfig {
                 wt_port: self.port,
-                series_path: self.series.clone(),
+                series_path: Some(self.series.clone()),
+                root: None,
                 cert_pem: self.cert_pem.clone(),
                 key_pem: self.key_pem.clone(),
                 mode: StreamMode::Shared,
                 bind: Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
                 tuning: TransportTuning::default(),
                 opening_ask: false,
-                send_window_follows_cwnd: false,
                 websocket: false,
                 #[cfg(feature = "lab-levers")]
                 lab: LabLevers::default(),
             }
         }
     }
+
+    impl Fixture {
+        /// The series copied to `<root>/TOMG/TOMG.sbnd` and garbage at `<root>/TOMG/BAD0.sbnd`; the root.
+        fn root(&self) -> PathBuf {
+            let study = self.dir.join("root/TOMG");
+            std::fs::create_dir_all(&study).expect("study dir");
+            std::fs::copy(&self.series, study.join("TOMG.sbnd")).expect("publish");
+            std::fs::write(study.join("BAD0.sbnd"), [b'x'; 4096]).expect("garbage");
+            self.dir.join("root")
+        }
+
+        fn rooted(&self) -> ServeConfig {
+            ServeConfig { series_path: None, root: Some(self.root()), opening_ask: true, ..self.config() }
+        }
+    }
+
+    /// Each refusal under `--root`, as `(URL path and query, code, reason)`: docs/WIRE.md §Refusing a series.
+    const REFUSED: [(&str, u32, &str); 4] = [
+        ("TOMG/1.2.3", 1, "bad series name"),
+        ("TOMG/TOMH", 2, "series not found"),
+        ("TOMG/TOMG?digest=00", 3, "series changed"),
+        ("TOMG/BAD0", 4, "series unreadable"),
+    ];
 
     impl Drop for Fixture {
         fn drop(&mut self) {
@@ -530,7 +644,7 @@ mod tests {
         for ask in [Command::Frame(0), Command::Frame(2), Command::Frame(3), Command::EndSession] {
             tx.try_send(ask).expect("queue ask");
         }
-        drive(&mut rec, &mut rx).await.expect("drive");
+        drive(&mut rec, &mut rx, false).await.expect("drive");
         let tiles = |names: &[u32]| Next::Tiles(names.to_vec());
         assert_eq!(
             rec.seen,
@@ -552,7 +666,7 @@ mod tests {
         .expect("queue fill");
         tx.try_send(Command::EndSession).expect("queue end");
         drop(tx);
-        drive(&mut rec, &mut rx).await.expect("drive fill");
+        drive(&mut rec, &mut rx, false).await.expect("drive fill");
         assert_eq!(rec.fills, 0, "a fill cancelled by EndSession was counted");
 
         let mut rec = LoopRecorder {
@@ -568,7 +682,7 @@ mod tests {
         })
         .expect("queue fill");
         drop(tx);
-        drive(&mut rec, &mut rx).await.expect("drive fill");
+        drive(&mut rec, &mut rx, false).await.expect("drive fill");
         let fill = |after, first| Next::Fill { after, first };
         assert_eq!(
             rec.seen,
@@ -588,7 +702,7 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(ASKS_AHEAD);
         tx.try_send(Command::Frame(0)).expect("queue ask");
         tx.try_send(Command::Failed(anyhow!("a malformed message"))).expect("queue failure");
-        assert!(drive(&mut rec, &mut rx).await.is_err(), "the failure was swallowed");
+        assert!(drive(&mut rec, &mut rx, false).await.is_err(), "the failure was swallowed");
         assert!(rec.drained, "a session that ended in error skipped the finishes' grace");
     }
 
@@ -608,7 +722,7 @@ mod tests {
             .expect("identity");
         let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
         let server =
-            tokio::spawn(async move { handle_incoming(endpoint.accept().await, sessions).await });
+            tokio::spawn(async move { handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await });
         let connection = dial(fx.port, fx.cert_hash, "").await;
         client(connection.clone()).await;
         let ended = tokio::time::timeout(Duration::from_secs(10), server)
@@ -626,12 +740,15 @@ mod tests {
     /// Shared streams, no opening ask, nothing recorded.
     fn plain_sessions(series: &Path) -> Sessions {
         Sessions {
-            store: Arc::new(FrameStore::open(series).expect("open store")),
+            series: Series::One(Arc::new(FrameStore::open(series).expect("open store"))),
             read_mode: ReadMode::Auto,
+            advise_tile_names: false,
             mode: StreamMode::Shared,
             opening_ask: false,
             stall: None,
             cwnd_ahead: None,
+            fill_resumes: false,
+            ask_stream: None,
             #[cfg(feature = "telemetry")]
             taps: Arc::new(|| None),
         }
@@ -728,6 +845,54 @@ mod tests {
         assert!(ended.is_ok(), "a close during setup ended the session as {ended:?}");
     }
 
+    /// A native client that closes before its control stream ends its raw QUIC session cleanly,
+    /// as a browser's does: the close arrives as quinn's error, not wtransport's.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_raw_session_closed_before_its_control_stream_ends_cleanly() {
+        use wtransport::tls::client::{build_default_tls_config, ServerHashVerification};
+        let fx = Fixture::new(1);
+        let (config, sessions) = (fx.config(), plain_sessions(&fx.series));
+        let identity = Identity::load_pemfiles(&config.cert_pem, &config.key_pem).await.expect("identity");
+        let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
+        let server = tokio::spawn(async move { handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await });
+        let pin = ServerHashVerification::new([wtransport::tls::Sha256Digest::new(fx.cert_hash)]);
+        let mut tls = build_default_tls_config(Arc::new(rustls::RootCertStore::empty()), Some(Arc::new(pin)));
+        tls.alpn_protocols = vec![NATIVE_ALPN.to_vec()];
+        let quic = quinn::ClientConfig::new(Arc::new(quinn::crypto::rustls::QuicClientConfig::try_from(tls).expect("tls")));
+        let client = quinn::Endpoint::client("127.0.0.1:0".parse().unwrap()).expect("client");
+        let server_addr = SocketAddr::from(([127, 0, 0, 1], fx.port));
+        let connection = client.connect_with(quic, server_addr, "localhost").expect("dial").await.expect("raw QUIC");
+        connection.close(0u32.into(), b"gone");
+        let ended = tokio::time::timeout(Duration::from_secs(10), server).await.expect("never ended").expect("task");
+        assert!(ended.is_ok(), "a close before the control stream ended the raw session as {ended:?}");
+    }
+
+    /// **Under `--root` a raw QUIC session, which names no series, is closed as a bad series name**,
+    /// with the code and reason a WebTransport session gets for one.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn under_root_a_raw_session_is_refused_as_a_bad_series_name() {
+        use wtransport::tls::client::{build_default_tls_config, ServerHashVerification};
+        let fx = Fixture::new(1);
+        let server = tokio::spawn(run_server(fx.rooted()));
+        against(server, async {
+            let pin = ServerHashVerification::new([wtransport::tls::Sha256Digest::new(fx.cert_hash)]);
+            let mut tls = build_default_tls_config(Arc::new(rustls::RootCertStore::empty()), Some(Arc::new(pin)));
+            tls.alpn_protocols = vec![NATIVE_ALPN.to_vec()];
+            let quic = quinn::ClientConfig::new(Arc::new(quinn::crypto::rustls::QuicClientConfig::try_from(tls).expect("tls")));
+            let client = quinn::Endpoint::client("127.0.0.1:0".parse().unwrap()).expect("client");
+            let server_addr = SocketAddr::from(([127, 0, 0, 1], fx.port));
+            let connection = client.connect_with(quic, server_addr, "localhost").expect("dial").await.expect("raw QUIC");
+            let closed = tokio::time::timeout(Duration::from_secs(5), connection.closed()).await.expect("never closed");
+            let (code, reason) = (REFUSED[0].1, REFUSED[0].2);
+            assert!(
+                matches!(&closed, quinn::ConnectionError::ApplicationClosed(close)
+                    if close.error_code == quinn::VarInt::from_u32(code) && &close.reason[..] == reason.as_bytes()),
+                "the raw client saw {closed:?}"
+            );
+        })
+        .await;
+    }
+
     /// A WebSocket client's Close is a goodbye too. `docs/WIRE.md` §The WebSocket mapping.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_websocket_close_ends_its_session_cleanly() {
@@ -782,7 +947,7 @@ mod tests {
     /// the server reserves room for its payload. `docs/WIRE.md` §The WebSocket mapping
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_websocket_frame_over_the_cap_is_refused_at_its_header() {
-        use crate::transport::wire::MAX_FOD_LEN;
+        use fod::MAX_FOD_LEN;
         use futures_util::StreamExt;
         use tokio::io::AsyncWriteExt;
 
@@ -1064,6 +1229,71 @@ mod tests {
         server.join().expect("server thread").expect("server");
     }
 
+    /// **Under `--root` a session is served the series its URL names, or accepted and closed with
+    /// the refusal's code and reason**, which a page can read and an HTTP status is not.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn under_root_a_session_gets_its_named_series_or_a_close_saying_why() {
+        let fx = Fixture::new(2);
+        let server = tokio::spawn(run_server(fx.rooted()));
+        against(server, async {
+            dial(fx.port, fx.cert_hash, "TOMG/TOMG").await;
+            for (url, code, reason) in REFUSED {
+                let endpoint = client(pinned(fx.cert_hash));
+                let dialled = endpoint.connect(format!("https://127.0.0.1:{}/{url}", fx.port));
+                let closed = match tokio::time::timeout(Duration::from_secs(5), dialled).await.expect("no answer") {
+                    Ok(connection) => tokio::time::timeout(Duration::from_secs(5), connection.closed()).await.expect("never closed"),
+                    Err(wtransport::error::ConnectingError::ConnectionError(closed)) => closed,
+                    Err(err) => panic!("{url}: the dial failed with {err:?}"),
+                };
+                assert!(
+                    matches!(&closed, wtransport::error::ConnectionError::ApplicationClosed(close)
+                        if close.code() == VarInt::from_u32(code) && close.reason() == reason.as_bytes()),
+                    "{url}: the client saw {closed:?}"
+                );
+            }
+            let connection = dial(fx.port, fx.cert_hash, "TOMG/TOMG?ask=fill:1-1").await;
+            let mut media = connection.accept_uni().await.expect("media");
+            let (idx, body) = tokio::time::timeout(Duration::from_secs(5), read_envelope(&mut media)).await.expect("no frame");
+            assert_eq!((idx, body), (1, pattern(1)), "the named series was not the one served");
+        })
+        .await;
+    }
+
+    /// The same refusals over a WebSocket: a Close with 4000 + the code, and the reason.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn under_root_a_websocket_refusal_is_a_close_with_its_code() {
+        use futures_util::StreamExt;
+        let fx = Fixture::new(2);
+        let server = tokio::spawn(run_server(ServeConfig { websocket: true, ..fx.rooted() }));
+        against(server, async {
+            for (url, code, reason) in REFUSED {
+                let mut ws = ws_dial(fx.port, &fx.cert_pem, url).await;
+                let close = match tokio::time::timeout(Duration::from_secs(5), ws.next()).await.expect("never closed") {
+                    Some(Ok(tungstenite::Message::Close(Some(close)))) => close,
+                    other => panic!("{url}: {other:?}, not a Close"),
+                };
+                assert_eq!((u16::from(close.code), close.reason.as_str()), (4000 + code as u16, reason), "{url}");
+            }
+        })
+        .await;
+    }
+
+    /// **No name outside `<root>` is opened.** Every URL the grammar refuses is refused before
+    /// the tree opens anything, though `<root>/../x.sbnd` is there to be served.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_refused_name_opens_nothing() {
+        let fx = Fixture::new(1);
+        let root = fx.root();
+        std::fs::copy(&fx.series, fx.dir.join("x.sbnd")).expect("a series outside the root");
+        let tree = Arc::new(SeriesTree::new(root));
+        let sessions = Sessions { series: Series::Tree(Arc::clone(&tree)), ..plain_sessions(&fx.series) };
+        for url in ["/../x", "/TOMG/../../x", "/TOMG/%2e%2e%2fx", "/TOMG/1.2.3", "/TOMG/TO/MG", "/..", "/x"] {
+            assert_eq!(sessions.store_for(url).await.err(), Some(SeriesRefusal::BadName), "{url}");
+        }
+        assert_eq!(tree.opens(), 0, "a refused name reached the disk");
+        assert!(sessions.store_for("/TOMG/TOMG").await.is_ok());
+    }
+
     /// The wait for the server's port has a deadline: on a port nobody binds it panics, it does not spin.
     #[tokio::test]
     async fn the_wait_for_a_port_fails_rather_than_hangs() {
@@ -1281,12 +1511,15 @@ mod tests {
         let fx = Fixture::new(4);
         let (tx, rows) = std::sync::mpsc::sync_channel(64);
         let sessions = Sessions {
-            store: Arc::new(FrameStore::open(&fx.series).expect("open store")),
+            series: Series::One(Arc::new(FrameStore::open(&fx.series).expect("open store"))),
             read_mode: ReadMode::Auto,
+            advise_tile_names: false,
             mode: StreamMode::Shared,
             opening_ask: true,
             stall: None,
             cwnd_ahead: None,
+            fill_resumes: false,
+            ask_stream: None,
             taps: Arc::new(move || Some(Tap::new(1, Some(tx.clone()), &Live::default()))),
         };
         let config = fx.config();
@@ -1295,7 +1528,7 @@ mod tests {
             .expect("identity");
         let (endpoint, _) = build_endpoint(&config, &identity).expect("endpoint");
         let server = tokio::spawn(async move {
-            handle_incoming(endpoint.accept().await, sessions).await
+            handle_incoming(endpoint.accept().await.expect("incoming"), sessions).await
         });
         let connection = dial(fx.port, fx.cert_hash, "?ask=fill:0-2").await;
         let mut media = connection.accept_uni().await.expect("accept media uni");
@@ -1425,12 +1658,13 @@ mod tests {
     /// cwnd, two frames, and the frame the window cut — not behind the 1.25 MB the client's
     /// credit lets the server queue. The server hears no ACK while the client asks, so nothing
     /// written leaves the window. `docs/transport/link-conditions.md` §ASKAHEAD.
+    #[cfg(feature = "lab-levers")]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn an_ask_during_a_fill_waits_behind_no_more_than_the_send_window() {
         const CWND_ALLOWANCE: usize = 64 * 1024;
         let frames = 32u32;
         let fx = Fixture::new(frames);
-        let server = tokio::spawn(run_server(ServeConfig { send_window_follows_cwnd: true, ..fx.config() }));
+        let server = tokio::spawn(run_server(ServeConfig { lab: LabLevers { send_window_follows_cwnd: true, ..LabLevers::default() }, ..fx.config() }));
         until_bound(fx.port, Duration::from_secs(5)).await;
 
         // The server's datagrams are dropped while `dark`; the client's always pass.
@@ -2052,6 +2286,74 @@ mod tests {
             }
         })
         .await;
+    }
+
+    /// With `--fill-resumes-after-asks`, an ask during a fill goes before the fill's remainder, and the
+    /// fill then delivers every other frame in order, once: none lost to the ask, none sent twice.
+    #[cfg(feature = "lab-levers")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn with_fill_resumes_an_ask_goes_first_and_the_fill_still_completes() {
+        let frames = 48u32;
+        let asked = frames - 1;
+        let fx = Fixture::new(frames);
+        let lab = LabLevers { fill_resumes_after_asks: true, ..LabLevers::default() };
+        let server = tokio::spawn(run_server(ServeConfig { lab, ..fx.config() }));
+        let connection = dial(fx.port, fx.cert_hash, "").await;
+        let (mut control, _control_recv) = open_control(&connection).await;
+        let mut media = connection.accept_uni().await.expect("accept media uni");
+        write_fod_msg(&mut control, &FodMsg::StreamFrames { from: None, to: None }).await.expect("fill");
+        // Unread, the media stream's credit holds the fill well short of the asked frame.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        write_fod_msg(&mut control, &FodMsg::RequestFrame { frame: asked }).await.expect("ask");
+
+        let mut order = Vec::new();
+        while order.len() < frames as usize {
+            let (idx, codestream) = tokio::time::timeout(Duration::from_secs(10), read_envelope(&mut media))
+                .await
+                .expect("the fill never completed");
+            assert_eq!(codestream, pattern(idx), "frame {idx} came back wrong");
+            order.push(idx);
+        }
+        let extra = tokio::time::timeout(Duration::from_millis(200), read_envelope(&mut media)).await;
+        assert!(extra.is_err(), "a frame was sent twice: {order:?}");
+        let at = order.iter().position(|&f| f == asked).expect("the ask was never served");
+        assert!(at < asked as usize, "the ask waited for the whole fill: {order:?}");
+        let fill: Vec<u32> = order.into_iter().filter(|&f| f != asked).collect();
+        assert_eq!(fill, (0..asked).collect::<Vec<_>>(), "the fill did not resume in order");
+        server.abort();
+    }
+
+    /// With `--ask-stream-priority`, an ask comes on a second uni, readable while every fill byte
+    /// written before it lies unread on the first; later fill frames stay on the first.
+    #[cfg(feature = "lab-levers")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn with_an_ask_stream_an_ask_is_read_past_the_unread_fill() {
+        let (frames, asked) = (48u32, 47u32);
+        let fx = Fixture::new(frames);
+        let lab = LabLevers { ask_stream_priority: Some(1), ..LabLevers::default() };
+        let server = tokio::spawn(run_server(ServeConfig { lab, ..fx.config() }));
+        let connection = dial(fx.port, fx.cert_hash, "").await;
+        let (mut control, _control_recv) = open_control(&connection).await;
+        let mut fill = connection.accept_uni().await.expect("accept fill uni");
+        // Ten frames fit the client's stream credit, so the one writer is done with them when the ask comes.
+        write_fod_msg(&mut control, &FodMsg::StreamFrames { from: Some(0), to: Some(9) }).await.expect("fill");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        write_fod_msg(&mut control, &FodMsg::RequestFrame { frame: asked }).await.expect("ask");
+        let mut asks = tokio::time::timeout(Duration::from_secs(5), connection.accept_uni())
+            .await
+            .expect("no second stream: the ask is behind the fill")
+            .expect("accept ask uni");
+        let (idx, codestream) = read_envelope(&mut asks).await;
+        assert_eq!((idx, codestream == pattern(asked)), (asked, true), "the ask stream carried the wrong frame");
+
+        write_fod_msg(&mut control, &FodMsg::StreamFrames { from: Some(10), to: Some(12) }).await.expect("fill");
+        for want in 0..=12 {
+            let (idx, codestream) = tokio::time::timeout(Duration::from_secs(5), read_envelope(&mut fill))
+                .await
+                .expect("the fill stream ran dry");
+            assert_eq!((idx, codestream == pattern(want)), (want, true), "the fill stream carried the wrong frame");
+        }
+        server.abort();
     }
 
     /// **The WebSocket path.** Binary messages, joined, are the shared uni stream's bytes — each

@@ -32,7 +32,7 @@ async function dial(race: Implementation, quicMs: number | null, tcpMs: number |
 
 /** The frame is served when pushed on `on`, and nothing is asked on the other. */
 async function servedOn(s: ConformantSession, on: Pushes, other: { sent: unknown[] }): Promise<string> {
-  const asked = s.requestExactFrame(4);
+  const asked = s.requestFrame(4);
   await sleep(30);
   on.pushFrame(4, enc.encode("won"));
   const f = await Promise.race([asked.catch(() => null), sleep(500).then(() => null)]);

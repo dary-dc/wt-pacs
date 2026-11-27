@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 # Regenerate dev WebTransport cert and client/dev-transport.json
 #   --if-needed   only when the cert or the transport file is missing, or the cert ends within a day
+#   OPENSSL=...   the command to run for openssl, as README.md §Demo runs it in a container
 set -euo pipefail
+read -ra OPENSSL <<<"${OPENSSL:-openssl}"
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CERT_DIR="$ROOT/server/dev-cert"
 if [[ "${1:-}" == "--if-needed" && -f "$CERT_DIR/cert.pem" && -f "$ROOT/client/dev-transport.json" ]] &&
-  openssl x509 -in "$CERT_DIR/cert.pem" -noout -checkend 86400 >/dev/null; then
+  "${OPENSSL[@]}" x509 -in "$CERT_DIR/cert.pem" -noout -checkend 86400 >/dev/null; then
   exit 0
 fi
 
 mkdir -p "$CERT_DIR"
 
-openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
+"${OPENSSL[@]}" req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -keyout "$CERT_DIR/key.pem" \
   -out "$CERT_DIR/cert.pem" \
   -days 10 -nodes \
@@ -22,7 +24,7 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -addext 'extendedKeyUsage=serverAuth' \
   -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null
 
-HASH="$(openssl x509 -in "$CERT_DIR/cert.pem" -outform DER | openssl dgst -sha256 | awk '{print $2}')"
+HASH="$("${OPENSSL[@]}" x509 -in "$CERT_DIR/cert.pem" -outform DER | "${OPENSSL[@]}" dgst -sha256 | awk '{print $2}')"
 echo "cert_sha256=$HASH"
 
 python3 - "$ROOT/client" "$HASH" <<'PY'

@@ -102,6 +102,8 @@ def main():
               f"test_signed_sign_extended: 12-bit signed samples back as written ({s.frame(0).ravel().tolist()})")
         s, _ = dcm.series(save(obj(px, signed=True, ts=ExplicitVRBigEndian), t / "big.dcm"))
         check(np.array_equal(s.frame(0), px[0]), "test_big_endian: the same samples from big-endian words")
+        check(refused(lambda: dcm.series(save(obj(px, signed=True, HighBit=10), t / "high.dcm")), "HighBit 10"),
+              "test_high_bit_refused: a High Bit under Bits Stored − 1 (PS3.5 §8.1.1) is refused by name")
 
         # RGB, planar and interleaved.
         rgb = rng.integers(0, 256, (2, 4, 3, 3))

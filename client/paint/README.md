@@ -6,9 +6,10 @@ grayscale pipeline, with fit, zoom, pan, quarter turns and flips. One module, tw
 | file | runs in | does |
 | --- | --- | --- |
 | `painter.js` | the page | places nothing itself: transfers the canvas (`transferControlToOffscreen`) to the worker and answers each `paint()` with one promise |
-| `paint-worker.js` | the paint worker | WebGL2: uploads the frame, windows it, places it |
+| `paint-worker.js` | the paint worker, or the view worker as a module (`start`, `paint`) | WebGL2: uploads the frame, windows it, places it |
 | `voi.js` | both | the window table, from PS3.3 |
-| `reference.js` | the check | the same contract a second time on the CPU |
+| `reference.js` | the check, and a view's `valueAt` (`toSource`) | the same contract a second time on the CPU |
+| `cells.mjs` | the check | the frames and cells, shared with the native painter's check (`native.mjs`) |
 
 ```js
 import { Painter } from "./client/paint/painter.js";
@@ -24,12 +25,14 @@ await painter.paint(
 ## The contract
 
 **Input.** The frame as the consumer receives it. The samples upload to an integer texture straight from
-shared memory: `R8UI` for ≤ 8-bit grey, `R16UI` or `R16I` for 9–16 bits, `RGB8UI` for RGB. Nothing is copied
-on either thread. Painting the same frame object again skips the upload. Signed 8-bit, RGB over 8 bits and
-any other photometric interpretation are declined by name.
+shared memory: `R8UI` or `R8I` for ≤ 8-bit grey, `R16UI` or `R16I` for 9–16 bits, `RGB8UI` for RGB. Nothing is copied
+on either thread. Painting the same frame object again skips the upload. RGB over 8 bits and any other
+photometric interpretation are declined by name. *Corrected 2026-11-10:* signed ≤ 8-bit grey was declined too, so a
+signed series whose values fit Int8 (`av1-frame.js`'s rule) decoded and checked but never painted; the native
+painter (`client/native/src/paint.rs`) still declines it, so `native.mjs` leaves that frame out.
 
 **The pipeline** (DICOM PS3.3 2026d), evaluated in float64 on the CPU into a table indexed by stored code
-(`voi.js`). The table has 256 entries up to 8 bits and 65 536 above; a signed code s sits at s + 32 768.
+(`voi.js`). The table has 256 entries up to 8 bits and 65 536 above; a signed code s sits at s + 128 or s + 32 768.
 
 * **Modality LUT as rescale** (C.11.1): x = stored × slope + intercept. A missing, zero or non-finite slope
   is 1; a non-finite intercept is 0.
@@ -78,7 +81,8 @@ separately: its own placement, mapping each device pixel back to the source, its
 bilinear, and its own call for the table.
 
 * **Frames.** From `lab/scripts/gen_frame_pnm.py`, checked against its `.sha256`: 8-bit grey 64², 8-bit
-  RGB 61×40 (odd width), 16-bit 80×48 (not square), and signed 12-bit CT 64².
+  RGB 61×40 (odd width), 16-bit 80×48 (not square), signed 12-bit CT 64², and signed 8-bit 64² (since 2026-11-10; not
+  in the counts below).
 * **Exact cells.** Each window (identity, tight, a LINEAR_EXACT window of width 510 whose outputs land
   on .5, LINEAR_EXACT, SIGMOID, MONOCHROME1, invert, rescaled), each quarter turn, each flip, a turn
   with a flip, and a whole-pixel pan. All at 1:1, at DPR 1 and 2.
@@ -86,7 +90,8 @@ bilinear, and its own call for the table.
 
 On **SwiftShader** (Chromium 141's ANGLE over Vulkan; the cloud has no GPU), 2026-10-08:
 
-* **Every exact cell equals the reference to the code**: 50 cells × 2 DPRs, edges included.
+* **Every exact cell equals the reference to the code**: 54 cells × 2 DPRs, edges included. *Was* "50": the
+  suite has 15 on each grey frame and 9 on RGB.
 * **The fractional cells differ, as measured, not claimed**: at most 1 code on fit and zooms 2 and 0.5,
   1–2 on zoom 1.37 (0.45–4.0 % of samples), and 1–5 on the fractional pan (0.6–4.0 %). Filtering
   weights in fixed point would explain this; not checked.
@@ -106,6 +111,10 @@ renderer string first (headless defaults to software). Every exact cell must sti
 reference to the code. The fractional cells must stay within the same bounds as above, or the
 difference must be explained. **Until that run, the fractional zooms are unproved.**
 
+The native painter (`client/native`, wgpu) runs the same cells against the same reference with
+`node client/paint/native.mjs [--zoom1 | mutants]`, which needs lavapipe or a GPU. Its result is
+[`docs/native/README.md`](../../docs/native/README.md) §6 M1.
+
 ## What it costs
 
 `check.mjs bench`: a 512² signed 12-bit frame on a 512² canvas, and a 4096×3072 16-bit frame fit into
@@ -113,8 +122,8 @@ difference must be explained. **Until that run, the fractional zooms are unprove
 variants run interleaved (`lab/order.mjs`) over 10 rounds, on SwiftShader on this container's 4 cores. Every
 number is the software renderer's.
 
-ms a paint, median [min–max]. *Worker* runs from the message to the draw having executed (a one-pixel
-`readPixels` waits for it; `gl.finish()` alone returned early on SwiftShader). *Page* is the
+ms a paint, median [min–max]. *Worker* runs from the message to the draw having executed (the bench settles by the
+read, §When a paint has executed). *Page* is the
 synchronous cost of `paint()` on the main thread.
 
 | | worker | page | round trip |
@@ -132,6 +141,37 @@ synchronous cost of `paint()` on the main thread.
   §Paint). These milliseconds are not a phone's.
 * **The check in `scripts/gate.sh`** (`--zoom1`, every 1:1 cell at DPR 1 and 2) takes 2.4 s here, browser
   start included. It runs when Python has numpy, and prints SKIPPED otherwise.
+
+## When a paint has executed
+
+`paint()` returns once its commands are issued. The product stops there: nothing it does waits for the draw, so its
+`drawn` stamp (the controller's `painted`, `firstShownMs` and `shown`) is when the draw was **issued**, before it
+executed and before it is presented. A lab that times a paint names a **settle** (`settle`, the `Painter`'s option,
+the view worker's start, the rig's `?settle=`), and the paint returns, and stamps `drawn`, only once the draw has
+executed:
+
+* `fence` (`settle.js`), the lab's default: `fenceSync`, `flush`, then `clientWaitSync(sync, 0, 0)` polled on a 1 ms
+  timer until signalled. A sync's status changes only between tasks, so the stamp is a poll late; the paint's thread
+  is free while it waits. A poll every task (a `MessageChannel` turn) spun the thread and slowed SwiftShader's draw
+  by a third; on the timer the fence returns 10 ms after the read on an 85 ms draw and 36 ms after it on a 620 ms one
+  (SwiftShader, median of 5), 11 ms after it on a 144 ms draw on llvmpipe.
+* `read`: a one-pixel `readPixels`, which blocks the paint's thread until the draw has executed. **In Firefox ≥ 145 it
+  also waits for the page's main thread** (each read asks the page for permission to extract the canvas), so on a busy
+  page it waits out the page's long task: [`../../docs/client/evidence/pixel-read-under-busy-page.md`](../../docs/client/evidence/pixel-read-under-busy-page.md). Kept to reproduce §7's run and `check.mjs bench`'s figures.
+
+`gl.finish()` is not a settle: it returns early on SwiftShader (0.1 ms, the draw then left to the next read), though
+it waits on Firefox's llvmpipe. `settle-check.mjs` proves the fence waits on both: a draw heavy enough to take 145–250
+ms, the draw alone returning in 0.1 ms with the whole draw left to a read after it, and the fence returning at ≥ 0.8 ×
+the read's time with a read after it under 0.2 × (2 ms). Its mutants (one poll and no loop, no wait, `gl.finish()` in
+place of the fence) are each caught on SwiftShader; on llvmpipe the `finish` mutant survives, as it should, since
+`finish` waits there. It also counts the paint module's own calls (`settle-count-worker.js`): unsettled, no
+`readPixels` and no `fenceSync`; one fence under `fence`, one read under `read`. Its two mutants (the read when no
+settle is named, the fence settling by the read) are caught:
+
+```bash
+NODE_PATH=$(npm root -g) node client/paint/settle-check.mjs [mutants]
+FIREFOX_PATH=… xvfb-run -a node client/paint/settle-check.mjs --browser firefox [mutants]
+```
 
 ## What reaches the screen
 

@@ -1,0 +1,20 @@
+round 0 1x done, 428 s
+round 2 1x done, 403 s
+round 4 1x done, 411 s
+round 4 4x done, 976 s
+round 6 1x done, 427 s
+round 6 4x done, 963 s
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+page.evaluate: Target page, context or browser has been closed
+    at inChromium (lab/av1/profiles/decode_block.mjs:104:28)
+    at async lab/av1/profiles/decode_block.mjs:149:19
+
+Node.js v22.23.4
+round 7 4x done, 583 s
+round 8 1x done, 416 s
+round 10 1x done, 400 s
+round 12 1x done, 394 s
+stopping before round 13: it would pass --until

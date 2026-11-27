@@ -23,6 +23,8 @@ The question is not *whether* to gate telemetry. It is **where the seam belongs*
 
 - Both variants must stamp at identical points, or the experiment is void
 - Default builds must carry no measurement surface
+  (*Amended 2026-10-24:* this describes today's default build. The owner wants client telemetry in production,
+  sampled; the Tap stays out of it, and the proposal is [`telemetry-in-production.md`](telemetry-in-production.md).)
 - The clients are shipped product; the lab is not
 - Instrumentation must not perturb what it measures
 - The measurement environments are not controlled: browser flags cannot be assumed present
@@ -87,7 +89,7 @@ different points, because it is the same code stamping.
 - It does **not** fix the event-loop timing confound; only D would.
 - **What it cannot see.** A session over the WebSocket fallback (no `WebTransport` to patch). The
   downloader's pushed fill is seen since 2026-10-03: the wrapper wraps `fillFrames` and an opening fill.
-  *Corrected 2026-10-16 (row 274):* the wrapper dropped `requestExactFrame`'s second argument, `onHead`, so
+  *Corrected 2026-10-16 (row 274):* the wrapper dropped `requestFrame`'s second argument, `onHead`, so
   under telemetry the downloader's `refill: "head"` never fired and a fill's remainder waited for the asked frame
   to land, as `refill: "landed"` does. It is passed through; `lab/client-telemetry/test/run.ts` holds it.
 

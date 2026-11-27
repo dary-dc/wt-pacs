@@ -12,7 +12,7 @@
 <body>
   <h1>Back-to-back refusals</h1>
   <p>
-    <code>n</code> asks (<code>requestExactFrame</code>) whose every index is out of range, so the
+    <code>n</code> asks (<code>requestFrame</code>) whose every index is out of range, so the
     server answers with <code>n</code> <code>FrameError</code> messages back to back on the control stream. Every
     waiter must reject promptly with the server's reason; a waiter that only ends on the
     15 s client timeout means a control message was lost.
@@ -53,7 +53,7 @@
       const t0 = performance.now();
       const results = await Promise.all([...indices].map(async (frame) => {
         try {
-          await session.requestExactFrame(frame);
+          await session.requestFrame(frame);
           return { frame, ms: null, delivered: true };
         } catch (err) {
           return { frame, ms: Math.round(performance.now() - t0), message: String(err?.message ?? err) };

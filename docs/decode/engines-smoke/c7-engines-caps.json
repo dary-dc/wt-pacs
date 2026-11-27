@@ -1,0 +1,78 @@
+{
+ "chromium": {
+  "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+  "isolated": true,
+  "sab": true,
+  "simd": true,
+  "videoDecoder": true,
+  "configs": {
+   "av01.0.04M.08": true,
+   "av01.0.04M.10": true,
+   "av01.1.04M.08": true,
+   "av01.1.04M.10": true,
+   "av01.2.04M.12": true
+  },
+  "clockMs": 0.005000000004656613,
+  "worker": {
+   "sab": true,
+   "videoDecoder": true
+  }
+ },
+ "firefox": {
+  "ua": "Mozilla/5.0 (X11; Linux x86_64; rv:160.0) Gecko/20100101 Firefox/160.0",
+  "isolated": true,
+  "sab": true,
+  "simd": true,
+  "videoDecoder": true,
+  "configs": {
+   "av01.0.04M.08": true,
+   "av01.0.04M.10": true,
+   "av01.1.04M.08": false,
+   "av01.1.04M.10": false,
+   "av01.2.04M.12": true
+  },
+  "clockMs": 0.020000000000095497,
+  "worker": {
+   "sab": true,
+   "videoDecoder": true
+  }
+ },
+ "webkit+sab": {
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+  "isolated": true,
+  "sab": true,
+  "simd": true,
+  "videoDecoder": true,
+  "configs": {
+   "av01.0.04M.08": false,
+   "av01.0.04M.10": false,
+   "av01.1.04M.08": false,
+   "av01.1.04M.10": false,
+   "av01.2.04M.12": false
+  },
+  "clockMs": 0.019999999999999574,
+  "worker": {
+   "sab": true,
+   "videoDecoder": true
+  }
+ },
+ "webkit": {
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+  "isolated": true,
+  "sab": false,
+  "simd": true,
+  "videoDecoder": true,
+  "configs": {
+   "av01.0.04M.08": false,
+   "av01.0.04M.10": false,
+   "av01.1.04M.08": false,
+   "av01.1.04M.10": false,
+   "av01.2.04M.12": false
+  },
+  "clockMs": 0.020000000000003126,
+  "worker": {
+   "sab": false,
+   "videoDecoder": true
+  }
+ }
+}

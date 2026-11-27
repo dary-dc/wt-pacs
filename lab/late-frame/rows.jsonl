@@ -1,0 +1,720 @@
+{"read": 69066229, "written": 69329969, "wall_ns": 36200976, "container": "sbnd", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 69066229}
+{"read": 69066229, "written": 69329969, "wall_ns": 107156780, "container": "sbnd", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 69066229}
+{"read": 677605303, "written": 691361082, "dead": 0, "wall_ns": 5539461240, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 687915190}
+{"read": 69066229, "written": 69329969, "wall_ns": 39111065, "container": "sbnd", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 69066229}
+{"read": 677605303, "written": 691361082, "dead": 0, "wall_ns": 4956088062, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 687915190}
+{"read": 69066229, "written": 69329969, "wall_ns": 114050963, "container": "sbnd", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 69066229}
+{"read": 1505, "written": 3442657, "dead": 0, "wall_ns": 91590284, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 687915190}
+{"read": 69066229, "written": 71702305, "wall_ns": 40921069, "container": "sbnd", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 69066229}
+{"read": 1505, "written": 3442657, "dead": 0, "wall_ns": 38274323, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 687915190}
+{"read": 69066229, "written": 71702305, "wall_ns": 110414807, "container": "sbnd", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 69066229}
+{"read": 677605303, "written": 688267387, "dead": 0, "wall_ns": 5398649796, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 687915190}
+{"read": 69066229, "written": 71702305, "wall_ns": 39610693, "container": "sbnd", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 69066229}
+{"read": 677605303, "written": 688267387, "dead": 0, "wall_ns": 4964396297, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 687915190}
+{"read": 69066229, "written": 71702305, "wall_ns": 107881471, "container": "sbnd", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 69066229}
+{"read": 1505, "written": 347783, "dead": 0, "wall_ns": 3497095, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 3553028301, "container": "sbnd", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 527188012}
+{"read": 1505, "written": 347783, "dead": 0, "wall_ns": 3221290, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 821669083, "container": "sbnd", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 527188012}
+{"read": 79800531, "written": 93556006, "dead": 0, "wall_ns": 257753459, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 90116140}
+{"read": 527188012, "written": 527451752, "wall_ns": 1022572293, "container": "sbnd", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 527188012}
+{"read": 79800531, "written": 93556006, "dead": 0, "wall_ns": 195354750, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 90116140}
+{"read": 527188012, "written": 527451752, "wall_ns": 799908359, "container": "sbnd", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 527188012}
+{"read": 411, "written": 3441555, "dead": 0, "wall_ns": 15527157, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 90116140}
+{"read": 527188012, "written": 529824088, "wall_ns": 1048871006, "container": "sbnd", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 527188012}
+{"read": 411, "written": 3441555, "dead": 0, "wall_ns": 9765242, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 90116140}
+{"read": 527188012, "written": 529824088, "wall_ns": 1356341952, "container": "sbnd", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 527188012}
+{"read": 79800531, "written": 90461994, "dead": 0, "wall_ns": 265713189, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 90116140}
+{"read": 527188012, "written": 529824088, "wall_ns": 1265704491, "container": "sbnd", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 527188012}
+{"read": 79800531, "written": 90461994, "dead": 0, "wall_ns": 167827361, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 90116140}
+{"read": 527188012, "written": 529824088, "wall_ns": 1434448542, "container": "sbnd", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 527188012}
+{"read": 411, "written": 346681, "dead": 0, "wall_ns": 3304420, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 90116140}
+{"read": 23159, "written": 267015, "wall_ns": 2120167, "container": "mxf-footer", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 69091258}
+{"read": 411, "written": 346681, "dead": 0, "wall_ns": 2375183, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 90116140}
+{"read": 23159, "written": 267015, "wall_ns": 3240918, "container": "mxf-footer", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 69091258}
+{"read": 677592174, "written": 691344973, "dead": 0, "wall_ns": 4407486985, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 687909381}
+{"read": 69326795, "written": 69355017, "wall_ns": 137523104, "container": "mxf-footer", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 69091258}
+{"read": 677592174, "written": 691344973, "dead": 0, "wall_ns": 3780304806, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 687909381}
+{"read": 69326795, "written": 69355017, "wall_ns": 238461315, "container": "mxf-footer", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 69091258}
+{"read": 687909365, "written": 691347842, "dead": 0, "wall_ns": 4402934615, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 687909381}
+{"read": 23159, "written": 2639522, "wall_ns": 6299685, "container": "mxf-footer", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 69091258}
+{"read": 687909365, "written": 691347842, "dead": 0, "wall_ns": 3707604722, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 687909381}
+{"read": 23159, "written": 2639522, "wall_ns": 10778405, "container": "mxf-footer", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 69091258}
+{"read": 677592174, "written": 688251350, "dead": 0, "wall_ns": 3874269612, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 687909381}
+{"read": 71699023, "written": 71727524, "wall_ns": 162975904, "container": "mxf-footer", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 69091258}
+{"read": 677592174, "written": 688251350, "dead": 0, "wall_ns": 3613383592, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 687909381}
+{"read": 71699023, "written": 71727524, "wall_ns": 192731972, "container": "mxf-footer", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 69091258}
+{"read": 687909365, "written": 688253040, "dead": 0, "wall_ns": 3935889729, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 687909381}
+{"read": 42277, "written": 286133, "wall_ns": 4809699, "container": "mxf-footer", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 527246063}
+{"read": 687909365, "written": 688253040, "dead": 0, "wall_ns": 2658095943, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 687909381}
+{"read": 42277, "written": 286133, "wall_ns": 6078673, "container": "mxf-footer", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 527246063}
+{"read": 79798708, "written": 93553743, "dead": 0, "wall_ns": 185177300, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 90115381}
+{"read": 527427722, "written": 527509822, "wall_ns": 2131158756, "container": "mxf-footer", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 527246063}
+{"read": 79798708, "written": 93553743, "dead": 0, "wall_ns": 130882187, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 90115381}
+{"read": 527427722, "written": 527509822, "wall_ns": 2926797632, "container": "mxf-footer", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 527246063}
+{"read": 90115365, "written": 93556158, "dead": 0, "wall_ns": 176404114, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 90115381}
+{"read": 42277, "written": 2658640, "wall_ns": 7910190, "container": "mxf-footer", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 527246063}
+{"read": 90115365, "written": 93556158, "dead": 0, "wall_ns": 110530746, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 90115381}
+{"read": 42277, "written": 2658640, "wall_ns": 10704010, "container": "mxf-footer", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 527246063}
+{"read": 79798708, "written": 90459803, "dead": 0, "wall_ns": 168230265, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 90115381}
+{"read": 529799950, "written": 529882329, "wall_ns": 1507729500, "container": "mxf-footer", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 527246063}
+{"read": 79798708, "written": 90459803, "dead": 0, "wall_ns": 110621483, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 90115381}
+{"read": 529799950, "written": 529882329, "wall_ns": 2461076460, "container": "mxf-footer", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 527246063}
+{"read": 90115365, "written": 90461356, "dead": 0, "wall_ns": 189682739, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 90115381}
+{"read": 20827, "written": 264813, "wall_ns": 2124674, "container": "mxf-body", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 69093458}
+{"read": 90115365, "written": 90461356, "dead": 0, "wall_ns": 111544331, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 90115381}
+{"read": 20827, "written": 264813, "wall_ns": 2883903, "container": "mxf-body", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 69093458}
+{"read": 11722, "written": 13764549, "dead": 10317191, "wall_ns": 55599302, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 687909381}
+{"read": 69326795, "written": 69357217, "wall_ns": 142048243, "container": "mxf-body", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 69093458}
+{"read": 11722, "written": 13764549, "dead": 10317191, "wall_ns": 69767462, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 687909381}
+{"read": 69326795, "written": 69357217, "wall_ns": 194424010, "container": "mxf-body", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 69093458}
+{"read": 11722, "written": 3450195, "dead": 0, "wall_ns": 10585127, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 687909381}
+{"read": 20827, "written": 2637320, "wall_ns": 8338325, "container": "mxf-body", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 69093458}
+{"read": 11722, "written": 3450195, "dead": 0, "wall_ns": 5313352, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 687909381}
+{"read": 20827, "written": 2637320, "wall_ns": 13755135, "container": "mxf-body", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 69093458}
+{"read": 11722, "written": 10670926, "dead": 10317191, "wall_ns": 61286709, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 687909381}
+{"read": 71699023, "written": 71729982, "wall_ns": 147974744, "container": "mxf-body", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 69093458}
+{"read": 11722, "written": 10670926, "dead": 10317191, "wall_ns": 71505221, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 687909381}
+{"read": 71699023, "written": 71729982, "wall_ns": 220264924, "container": "mxf-body", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 69093458}
+{"read": 11722, "written": 355393, "dead": 0, "wall_ns": 3303178, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 687909381}
+{"read": 22661, "written": 265951, "wall_ns": 4266848, "container": "mxf-body", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 527263227}
+{"read": 11722, "written": 355393, "dead": 0, "wall_ns": 4303402, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 687909381}
+{"read": 22661, "written": 265951, "wall_ns": 4903121, "container": "mxf-body", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 527263227}
+{"read": 2222, "written": 13757285, "dead": 10316657, "wall_ns": 32868056, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 90115381}
+{"read": 527427722, "written": 527526986, "wall_ns": 2973117122, "container": "mxf-body", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 527263227}
+{"read": 2222, "written": 13757285, "dead": 10316657, "wall_ns": 14342165, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 90115381}
+{"read": 527427722, "written": 527526986, "wall_ns": 3512333058, "container": "mxf-body", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 527263227}
+{"read": 2222, "written": 3443011, "dead": 0, "wall_ns": 11552888, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 90115381}
+{"read": 22661, "written": 2638458, "wall_ns": 9453015, "container": "mxf-body", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 527263227}
+{"read": 2222, "written": 3443011, "dead": 0, "wall_ns": 4798887, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 90115381}
+{"read": 22661, "written": 2638458, "wall_ns": 12506217, "container": "mxf-body", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 527263227}
+{"read": 2222, "written": 10663345, "dead": 10316657, "wall_ns": 23712910, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 90115381}
+{"read": 529799950, "written": 529899493, "wall_ns": 2177345353, "container": "mxf-body", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 527263227}
+{"read": 2222, "written": 10663345, "dead": 10316657, "wall_ns": 11251745, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 90115381}
+{"read": 529799950, "written": 529899493, "wall_ns": 3595532190, "container": "mxf-body", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 527263227}
+{"read": 2222, "written": 348209, "dead": 0, "wall_ns": 2118011, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 90115381}
+{"read": 2170, "written": 348158, "dead": 0, "wall_ns": 559223, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 90675736}
+{"read": 2222, "written": 348209, "dead": 0, "wall_ns": 524130, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 90115381}
+{"read": 2170, "written": 348158, "dead": 0, "wall_ns": 1712928, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 90675736}
+{"read": 692515844, "written": 695876589, "dead": 0, "wall_ns": 4868934928, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 692419740}
+{"read": 2170, "written": 348190, "dead": 0, "wall_ns": 637451, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 90675736}
+{"read": 692515844, "written": 695876589, "dead": 0, "wall_ns": 4301111500, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 692419740}
+{"read": 2170, "written": 348190, "dead": 0, "wall_ns": 2914166, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 90675736}
+{"read": 38152, "written": 3499012, "dead": 0, "wall_ns": 39106880, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 692419740}
+{"read": 2170, "written": 3462583, "dead": 0, "wall_ns": 5793921, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 90675736}
+{"read": 38152, "written": 3499012, "dead": 0, "wall_ns": 50084534, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 692419740}
+{"read": 2170, "written": 3462583, "dead": 0, "wall_ns": 8266649, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 90675736}
+{"read": 692515844, "written": 692762092, "dead": 0, "wall_ns": 4847159502, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 692419740}
+{"read": 2170, "written": 3462615, "dead": 0, "wall_ns": 3804451, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 90675736}
+{"read": 692515844, "written": 692762092, "dead": 0, "wall_ns": 4639051385, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 692419740}
+{"read": 2170, "written": 3462615, "dead": 0, "wall_ns": 11573271, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 90675736}
+{"read": 38152, "written": 384515, "dead": 0, "wall_ns": 20669278, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 692419740}
+{"read": 11438, "written": 355110, "dead": 0, "wall_ns": 3543046, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 692168424}
+{"read": 38152, "written": 384515, "dead": 0, "wall_ns": 27563566, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 692419740}
+{"read": 11438, "written": 355110, "dead": 0, "wall_ns": 3731794, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 692168424}
+{"read": 90721322, "written": 94168967, "dead": 0, "wall_ns": 549733499, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 90708642}
+{"read": 11438, "written": 355142, "dead": 0, "wall_ns": 2223733, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 692168424}
+{"read": 90721322, "written": 94168967, "dead": 0, "wall_ns": 472961664, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 90708642}
+{"read": 11438, "written": 355142, "dead": 0, "wall_ns": 3554266, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 692168424}
+{"read": 5130, "written": 3465990, "dead": 0, "wall_ns": 31592478, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 90708642}
+{"read": 11438, "written": 3469535, "dead": 0, "wall_ns": 9904769, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 692168424}
+{"read": 5130, "written": 3465990, "dead": 0, "wall_ns": 12714587, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 90708642}
+{"read": 11438, "written": 3469535, "dead": 0, "wall_ns": 12749791, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 692168424}
+{"read": 90721322, "written": 91054470, "dead": 0, "wall_ns": 541091282, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 90708642}
+{"read": 11438, "written": 3469567, "dead": 0, "wall_ns": 5939801, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 692168424}
+{"read": 90721322, "written": 91054470, "dead": 0, "wall_ns": 464281642, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 90708642}
+{"read": 11438, "written": 3469567, "dead": 0, "wall_ns": 10277384, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 692168424}
+{"read": 5130, "written": 351493, "dead": 0, "wall_ns": 5051465, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 240648270, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 90675736}
+{"read": 5130, "written": 351493, "dead": 0, "wall_ns": 3854636, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 294507836, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 90675736}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 4858975078, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 692168424}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 119660938, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 90675736}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 4124889175, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 692168424}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 191241973, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 90675736}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 4686968857, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 692168424}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 106615312, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 90675736}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 4135279076, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 0, "base_bytes": 692168424}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 194689388, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 0, "base_bytes": 90675736}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 4420003757, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 0, "base_bytes": 692168424}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 108492817, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 0, "base_bytes": 90675736}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 4106223446, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 0, "base_bytes": 692168424}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 212304049, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 0, "base_bytes": 90675736}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 4773513121, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 0, "base_bytes": 692168424}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 818136162, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 0, "base_bytes": 692168424}
+{"read": 69066229, "written": 69329969, "wall_ns": 98698965, "container": "sbnd", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 69066229}
+{"read": 69066229, "written": 69329969, "wall_ns": 29751927, "container": "sbnd", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 69066229}
+{"read": 69066229, "written": 69329969, "wall_ns": 32172336, "container": "sbnd", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 69066229}
+{"read": 69066229, "written": 69329969, "wall_ns": 97368664, "container": "sbnd", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 69066229}
+{"read": 677605303, "written": 691361082, "dead": 0, "wall_ns": 4436231486, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 687915190}
+{"read": 69066229, "written": 71702305, "wall_ns": 32176714, "container": "sbnd", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 69066229}
+{"read": 677605303, "written": 691361082, "dead": 0, "wall_ns": 1481331021, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 687915190}
+{"read": 69066229, "written": 71702305, "wall_ns": 101483232, "container": "sbnd", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 69066229}
+{"read": 1505, "written": 3442657, "dead": 0, "wall_ns": 16899856, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 687915190}
+{"read": 69066229, "written": 71702305, "wall_ns": 29711040, "container": "sbnd", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 69066229}
+{"read": 1505, "written": 3442657, "dead": 0, "wall_ns": 9040283, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 687915190}
+{"read": 69066229, "written": 71702305, "wall_ns": 110966962, "container": "sbnd", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 69066229}
+{"read": 677605303, "written": 688267387, "dead": 0, "wall_ns": 5477658888, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 608397029, "container": "sbnd", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 527188012}
+{"read": 677605303, "written": 688267387, "dead": 0, "wall_ns": 3413042834, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 727601332, "container": "sbnd", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 527188012}
+{"read": 1505, "written": 347783, "dead": 0, "wall_ns": 3196040, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 1287207892, "container": "sbnd", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 527188012}
+{"read": 1505, "written": 347783, "dead": 0, "wall_ns": 2105881, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 2110700319, "container": "sbnd", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 527188012}
+{"read": 79800531, "written": 93556006, "dead": 0, "wall_ns": 267731447, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 90116140}
+{"read": 527188012, "written": 529824088, "wall_ns": 813256438, "container": "sbnd", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 527188012}
+{"read": 79800531, "written": 93556006, "dead": 0, "wall_ns": 173205211, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 90116140}
+{"read": 527188012, "written": 529824088, "wall_ns": 662207665, "container": "sbnd", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 527188012}
+{"read": 411, "written": 3441555, "dead": 0, "wall_ns": 15289471, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 90116140}
+{"read": 527188012, "written": 529824088, "wall_ns": 397435367, "container": "sbnd", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 527188012}
+{"read": 411, "written": 3441555, "dead": 0, "wall_ns": 8842928, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 90116140}
+{"read": 527188012, "written": 529824088, "wall_ns": 1023873970, "container": "sbnd", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 527188012}
+{"read": 79800531, "written": 90461994, "dead": 0, "wall_ns": 249468051, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 90116140}
+{"read": 23159, "written": 267015, "wall_ns": 2064321, "container": "mxf-footer", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 69091258}
+{"read": 79800531, "written": 90461994, "dead": 0, "wall_ns": 153840630, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 90116140}
+{"read": 23159, "written": 267015, "wall_ns": 2631750, "container": "mxf-footer", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 69091258}
+{"read": 411, "written": 346681, "dead": 0, "wall_ns": 2625022, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 90116140}
+{"read": 69326795, "written": 69355017, "wall_ns": 138282691, "container": "mxf-footer", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 69091258}
+{"read": 411, "written": 346681, "dead": 0, "wall_ns": 1836312, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 90116140}
+{"read": 69326795, "written": 69355017, "wall_ns": 195817050, "container": "mxf-footer", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 69091258}
+{"read": 677592174, "written": 691344973, "dead": 0, "wall_ns": 4118100634, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 687909381}
+{"read": 23159, "written": 2639522, "wall_ns": 5893736, "container": "mxf-footer", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 69091258}
+{"read": 677592174, "written": 691344973, "dead": 0, "wall_ns": 899742234, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 687909381}
+{"read": 23159, "written": 2639522, "wall_ns": 9637994, "container": "mxf-footer", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 69091258}
+{"read": 687909365, "written": 691347842, "dead": 0, "wall_ns": 1337392830, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 687909381}
+{"read": 71699023, "written": 71727524, "wall_ns": 142161974, "container": "mxf-footer", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 69091258}
+{"read": 687909365, "written": 691347842, "dead": 0, "wall_ns": 910538684, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 687909381}
+{"read": 71699023, "written": 71727524, "wall_ns": 162885849, "container": "mxf-footer", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 69091258}
+{"read": 677592174, "written": 688251350, "dead": 0, "wall_ns": 1331113128, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 687909381}
+{"read": 42277, "written": 286133, "wall_ns": 3294749, "container": "mxf-footer", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 527246063}
+{"read": 677592174, "written": 688251350, "dead": 0, "wall_ns": 3068166790, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 687909381}
+{"read": 42277, "written": 286133, "wall_ns": 5822773, "container": "mxf-footer", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 527246063}
+{"read": 687909365, "written": 688253040, "dead": 0, "wall_ns": 3256922031, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 687909381}
+{"read": 527427722, "written": 527509822, "wall_ns": 937091245, "container": "mxf-footer", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 527246063}
+{"read": 687909365, "written": 688253040, "dead": 0, "wall_ns": 2995819254, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 687909381}
+{"read": 527427722, "written": 527509822, "wall_ns": 1375647152, "container": "mxf-footer", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 527246063}
+{"read": 79798708, "written": 93553743, "dead": 0, "wall_ns": 159970908, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 90115381}
+{"read": 42277, "written": 2658640, "wall_ns": 7544396, "container": "mxf-footer", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 527246063}
+{"read": 79798708, "written": 93553743, "dead": 0, "wall_ns": 100864657, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 90115381}
+{"read": 42277, "written": 2658640, "wall_ns": 12148679, "container": "mxf-footer", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 527246063}
+{"read": 90115365, "written": 93556158, "dead": 0, "wall_ns": 190610547, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 90115381}
+{"read": 529799950, "written": 529882329, "wall_ns": 2415517992, "container": "mxf-footer", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 527246063}
+{"read": 90115365, "written": 93556158, "dead": 0, "wall_ns": 108270864, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 90115381}
+{"read": 529799950, "written": 529882329, "wall_ns": 1417209710, "container": "mxf-footer", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 527246063}
+{"read": 79798708, "written": 90459803, "dead": 0, "wall_ns": 172729204, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 90115381}
+{"read": 20827, "written": 264813, "wall_ns": 1709042, "container": "mxf-body", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 69093458}
+{"read": 79798708, "written": 90459803, "dead": 0, "wall_ns": 120619093, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 90115381}
+{"read": 20827, "written": 264813, "wall_ns": 4250120, "container": "mxf-body", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 69093458}
+{"read": 90115365, "written": 90461356, "dead": 0, "wall_ns": 180203390, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 90115381}
+{"read": 69326795, "written": 69357217, "wall_ns": 139876040, "container": "mxf-body", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 69093458}
+{"read": 90115365, "written": 90461356, "dead": 0, "wall_ns": 102576335, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 90115381}
+{"read": 69326795, "written": 69357217, "wall_ns": 211666344, "container": "mxf-body", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 69093458}
+{"read": 11722, "written": 13764549, "dead": 10317191, "wall_ns": 35327297, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 687909381}
+{"read": 20827, "written": 2637320, "wall_ns": 10005138, "container": "mxf-body", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 69093458}
+{"read": 11722, "written": 13764549, "dead": 10317191, "wall_ns": 91108802, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 687909381}
+{"read": 20827, "written": 2637320, "wall_ns": 11445090, "container": "mxf-body", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 69093458}
+{"read": 11722, "written": 3450195, "dead": 0, "wall_ns": 9192167, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 687909381}
+{"read": 71699023, "written": 71729982, "wall_ns": 130544373, "container": "mxf-body", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 69093458}
+{"read": 11722, "written": 3450195, "dead": 0, "wall_ns": 7898432, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 687909381}
+{"read": 71699023, "written": 71729982, "wall_ns": 219597477, "container": "mxf-body", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 69093458}
+{"read": 11722, "written": 10670926, "dead": 10317191, "wall_ns": 22981977, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 687909381}
+{"read": 22661, "written": 265951, "wall_ns": 2907155, "container": "mxf-body", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 527263227}
+{"read": 11722, "written": 10670926, "dead": 10317191, "wall_ns": 62536813, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 687909381}
+{"read": 22661, "written": 265951, "wall_ns": 4492511, "container": "mxf-body", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 527263227}
+{"read": 11722, "written": 355393, "dead": 0, "wall_ns": 4733549, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 687909381}
+{"read": 527427722, "written": 527526986, "wall_ns": 2418550597, "container": "mxf-body", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 527263227}
+{"read": 11722, "written": 355393, "dead": 0, "wall_ns": 3119571, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 687909381}
+{"read": 527427722, "written": 527526986, "wall_ns": 2292323840, "container": "mxf-body", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 527263227}
+{"read": 2222, "written": 13757285, "dead": 10316657, "wall_ns": 28426420, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 90115381}
+{"read": 22661, "written": 2638458, "wall_ns": 9515108, "container": "mxf-body", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 527263227}
+{"read": 2222, "written": 13757285, "dead": 10316657, "wall_ns": 16858978, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 90115381}
+{"read": 22661, "written": 2638458, "wall_ns": 13534412, "container": "mxf-body", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 527263227}
+{"read": 2222, "written": 3443011, "dead": 0, "wall_ns": 24897811, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 90115381}
+{"read": 529799950, "written": 529899493, "wall_ns": 1891993186, "container": "mxf-body", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 527263227}
+{"read": 2222, "written": 3443011, "dead": 0, "wall_ns": 4165705, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 90115381}
+{"read": 529799950, "written": 529899493, "wall_ns": 1305254068, "container": "mxf-body", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 527263227}
+{"read": 2222, "written": 10663345, "dead": 10316657, "wall_ns": 25983540, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 90115381}
+{"read": 2170, "written": 348158, "dead": 0, "wall_ns": 1285534, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 90675736}
+{"read": 2222, "written": 10663345, "dead": 10316657, "wall_ns": 10670177, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 90115381}
+{"read": 2170, "written": 348158, "dead": 0, "wall_ns": 2568229, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 90675736}
+{"read": 2222, "written": 348209, "dead": 0, "wall_ns": 2675642, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 90115381}
+{"read": 2170, "written": 348190, "dead": 0, "wall_ns": 798567, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 90675736}
+{"read": 2222, "written": 348209, "dead": 0, "wall_ns": 537108, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 90115381}
+{"read": 2170, "written": 348190, "dead": 0, "wall_ns": 2057540, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 90675736}
+{"read": 692515844, "written": 695876589, "dead": 0, "wall_ns": 4715630541, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 692419740}
+{"read": 2170, "written": 3462583, "dead": 0, "wall_ns": 3595651, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 90675736}
+{"read": 692515844, "written": 695876589, "dead": 0, "wall_ns": 1004502759, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 692419740}
+{"read": 2170, "written": 3462583, "dead": 0, "wall_ns": 7656757, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 90675736}
+{"read": 38152, "written": 3499012, "dead": 0, "wall_ns": 29691865, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 692419740}
+{"read": 2170, "written": 3462615, "dead": 0, "wall_ns": 4598155, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 90675736}
+{"read": 38152, "written": 3499012, "dead": 0, "wall_ns": 35592616, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 692419740}
+{"read": 2170, "written": 3462615, "dead": 0, "wall_ns": 9643742, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 90675736}
+{"read": 692515844, "written": 692762092, "dead": 0, "wall_ns": 4978269232, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 692419740}
+{"read": 11438, "written": 355110, "dead": 0, "wall_ns": 5617366, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 692168424}
+{"read": 692515844, "written": 692762092, "dead": 0, "wall_ns": 3197870955, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 692419740}
+{"read": 11438, "written": 355110, "dead": 0, "wall_ns": 4513969, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 692168424}
+{"read": 38152, "written": 384515, "dead": 0, "wall_ns": 27341231, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 692419740}
+{"read": 11438, "written": 355142, "dead": 0, "wall_ns": 2081025, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 692168424}
+{"read": 38152, "written": 384515, "dead": 0, "wall_ns": 19449333, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 692419740}
+{"read": 11438, "written": 355142, "dead": 0, "wall_ns": 4492506, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 692168424}
+{"read": 90721322, "written": 94168967, "dead": 0, "wall_ns": 506146816, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 90708642}
+{"read": 11438, "written": 3469535, "dead": 0, "wall_ns": 8641310, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 692168424}
+{"read": 90721322, "written": 94168967, "dead": 0, "wall_ns": 142143121, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 90708642}
+{"read": 11438, "written": 3469535, "dead": 0, "wall_ns": 11683171, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 692168424}
+{"read": 5130, "written": 3465990, "dead": 0, "wall_ns": 15576743, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 90708642}
+{"read": 11438, "written": 3469567, "dead": 0, "wall_ns": 5552629, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 692168424}
+{"read": 5130, "written": 3465990, "dead": 0, "wall_ns": 14712609, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 90708642}
+{"read": 11438, "written": 3469567, "dead": 0, "wall_ns": 10435844, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 692168424}
+{"read": 90721322, "written": 91054470, "dead": 0, "wall_ns": 456040707, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 104387373, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 90675736}
+{"read": 90721322, "written": 91054470, "dead": 0, "wall_ns": 151770287, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 185516493, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 90675736}
+{"read": 5130, "written": 351493, "dead": 0, "wall_ns": 4937932, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 107334741, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 90675736}
+{"read": 5130, "written": 351493, "dead": 0, "wall_ns": 4079251, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 181555598, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 90675736}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 4456083217, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 692168424}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 111085969, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 90675736}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 878896573, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 692168424}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 146418272, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 90675736}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 1367908082, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 1, "base_bytes": 692168424}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 109122993, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 1, "base_bytes": 90675736}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 803411330, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 1, "base_bytes": 692168424}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 179810084, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 1, "base_bytes": 90675736}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 1377566787, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 1, "base_bytes": 692168424}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 1241271531, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 1, "base_bytes": 692168424}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 784091651, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 1, "base_bytes": 692168424}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 3597363656, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 1, "base_bytes": 692168424}
+{"read": 69066229, "written": 69329969, "wall_ns": 30316688, "container": "sbnd", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 69066229}
+{"read": 69066229, "written": 69329969, "wall_ns": 113001493, "container": "sbnd", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 69066229}
+{"read": 69066229, "written": 69329969, "wall_ns": 100618346, "container": "sbnd", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 69066229}
+{"read": 69066229, "written": 71702305, "wall_ns": 39234442, "container": "sbnd", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 69066229}
+{"read": 69066229, "written": 69329969, "wall_ns": 29764990, "container": "sbnd", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 69066229}
+{"read": 69066229, "written": 71702305, "wall_ns": 100710262, "container": "sbnd", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 69066229}
+{"read": 677605303, "written": 691361082, "dead": 0, "wall_ns": 4921359968, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 687915190}
+{"read": 69066229, "written": 71702305, "wall_ns": 30759025, "container": "sbnd", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 69066229}
+{"read": 677605303, "written": 691361082, "dead": 0, "wall_ns": 1172479279, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 687915190}
+{"read": 69066229, "written": 71702305, "wall_ns": 101495247, "container": "sbnd", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 69066229}
+{"read": 1505, "written": 3442657, "dead": 0, "wall_ns": 15949494, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 629863797, "container": "sbnd", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 527188012}
+{"read": 1505, "written": 3442657, "dead": 0, "wall_ns": 8599709, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 1458711609, "container": "sbnd", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 527188012}
+{"read": 677605303, "written": 688267387, "dead": 0, "wall_ns": 4669521603, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 359112984, "container": "sbnd", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 527188012}
+{"read": 677605303, "written": 688267387, "dead": 0, "wall_ns": 2420311342, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 715952798, "container": "sbnd", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 527188012}
+{"read": 1505, "written": 347783, "dead": 0, "wall_ns": 3298783, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 687915190}
+{"read": 527188012, "written": 529824088, "wall_ns": 1360105121, "container": "sbnd", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 527188012}
+{"read": 1505, "written": 347783, "dead": 0, "wall_ns": 2179804, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 687915190}
+{"read": 527188012, "written": 529824088, "wall_ns": 1875260821, "container": "sbnd", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 527188012}
+{"read": 79800531, "written": 93556006, "dead": 0, "wall_ns": 229135749, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 90116140}
+{"read": 527188012, "written": 529824088, "wall_ns": 572775028, "container": "sbnd", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 527188012}
+{"read": 79800531, "written": 93556006, "dead": 0, "wall_ns": 173935337, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 90116140}
+{"read": 527188012, "written": 529824088, "wall_ns": 775837045, "container": "sbnd", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 527188012}
+{"read": 411, "written": 3441555, "dead": 0, "wall_ns": 17952122, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 90116140}
+{"read": 23159, "written": 267015, "wall_ns": 1578021, "container": "mxf-footer", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 69091258}
+{"read": 411, "written": 3441555, "dead": 0, "wall_ns": 8992433, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 90116140}
+{"read": 23159, "written": 267015, "wall_ns": 3356649, "container": "mxf-footer", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 69091258}
+{"read": 79800531, "written": 90461994, "dead": 0, "wall_ns": 675929449, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 90116140}
+{"read": 69326795, "written": 69355017, "wall_ns": 133943829, "container": "mxf-footer", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 69091258}
+{"read": 79800531, "written": 90461994, "dead": 0, "wall_ns": 169805010, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 90116140}
+{"read": 69326795, "written": 69355017, "wall_ns": 196623006, "container": "mxf-footer", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 69091258}
+{"read": 411, "written": 346681, "dead": 0, "wall_ns": 2781807, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 90116140}
+{"read": 23159, "written": 2639522, "wall_ns": 6469528, "container": "mxf-footer", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 69091258}
+{"read": 411, "written": 346681, "dead": 0, "wall_ns": 1830744, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 90116140}
+{"read": 23159, "written": 2639522, "wall_ns": 9943952, "container": "mxf-footer", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 69091258}
+{"read": 677592174, "written": 691344973, "dead": 0, "wall_ns": 4466708323, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 687909381}
+{"read": 71699023, "written": 71727524, "wall_ns": 161082070, "container": "mxf-footer", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 69091258}
+{"read": 677592174, "written": 691344973, "dead": 0, "wall_ns": 928264283, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 687909381}
+{"read": 71699023, "written": 71727524, "wall_ns": 240752603, "container": "mxf-footer", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 69091258}
+{"read": 687909365, "written": 691347842, "dead": 0, "wall_ns": 1415250069, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 687909381}
+{"read": 42277, "written": 286133, "wall_ns": 3094341, "container": "mxf-footer", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 527246063}
+{"read": 687909365, "written": 691347842, "dead": 0, "wall_ns": 3397129750, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 687909381}
+{"read": 42277, "written": 286133, "wall_ns": 3888112, "container": "mxf-footer", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 527246063}
+{"read": 677592174, "written": 688251350, "dead": 0, "wall_ns": 2095467433, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 687909381}
+{"read": 527427722, "written": 527509822, "wall_ns": 1198693703, "container": "mxf-footer", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 527246063}
+{"read": 677592174, "written": 688251350, "dead": 0, "wall_ns": 2478853848, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 687909381}
+{"read": 527427722, "written": 527509822, "wall_ns": 1432869704, "container": "mxf-footer", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 527246063}
+{"read": 687909365, "written": 688253040, "dead": 0, "wall_ns": 3544107820, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 687909381}
+{"read": 42277, "written": 2658640, "wall_ns": 7538361, "container": "mxf-footer", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 527246063}
+{"read": 687909365, "written": 688253040, "dead": 0, "wall_ns": 2053626168, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 687909381}
+{"read": 42277, "written": 2658640, "wall_ns": 12744587, "container": "mxf-footer", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 527246063}
+{"read": 79798708, "written": 93553743, "dead": 0, "wall_ns": 177148653, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 90115381}
+{"read": 529799950, "written": 529882329, "wall_ns": 1269332757, "container": "mxf-footer", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 527246063}
+{"read": 79798708, "written": 93553743, "dead": 0, "wall_ns": 109154662, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 90115381}
+{"read": 529799950, "written": 529882329, "wall_ns": 1792602168, "container": "mxf-footer", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 527246063}
+{"read": 90115365, "written": 93556158, "dead": 0, "wall_ns": 216429003, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 90115381}
+{"read": 20827, "written": 264813, "wall_ns": 1626118, "container": "mxf-body", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 69093458}
+{"read": 90115365, "written": 93556158, "dead": 0, "wall_ns": 119935348, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 90115381}
+{"read": 20827, "written": 264813, "wall_ns": 3365631, "container": "mxf-body", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 69093458}
+{"read": 79798708, "written": 90459803, "dead": 0, "wall_ns": 175817031, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 90115381}
+{"read": 69326795, "written": 69357217, "wall_ns": 124256915, "container": "mxf-body", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 69093458}
+{"read": 79798708, "written": 90459803, "dead": 0, "wall_ns": 97922505, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 90115381}
+{"read": 69326795, "written": 69357217, "wall_ns": 209612235, "container": "mxf-body", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 69093458}
+{"read": 90115365, "written": 90461356, "dead": 0, "wall_ns": 172218224, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 90115381}
+{"read": 20827, "written": 2637320, "wall_ns": 7625298, "container": "mxf-body", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 69093458}
+{"read": 90115365, "written": 90461356, "dead": 0, "wall_ns": 99368445, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 90115381}
+{"read": 20827, "written": 2637320, "wall_ns": 11908011, "container": "mxf-body", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 69093458}
+{"read": 11722, "written": 13764549, "dead": 10317191, "wall_ns": 104767579, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 687909381}
+{"read": 71699023, "written": 71729982, "wall_ns": 136856518, "container": "mxf-body", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 69093458}
+{"read": 11722, "written": 13764549, "dead": 10317191, "wall_ns": 15006014, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 687909381}
+{"read": 71699023, "written": 71729982, "wall_ns": 203042066, "container": "mxf-body", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 69093458}
+{"read": 11722, "written": 3450195, "dead": 0, "wall_ns": 14940982, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 687909381}
+{"read": 22661, "written": 265951, "wall_ns": 2233525, "container": "mxf-body", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 527263227}
+{"read": 11722, "written": 3450195, "dead": 0, "wall_ns": 25212201, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 687909381}
+{"read": 22661, "written": 265951, "wall_ns": 5783696, "container": "mxf-body", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 527263227}
+{"read": 11722, "written": 10670926, "dead": 10317191, "wall_ns": 71914289, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 687909381}
+{"read": 527427722, "written": 527526986, "wall_ns": 2278816045, "container": "mxf-body", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 527263227}
+{"read": 11722, "written": 10670926, "dead": 10317191, "wall_ns": 21630223, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 687909381}
+{"read": 527427722, "written": 527526986, "wall_ns": 1286939216, "container": "mxf-body", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 527263227}
+{"read": 11722, "written": 355393, "dead": 0, "wall_ns": 3470680, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 687909381}
+{"read": 22661, "written": 2638458, "wall_ns": 9911040, "container": "mxf-body", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 527263227}
+{"read": 11722, "written": 355393, "dead": 0, "wall_ns": 2308640, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 687909381}
+{"read": 22661, "written": 2638458, "wall_ns": 16246872, "container": "mxf-body", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 527263227}
+{"read": 2222, "written": 13757285, "dead": 10316657, "wall_ns": 103831037, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 90115381}
+{"read": 529799950, "written": 529899493, "wall_ns": 1007887206, "container": "mxf-body", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 527263227}
+{"read": 2222, "written": 13757285, "dead": 10316657, "wall_ns": 84332637, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 90115381}
+{"read": 529799950, "written": 529899493, "wall_ns": 1258116868, "container": "mxf-body", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 527263227}
+{"read": 2222, "written": 3443011, "dead": 0, "wall_ns": 9210069, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 90115381}
+{"read": 2170, "written": 348158, "dead": 0, "wall_ns": 520648, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 90675736}
+{"read": 2222, "written": 3443011, "dead": 0, "wall_ns": 3639395, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 90115381}
+{"read": 2170, "written": 348158, "dead": 0, "wall_ns": 1702152, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 90675736}
+{"read": 2222, "written": 10663345, "dead": 10316657, "wall_ns": 32670749, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 90115381}
+{"read": 2170, "written": 348190, "dead": 0, "wall_ns": 609847, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 90675736}
+{"read": 2222, "written": 10663345, "dead": 10316657, "wall_ns": 28161498, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 90115381}
+{"read": 2170, "written": 348190, "dead": 0, "wall_ns": 2313972, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 90675736}
+{"read": 2222, "written": 348209, "dead": 0, "wall_ns": 1960264, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 90115381}
+{"read": 2170, "written": 3462583, "dead": 0, "wall_ns": 4067317, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 90675736}
+{"read": 2222, "written": 348209, "dead": 0, "wall_ns": 806464, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 90115381}
+{"read": 2170, "written": 3462583, "dead": 0, "wall_ns": 7905489, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 90675736}
+{"read": 692515844, "written": 695876589, "dead": 0, "wall_ns": 3430902091, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 692419740}
+{"read": 2170, "written": 3462615, "dead": 0, "wall_ns": 3975027, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 90675736}
+{"read": 692515844, "written": 695876589, "dead": 0, "wall_ns": 1049554409, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 692419740}
+{"read": 2170, "written": 3462615, "dead": 0, "wall_ns": 9558601, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 90675736}
+{"read": 38152, "written": 3499012, "dead": 0, "wall_ns": 28205606, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 692419740}
+{"read": 11438, "written": 355110, "dead": 0, "wall_ns": 2477825, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 692168424}
+{"read": 38152, "written": 3499012, "dead": 0, "wall_ns": 27521610, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 692419740}
+{"read": 11438, "written": 355110, "dead": 0, "wall_ns": 4588228, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 692168424}
+{"read": 692515844, "written": 692762092, "dead": 0, "wall_ns": 4289802304, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 692419740}
+{"read": 11438, "written": 355142, "dead": 0, "wall_ns": 2193108, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 692168424}
+{"read": 692515844, "written": 692762092, "dead": 0, "wall_ns": 3096367795, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 692419740}
+{"read": 11438, "written": 355142, "dead": 0, "wall_ns": 3179914, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 692168424}
+{"read": 38152, "written": 384515, "dead": 0, "wall_ns": 36399356, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 692419740}
+{"read": 11438, "written": 3469535, "dead": 0, "wall_ns": 5406505, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 692168424}
+{"read": 38152, "written": 384515, "dead": 0, "wall_ns": 19423558, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 692419740}
+{"read": 11438, "written": 3469535, "dead": 0, "wall_ns": 10973382, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 692168424}
+{"read": 90721322, "written": 94168967, "dead": 0, "wall_ns": 474590911, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 90708642}
+{"read": 11438, "written": 3469567, "dead": 0, "wall_ns": 5721670, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 692168424}
+{"read": 90721322, "written": 94168967, "dead": 0, "wall_ns": 144487571, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 90708642}
+{"read": 11438, "written": 3469567, "dead": 0, "wall_ns": 9069284, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 692168424}
+{"read": 5130, "written": 3465990, "dead": 0, "wall_ns": 20848099, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 115403785, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 90675736}
+{"read": 5130, "written": 3465990, "dead": 0, "wall_ns": 10417567, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 170600757, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 90675736}
+{"read": 90721322, "written": 91054470, "dead": 0, "wall_ns": 465530345, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 112559290, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 90675736}
+{"read": 90721322, "written": 91054470, "dead": 0, "wall_ns": 149957377, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 180611617, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 90675736}
+{"read": 5130, "written": 351493, "dead": 0, "wall_ns": 6269534, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 90708642}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 105426799, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 90675736}
+{"read": 5130, "written": 351493, "dead": 0, "wall_ns": 3665640, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 90708642}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 188231860, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 90675736}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 4451210695, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 692168424}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 124399256, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 90675736}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 848583307, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 2, "base_bytes": 692168424}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 172036272, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 2, "base_bytes": 90675736}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 1412976451, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 2, "base_bytes": 692168424}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 803042007, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 2, "base_bytes": 692168424}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 2716768263, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 2, "base_bytes": 692168424}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 1305539387, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 2, "base_bytes": 692168424}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 1588030234, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 2, "base_bytes": 692168424}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 884619222, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 2, "base_bytes": 692168424}
+{"read": 69066229, "written": 69329969, "wall_ns": 98307133, "container": "sbnd", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 69066229}
+{"read": 69066229, "written": 71702305, "wall_ns": 29587588, "container": "sbnd", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 69066229}
+{"read": 69066229, "written": 69329969, "wall_ns": 35244492, "container": "sbnd", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 69066229}
+{"read": 69066229, "written": 71702305, "wall_ns": 102035737, "container": "sbnd", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 69066229}
+{"read": 69066229, "written": 69329969, "wall_ns": 95928837, "container": "sbnd", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 69066229}
+{"read": 69066229, "written": 71702305, "wall_ns": 29334264, "container": "sbnd", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 69066229}
+{"read": 69066229, "written": 69329969, "wall_ns": 28860694, "container": "sbnd", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 69066229}
+{"read": 69066229, "written": 71702305, "wall_ns": 136422983, "container": "sbnd", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 69066229}
+{"read": 677605303, "written": 691361082, "dead": 0, "wall_ns": 5017114150, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 369866306, "container": "sbnd", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 527188012}
+{"read": 677605303, "written": 691361082, "dead": 0, "wall_ns": 3406984901, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 711585816, "container": "sbnd", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 527188012}
+{"read": 1505, "written": 3442657, "dead": 0, "wall_ns": 11391386, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 1208193692, "container": "sbnd", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 527188012}
+{"read": 1505, "written": 3442657, "dead": 0, "wall_ns": 8133084, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 826884951, "container": "sbnd", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 527188012}
+{"read": 677605303, "written": 688267387, "dead": 0, "wall_ns": 4937419868, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 687915190}
+{"read": 527188012, "written": 529824088, "wall_ns": 360702227, "container": "sbnd", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 527188012}
+{"read": 677605303, "written": 688267387, "dead": 0, "wall_ns": 2694074414, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 687915190}
+{"read": 527188012, "written": 529824088, "wall_ns": 756634747, "container": "sbnd", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 527188012}
+{"read": 1505, "written": 347783, "dead": 0, "wall_ns": 3142491, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 687915190}
+{"read": 527188012, "written": 529824088, "wall_ns": 622887490, "container": "sbnd", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 527188012}
+{"read": 1505, "written": 347783, "dead": 0, "wall_ns": 2198689, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 687915190}
+{"read": 527188012, "written": 529824088, "wall_ns": 1018434807, "container": "sbnd", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 527188012}
+{"read": 79800531, "written": 93556006, "dead": 0, "wall_ns": 462092857, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 90116140}
+{"read": 23159, "written": 267015, "wall_ns": 1483689, "container": "mxf-footer", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 69091258}
+{"read": 79800531, "written": 93556006, "dead": 0, "wall_ns": 157944028, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 90116140}
+{"read": 23159, "written": 267015, "wall_ns": 3108085, "container": "mxf-footer", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 69091258}
+{"read": 411, "written": 3441555, "dead": 0, "wall_ns": 28925672, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 90116140}
+{"read": 69326795, "written": 69355017, "wall_ns": 183944077, "container": "mxf-footer", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 69091258}
+{"read": 411, "written": 3441555, "dead": 0, "wall_ns": 25435097, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 90116140}
+{"read": 69326795, "written": 69355017, "wall_ns": 214141354, "container": "mxf-footer", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 69091258}
+{"read": 79800531, "written": 90461994, "dead": 0, "wall_ns": 675141816, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 90116140}
+{"read": 23159, "written": 2639522, "wall_ns": 7665274, "container": "mxf-footer", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 69091258}
+{"read": 79800531, "written": 90461994, "dead": 0, "wall_ns": 206634323, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 90116140}
+{"read": 23159, "written": 2639522, "wall_ns": 23703471, "container": "mxf-footer", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 69091258}
+{"read": 411, "written": 346681, "dead": 0, "wall_ns": 3468123, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 90116140}
+{"read": 71699023, "written": 71727524, "wall_ns": 139692392, "container": "mxf-footer", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 69091258}
+{"read": 411, "written": 346681, "dead": 0, "wall_ns": 1853378, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 90116140}
+{"read": 71699023, "written": 71727524, "wall_ns": 203063306, "container": "mxf-footer", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 69091258}
+{"read": 677592174, "written": 691344973, "dead": 0, "wall_ns": 4087263746, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 687909381}
+{"read": 42277, "written": 286133, "wall_ns": 4471516, "container": "mxf-footer", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 527246063}
+{"read": 677592174, "written": 691344973, "dead": 0, "wall_ns": 2279523054, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 687909381}
+{"read": 42277, "written": 286133, "wall_ns": 4211795, "container": "mxf-footer", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 527246063}
+{"read": 687909365, "written": 691347842, "dead": 0, "wall_ns": 2762000041, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 687909381}
+{"read": 527427722, "written": 527509822, "wall_ns": 1030789489, "container": "mxf-footer", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 527246063}
+{"read": 687909365, "written": 691347842, "dead": 0, "wall_ns": 2183529524, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 687909381}
+{"read": 527427722, "written": 527509822, "wall_ns": 1323081195, "container": "mxf-footer", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 527246063}
+{"read": 677592174, "written": 688251350, "dead": 0, "wall_ns": 3135184688, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 687909381}
+{"read": 42277, "written": 2658640, "wall_ns": 7170672, "container": "mxf-footer", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 527246063}
+{"read": 677592174, "written": 688251350, "dead": 0, "wall_ns": 2404143783, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 687909381}
+{"read": 42277, "written": 2658640, "wall_ns": 14625255, "container": "mxf-footer", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 527246063}
+{"read": 687909365, "written": 688253040, "dead": 0, "wall_ns": 2831556036, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 687909381}
+{"read": 529799950, "written": 529882329, "wall_ns": 1073305228, "container": "mxf-footer", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 527246063}
+{"read": 687909365, "written": 688253040, "dead": 0, "wall_ns": 3146669514, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 687909381}
+{"read": 529799950, "written": 529882329, "wall_ns": 1517126230, "container": "mxf-footer", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 527246063}
+{"read": 79798708, "written": 93553743, "dead": 0, "wall_ns": 177504508, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 90115381}
+{"read": 20827, "written": 264813, "wall_ns": 1628885, "container": "mxf-body", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 69093458}
+{"read": 79798708, "written": 93553743, "dead": 0, "wall_ns": 107726431, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 90115381}
+{"read": 20827, "written": 264813, "wall_ns": 2910473, "container": "mxf-body", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 69093458}
+{"read": 90115365, "written": 93556158, "dead": 0, "wall_ns": 185541552, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 90115381}
+{"read": 69326795, "written": 69357217, "wall_ns": 161844408, "container": "mxf-body", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 69093458}
+{"read": 90115365, "written": 93556158, "dead": 0, "wall_ns": 103695170, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 90115381}
+{"read": 69326795, "written": 69357217, "wall_ns": 227080764, "container": "mxf-body", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 69093458}
+{"read": 79798708, "written": 90459803, "dead": 0, "wall_ns": 187775053, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 90115381}
+{"read": 20827, "written": 2637320, "wall_ns": 8581633, "container": "mxf-body", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 69093458}
+{"read": 79798708, "written": 90459803, "dead": 0, "wall_ns": 110263934, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 90115381}
+{"read": 20827, "written": 2637320, "wall_ns": 12135956, "container": "mxf-body", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 69093458}
+{"read": 90115365, "written": 90461356, "dead": 0, "wall_ns": 169551057, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 90115381}
+{"read": 71699023, "written": 71729982, "wall_ns": 152329820, "container": "mxf-body", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 69093458}
+{"read": 90115365, "written": 90461356, "dead": 0, "wall_ns": 111218568, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 90115381}
+{"read": 71699023, "written": 71729982, "wall_ns": 213196101, "container": "mxf-body", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 69093458}
+{"read": 11722, "written": 13764549, "dead": 10317191, "wall_ns": 87923326, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 687909381}
+{"read": 22661, "written": 265951, "wall_ns": 2321618, "container": "mxf-body", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 527263227}
+{"read": 11722, "written": 13764549, "dead": 10317191, "wall_ns": 73386732, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 687909381}
+{"read": 22661, "written": 265951, "wall_ns": 5198909, "container": "mxf-body", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 527263227}
+{"read": 11722, "written": 3450195, "dead": 0, "wall_ns": 12060921, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 687909381}
+{"read": 527427722, "written": 527526986, "wall_ns": 1784303832, "container": "mxf-body", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 527263227}
+{"read": 11722, "written": 3450195, "dead": 0, "wall_ns": 5962340, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 687909381}
+{"read": 527427722, "written": 527526986, "wall_ns": 1345049352, "container": "mxf-body", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 527263227}
+{"read": 11722, "written": 10670926, "dead": 10317191, "wall_ns": 24914400, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 687909381}
+{"read": 22661, "written": 2638458, "wall_ns": 7777134, "container": "mxf-body", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 527263227}
+{"read": 11722, "written": 10670926, "dead": 10317191, "wall_ns": 12007551, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 687909381}
+{"read": 22661, "written": 2638458, "wall_ns": 15666444, "container": "mxf-body", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 527263227}
+{"read": 11722, "written": 355393, "dead": 0, "wall_ns": 3528350, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 687909381}
+{"read": 529799950, "written": 529899493, "wall_ns": 1843131175, "container": "mxf-body", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 527263227}
+{"read": 11722, "written": 355393, "dead": 0, "wall_ns": 3248328, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 687909381}
+{"read": 529799950, "written": 529899493, "wall_ns": 1761080637, "container": "mxf-body", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 527263227}
+{"read": 2222, "written": 13757285, "dead": 10316657, "wall_ns": 29852879, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 90115381}
+{"read": 2170, "written": 348158, "dead": 0, "wall_ns": 1219765, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 90675736}
+{"read": 2222, "written": 13757285, "dead": 10316657, "wall_ns": 27456905, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 90115381}
+{"read": 2170, "written": 348158, "dead": 0, "wall_ns": 2749059, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 90675736}
+{"read": 2222, "written": 3443011, "dead": 0, "wall_ns": 8334477, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 90115381}
+{"read": 2170, "written": 348190, "dead": 0, "wall_ns": 665118, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 90675736}
+{"read": 2222, "written": 3443011, "dead": 0, "wall_ns": 3666639, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 90115381}
+{"read": 2170, "written": 348190, "dead": 0, "wall_ns": 3889981, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 90675736}
+{"read": 2222, "written": 10663345, "dead": 10316657, "wall_ns": 78644027, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 90115381}
+{"read": 2170, "written": 3462583, "dead": 0, "wall_ns": 3736121, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 90675736}
+{"read": 2222, "written": 10663345, "dead": 10316657, "wall_ns": 26827161, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 90115381}
+{"read": 2170, "written": 3462583, "dead": 0, "wall_ns": 8903561, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 90675736}
+{"read": 2222, "written": 348209, "dead": 0, "wall_ns": 2042393, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 90115381}
+{"read": 2170, "written": 3462615, "dead": 0, "wall_ns": 4890582, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 90675736}
+{"read": 2222, "written": 348209, "dead": 0, "wall_ns": 843834, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 90115381}
+{"read": 2170, "written": 3462615, "dead": 0, "wall_ns": 7597434, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 90675736}
+{"read": 692515844, "written": 695876589, "dead": 0, "wall_ns": 3832410428, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 692419740}
+{"read": 11438, "written": 355110, "dead": 0, "wall_ns": 2596731, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 692168424}
+{"read": 692515844, "written": 695876589, "dead": 0, "wall_ns": 3735428828, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 692419740}
+{"read": 11438, "written": 355110, "dead": 0, "wall_ns": 4171522, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 692168424}
+{"read": 38152, "written": 3499012, "dead": 0, "wall_ns": 73341648, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 692419740}
+{"read": 11438, "written": 355142, "dead": 0, "wall_ns": 2319594, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 692168424}
+{"read": 38152, "written": 3499012, "dead": 0, "wall_ns": 26960651, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 692419740}
+{"read": 11438, "written": 355142, "dead": 0, "wall_ns": 3742723, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 692168424}
+{"read": 692515844, "written": 692762092, "dead": 0, "wall_ns": 4321031326, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 692419740}
+{"read": 11438, "written": 3469535, "dead": 0, "wall_ns": 8584069, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 692168424}
+{"read": 692515844, "written": 692762092, "dead": 0, "wall_ns": 3717049954, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 692419740}
+{"read": 11438, "written": 3469535, "dead": 0, "wall_ns": 11020006, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 692168424}
+{"read": 38152, "written": 384515, "dead": 0, "wall_ns": 34575663, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 692419740}
+{"read": 11438, "written": 3469567, "dead": 0, "wall_ns": 5953059, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 692168424}
+{"read": 38152, "written": 384515, "dead": 0, "wall_ns": 19254404, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 692419740}
+{"read": 11438, "written": 3469567, "dead": 0, "wall_ns": 11902627, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 692168424}
+{"read": 90721322, "written": 94168967, "dead": 0, "wall_ns": 429663445, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 101953052, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 90675736}
+{"read": 90721322, "written": 94168967, "dead": 0, "wall_ns": 136548993, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 181751132, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 90675736}
+{"read": 5130, "written": 3465990, "dead": 0, "wall_ns": 15871390, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 99647448, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 90675736}
+{"read": 5130, "written": 3465990, "dead": 0, "wall_ns": 14462832, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 171404234, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 90675736}
+{"read": 90721322, "written": 91054470, "dead": 0, "wall_ns": 467741017, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 90708642}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 108685049, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 90675736}
+{"read": 90721322, "written": 91054470, "dead": 0, "wall_ns": 137374371, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 90708642}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 188650848, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 90675736}
+{"read": 5130, "written": 351493, "dead": 0, "wall_ns": 5203122, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 90708642}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 118494308, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 90675736}
+{"read": 5130, "written": 351493, "dead": 0, "wall_ns": 3746807, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 90708642}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 174365632, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 90675736}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 4276372010, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 3, "base_bytes": 692168424}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 752763609, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 3, "base_bytes": 692168424}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 2979622275, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 3, "base_bytes": 692168424}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 1338951859, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 3, "base_bytes": 692168424}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 1413883264, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 3, "base_bytes": 692168424}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 894353352, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 3, "base_bytes": 692168424}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 920380494, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 3, "base_bytes": 692168424}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 3315077300, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 3, "base_bytes": 692168424}
+{"read": 69066229, "written": 71702305, "wall_ns": 37949259, "container": "sbnd", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 69066229}
+{"read": 69066229, "written": 71702305, "wall_ns": 111768824, "container": "sbnd", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 69066229}
+{"read": 69066229, "written": 69329969, "wall_ns": 107659495, "container": "sbnd", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 69066229}
+{"read": 69066229, "written": 71702305, "wall_ns": 33644669, "container": "sbnd", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 69066229}
+{"read": 69066229, "written": 69329969, "wall_ns": 33523660, "container": "sbnd", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 69066229}
+{"read": 69066229, "written": 71702305, "wall_ns": 109134311, "container": "sbnd", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 69066229}
+{"read": 69066229, "written": 69329969, "wall_ns": 106758345, "container": "sbnd", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 69066229}
+{"read": 527188012, "written": 527451752, "wall_ns": 822268642, "container": "sbnd", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 527188012}
+{"read": 69066229, "written": 69329969, "wall_ns": 30024690, "container": "sbnd", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 69066229}
+{"read": 527188012, "written": 527451752, "wall_ns": 1040965795, "container": "sbnd", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 527188012}
+{"read": 677605303, "written": 691361082, "dead": 0, "wall_ns": 4897019931, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 414359468, "container": "sbnd", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 527188012}
+{"read": 677605303, "written": 691361082, "dead": 0, "wall_ns": 1823235606, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 687915190}
+{"read": 527188012, "written": 527451752, "wall_ns": 792639299, "container": "sbnd", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 527188012}
+{"read": 1505, "written": 3442657, "dead": 0, "wall_ns": 18321670, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 687915190}
+{"read": 527188012, "written": 529824088, "wall_ns": 945767051, "container": "sbnd", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 527188012}
+{"read": 1505, "written": 3442657, "dead": 0, "wall_ns": 8568499, "container": "mp4-g30-frag", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 687915190}
+{"read": 527188012, "written": 529824088, "wall_ns": 777906725, "container": "sbnd", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 527188012}
+{"read": 677605303, "written": 688267387, "dead": 0, "wall_ns": 4773730120, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 687915190}
+{"read": 527188012, "written": 529824088, "wall_ns": 395549447, "container": "sbnd", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 527188012}
+{"read": 677605303, "written": 688267387, "dead": 0, "wall_ns": 2535412061, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 687915190}
+{"read": 527188012, "written": 529824088, "wall_ns": 987977880, "container": "sbnd", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 527188012}
+{"read": 1505, "written": 347783, "dead": 0, "wall_ns": 3243921, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 687915190}
+{"read": 23159, "written": 267015, "wall_ns": 1529799, "container": "mxf-footer", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 69091258}
+{"read": 1505, "written": 347783, "dead": 0, "wall_ns": 1848369, "container": "mp4-g30-frag", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 687915190}
+{"read": 23159, "written": 267015, "wall_ns": 3076679, "container": "mxf-footer", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 69091258}
+{"read": 79800531, "written": 93556006, "dead": 0, "wall_ns": 655018281, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 90116140}
+{"read": 69326795, "written": 69355017, "wall_ns": 138757199, "container": "mxf-footer", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 69091258}
+{"read": 79800531, "written": 93556006, "dead": 0, "wall_ns": 159080723, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 90116140}
+{"read": 69326795, "written": 69355017, "wall_ns": 215950723, "container": "mxf-footer", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 69091258}
+{"read": 411, "written": 3441555, "dead": 0, "wall_ns": 13115439, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 90116140}
+{"read": 23159, "written": 2639522, "wall_ns": 5842973, "container": "mxf-footer", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 69091258}
+{"read": 411, "written": 3441555, "dead": 0, "wall_ns": 8342572, "container": "mp4-g30-frag", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 90116140}
+{"read": 23159, "written": 2639522, "wall_ns": 10817087, "container": "mxf-footer", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 69091258}
+{"read": 79800531, "written": 90461994, "dead": 0, "wall_ns": 681483608, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 90116140}
+{"read": 71699023, "written": 71727524, "wall_ns": 133724498, "container": "mxf-footer", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 69091258}
+{"read": 79800531, "written": 90461994, "dead": 0, "wall_ns": 181441467, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 90116140}
+{"read": 71699023, "written": 71727524, "wall_ns": 198139446, "container": "mxf-footer", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 69091258}
+{"read": 411, "written": 346681, "dead": 0, "wall_ns": 3251862, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 90116140}
+{"read": 42277, "written": 286133, "wall_ns": 5140824, "container": "mxf-footer", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 527246063}
+{"read": 411, "written": 346681, "dead": 0, "wall_ns": 2124560, "container": "mp4-g30-frag", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 90116140}
+{"read": 42277, "written": 286133, "wall_ns": 5489868, "container": "mxf-footer", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 527246063}
+{"read": 677592174, "written": 691344973, "dead": 0, "wall_ns": 4559367629, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 687909381}
+{"read": 527427722, "written": 527509822, "wall_ns": 1230106852, "container": "mxf-footer", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 527246063}
+{"read": 677592174, "written": 691344973, "dead": 0, "wall_ns": 3005354149, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 687909381}
+{"read": 527427722, "written": 527509822, "wall_ns": 1389685625, "container": "mxf-footer", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 527246063}
+{"read": 687909365, "written": 691347842, "dead": 0, "wall_ns": 3097809036, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 687909381}
+{"read": 42277, "written": 2658640, "wall_ns": 7500280, "container": "mxf-footer", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 527246063}
+{"read": 687909365, "written": 691347842, "dead": 0, "wall_ns": 3293101958, "container": "mp4-g30-front", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 687909381}
+{"read": 42277, "written": 2658640, "wall_ns": 15935711, "container": "mxf-footer", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 527246063}
+{"read": 677592174, "written": 688251350, "dead": 0, "wall_ns": 3995570929, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 687909381}
+{"read": 529799950, "written": 529882329, "wall_ns": 1108193266, "container": "mxf-footer", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 527246063}
+{"read": 677592174, "written": 688251350, "dead": 0, "wall_ns": 3073243524, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 687909381}
+{"read": 529799950, "written": 529882329, "wall_ns": 1596076177, "container": "mxf-footer", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 527246063}
+{"read": 687909365, "written": 688253040, "dead": 0, "wall_ns": 3303900069, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 687909381}
+{"read": 20827, "written": 264813, "wall_ns": 2138752, "container": "mxf-body", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 69093458}
+{"read": 687909365, "written": 688253040, "dead": 0, "wall_ns": 839945957, "container": "mp4-g30-front", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 687909381}
+{"read": 20827, "written": 264813, "wall_ns": 2856274, "container": "mxf-body", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 69093458}
+{"read": 79798708, "written": 93553743, "dead": 0, "wall_ns": 182479463, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 90115381}
+{"read": 69326795, "written": 69357217, "wall_ns": 172556057, "container": "mxf-body", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 69093458}
+{"read": 79798708, "written": 93553743, "dead": 0, "wall_ns": 114867356, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 90115381}
+{"read": 69326795, "written": 69357217, "wall_ns": 220183048, "container": "mxf-body", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 69093458}
+{"read": 90115365, "written": 93556158, "dead": 0, "wall_ns": 244387788, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 90115381}
+{"read": 20827, "written": 2637320, "wall_ns": 20543447, "container": "mxf-body", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 69093458}
+{"read": 90115365, "written": 93556158, "dead": 0, "wall_ns": 112167279, "container": "mp4-g30-front", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 90115381}
+{"read": 20827, "written": 2637320, "wall_ns": 26731504, "container": "mxf-body", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 69093458}
+{"read": 79798708, "written": 90459803, "dead": 0, "wall_ns": 177446746, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 90115381}
+{"read": 71699023, "written": 71729982, "wall_ns": 135717542, "container": "mxf-body", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 69093458}
+{"read": 79798708, "written": 90459803, "dead": 0, "wall_ns": 118658816, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 90115381}
+{"read": 71699023, "written": 71729982, "wall_ns": 223272621, "container": "mxf-body", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 69093458}
+{"read": 90115365, "written": 90461356, "dead": 0, "wall_ns": 199225071, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 90115381}
+{"read": 22661, "written": 265951, "wall_ns": 2976698, "container": "mxf-body", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 527263227}
+{"read": 90115365, "written": 90461356, "dead": 0, "wall_ns": 113480806, "container": "mp4-g30-front", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 90115381}
+{"read": 22661, "written": 265951, "wall_ns": 5766424, "container": "mxf-body", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 527263227}
+{"read": 11722, "written": 13764549, "dead": 10317191, "wall_ns": 103231414, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 687909381}
+{"read": 527427722, "written": 527526986, "wall_ns": 2026574894, "container": "mxf-body", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 527263227}
+{"read": 11722, "written": 13764549, "dead": 10317191, "wall_ns": 26899507, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 687909381}
+{"read": 527427722, "written": 527526986, "wall_ns": 2191934594, "container": "mxf-body", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 527263227}
+{"read": 11722, "written": 3450195, "dead": 0, "wall_ns": 11668624, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 687909381}
+{"read": 22661, "written": 2638458, "wall_ns": 12373976, "container": "mxf-body", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 527263227}
+{"read": 11722, "written": 3450195, "dead": 0, "wall_ns": 7533858, "container": "mp4-g30-end", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 687909381}
+{"read": 22661, "written": 2638458, "wall_ns": 13052608, "container": "mxf-body", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 527263227}
+{"read": 11722, "written": 10670926, "dead": 10317191, "wall_ns": 52847948, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 687909381}
+{"read": 529799950, "written": 529899493, "wall_ns": 1198410763, "container": "mxf-body", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 527263227}
+{"read": 11722, "written": 10670926, "dead": 10317191, "wall_ns": 36450985, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 687909381}
+{"read": 529799950, "written": 529899493, "wall_ns": 1435992795, "container": "mxf-body", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 527263227}
+{"read": 11722, "written": 355393, "dead": 0, "wall_ns": 3627397, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 687909381}
+{"read": 2170, "written": 348158, "dead": 0, "wall_ns": 1269010, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 90675736}
+{"read": 11722, "written": 355393, "dead": 0, "wall_ns": 2264179, "container": "mp4-g30-end", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 687909381}
+{"read": 2170, "written": 348158, "dead": 0, "wall_ns": 1865059, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 90675736}
+{"read": 2222, "written": 13757285, "dead": 10316657, "wall_ns": 123397146, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 90115381}
+{"read": 2170, "written": 348190, "dead": 0, "wall_ns": 547477, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 90675736}
+{"read": 2222, "written": 13757285, "dead": 10316657, "wall_ns": 93269016, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 90115381}
+{"read": 2170, "written": 348190, "dead": 0, "wall_ns": 1953350, "container": "mp4-intra-end", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 90675736}
+{"read": 2222, "written": 3443011, "dead": 0, "wall_ns": 9936338, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 90115381}
+{"read": 2170, "written": 3462583, "dead": 0, "wall_ns": 4920823, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 90675736}
+{"read": 2222, "written": 3443011, "dead": 0, "wall_ns": 4835670, "container": "mp4-g30-end", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 90115381}
+{"read": 2170, "written": 3462583, "dead": 0, "wall_ns": 10029645, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 90675736}
+{"read": 2222, "written": 10663345, "dead": 10316657, "wall_ns": 26925366, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 90115381}
+{"read": 2170, "written": 3462615, "dead": 0, "wall_ns": 3945036, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 90675736}
+{"read": 2222, "written": 10663345, "dead": 10316657, "wall_ns": 11013606, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 90115381}
+{"read": 2170, "written": 3462615, "dead": 0, "wall_ns": 8248235, "container": "mp4-intra-end", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 90675736}
+{"read": 2222, "written": 348209, "dead": 0, "wall_ns": 2483424, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 90115381}
+{"read": 11438, "written": 355110, "dead": 0, "wall_ns": 2331048, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 692168424}
+{"read": 2222, "written": 348209, "dead": 0, "wall_ns": 1081732, "container": "mp4-g30-end", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 90115381}
+{"read": 11438, "written": 355110, "dead": 0, "wall_ns": 4288178, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 692168424}
+{"read": 692515844, "written": 695876589, "dead": 0, "wall_ns": 3945402346, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 692419740}
+{"read": 11438, "written": 355142, "dead": 0, "wall_ns": 2158866, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 692168424}
+{"read": 692515844, "written": 695876589, "dead": 0, "wall_ns": 3696523071, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 692419740}
+{"read": 11438, "written": 355142, "dead": 0, "wall_ns": 3249303, "container": "mp4-intra-end", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 692168424}
+{"read": 38152, "written": 3499012, "dead": 0, "wall_ns": 110453565, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 692419740}
+{"read": 11438, "written": 3469535, "dead": 0, "wall_ns": 6105960, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 692168424}
+{"read": 38152, "written": 3499012, "dead": 0, "wall_ns": 28974264, "container": "mp4-intra-frag", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 692419740}
+{"read": 11438, "written": 3469535, "dead": 0, "wall_ns": 10268297, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 692168424}
+{"read": 692515844, "written": 692762092, "dead": 0, "wall_ns": 4662495149, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 692419740}
+{"read": 11438, "written": 3469567, "dead": 0, "wall_ns": 7185989, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 692168424}
+{"read": 692515844, "written": 692762092, "dead": 0, "wall_ns": 3620743016, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 692419740}
+{"read": 11438, "written": 3469567, "dead": 0, "wall_ns": 10478692, "container": "mp4-intra-end", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 692168424}
+{"read": 38152, "written": 384515, "dead": 0, "wall_ns": 64670236, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 692419740}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 118102309, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 90675736}
+{"read": 38152, "written": 384515, "dead": 0, "wall_ns": 18687699, "container": "mp4-intra-frag", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 692419740}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 174616078, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 90675736}
+{"read": 90721322, "written": 94168967, "dead": 0, "wall_ns": 499590473, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 105054475, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 90675736}
+{"read": 90721322, "written": 94168967, "dead": 0, "wall_ns": 158570955, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 90708642}
+{"read": 90675720, "written": 91021712, "dead": 0, "wall_ns": 184027636, "container": "mp4-intra-front", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 90675736}
+{"read": 5130, "written": 3465990, "dead": 0, "wall_ns": 17052863, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 90708642}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 114699433, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 90675736}
+{"read": 5130, "written": 3465990, "dead": 0, "wall_ns": 17275401, "container": "mp4-intra-frag", "n": 262, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 90708642}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 194997522, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 90675736}
+{"read": 90721322, "written": 91054470, "dead": 0, "wall_ns": 495710427, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 90708642}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 127661027, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 90675736}
+{"read": 90721322, "written": 91054470, "dead": 0, "wall_ns": 162105512, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 90708642}
+{"read": 90675720, "written": 94136137, "dead": 0, "wall_ns": 196746770, "container": "mp4-intra-front", "n": 262, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 90675736}
+{"read": 5130, "written": 351493, "dead": 0, "wall_ns": 4713980, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 90708642}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 3831834704, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 692168424}
+{"read": 5130, "written": 351493, "dead": 0, "wall_ns": 4693423, "container": "mp4-intra-frag", "n": 262, "k": 1, "where": "end", "fsync": false, "round": 4, "base_bytes": 90708642}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 1713278996, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "end", "fsync": true, "round": 4, "base_bytes": 692168424}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 1402645319, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "middle", "fsync": true, "round": 4, "base_bytes": 692168424}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 862588228, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "middle", "fsync": false, "round": 4, "base_bytes": 692168424}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 1002324871, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "middle", "fsync": false, "round": 4, "base_bytes": 692168424}
+{"read": 692168408, "written": 692512084, "dead": 0, "wall_ns": 1362453526, "container": "mp4-intra-front", "n": 2000, "k": 1, "where": "middle", "fsync": true, "round": 4, "base_bytes": 692168424}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 1361925170, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "end", "fsync": true, "round": 4, "base_bytes": 692168424}
+{"read": 692168408, "written": 695626509, "dead": 0, "wall_ns": 928155525, "container": "mp4-intra-front", "n": 2000, "k": 10, "where": "end", "fsync": false, "round": 4, "base_bytes": 692168424}

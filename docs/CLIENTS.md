@@ -7,7 +7,7 @@ is [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 | Path | What |
 | --- | --- |
-| `client/transport/ts/` | TypeScript, browser ESM (`build.sh` → gitignored `dist/`). `frame-session.ts` is everything a session does whatever carries its bytes; `session.ts` carries it over WebTransport, `ws-session.ts` over a WebSocket, `race-session.ts` dials both |
+| `client/transport/ts/` | TypeScript, browser ESM (`build.sh` → `dist/`, gitignored but for the page's `session.js`, committed and pinned by `manifest.sha256`). `frame-session.ts` is everything a session does whatever carries its bytes; `session.ts` carries it over WebTransport, `ws-session.ts` over a WebSocket, `race-session.ts` dials both |
 | `client/transport/wasm/` | Rust → WASM over `web_sys::WebTransport` (`build.sh` → gitignored `pkg/`; needs `wasm-pack`, `README.md` §Prerequisites) |
 | `client/contract/` | the suite, §The contract suite |
 | `client/transport/` | beside the transports, the page side (`consumer.js`) and the download worker (`downloader.js`): [`ARCHITECTURE.md`](ARCHITECTURE.md) |
@@ -24,7 +24,7 @@ and the downloader takes any module exporting `TransportSession` as `config.tran
 | | |
 | --- | --- |
 | `connect(url, certHash, options?)` | open a session |
-| `requestExactFrame(i)` | one frame, the interactive path; a promise per ask |
+| `requestFrame(i)` | one frame, the interactive path; a promise per ask |
 | `fillFrames(from, to, onFrame, onError?)` | a fill **pushed** as it lands, no waiter per frame — §Fills are pushed |
 | `endStream()` | **stop a running fill without ending the session** |
 | `releaseWireBuffer(buffer)` | hand a delivered frame's buffer back to the session's ring ([`decode/README.md`](decode/README.md) §The wire buffer ring) |
@@ -103,6 +103,16 @@ there too, a round trip later for every default page; the owner ruled it back). 
 page, by name on the status line, before the WASM client's code is fetched or anything dialled (TS's module, preloaded
 by the HTML, is fetched, and nothing dials); a client that fails to load fails the start, with no
 fallback to the other. The status line names the client, and the page check runs on each (`--client`).
+
+*Decided since, not on this branch (noted 2026-11-14):* the owner judged on 2026-10-19 that which code the page runs
+is a fact about the page, decided when it is rendered, not by the transport server at runtime. So the page's HTML
+names its client (`data-client` on `viewer/head.js`'s script tag, `"ts"` or `"wasm"`, rendered by `viewer/page.sh`
+with that client's preloads) and its transport (`data-wt-port`, or `data-transport-file`); the transport file carries
+no `client`, `gen_dev_cert.sh` keeps none, `CLIENT` moves from the server's environment to web's, and a deployment
+whose certificate the browser trusts reads no transport file and dials its own host. Built on
+`claude/page-without-transport-file` (`cf75ba64`, tip `84c2b297`) and merged into `claude/line-hygiene` (`ccaa75e8`),
+neither of which this branch carries: the paragraph above describes this branch's code, and the decision is not built
+here. The open without the transport file is not measured (that branch, `lab/page-open`: both runs saturated).
 
 *Not measured:* the WASM preload, which starts once the transport file has arrived, not as the page is parsed (row
 279 measured the WASM client preloaded from the HTML, and with nothing preloaded, not this point between them); and
@@ -342,7 +352,10 @@ for large frames. On the target link none of this binds.
 `readMin` bytes or the frame's rest; unset, the default reader and its copy. WebTransport only. A
 stream that is not a byte stream is read the default way (`readMinWithoutByobFallsBack`). A cut
 stream's last read resolves done with the bytes it holds, so the frame is still named truncated with
-its count (`aCutFrameIsNamedWithItsBytes`).
+its count (`aCutFrameIsNamedWithItsBytes`). A cut whose end is already queued when a read is made errors that
+read instead (a pull-into the queue cannot fill to `min` once the close is queued), and the read keeps its buffer:
+the frame is named truncated all the same, its count only what earlier reads held (dispatch rig,
+`aTruncatedFrameIsAFailureUnderReadMin`).
 
 **Bound on K.** Each read moves `lastByteAt`, which the downloader's stall watch reads, so a read
 must resolve inside `stallMs` (3 s) at the slowest rate a session should survive, and across an
@@ -375,8 +388,10 @@ The container's +12 ms (4/11) does not reproduce. **What holds it back is livene
 two dispatch clauses fail. A session whose bytes come slower than 16 KB per `stallMs` (< 44 kbit/s)
 is re-dialled, since a read with `min` resolves only at `min` bytes (the bound above, made a default) — the
 owner's trade against −97 ms and −38 MB a fill. And a cut whose end is already queued when the read is
-made errors the stream (a pull-into it cannot fill), which is taken for a stream end, so the frame is
-not named — **a defect of the `readMin` path, to fix before any default**. The BYOB read's ~12 ms frame 0 (cloud
+made errored the stream (a pull-into it cannot fill), which was taken for a stream end, so the frame was
+not named — a defect of the `readMin` path. *Corrected 2026-11-23:* the fix (`4019518a`, 2026-10-22: the errored read
+is the cut, and the frame is named) was merged at `82db21c4` (PR 136) and lost at `dd681539` (stage B2, which took the
+tip's `frame-session.ts` and `dispatch-rig.ts`); restored on `claude/readmin-restore` with its clause. The default stays off. The BYOB read's ~12 ms frame 0 (cloud
 queue row 5) is the WASM client's retired path ([`decode/README.md`](decode/README.md) §The BYOB read path).
 
 ## ACK frequency, by browser
@@ -416,7 +431,7 @@ the code does, read from the code.
 | `navigator.deviceMemory` | nothing today | declined | — |
 | `freeze` / `resume` (Page Lifecycle) | survival triggers the consumer forwards | not checked; a Chromium API | they never fire; `visibilitychange` and `pageshow` still do |
 | Speculation Rules (prerender) | nothing built ([`rig-limits.md`](rig-limits.md) §8) | absent | prerender's saving is Chromium-only |
-| OPFS | a planned cache, not built | present; script-written storage deleted after 7 days without interaction, `persist()` no exemption (*qualified 2026-10-11:* the source's default window is 30 operating days, 7 for a domain flagged by link decoration; shipping Safari not traced, [`adr/frame-path.md`](adr/frame-path.md) §4) | when built, an OPFS cache must be evictable on WebKit, not a store |
+| OPFS | a planned cache, not built | present; script-written storage deleted after 7 days without interaction, `persist()` no exemption (*qualified 2026-10-11:* the source's default window is 30 operating days, 7 for a domain flagged by link decoration; shipping Safari not traced, [`docs/client/evidence/cache-in-opfs.md`](client/evidence/cache-in-opfs.md) §4) | when built, an OPFS cache must be evictable on WebKit, not a store |
 | 2D canvas `alpha: false` | `lab/paint-floor/` only | no effect | the lab's 2D route measures something different on WebKit |
 | WebAssembly under Lockdown Mode | the decoder, the WASM client | disabled when introduced; not verified for current iOS | a blank viewer, not a slow one. Needs a device |
 
@@ -536,7 +551,7 @@ whatever of theirs has landed.
 | W1 | *Closed by row 277.* **The page cannot select it.** The transport file carries `wt_url` and `cert_sha256` alone; the downloader defaults to the TS module | `deploy/server-start.sh:19`; `server/scripts/gen_dev_cert.sh:35-40`; `client/viewer/viewer.js:21,127`; `client/transport/downloader.js:7,466` | ~+10 | **yes**: a product setting, and a second path the page loads |
 | W2 | *Closed by row 277.* **Nothing preloads it.** The page preloads `ts/dist/session.js`; the WASM client is three fetches in series inside the downloader's worker (adapter, glue, `.wasm`), each found only once the one before runs | `client/viewer/index.html:14`; `client/viewer/head.js:15-24`; `client/transport/wasm/session-adapter.js:6` | ~+5 | no |
 | W3 | *Closed by row 278.* **The image does not carry it.** `web-files.sh` copies no `transport/wasm/`, the bundles stage builds TS alone, and `check_equivalence.sh` asserts neither its files nor `application/wasm` | `deploy/web-files.sh:9-14`; `deploy/Containerfile:50-59,66`; `deploy/check_equivalence.sh:62-68` | ~+20 | **yes**: the image gains a wasm32 stage (the target, `wasm-pack` 0.15.0, binaryen `version_117` by checksum, as `build.sh` and CI fetch them) |
-| W4 | *Closed by row 265.* **`refill: "head"`, the default, never fires.** The downloader passes `onHead` as `requestExactFrame`'s second argument; the WASM binding takes one, and its reader reads a frame's head and body in one `read_exact`. The hold is released in `finally`, the trigger row 229 replaced; its 10 % fill gained up to 256 ms on the head ([`transport/link-conditions.md`](transport/link-conditions.md), *ASKTHENFILL*) | `client/transport/downloader.js:233,245,254`; `client/transport/wasm/src/lib.rs:51-52`; `client/transport/wasm/src/session.rs:192-197` | ~+20 | no |
+| W4 | *Closed by row 265.* **`refill: "head"`, the default, never fires.** The downloader passes `onHead` as `requestFrame`'s second argument; the WASM binding takes one, and its reader reads a frame's head and body in one `read_exact`. The hold is released in `finally`, the trigger row 229 replaced; its 10 % fill gained up to 256 ms on the head ([`transport/link-conditions.md`](transport/link-conditions.md), *ASKTHENFILL*) | `client/transport/downloader.js:233,245,254`; `client/transport/wasm/src/lib.rs:51-52`; `client/transport/wasm/src/session.rs:192-197` | ~+20 | no |
 | W5 | *Closed by row 265.* **No dial deadline.** `dialMs` is ignored, so a dial that never settles (WebKit bug 319879, `--hold-sessions`) holds the downloader for ever: `firstDial` retries only a `DialTimeoutError`, `resume` awaits the dial. TS fails at 29.1 s, naming it ([`ARCHITECTURE.md`](ARCHITECTURE.md) §A dial that never settles) | `client/transport/downloader.js:365,469,514`; `client/transport/wasm/src/session.rs:376-395` | ~+15 | no |
 | W6 | *Closed by row 265.* **`endStream()` is synchronous**, and the downloader calls `.catch` on it after a cancel lands during a dial that carried an opening fill: on WASM a `TypeError` out of `connect()`, and on the first dial the start fails. Read from the code, not run; *corrected 2026-10-16:* run at the session — `endStreamIsAPromise` on the WASM build of `4406acd2` failed with `Cannot read properties of undefined (reading 'catch')`; through the downloader it is row 2's; `dispatch-rig.ts`'s *cancel during a resume* drives that line | `client/transport/downloader.js:496`; `client/transport/wasm/src/lib.rs:82-85`; `client/contract/dispatch-rig.ts:1866-1885` | ~±2, an `async fn` | no |
 | W7 | *Closed by row 265.* **No opening ask.** The adapter asks the opening fill on the control stream once the session is up: the round trip the URL saves TS, −1.06 to −1.52 round trips to a fill's first frame ([`ARCHITECTURE.md`](ARCHITECTURE.md) §The opening ask) | `client/transport/wasm/session-adapter.js:14-17`; `client/transport/wasm/src/session.rs:376-395` | ~+20 | no |
@@ -553,7 +568,8 @@ page is WebTransport only. A race whose QUIC arm is the WASM session is structur
 ([`ARCHITECTURE.md`](ARCHITECTURE.md) §Open). CI already builds the WASM client (`.github/workflows/gate.yml:78-126`)
 and gains only the steps below.
 
-**The shape.** TS the default; WASM chosen by the transport file's `client`; the same surface, the same checks, built
+**The shape.** TS the default; WASM chosen by the transport file's `client` (by the page's HTML since the owner's
+2026-10-19 decision, not built here: §Choosing the client); the same surface, the same checks, built
 into the image. No capability test, no fallback, no WASM race.
 
 **The rows, in order.**
@@ -643,8 +659,8 @@ self-check in `client/`, which would have split one route across two trees. `doc
 
 Each item below is the owner's to decide, and is tracked here.
 
-* **`readMin` at 16 KB by default** — frame 0 ties; the cost is re-dials below 44 kbit/s, and the `readMin` path's
-  defect is fixed first (§Reading a frame whole).
+* **`readMin` at 16 KB by default** — frame 0 ties; the cost is re-dials below 44 kbit/s. The `readMin` path's
+  cut-stream defect is fixed (§Reading a frame whole; restored 2026-11-23).
 * **The WASM client as a product client** — the shape (selected by configuration, no fallback) and rows 3–4 of
   §Proposed: the WASM client as a second product client; and whether row 228's dav1d half moves.
 * **Known defects** — each found by reading the code (2026-10-16 review); *corrected 2026-10-18:*

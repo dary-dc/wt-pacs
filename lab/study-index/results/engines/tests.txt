@@ -1,0 +1,32 @@
+test gen::tests::dates ... ok
+test gen::tests::deterministic ... ok
+test gen::tests::distributions ... ok
+test query::tests::like ... ok
+test query::tests::person_name_matching ... ok
+test query::tests::round_trip ... ok
+test receiver::tests::correction_then_deletion ... ok
+test receiver::tests::killed_after_commit ... ok
+test receiver::tests::killed_after_index_commit ... ok
+test receiver::tests::name_prefix_on_every_engine ... ok
+test receiver::tests::only_a_higher_revision ... ok
+test receiver::tests::reconcile_removes_orphans ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.87s
+caught: an equal revision re-applied
+caught: no revision check
+caught: series not replaced whole
+caught: no outbox row in the receiver commit
+caught: outbox row kept after publish
+caught: orphans left by reconcile
+caught: tombstoned file kept
+caught: wild card dropped
+caught: check's accent folding broken
+caught: PostgreSQL: an equal revision re-applied
+caught: PostgreSQL: series not replaced whole
+caught: SQLite: an equal revision re-applied
+caught: SQLite: series not replaced whole
+caught: PostgreSQL: accents not folded
+caught: PostgreSQL: the prefix range empty
+caught: SQLite: accents not folded
+caught: SQLite: name_key not folded on publish
+caught: SQLite: the prefix range empty
+mutate.sh exit 0

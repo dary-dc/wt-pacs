@@ -1,0 +1,12 @@
+checks per arm over all rounds: frames exact / previews bit-identical to native dav1d / residuals as encode.py wrote them
+1x	dbts_a1	crf20	H 0/16	R 0/16 0/16 0/16	P dav1d 0/16	RA 0/16 0/16	P webcodecs 0/16
+1x	dbts_a1	crf8	H 0/16	R 0/16 0/16 0/16	P dav1d 0/16	RA 0/16 0/16	P webcodecs 0/16
+1x	dbts_a1	crf2	H 0/16	R 0/16 0/16 0/16	P dav1d 0/16	RA 0/16 0/16	P webcodecs 0/16
+1x	dbts_a1	crf8-s0	H 0/16	R 0/16 0/16 0/16	P dav1d 0/16	RA 0/16 0/16
+1x	dbts_b1	crf20	H 0/16	R 0/16 0/16 0/16	P dav1d 0/16	RA 0/16 0/16	P webcodecs 0/16
+1x	dbts_b1	crf8	H 0/16	R 0/16 0/16 0/16	P dav1d 0/16	RA 0/16 0/16	P webcodecs 0/16
+1x	dbts_b1	crf2	H 0/16	R 0/16 0/16 0/16	P dav1d 0/16	RA 0/16 0/16	P webcodecs 0/16
+1x	dbts_c1	crf20	H 0/16	R 0/16 0/16 0/16	P dav1d 0/16	RA 0/16 0/16	P webcodecs 0/16
+1x	dbts_c1	crf8	H 0/16	R 0/16 0/16 0/16	P dav1d 0/16	RA 0/16 0/16	P webcodecs 0/16
+1x	dbts_c1	crf2	H 0/16	R 0/16 0/16 0/16	P dav1d 0/16	RA 0/16 0/16	P webcodecs 0/16
+1x	dbts_c1	crf8-s0	H 0/16	R 0/16 0/16 0/16	P dav1d 0/16	RA 0/16 0/16

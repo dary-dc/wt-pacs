@@ -82,7 +82,7 @@ if (ASKS) {
   log(`variant ${variant}, asking for ${ASKS} frames at once`);
   const t0 = at();
   issuedAt = t0;
-  await Promise.all([...Array(ASKS).keys()].map((i) => client.requestExactFrame(i).then(
+  await Promise.all([...Array(ASKS).keys()].map((i) => client.requestFrame(i).then(
     () => frames.push({ i, at: at() }),
     (e) => failures.push({ i, at: at(), reason: String(e.message), afterMs: Math.round(at() - t0) }),
   )));

@@ -2,7 +2,8 @@
 
 What a session carries, byte for byte. Over WebTransport: one bidirectional **control** stream,
 which the client opens, carrying FoD messages; and the server's unidirectional **media** streams,
-carrying one envelope per frame. Over a WebSocket, the same bytes (§The WebSocket mapping).
+carrying one envelope per frame. Over a WebSocket, the same bytes (§The WebSocket mapping); over
+raw QUIC, for the native client, the same streams (§The raw QUIC mapping).
 
 **Media-complete:** a frame is complete when its envelope's last byte arrives; there is no
 acknowledgement message. The server's banner prints what a client dials: `wt_url=`,
@@ -122,7 +123,7 @@ fill; it replaces it. While a fill runs, the planner checks for new messages bet
 any message in hand ends the fill — a `request_frame`, a batch, a new `stream_frames`, an
 `end_stream` (which is then consumed), an `end_session`. There is no saved position: the fill does
 not resume. The asked frame is served next, and a client that still wants the rest of the run asks
-for it again; the downloader does so by itself. That re-ask is this shape's cost, which row 229 only
+for it again; the downloader does so by itself. That re-ask is this shape's cost ([`client/evidence/re-asking-the-fill-after-an-ask.md`](client/evidence/re-asking-the-fill-after-an-ask.md)), which row 229 only
 shortens; queue row 249 proposes a server that keeps the fill and moves the asked frame to its front.
 Tests: `a_data_request_during_a_fill_ends_it_and_is_served_next` (`planner.rs`) and `request_frame_during_fill_switches_to_on_demand` (`server.rs`, "fill kept
 reciting after the mode switch").
@@ -183,7 +184,7 @@ follow, each measured on its own:
   ([`native/quic-compared.md`](native/quic-compared.md) §9.7).
 
 The client carries the rebuild: with row 229 in, `asksInFlight` and its gate on the fill, the hold-and-release in
-`ask()`, three `refill` modes, and a head callback through `requestExactFrame`.
+`ask()`, three `refill` modes, and a head callback through `requestFrame`.
 
 **Candidate 1, one queue (the owner's).** The server holds what the client wants as one ordered queue. A fill
 appends its run, and an ask moves its frame to the front, or puts it there if the fill did not hold it. An ask never
@@ -212,7 +213,8 @@ code stay.
 
 **Candidate 3, today with row 229's head re-issue.** The baseline.
 
-**What decides** (a protocol for a separate session; the rule is fixed before the data):
+**What decides** (a protocol for a separate session; the rule is fixed before the data; *corrected 2026-11-14:* this
+read as unmeasured, but it ran on 2026-10-16, see the end of this section):
 
 * **Arms:** 3; 3 again (the A/A arm); 1; 1 with `--send-window-follows-cwnd`; 3 with `--send-window-follows-cwnd`,
   which separates the window's share from the queue's.
@@ -224,6 +226,13 @@ code stay.
   than 3's beyond the A/A spread in any cell. A tie adopts it, because it removes code. Worse in any cell makes it a
   trade-off for the owner, with those cells as its cost.
 
+**Measured, 2026-10-16 and 2026-10-22: a trade-off for the owner; nothing changed, the flags stay off.** Candidate 1
+alone moved the ask ×0.988–1.267 (a tie, or worse in four 10 % cells); with the send window it was ×0.320–0.900, better
+in 25 of 28 cells, at a fill +45 ms (strict +54) at 103 Mbit/s / 92 ms FIFO 20 and +14 ms at 103/46 CoDel, both at 50 %;
+the window alone gave the same asks, so the gain is the window's. A rerun beside an ask stream of its own kept the
+queue with the window as the candidate, its one fill cost +31 ms at 103/92 CoDel, the strict reading undecided on that
+host. Fixtures, saturation and every cell: [`client/evidence/ask-during-a-fill.md`](client/evidence/ask-during-a-fill.md).
+
 ## The opening ask
 
 On by default; `series-server --opening-ask false` turns it off. The session URL may carry
@@ -234,6 +243,47 @@ said until 2026-10-04 that a refusal of one waits for the control stream: that c
 The TypeScript client sends it for
 `connect(url, hash, { fill })` and arms the fill without sending `stream_frames`. Why:
 [`ARCHITECTURE.md`](ARCHITECTURE.md), session open.
+
+## Naming the series
+
+`series-server --series x.sbnd` serves that one series and never reads the URL's path. `series-server --root DIR`
+serves many: a session's URL is `https://host:port/<Study>/<Series>`, each segment a **coded UID**, the study's and
+the series' UID in the coding of [`ingest/contract.md`](ingest/contract.md) (§The layout, *The coding*): the alphabet
+`0-9 A-Z _ a-z ~`, an even length from 2 to 44 (a 64-character UID codes to 44). Anything else is refused before any
+file is touched; no segment can spell `.`, `/` or `%`. The series is the file `DIR/<Study>/<Series>.sbnd`
+(`series_path`, the one function that knows the layout; provisional, since the disk layout is not decided:
+[`disk-layout/target.md`](disk-layout/target.md), #152). The two flags are exclusive, and `--root` takes neither
+`--send-window-follows-cwnd` nor `--force-pool-reads`, which size or set one store at start.
+
+The query may carry `?digest=`, the bundle's digest from the metadata the page holds; the server reads only `ask`
+and `digest`. A v1 bundle has no digest, so a session naming one is refused "series changed". Why each of these:
+[`adr/serving-by-uid.md`](adr/serving-by-uid.md).
+
+## Refusing a series
+
+Under `--root` a session the server will not serve is accepted, then closed with a code and a reason, never
+answered with an HTTP status, which a page cannot read:
+
+| code | reason | when | the client should |
+| ---: | --- | --- | --- |
+| 1 | `bad series name` | a segment is not a coded UID, or the path is not two segments | not retry |
+| 2 | `series not found` | no file at the name, or no study folder; a `.partial` is never opened | not retry |
+| 3 | `series changed` | `?digest=` is not the bundle's, after one reopen; any digest against a v1 bundle | refetch the metadata, dial again |
+| 4 | `series unreadable` | the file is not a bundle this server reads, or open fails otherwise | not retry |
+| 5 | `server busy` | out of descriptors or memory at open | retry with a backoff |
+
+Over QUIC the code is the application close code and the reason its reason bytes. Over a WebSocket it is a Close
+with 4000 + the code (RFC 6455 §7.4.2's private range) and the reason. Both clients report either as
+`session closed (code N): reason`, from `connect` when the close lands before the control stream opens, else from
+each ask; a contract-suite clause holds every implementation to it (`aRefusedSeriesIsNamedByItsCode`). 1, 2 and 3 are
+logged at INFO, 4 and 5 at WARN.
+
+**Measured 2026-10-26, headless Chromium 153: the QUIC close code does not reach the page.** `wtransport` 0.7
+closes the whole QUIC connection; the browser rejects `closed` with a `WebTransportError` "Connection lost." and no
+code, so over WebTransport a page sees `session closed: Connection lost.`. A page sees `closeCode` only from a
+`CLOSE_WEBTRANSPORT_SESSION` capsule on the CONNECT stream, which this `wtransport` cannot send; that is a crate
+patch, proposed in [`adr/serving-by-uid.md`](adr/serving-by-uid.md) §6 and not built. The same run over a WebSocket
+showed 4001, 4002 and 4003 with their reasons.
 
 ## The WebSocket mapping
 
@@ -278,3 +328,29 @@ One ordered byte stream gives up what QUIC's streams give: a slow or lost frame 
 behind it, and a retransmit stalls everything. The contract suite reports the independent-
 delivery clauses as not applicable rather than passing
 ([`CLIENTS.md`](CLIENTS.md#the-contract-suite)).
+
+## The raw QUIC mapping
+
+Always on. The server's one QUIC endpoint offers two ALPNs, `h3` first and `wt-pacs/1`, and routes each connection
+by the one TLS chose ([`native/README.md`](native/README.md) §8.1): a browser offers only `h3` and is answered as
+before, and a client offering neither is refused in the handshake with `no_application_protocol`, 0x178. From the
+first FoD message on, a raw session is served by the WebTransport path's code: the planner, the store, the send path,
+the transport configuration and the lab levers. The native client, `client/native`, speaks it; its `native-fill`
+prints each frame's last-byte time and checks each frame against the bundle.
+
+| | WebTransport | `wt-pacs/1` |
+| --- | --- | --- |
+| session open | HTTP/3 SETTINGS on a control uni, QPACK streams, an extended CONNECT on a request bidi and its 200 | the QUIC handshake alone |
+| session id | the CONNECT stream's id, written into every stream's header | none: one connection, one session |
+| control stream | client bidi, prefixed `0x41` + session id (`wtransport-proto` `frame.rs:464`) | client bidi, from byte 0 |
+| media streams | server uni, prefixed `0x54` + session id (`stream_header.rs:331`) | server uni, from byte 0 |
+| FoD, envelope, stream modes, priorities | above | the same bytes, the same rules |
+| the opening ask | `?ask=` in the CONNECT's path | dropped: the client's first FoD message rides its first 1-RTT flight, the flight a WebTransport client's CONNECT rides, so it reaches the server when `?ask=` does: a cold fill's first frame ties (+0.6 and +1.1 ms at 20 and 50 Mbit, inside the A/A; [`client/evidence/native-client-wire-parity.md`](client/evidence/native-client-wire-parity.md), the lab check of [`native/README.md`](native/README.md) §8.5, run 2026-10-28 on `claude/native-step1-check`). *Corrected 2026-11-14:* this said read, not measured, the check not run |
+| datagrams | negotiated, unused by the server | the same: both sides' quinn defaults offer them (read from quinn-proto 0.11.18, not observed). *Corrected 2026-10-27:* the design said not negotiated |
+| goodbye | `CLOSE_WEBTRANSPORT_SESSION` capsule, or the connection's close | the connection's application close; the server's stop is `STOPPING`, 0x100, defined by this ALPN |
+| certificate | pinned by SHA-256, ≤ 14 days (the browser's rule) | the same pin and rule, through wtransport's `ServerHashVerification` (`tls.rs:785–795`), so one certificate serves both |
+
+Tests: `the_native_client_gets_webtransports_bytes` (in both stream modes, a fill and asks reach the native client
+exactly as they reach a WebTransport client of the same server, each frame the bundle's) and
+`an_unknown_alpn_is_refused_in_the_handshake`, both in `client/native`; `a_raw_session_closed_before_its_control_stream_ends_cleanly`
+(`server.rs`), a goodbye on this path too.

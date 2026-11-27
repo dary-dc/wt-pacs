@@ -8,7 +8,12 @@ carries, in its plain and optimized representations — is [`payload-format.md`]
 2026-10-04 and built end to end at `20c3674`.
 What each target series is, per the DICOM standard and vendors' conformance statements: [`series.md`](series.md).
 The bit split against the literature, and the alternatives above 12 bits: [`split-prior-art.md`](split-prior-art.md).
+Whether frames are coded in groups (inter) or alone, the decision and its reasons: [`frame-groups.md`](frame-groups.md).
 Lossless coding published 2023–2026, and what of it a browser can decode exactly: [`lossless-literature.md`](lossless-literature.md).
+What binds a lossy, "visually lossless" picture of a frame, and what its quality may be measured against: [`visually-lossless.md`](visually-lossless.md).
+Which metrics may claim a lossy view visually lossless, at which windows, and what still needs readers: [`vl-metrics.md`](vl-metrics.md).
+An adversarial audit of the lossy quality results the optimal-quality design rests on: [`audit-quality.md`](audit-quality.md).
+The two audits' corrections, by study branch: [`corrections.md`](corrections.md); their three pre-registered protocols: [`audit-protocols.md`](audit-protocols.md).
 
 **Every ultrasound number in this file is provisional (the provenance audit, queue row DATAGUARD, 2026-10-08).** `us_liver`'s header says it
 was coded lossily at 12.4:1 before it was archived, the breast cine are MPEG-4 Part 2 clips, and the stills a PNG
@@ -38,8 +43,8 @@ Here it is lossless only, one frame a payload, in this project's own format. The
   HTJ2K on five of seven series in Chromium and Firefox) and HTJ2K wherever a slow CPU meets a fast link (Firefox
   1.33–2.53 at 4× on 50 Mbit). By the whole-round total-time measurement's rule (queue row TOTAL4) — AV1 only where it fills first in both engines on every cell —
   no series qualifies, and ingest keeps HTJ2K — §Total time.
-* **Frame groups: G = 1.** Inter coding does not pay on DBT, conclusively by a rule fixed before the data (15
-  volumes, best +1.51 %); cine, ABUS and angiography have no sound data — §Frame groups.
+* **Frame groups: G = 1.** Inter coding does not pay on DBT (15 volumes, best +1.51 % on one, every other
+  larger at every G > 1); cine and ABUS have no sound data — §Frame groups, [`frame-groups.md`](frame-groups.md) §1.
 * **Preview: measured, not adopted.** Whether a lossy picture may come first is the owner's ruling — §Preview.
 
 **Focus (owner, 2026-10-03): AV1 alone**, not combined with HTJ2K — that is what the coming real-time stack is expected to
@@ -173,7 +178,11 @@ series over 10 bits (CT 0.918) — the one place it wins, set against a decode t
 WebCodecs 2.6–3.9×. *The WebKit and Firefox decode measurement (queue row XBROWSER) since:* in Firefox 157 and WebKitGTK 2.52 the
 client's choice of WebCodecs fails every frame of every series that says `depth` ≤ 10 (Firefox
 refuses monochrome AV1 and returns 4:4:4 as 8-bit `BGRX`; WebKitGTK's GStreamer decodes no AV1
-here), with no fallback to dav1d-WASM (*since the unified AV1 branch (queue row UNIFY) there is one, and a per-layout probe; not re-run
+here; *dated 2026-11-14:* those are the versions measured, and the engines' sources read since on 2026-11-07 name
+the GStreamer failure fixed as WebKit bug 327481 and Firefox's 8-bit `BGRX` still open as bug 1969762:
+[`../client/evidence/browser-av1-profile-support.md`](../client/evidence/browser-av1-profile-support.md); sources read on
+2026-11-10 add that from Firefox 160 (bug 2071132) a frame returned as CPU planes reports `I420P10`/`I420P12`, not run:
+[`../client/evidence/browser-decode-routes.md`](../client/evidence/browser-decode-routes.md)), with no fallback to dav1d-WASM (*since the unified AV1 branch (queue row UNIFY) there is one, and a per-layout probe; not re-run
 in those engines*); dav1d-WASM and OpenJPH are exact in all three engines, at
 4–10× apart as in Chromium ([`decode/README.md`](../decode/README.md) §AV1 in WebKit and Firefox).
 
@@ -439,7 +448,7 @@ bytes where the wire is the clock.
 
 Does asking the frames a reader needs first shorten the time to them without costing the fill? The order is
 the client's, never the server's ([`../adr/reject-server-ordering.md`](../adr/reject-server-ordering.md)):
-`prio` asks the useful frames with `requestExactFrame`, most needed first, then posts the same whole-series
+`prio` asks the useful frames with `requestFrame`, most needed first, then posts the same whole-series
 fill as `seq`. **Useful**, per content: on tomosynthesis the centre slice and two either side (the slice a
 reader starts on is this measurement's premise, not a measured reading pattern); on a four-view screening
 mammogram the MLO pair — IHE's mammography display test hangs all four current views at once, MLOs on the
@@ -1287,6 +1296,8 @@ HTJ2K's does. What a group G > 1 would cost and whether it pays:
 **One frame, or a group of frames, as the unit.** Inter prediction (a frame coded from its
 neighbours) is where AV1 is expected to beat HTJ2K on size; intra-only AV1 against lossless HTJ2K is
 not expected to win by much. *Expected, not measured* — the lossless-bytes measurement (queue row SIZE) measures it.
+*Measured since: inter does not pay on any target series measured, and the decision, G = 1 on every type, is
+[`frame-groups.md`](frame-groups.md).*
 
 What inter costs is **random access**, and a viewer has it even with no timeline: a stack is
 scrolled both ways and jumped across (a reference line clicked, a linked series, a key image, the
@@ -1320,18 +1331,21 @@ or angiography is open. What was measured on DBT, and no more: libaom 3.15.1 alo
 it), a keyframe at exactly every G, two presets; G = 1, 2, 4, 8, 16 and whole on two volumes coded whole (the tomosynthesis measurement),
 G = 8 and 16 only on the k = 2 split (the breast-family measurement). "Inter does not pay" in this file means *on those volumes, at those
 settings*; whether it pays on DBT is asked again, theory first (the frame-group theory, measurement and review, queue rows GOPTHEORY, GOPMEASURE, GOPREVIEW). *Answered
-(the frame-group review): on DBT it does not, conclusively by the rule fixed before the data — 15 sound volumes from three
-systems, every series under the 20 % line (best +1.51 %), because adjacent slices share little noise (median ρ
+(the frame-group review): on DBT it does not — 15 sound volumes from three systems, the best gain +1.51 % on one and
+every other larger at every G > 1 (*corrected 2026-10-30*: this read "under the 20 % line", a bar that is not a
+finding, [`frame-groups.md`](frame-groups.md) §3), because adjacent slices share little noise (median ρ
 0.11–0.22, against the ½ inter needs); the encoder variants that gain at all (alt-ref on, SVT-AV1, up to +3.2 %) are
 lossless only on one system's 8-bit tops. Cine, ABUS and angiography stay open for want of sound data (the frame-group measurement
-below; the review is [`gop-theory.md`](gop-theory.md) §4a).*
+below; the review is [`frame-groups.md`](frame-groups.md) §T4a).*
 
 **Frame groups, to a rule fixed before the data (the frame-group measurement, 2026-10-08,
 [`lab/av1/bytes/frame-groups`](../../lab/av1/bytes/frame-groups/README.md)).** On the middle 16 slices of 15 sound DBT volumes, five
 from each of systems A, B and C, libaom `good` 6 with alt-ref off makes every G ≤ 16 larger than intra on 14 series;
-the one gain is +1.51 % (cpu0 on three series: at most +0.13 %), against the 20 % the rule asks. **DBT stays at
-G = 1, conclusively by the rule.** Alt-ref on and SVT-AV1 inter are not lossless on a 10-bit top; on system B's 8-bit
-streams they gain at most +3.19 % and +2.43 %. Every G > 1 also misses the rule's decode bound at 4×, and the client's dav1d-WASM path cannot
+the one gain is +1.51 % (cpu0 on three series: at most +0.13 %). **DBT stays at G = 1**, on those numbers against
+what a group costs ([`frame-groups.md`](frame-groups.md) §3; *corrected 2026-10-30*: this read "conclusively by the
+rule", whose 20 % is not a finding). Alt-ref on and SVT-AV1 inter are not lossless on a 10-bit top; on system B's 8-bit
+streams they gain at most +3.19 % and +2.43 %. At 4× ([`../decode/README.md`](../decode/README.md) §A slow CPU, emulated) an ask at every G > 1 also takes longer than one
+HTJ2K decode plus the wire time its saved bytes buy, and the client's dav1d-WASM path cannot
 decode a split series in groups at all (its low unit flushes the top's references). Breast
 ultrasound cine, ABUS and angiography runs have no sound data here and get no decision.
 
@@ -1341,7 +1355,9 @@ ultrasound cine, ABUS and angiography runs have no sound data here and get no de
 
 **A lossy picture first.** The rule is that every frame ends bit-exact; a lossy picture shown first and
 replaced by the exact frame keeps it. Whether a lossy first picture is acceptable in the product is
-the owner's ruling, not a measurement's. *Measured (the lossy-preview measurement, queue row PREVIEW; [`lab/av1/delivery/preview`](../../lab/av1/delivery/preview/README.md)),
+the owner's ruling, not a measurement's; who regulates or advises on lossy viewing, by modality and for the breast
+family, and the measures they validated, are in [`visually-lossless.md`](visually-lossless.md) (in the US, no lossy mammogram or DBT
+frame for primary interpretation). *Measured (the lossy-preview measurement, queue row PREVIEW; [`lab/av1/delivery/preview`](../../lab/av1/delivery/preview/README.md)),
 fluoroscopy and the ultrasound cine; no angiography run was available:*
 
 * **Bytes and quality, against the source.** Lossy AV1 (libaom 3.15.1, cpu6) at G = 8:
@@ -1456,12 +1472,504 @@ width 1 its dequantisation is the identity and its residuals are added at 2^−f
 transform and at 12 bits with the 2×2 (256/256 offset classes; the 4×4 not proven, 36/36 patterns
 tried reachable). **At 14 bits it is not**: 128 of 256 offset classes of a 2×2 block are
 unreachable, and the decoder stops at 14, so the 13-bit CT and cone-beam cannot end exact. No trial
-is possible: **no open LCEVC encoder exists**, the web decoder draws 8-bit RGBA through WebGL with no
-samples back, and the decoder's BSD-3-Clause-Clear licence grants no patents ([`licensing.md`](licensing.md)).
+was possible then: **no open LCEVC encoder exists** — *wrong, corrected 2026-10-31:* MPEG's reference
+software (LTM 5.5, ISO/IEC 23094-3 Amd 1) carries an encoder under BSD, free from ISO, though it takes
+no AV1 base and does not choose exact residuals without a patch; its decoder uses the same fixed
+point, so the reach above holds for AV1 + LCEVC at 8–12 bits (*derived*). An offline trial is now
+possible, a product path is not: the web decoder draws 8-bit RGBA through WebGL with no samples back,
+and both codes' BSD licences grant no patents, which the licensor licenses alone for royalties
+([`licensing.md`](licensing.md); the re-check and a pre-registered protocol in
+[`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Re-checked 2026-10-31). *Re-checked
+2026-11-02 for FFmpeg:* it encodes no LCEVC; it decodes through LCEVCdec (`--enable-liblcevc-dec`),
+and from 9.0 hands back samples at 8–14 bits, YUV and grey, with an AV1 base wired through dav1d's
+T.35 metadata (not run). That is the first native decode returning samples — a convenience for the
+offline trial, not an independent decoder for it, not an encoder, not lossless, and not a browser
+path: no FFmpeg WASM build with LCEVC was found (*unverified* that none exists)
+([`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Re-checked 2026-11-02).
+*For lossy viewing (the owner, 2026-11-02; theory, no trial):* **not worth building on present evidence**. LCEVC's gain is the base codec's work moved to a quarter of the area, with sparse detail added cheaply (MPEG's verification test: −46 % to −14 % MOS BD-rate over AVC to VVC, and a PSNR loss against VVC); a visually lossless DBT stream must carry dense full-size sensor noise, so base AV1 + LCEVC is expected at about AV1 alone's bytes or above (*derived*), and the only web decoder draws 8-bit RGB, so 10–12-bit window/level is lost. No medical or noisy-content result was found. One offline bytes measurement decides it (LCEVCRATE, proposed) ([`lab/av1/bytes/lcevc`](../../lab/av1/bytes/lcevc/README.md) §Lossy viewing).
+
+*HTJ2K's own progression, a candidate beside this line (the owner, 2026-11-02):* theory, a prediction and a
+protocol, not run, in [`../decode/README.md`](../decode/README.md) §HTJ2K progressive, resolution and quality. Today's
+codestream is resolution-progressive already; its quality progression spans one bit-plane or pays for every earlier HT
+set, and OpenJPH writes and reads neither. Predicted: a first picture as soon as the scalable preview's, every large
+slice exact at display scale in under a third of the exact series' time, but every slice pictured at the base's size
+7–46× later on 5 Mbit/s.
 
 *Parked by the owner on 2026-10-03, kept for the decision later* (the owner's focus, §Where AV1 stands): the
 preview plus an HTJ2K residual, the separate preview then exact HTJ2K, the embedded intra codecs and LCEVC — each
 measured above.
+
+### Quality profiles
+
+*The owner, 2026-11-02: most roles would scroll a cine-like series as a lossy AV1 stream meant to be visually
+lossless, and some could ask for the exact frame, never by default ([`../glossary.md`](../glossary.md), *quality
+profile*).* Measured, 2026-11-02 to 2026-11-08, in three places:
+
+* **Bytes** — [`lab/av1/profiles`](../../lab/av1/profiles/README.md) §Profiles bytes, measured; **decode** — the same
+  file, §Profiles decode, measured (2026-11-04).
+* **Quality** — [`lab/av1/metrics`](../../lab/av1/metrics/README.md) §Quality metrics, measured (2026-11-08), all
+  four shards: 27 series, 1 650 cells, every rung Q 1 … 56 at G 1, 8, 16. On the 19 DBT volumes, stored form: the
+  coding error reaches the frame's own noise after Q 8 on system C, Q 8–12 on B, Q 4–8 on A, at 0.09–0.28 of
+  HTJ2K's bytes, where the pixel metrics also bend (B: Q 12); **no rung, not even Q 1, keeps every displayed grey
+  level within 1**; the VL view's error stays below the step between neighbouring slices to Q 16 (12–24 by series),
+  at 0.006–0.073 of HTJ2K's. Nothing is called visually lossless: that needs readers (§6 there, not run). Claimed
+  for the named fixtures only; breast ultrasound cine and ABUS are missing. Corrected in place: the 2026-11-05
+  reading had three shards (20 series), "A: Q 4" on two of A's five volumes, and called this error the preview's.
+* **Against window width** — [`window-q.md`](window-q.md) (2026-11-09, from the same rows). Q 8 keeps the coding error
+  within the frame's own noise at every window width, and no higher Q does. It does not keep the error under one display
+  level at any width narrower than the stored range. Holding it under one level at every header preset takes Q 1–2 on
+  12-bit DBT and Q 4 on 10-bit DBT. Which of the two VL is to mean is for readers to decide.
+* **Decode, measured 2026-11-04** (§7's amended protocol: six 4-core hosts, 108 rounds, pooled; §*Profiles decode,
+  measured (amended)* there). D1, D2 and D3 are each **refuted**. At 1×, a lossy frame through WebCodecs costs
+  1.05–2.24× an HTJ2K exact frame. A jump at G 16 through dav1d-WASM costs 3.8–13× one at G 1, against a 5–9 band.
+  Residual decode + add costs 1.42–1.69× an HTJ2K frame, against 0.9–1.1. Claimed for `dbts_a1`, `dbts_b1` and
+  `dbts_c1` (one DBT volume per system), Chromium 141, ≤ 4× only; no cine.
+
+### The scalable preview as a tool — a candidate
+
+**An independent candidate (branch `claude/av1-svc-preview`, 2026-10-31): theory and a pre-registered protocol, nothing
+measured, built or run for it** (*measured since, on the DBT volumes: 6*)**. It merges only if the protocol below finds it
+interesting.** The owner's question:
+which layers, which qualities, how many, for which frames, in which order. Sources are [P1]–[P8] at the end;
+measured inputs are the rows above, by file, row and commit. Arithmetic of ours is *derived*; what no source holds is
+*unverified*.
+
+**1 · The tool's dimensions, and what the standard and the encoder allow.**
+
+| dimension | AV1 [P1] | libaom 3.15.1 [P2] | measured here |
+| --- | --- | --- | --- |
+| number of layers | up to 4 spatial and 8 temporal: "Bit j+8 is equal to 1 if spatial layer j should be decoded (for j between 0 and 3)" (§6.4.1); up to 32 operating points (`operating_points_cnt_minus_1`, f(5), §5.5.1) | `AOM_MAX_SS_LAYERS 4`, but without a reference config "[1, 3]" spatial and "[1, 3]" temporal (`aomcx.h`, `aom_svc_params_t`) | 2 and 3 spatial, L1T2/L1T3, L2T3 (`lab/av1/delivery/scalable/shape/README.md` §Bytes, `258e42b`) |
+| each layer's scale | a frame may predict from a reference down to 1/16 and up to 2× its size: "FrameWidth <= 16 * RefUpscaledWidth" and "2 * FrameWidth >= RefUpscaledWidth" (§6.8.6); the predefined modes are 2:1 or 1.5:1 (§6.7.5) | any `scaling_factor_num/den` per spatial layer, "den … greater than or equal to the num" (`aomcx.h`); the example's defaults are ½, and ¼ + ½ for three (`examples/svc_encoder_rtc.cc`) | ¼, ½ and full size |
+| each layer's quality | a layer may be the same size, better: "an increase in spatial resolution, or an increase in spatial fidelity (increased SNR)" (§6.2.3); each layer is its own frame with its own `base_q_idx` (§6.8.11), and lossless is `CodedLossless` per frame (§6.8.2) | `max_quantizers[]`, `min_quantizers[]` per layer (`aomcx.h`); one quantizer per layer needed the lab's `--layer-q` patch to the example (queue row 18) | base q 20/40/60, top q 0 |
+| which frames get a preview | a subset of frames is a temporal operating point: data of `temporal_id` T "only allowed to reference … T' <= T" (§6.2.3), so every 2nd or 4th base is the base's temporal layer 0 of an L2T2/L2T3 stream (*derived*); a window starting anywhere needs a random access point there (§7.6.2–7.6.3) | layering modes 7 and 8 (2 or 3 spatial × 3 temporal) | all frames (row 40); L2T3 +3–6 % bytes (row 25) |
+| delivery order | the base is a prefix of its unit: OBUs "within a temporal unit in non-decreasing order of spatial_id values" (§7.5) | — | layer-major, bases first (row 40, `40f91bd`); frame-major is one entry a frame (row SVCDEC); viewport-first not built |
+| top predicted from the base, or coded alone | both: "a spatial layer that uses no inter-layer prediction … and a spatial layer that uses inter-layer prediction only at key frames" (§6.7.5; the `S2T1` modes) | mode 5's top references "LAST and GOLDEN" — its own previous top and its base (`svc_encoder_rtc.cc`, `case 5`); an alone top is the reference config's choice (*derived*, not tried) | predicted (rows 18, 25, 40); alone is the lossy-preview measurement's separate preview (row 12) |
+
+The decoders: libaom's decoder takes an operating point, "at most 31", and can output "one frame per spatial
+layer" (`aomdx.h`, `AV1D_SET_OPERATING_POINT`, `AV1D_SET_OUTPUT_ALL_LAYERS`); WebCodecs' `VideoDecoderConfig`
+has no member that names one (§VideoDecoderConfig [P3]), and a chunk is "a single temporal unit" ([P3], AV1
+registration §EncodedVideoChunk data), so a base reaches it only as a unit cut at the first OBU with `spatial_id`
+> 0 — which returns the base exactly as native dav1d (row 31, `b3c4f83`). It refuses 12 bits (row 3), so on the 12-bit
+DBT volumes the base and the exact frame go through dav1d-WASM, or the series is split (`payload-format.md`) and
+**a split series takes no preview today** ([`adr-unit.md`](adr-unit.md) §6).
+
+**What the standard does not settle, and the rows have:** a third layer bought nothing on any series (row 25), and
+the quarter base at q 40 had the least overhead everywhere. What they did not try is the cost that dominated row 40:
+**one keyframe makes the whole series one group on one decoder**, so the exact series is decode-bound (4.5× and 7.4×
+HTJ2K's time at 4× on 50 Mbit). A keyframe every 8 costs about 1 % on the DBT crops (row 25: half q 40 at 1.010 and 1.012 of single with
+`k 8`, against 1.002 with one keyframe, `dbt12_ea1141` and `dbt10_ea1141`) and lets three decoders share the exact series (*derived*). And on 12-bit
+DBT a predicted top inherits the unsplit 12-bit stream's size — single-layer `svc_encoder_rtc` at 1.057 of HTJ2K on
+`dbt12_ea1141` (row 25) against the shipped split at 0.948 on `dbts_a1` (row 95, `lab/av1/bytes/dbt-at-scale/README.md`
+§Bytes, `k = 2`) — while the base it predicts from is 0.03 % of HTJ2K's bytes. **Predicting the top saves at most
+the base's share; keeping the shipped exact payload and sending the base beside it may cost less** (*derived* across
+two sets and two encoders; the protocol decides). *Corrected by 6: true of a top predicted at 12 bits whole, 1.097–1.137
+of the shipped payload; split like the shipped payload, the predicted top is 0.983–0.999 of it, under the alone
+base's 1.000–1.007.*
+
+**2 · Costs and benefits, as functions of the link and the CPU** (*derived*; every input a row). F frames; H the
+series' HTJ2K bytes; s the exact payload ÷ H; β the bases ÷ H; R the link's rate; c the CPU cap; d_b(c), d_x(c),
+d_h(c) a frame's base, exact AV1 and HTJ2K decode on one decoder; m the decoders sharing the exact frames (1 for one
+keyframe; up to the client's three at a keyframe every k ≤ F/3); t₀ the ask's round trip and the first decode.
+
+* **Extra bytes:** βH, the base sent twice in layer-major entries (0.06 and 0.35 %, row 40), or once if the top is
+  coded alone. **Extra decode:** F·d_b(c) — the base decoded alone, and again inside its unit when the top is predicted.
+* **The first useful picture of frame i, bases first:** t_p(i) ≈ t₀ + (i + 1)·max(βH/(F·R), d_b(c)), the bases in
+  order on one decoder. Every base: t_P ≈ t₀ + max(βH/R, F·d_b(c)) — decode-bound at every measured rate (rows 25, 40).
+* **The exact series:** t_X ≈ t₀ + max((β + s)·H/R, F·d_x(c)/m), against HTJ2K's t₀ + max(H/R, F·d_h(c)/3).
+  Link-bound below R* = (β + s)·H·m / (F·d_x(c)); above it, the layers' price is the decode.
+* **What a preview is worth on frame i:** t_x(i) − t_p(i), and only if the reader reaches frame i before t_x(i).
+  At a scroll of v frames a second from frame 0, frame i is reached at i/v: the preview pays on the frames with
+  t_p(i) ≤ i/v < t_x(i). v is the reader's, *unverified*, measured by the protocol as a parameter.
+
+On the three DBT volumes, with row 95's HTJ2K bit rates and row 25's per-pixel decode times scaled by pixel count,
+s = row 25's single over HTJ2K × the quarter's over single (1.06 at 12 bits, 0.94 at 10) (*derived*; linear
+scaling *unverified*; container numbers, not a phone's):
+
+| volume | H, MB | H/R at 5 · 20 · 50 Mbit/s | every quarter base, 1× · 4× | exact, one decoder, 1× · 4× | R*, one decoder, 1× · 4× |
+| --- | --- | --- | --- | --- | --- |
+| `dbts_a1` 12-bit, 56 × 1142×1785 | 67.8 | 108 · 27 · 11 s | 0.15 · 0.6 s | 10 · 45 s | 55 · 13 Mbit/s |
+| `dbts_b1` 10-bit, 50 × 2560×3328 | 108 | 172 · 43 · 17 s | 0.7 · 2.9 s | 28 · 125 s | 29 · 7 Mbit/s |
+| `dbts_c1` 12-bit, 69 × 976×2513 | 70.7 | 113 · 28 · 11 s | 0.2 · 0.9 s | 15 · 67 s | 39 · 9 Mbit/s |
+
+So on DBT every slice could have a picture in 0.15–2.9 s where the exact volume takes 11–172 s on the link alone;
+and with one decoder the exact volume is decode-bound at 4× above 7–13 Mbit/s, which a keyframe every 8 moves up to
+three times higher.
+
+**3 · Best use cases, predicted.**
+
+* **Series:** many large frames whose exact series is long on the link — **DBT first**: whole volumes are 68–108 MB
+  in HTJ2K, the bases ~20–55 kB (*derived*: the crops' 0.03–0.05 %, row 25). The ultrasound cine and ABUS: untested;
+  the only measured ultrasound is lossy-sourced (row DATAGUARD), where lossless SVC was 1.59 of HTJ2K (row 40), so an
+  alone top is the likelier shape there (*unverified*).
+* **Actions:** opening a volume and **fast scrolling** through it — the whole point is t_P ≪ t_X; a **jump** to a slice
+  far from the fill, where a window of bases around it lands in t₀ plus a few base decodes; a **fill**, only as the
+  background that the previews let start later. A single **ask** gains little: its base is ahead of its exact frame by
+  about s·H/(F·R) — 0.5 s for a `dbts_a1` slice at 20 Mbit/s (*derived*).
+* **Links and devices:** slow and lossy links, and slow CPUs where the bases still decode in about a second. Phones
+  are emulated by the 4× cap; on a phone, WebKit's in-process WebCodecs takes 8-bit 4:2:0 only (§Browser and device support).
+* **When it does not pay:** where t_X is already short beside the reader's pace (a small series on a fast link);
+  where the reader asks one frame and waits; where the preview is too small to be useful — a quarter of a
+  1142-wide slice is 286 wide, against a phone's 1 000-odd device pixels (§A frame at the level the screen needs,
+  [`decode/README.md`](../decode/README.md)); whether a 36–40 dB quarter or half preview is clinically useful for
+  scrolling DBT is the owner's ruling, *unverified* by any source here; and wherever d_x(c)/m makes t_X worse than the
+  shipped representation's by more than the preview saves.
+
+**4 · How a viewer would use it** (*derived* from the consumer's contract, [`adr-unit.md`](adr-unit.md) §5–§6):
+
+* **Opening:** ask the bases of a window around the opening slice, then the rest of the bases, then the exact
+  frames from the opening slice outwards; draw each frame's base, marked a preview, until its exact pixels land.
+* **Fast scrolling:** draw the exact frame if held, else its base, else the nearest held picture; ask nothing new.
+* **Settling** (no scroll for a pause τ, the protocol's parameter): `requestExactFrame(N)`; the ask ends the fill
+  and is served next, and the rest resumes.
+* **A jump:** the bases of the window around N, then exact N.
+* **What the client must know to choose:** per frame, none / preview / exact; the series' `layers` and the base's
+  size; its decoder (≤ 10 bits through WebCodecs, else dav1d-WASM); its own R from the fill's arrivals and its own
+  d_b, d_x from the warm-up and the first frames (§Warming the decoders, [`decode/README.md`](../decode/README.md));
+  and the reader's v. With those it asks bases only where t_x(i) is predicted later than the reader's arrival at i.
+
+**5 · The protocol, pre-registered for a separate session.** Not run (*run on the DBT volumes, 2026-10-31: 6*).
+
+* **Stage 1, offline** (`shape.py`'s method, row 25): every shape coded, every exact frame and every base checked;
+  bytes, base PSNR and max |Δ| against the source (its box mean when scaled), d_b and d_x at 1× and 4×.
+  * layers ∈ {2, 3}; base scale ∈ {¼, ½} (three layers: ¼, ½, full); base q ∈ {20, 40, 60} (three layers: the
+    middle at q/2); keyframe every 8, and one keyframe on the ¼ q 40 shape as row 40's link;
+  * the top **predicted** from the base, or **alone**: the base as its own stream, the exact entry the shipped
+    payload (split k = 2 on 12 bits, `payload-format.md`);
+  * on the 12-bit volumes, the predicted shapes also as a split, the scalable stream coding the top bits.
+  * A shape is dropped if another has no more bytes, no slower d_b and d_x, and no lower base PSNR on every volume;
+    at most four go on.
+* **Stage 2, end to end** (row 40's rig and decoder worker; the downloader, server and store unchanged): the
+  surviving shapes × delivery order ∈ {layer-major, frame-major, viewport-first: a ±8-slice window of bases around
+  the asked slice, its exact frame, then layer-major}; controls HTJ2K exact, HTJ2K's half-size prefix first
+  (row 12) and the shipped AV1 representation; an A/A arm (HTJ2K twice) for the resolution (`lab/scripts/aa_rule.py`).
+* **Actions, scripted:** open and fill; a jump to slice F/4 at 1 s; a scroll from slice 0 at v ∈ {5, 15, 30}
+  slices/s, settling for τ = 0.5 s on the last.
+* **Content:** `dbts_a1`, `dbts_b1`, `dbts_c1` (`lab/av1/fetch_data.py`); the breast ultrasound cine and ABUS set
+  when it arrives, after its provenance is sound (row DATAGUARD's check), the same grid.
+* **Links and CPU:** 5, 20, 50 Mbit/s fixed, and 20 Mbit/s with 2 % loss and with ±20 ms jitter (row LOSSLINK's
+  impairments); 1× and 4× through `lab/scripts/cpu_throttle.mjs`; the host's saturation stated, nothing claimed past it.
+* **Order:** cells in a Williams order (`lab/order.mjs`), every variant inside every round, a fresh browser per cell,
+  ≥ 10 rounds.
+* **Metrics, each as a function of R and c:** t_p(i) and t_x(i) per frame; first picture; t_P; t_X; wire bytes;
+  decode time, base and exact; on the scroll, the share of slices reached that showed exact, a preview or nothing;
+  after settling, the time to the exact frame; and the model above against the measured t_P, t_X.
+* **Exactness:** every exact frame against its frame digest, every base against native dav1d at its operating
+  point, no preview drawn after its exact frame; each check mutated first (CLAUDE.md §Measurement).
+* **Interesting, if and only if**, on at least two of the three volumes and beyond the A/A resolution: one shape
+  and order with every frame exact; **t_P ≤ 0.2 × HTJ2K's exact series** at 5 and 20 Mbit/s, 1× and 4×; on the
+  scroll at v = 15, more slices reached show a picture than with HTJ2K's prefix first; and **t_X within 1.10× and
+  bytes within 1.02× of the shipped representation's** in every cell. If only alone tops pass, the finding is a base
+  stored beside the shipped payload — a second representation, structural, proposed then. If none passes the cost
+  clause, the branch is not merged and this section records why.
+
+**6 · Measured, 2026-10-31: the DBT volumes** ([`lab/av1/delivery/scalable/tool`](../../lab/av1/delivery/scalable/tool/README.md)).
+`dbts_a1`, `dbts_b1` and `dbts_c1` whole, fetched and SHA-256-checked. **Not run:** the breast ultrasound cine and
+ABUS cells (their dataset arrives next week); the frame-major and viewport-first orders; the jump and the settle;
+50 Mbit/s, 2 % loss and ±20 ms jitter; ≥ 10 rounds (3 ran, n = 1–3 a cell after the relay's `VOID`s). The scroll is
+read off each fill's per-frame times, the viewer asking nothing new while scrolling (4), not scripted.
+
+* **Stage 1, every shape** (50 codings, 3 000/3 000 tops exact; decode dav1d-WASM, headless Chromium 153, 1× and 4×,
+  10 interleaved rounds, 3 680/3 680 frames exact). **Predicting the top costs nothing once it is split:** with
+  v ≫ 2 coded at 10 bits under the shipped low bits, every predicted shape is **0.983–0.999 of the shipped payload's
+  bytes** on the 12-bit volumes, and 0.996–1.024 whole on the 10-bit `dbts_b1` — against 1.097–1.137 unsplit at
+  12 bits (1's derivation held for that coding only; corrected there). An alone base adds 0.01–0.69 %. Quarter
+  bases are 0.009–0.17 % of HTJ2K's bytes at 34.9–46.4 dB and decode in 1.7–4.8 ms at 1×, 7.7–22 ms at 4×; the
+  predicted exact frame decodes 0.73–1.03× the shipped payload's through the same decoder. Fourteen shapes are
+  undominated and within 1.02 of the shipped bytes; the protocol names no ranking for its four, so the four run are
+  the quarter base, two layers, a keyframe every 8, at q 20 (the best base passing everywhere) and q 40 (the named
+  shape), alone and predicted.
+* **Stage 2, open and fill, layer-major** (the total-time rig, 5 and 20 Mbit/s, 1× and 4×, 288 visits, 29 `VOID`).
+  **Every slice has a picture 0.28–1.10 s after the fill's issue, 0.003–0.025 of HTJ2K's exact series
+  (27.8–175 s); the exact volume lands at 0.999–1.007 of the shipped payload's time alone and 0.989–1.022
+  predicted**, for 1.000–1.002 and 0.989–1.007 of its bytes. The first picture comes at 69–256 ms (HTJ2K 744–4 340,
+  its half-size prefix 306–1 250). Scrolling at 15 slices/s from the issue, 84–97 % of slices reached show a
+  picture; with HTJ2K's prefix first, none (its prefixes need 7.6–47.6 s). The A/A arm: 0.998–1.003.
+  16 794/16 800 frames exact and 10 500/10 500 bases as native dav1d over every visit; the six are one `VOID` visit
+  where a predicted group's exact frames failed to decode (the product's group-order check; failed, not wrong;
+  *diagnosed since: 7*, WebCodecs' stall guard flushing a slow frame mid-group). Container numbers, not a phone's;
+  the links run never reached the host's ceiling and nothing is claimed above 20 Mbit/s.
+* **The model in 2:** it gave every quarter base 0.15–0.7 s at 1× and 0.6–2.9 s at 4× on one decoder; measured,
+  0.28–0.61 s and 0.45–1.10 s — the groups of 8 spread the bases over three decoders, and t₀ is 0.07–0.26 s.
+  Its one-decoder exact volume (10–125 s) never bound: three decoders kept every exact series link-bound.
+* **The rule:** **interesting** — all four shapes, alone and predicted, pass every clause on all three volumes in
+  every cell run (t_P ≤ 0.2 × HTJ2K's, more slices pictured than prefix-first at 15 slices/s, t_X ≤ 1.10× and bytes
+  ≤ 1.02× the shipped payload's, frames exact on every kept visit). Predicted tops pass, so the finding is not only a
+  base stored beside the shipped payload; either way the stored representation changes — structural, proposed
+  separately. The verdict stands on the cells run: the rule's "every cell" includes the 50 Mbit/s, loss and jitter
+  cells and the other orders, not run, and n is below the protocol's 10. A predicted top on an odd-sized volume
+  needs the encoder's padding cropped in the product payload; the lab checked the padded frame.
+
+**7 · The failed visit, diagnosed (2026-11-02).** Reproduced and fixed on the lab path; the detail and the commands
+are in [`lab/av1/delivery/scalable/tool`](../../lab/av1/delivery/scalable/tool/README.md) §The failed visit.
+
+* **What failed.** Round 2, `dbts_b1`, 5 Mbit/s, 4×, predicted q 40: exact frames 10–15, the rest of the group of 8
+  that frames 8 and 9 began. Frame 9 came 4.69 s after frame 8. In the cell's nine visits every other step between
+  frames 0 and 20 took 2.4–3.8 s, so frame 9's decode ran past 2 s (*derived*, `rows.jsonl`).
+* **The cause, ours.** `client/decode/av1-webcodecs.js` flushes a unit that has given neither a frame nor an error
+  after 2 s. The guard is there for a unit that never will (§WebCodecs without a flush,
+  [`decode/README.md`](../decode/README.md)), but a slow frame trips it too. The flush gives the frame, so frame 9
+  was exact. It also ends the group. WebCodecs [P3] §4.5 `flush()`: "Set [[key chunk required]] to true", and
+  `decode()`: "If [[key chunk required]] is true: If chunk.type is not key, throw a DataError". Chromium 153 throws
+  `A key frame is required after configure() or flush()` on frame 10. `av1.js` then tries dav1d-WASM, which never held
+  the group. It refuses by name, and its message is the one in the row, so the WebCodecs error is hidden.
+* **Reproduced** (headless Chromium 153, `cpu_throttle.mjs`): a 16-frame 10-bit grey lossless series at `dbts_b1`'s
+  2560×3328, a keyframe every 8. At 4× its frames take up to 2.8–3.2 s and only 2–3 of 16 decode, the rest failing
+  by name, in 3 rounds. At 1×, 16/16.
+* **Fixed, lab path only.** `av1-webcodecs.js` reads `stallMs` from the decoder config. The default stays 2 000 ms,
+  so the product is unchanged. The tool's worker sets 10 000 ms, the downloader's `decodeMs`. At 4×: 16/16 in each
+  of 3 rounds, interleaved with the 2 s runs. A unit with no frame still fails by name, with the rest of its group,
+  and the next group is exact.
+* **Proposed, not built (the product's, structural).** (a) At G > 1 a fixed bound loses whole groups on any CPU
+  slow enough for one frame to take 2 s. That is a phone on `dbts_b1`-sized frames (*derived*). The bound would need
+  to tell a slow frame from one that never comes. Whether WebCodecs can tell them apart is *unverified*:
+  `decodeQueueSize` is "The number of pending decode requests. This number will decrease as the underlying codec is
+  ready to accept new input" [P3], which is not a completion signal. Re-asking the group from its keyframe after a
+  mid-group flush also works. (b) Where dav1d-WASM refuses a delta unit it never held, `av1.js` should report the
+  WebCodecs error instead.
+* **Safety: none on exactness.** No wrong frame was shown, and the per-frame check was not involved. It bears on
+  availability: six slices stayed on their previews for the rest of the visit, since the downloader does not re-ask
+  a group whose decode failed. A viewer must keep marking such slices as previews ([`adr-unit.md`](adr-unit.md) §6).
+  At the product's G = 1 the path cannot happen: every unit is a keyframe and is flushed anyway (*derived*). Part 6's
+  verdict stands, because the visit was a `VOID` and dropped. How close the kept visits' exact frames came to 2 s is
+  *unverified*, because the rows hold no per-frame decode time.
+
+**8 · The bit split under a scalable top, audited (2026-11-02; theory and code reading, nothing run but 7).**
+`payload-format.md` §Is the split safe? audits the split at G = 1 with the top intra. That audit is on branch
+`claude/av1-split-safety` (`ed2ee4f`), not yet on this branch or `main`. This part asks what changes when the exact layer is the split top predicted from a lossy
+base: the payload of part 6's predicted variants. That payload has a 10-bit top (v ≫ 2) of two spatial layers and
+the shipped low unit beside it. On the 10-bit `dbts_b1` it is one whole stream.
+
+*What does not change.* The split happens before coding, so its arithmetic and preconditions P1–P6 are untouched
+(*derived*). A lossless top frame comes back exact whatever it predicts from. Lossless reconstruction is a
+prediction plus a residual coded without loss, and the clip is the identity on the samples' range (§Is the split
+safe? 2) (*derived*). The lossy base only moves the prediction.
+
+*What does change:*
+
+| | what can go wrong | what holds it today | shown |
+| --- | --- | --- | --- |
+| S1 | a top frame not `CodedLossless` | the encoder's top at quantizer 0 (`--layer-q`) | stage 1, 3 000/3 000 tops, native dav1d. The product's ingest gate decodes each frame alone, which no predicted top can be: **a gate for groups is not built** |
+| S2 | a decoder reconstructs the lossy base, scaled ×4, differently from the encoder, so every top predicted from it is wrong | AV1 [P1] §General decoding process: "When film_grain_params_present is equal to 0, decoders shall produce output frames that are identical in all respects". The top's inter-layer prediction is the scaled-reference path, which an intra G = 1 frame never takes | native dav1d 1.5.4, dav1d-WASM 1.5.4 and Chromium 153's WebCodecs, every frame run (6). Any other decoder: not shown |
+| S3 | the decoder returns a lower layer as the frame | AV1 [P1] §General sequence header OBU semantics: the operating point's choice "depends on the capabilities of the chosen implementation"; §Output process: applications "are expected to only display one frame from each temporal unit … the highest spatial layer that is both within the operating point and present within the temporal unit. Other applications may set their own policy". Chromium sets `s.all_layers = 0` ("Only output the highest spatial layer", [P4]). `av1-dav1d.js` walks to `_av1_top_layer` and refuses a unit whose last layer is lower. **Firefox** leaves dav1d's default, "output all spatial layers of a scalable AV1 biststream (default 1)" ([P5], [P6]; *derived* from the setting's absence). `av1-webcodecs.js` keeps a chunk's *first* frame, so in Firefox it would keep the base (*derived*, not run) | Chromium: 6. Firefox: not run; its WebCodecs is exact only for 8-bit grey as 4:2:0 and 8-bit GBR ([`../decode/hardware.md`](../decode/hardware.md) §4.2), so plain-RGB ultrasound is where it would arise. A quarter base under a split is refused by the merge's size check (`av1-frame.js` `end`). **A whole stream, or a full-size lossy middle (10's three-layer shape), passes every check but the frame digest** |
+| S4 | the lossy base merged with the low bits | `av1.js` hands the base on with `split: 0`, and the tool's worker does the same | 10 500/10 500 bases as native (6) |
+| S5 | a unit decoded out of its group | `continues` (`av1-payload.js`), by name | 7 |
+| S6 | an odd size: the encoder pads the top one row taller than the shipped low | the merge refuses the mismatch by name | the lab re-coded the low padded (6); a product payload needs the top cropped before the merge, not built |
+| S7 | film grain on the base | the grain is applied at output, after "The reference frame update process … saves the current frame state into the reference frames" ([P1] §Decode frame wrapup process), so a grained base cannot reach the top's prediction (*derived*). The encoder asks for none (*unverified* for `svc_encoder_rtc`) | not run |
+| S8 | a 12-bit top through WebCodecs | WebCodecs is refused above 10 bits (§Exactness and the decoders); the split top is 10 bits | 6 |
+| S9 | **dav1d-WASM, one instance for top and low** | `av1.js` decodes the low unit on the top's instance as a keyframe. That flushes dav1d and clears `last`, so the next top unit fails by name: queue row 100's "fails every split group", now with a predicted top (*derived* from `av1-dav1d.js`, not run). Stage 1 decoded the low on its own instance and never met it | not run. **Every browser that sends a 10-bit grey top to dav1d-WASM (Firefox, WebKit) loses 7 of every 8 exact frames of a predicted split series**: failed, not wrong |
+| S10 | the stall guard ends a group | 7 | 7 |
+
+**Shown:** on Chromium 153, both the split and the whole predicted top come back exact, frame for frame, on the
+three DBT volumes. The bases equal native dav1d's at the base operating point. **Not shown:** any other engine or
+decoder (S2, S3); dav1d-WASM as the product drives it (S9); a gate that decodes groups at ingest (S1); the crop (S6);
+grain (S7); 12-bit predicted tops in a browser. Each of S1–S10 ends as a failed frame or a digest mismatch, never a
+frame shown as exact, **as long as the series carries frame digests**. Without them, S2 and S3 show a wrong frame
+marked only "unchecked" (`decoder.js`; *derived*). **Proposed, not built:** a scalable series is served only with
+digests, and a chunk that gives more than one frame is refused. The base itself is lossy by design. It is shown
+marked as a preview and replaced (`adr-unit.md` §6); 10 measures its error.
+
+**9 · Does WebCodecs decode scalable AV1? (2026-11-02, sources; measured where a row says so).**
+
+**In plain words:** the specification neither promises nor forbids it. Chromium decodes such a stream in software
+and returns the top layer, exact at 10 bits. No engine has a hardware path for it. Firefox and Safari have no exact
+path above 8 bits for any AV1 stream.
+
+* **The specification** [P3]: a chunk is "a single temporal unit (Section 7.5 of [AV1])". `VideoDecoderConfig` names
+  no operating point (1), and `scalabilityMode` and `svc` metadata belong to the encoder ("If encoderConfig.scalabilityMode
+  describes multiple temporal layers…"). The decoder's answer to a scalable unit is left to the engine.
+* **Chromium, software** (dav1d inside the engine): "Only output the highest spatial layer. `s.all_layers = 0;`" [P4],
+  at dav1d's default operating point 0. *Measured:* exact 10-bit grey predicted tops in Chromium 153 (6); exact 8-bit
+  RGB 4:4:4 and 10-bit grey tops, and bases cut by dropping `spatial_id` > 0, in Chromium 141 (row 31). 12 bits: refused
+  above 10 bits (§Exactness and the decoders). 4:0:0 is taken in software.
+* **Chromium, hardware** (VA-API, D3D11 and VideoToolbox share `AV1Decoder`): a stream whose operating point 0 has
+  more than one spatial layer is a decode error: "Spatial layer decoding is not supported" [P7]. Temporal layers
+  alone are allowed ("In case of an only temporal layer encoding e.g. L1T3 … We allow this case"). Android's
+  MediaCodec path does not run through that front end: *unverified*. The client asks for `prefer-software`
+  ([`../decode/hardware.md`](../decode/hardware.md) §4.1), so no hardware path is reached today.
+* **Firefox**: dav1d at its defaults, so every spatial layer is output ([P5], [P6]; *derived*, not run). Its
+  WebCodecs refuses 4:0:0 and hands back 8-bit `BGRX` (hardware.md §4.2), so no scalable stream above 8 bits comes
+  back exact. At 8 bits the reader would keep the base (8, S3).
+* **Safari/WebKit**: WebCodecs AV1 is off by default and takes 8-bit 4:2:0 only, through libwebrtc's dav1d
+  (hardware.md §4.3). libwebrtc's `main` sets `s.all_layers = 0` and `s.operating_point = 31` [P8]. dav1d falls back
+  to operating point 0 when 31 is past the stream's count ("c->operating_point < seq_hdr->num_operating_points ?
+  c->operating_point : 0", [P6]), so the top layer comes out (*derived*). Which libwebrtc WebKit ships is
+  *unverified*.
+
+| engine | scalable AV1 through WebCodecs | depths exact | hardware |
+| --- | --- | --- | --- |
+| Chromium 141–153 | yes, software, top layer | 8 (RGB 4:4:4), 10 (grey); 12 refused | refused for spatial layers |
+| Firefox | decodes, every layer output (*derived*) | none above 8; 8-bit only as 4:2:0 grey or GBR, base first (*derived*) | *unverified* |
+| Safari | off by default; top layer (*derived*) | 8-bit 4:2:0 only | AV1 in `<video>` only |
+
+*Sources, read 2026-10-31:*
+* [P1] AV1 Bitstream & Decoding Process Specification, <https://aomediacodec.github.io/av1-spec/>, source
+  `github.com/AOMediaCodec/av1-spec` @ `5e04f3f` (the commit [`frame-groups.md`](frame-groups.md) cites), sections
+  counted from its headings.
+* [P2] libaom v3.15.1 (`44d0a57`), the pinned encoder: `aom/aomcx.h` (`aom_svc_params_t`), `aom/aomdx.h`,
+  `examples/svc_encoder_rtc.cc` — <https://aomedia.googlesource.com/aom/+/refs/tags/v3.15.1/>. The example is
+  source code, the last resort, read for its layering modes.
+* [P3] WebCodecs, W3C Editor's Draft <https://w3c.github.io/webcodecs/> §VideoDecoderConfig, and its AV1 codec
+  registration <https://w3c.github.io/webcodecs/av1_codec_registration.html>, source `w3c/webcodecs` @ `2b849bb`.
+* No peer-reviewed paper is cited: none read here measures SVC previews of medical series.
+
+*Read 2026-11-02, for 7–9:*
+* [P1] and [P3] as above, read again: the rendered AV1 specification (page "Last modified: 2023-05-25", SHA-256
+  `acf58a3fdb82…`; sections named by their headings), and the WebCodecs Editor's Draft of 26 October 2026
+  (`e2b1ff0a3256…`) with its AV1 registration (`b77ff65ac41a…`).
+* [P4] Chromium 153.0.8010.12, `media/filters/dav1d_video_decoder.cc`, `Dav1dVideoDecoder` settings —
+  <https://chromium.googlesource.com/chromium/src/+/refs/tags/153.0.8010.12/media/filters/dav1d_video_decoder.cc>
+  (`15616209a729…`).
+* [P5] Firefox `main` as of 2026-11-02, `dom/media/platforms/agnostic/DAV1DDecoder.cpp`, `DAV1DDecoder::Init` —
+  <https://github.com/mozilla-firefox/firefox/blob/main/dom/media/platforms/agnostic/DAV1DDecoder.cpp>
+  (`7b434846b301…`). The shipped Firefox releases were not read.
+* [P6] dav1d 1.5.4, `include/dav1d/dav1d.h` (`Dav1dSettings`) and `src/obu.c` (operating point choice) —
+  <https://code.videolan.org/videolan/dav1d/-/tree/1.5.4>, read through its GitHub mirror (`dbc211a0f548…`,
+  `965692214aa6…`).
+* [P7] Chromium 153.0.8010.12, `media/gpu/av1_decoder.cc`, `IsSpatialLayerDecoding` and its use —
+  <https://chromium.googlesource.com/chromium/src/+/refs/tags/153.0.8010.12/media/gpu/av1_decoder.cc> (`33ce05cba5c9…`).
+* [P8] libwebrtc `main` @ `74fce7ac`, `modules/video_coding/codecs/av1/dav1d_decoder.cc`, `Dav1dDecoder::Configure` —
+  <https://webrtc.googlesource.com/src/+/74fce7ac1a5199857c9543ddb113d9fa015d95c8/modules/video_coding/codecs/av1/dav1d_decoder.cc>
+  (`6f2b7283217e…`).
+
+#### 10 · SVC metrics protocol, pre-registered
+
+*2026-11-02, for a separate session. Nothing in it has been run.* The owner will present the preview to the team.
+This protocol fixes beforehand which numbers that takes, how each is taken, and the table each goes into. It
+decides nothing by itself: part 5's rule and verdict stand. A difference is reported only where it is beyond the
+A/A arm's resolution (`lab/scripts/aa_rule.py`).
+
+**Content, per modality and frame size.** Each row is one series, at its own frame size:
+
+| modality | series | frames × size, depth |
+| --- | --- | --- |
+| DBT | `dbts_a1` | 56 × 1142×1785, 12-bit |
+| DBT | `dbts_b1` | 50 × 2560×3328, 10-bit |
+| DBT | `dbts_c1` | 69 × 976×2513, 12-bit |
+| breast ultrasound cine | **pending** (the dataset this week) | — |
+| ABUS | **pending** | — |
+
+The ultrasound rows are run on the same grid once their provenance passes row DATAGUARD's check. Until then every
+cell of theirs reads **pending**.
+
+**Variants.** Every coded variant is checked at stage 1's method before it is timed (6):
+
+| name | what | its exact layer |
+| --- | --- | --- |
+| `htj2k` | HTJ2K, exact, and `htj2k-aa`, the same files again (the A/A arm) | itself |
+| `res` | HTJ2K's half-size prefix first (6) | itself |
+| `k2` | the shipped AV1 payload, G = 1 | itself |
+| `p2-q20`, `p2-q40` | two layers: a quarter base at q 20 or q 40, the exact top predicted, split as shipped on 12 bits, a keyframe every 8 | the predicted top |
+| `a2-q20`, `a2-q40` | the same bases alone, beside `k2` | `k2`'s payload |
+| `p3-m10`, `p3-m20`, `p3-m30` | **three layers**: a quarter base at q 40, a **full-size lossy middle** at q 10, 20 or 30, and the exact top predicted from the middle. Split as shipped on 12 bits, a keyframe every 8 | the predicted top |
+| `lossy-q20`, `lossy-m20` | **the lossy AV1 stream alone**: `p2-q20`'s base, and `p3-m20`'s base and middle as one two-layer lossy stream. Nothing exact follows | none: compared only where fair, below |
+
+If the patched `svc_encoder_rtc` will not code two full-size layers (`-r 1/4,1/1,1/1`, *unverified*), the session
+says so and runs a half-size middle under the names `p3h-*`. It does not quietly substitute one for the other.
+
+**Delivery.** Layer-major (6): every base, then every middle, then every exact frame. The frame-major and
+viewport-first orders, the jump and the settle stay outside this protocol, and the tables say so.
+
+**Links and CPU.** Six links, each at 1× and 4× (`lab/scripts/cpu_throttle.mjs`):
+
+* **none**: no rate limit, so decode is the clock. The rig has no such link today. Adding one is a lab-only change:
+  the relay forwards without shaping, 20 ms each way. The session states the ceiling the host reaches on it
+  ([`docs/rig-limits.md`](../rig-limits.md) §1) and claims nothing above that ceiling.
+* `r5000`, `r20000`, `r50000`: 5, 20 and 50 Mbit/s, 20 ms each way.
+* `r20000` with `l2` (2 % loss each way) and with `j20` (±20 ms jitter each way), row LOSSLINK's impairments.
+
+**Order and rounds.** Cells in a Williams order (`lab/order.mjs`), every variant inside every cell each round, a
+fresh browser per visit, **≥ 10 rounds**, headless Chromium (the pinned build). A `VOID` visit is dropped and
+counted, and a cell reports its n. At part 6's pace (about 1.4 min a visit) the full grid is 3 series × 6 links ×
+2 CPUs × 14 variants × 10 rounds ≈ 5 000 visits, about 120 h (*derived*). It runs in sittings, each a whole number
+of rounds over every cell, and `none` and `r20000` go first. Firefox runs one exactness round of `p2-*`, `p3-*` and
+`a2-*` on `dbts_b1`. That round reports frames exact, failed and wrong, not times, and tests part 8's S3 and S9.
+
+**Decoder settings.** The tool's worker with `stallMs` 10 000 (7). Any stall-flush is counted and reported per cell.
+
+**Exactness, every visit.** Every exact frame against its checksum. Every base and middle against native dav1d at
+its operating point. No preview drawn after its frame's exact picture, and no lossy layer posted as exact. Each
+check is mutated first and must catch its mutation (CLAUDE.md §Measurement): a sample flipped; a truth flipped; a
+middle posted as exact; the base taken as a chunk's frame (8, S3); `stallMs` back to 2 000 on `dbts_b1` at 4×,
+which must fail frames by name.
+
+**The metrics.** Each is a time from the fill's issue on the page, the median over rounds with the p25–p75 range
+beside it. Where a metric is a time, no throughput is quoted beside it.
+
+1. **First picture**: the first frame drawn of any kind. Every variant, `lossy-*` included.
+2. **Useful pictures, layer by layer.** For each layer ℓ (base, middle, exact; for HTJ2K, prefix and exact):
+   *t_ℓ,first*, the first frame at ℓ or better; *t_ℓ,all*, every frame at ℓ or better; and how long into the fill
+   that layer arrives, as t_ℓ,all ÷ the variant's own time to exact. Also the share of slices pictured at ℓ or
+   better at 25, 50 and 75 % of HTJ2K's time to exact, and on a scroll from slice 0 at 5, 15 and 30 slices/s read off
+   the per-frame times (6). `lossy-*` takes part.
+3. **Error of each lossy layer**, offline, every frame of every series, with no threshold of ours. Each layer is
+   compared with the source, both at the layer's own size (against the source's box mean, as stage 1) and upscaled
+   to full size by the viewer's resampling. Four measures: **PSNR** (peak 2^b − 1); **max |Δ|** in stored values;
+   **SSIM** on the stored samples (Gaussian window 11, σ 1.5, K1 0.01, K2 0.03, L = 2^b − 1, as Wang et al.'s
+   original parameters, *unverified* against a library before the session); and the **windowed error**: source and
+   layer both mapped through the series' own default VOI window (the DICOM header's first Window Center/Width, else
+   the stored range) to 8-bit display levels, reporting max |Δ| in display levels and the share of pixels with |Δ| ≥ 1 and ≥ 2. Each
+   measure gets its median, p95 and worst frame per layer. **Time to a visually lossless picture** is then reported
+   as t_ℓ,all for every lossy layer beside that layer's error. Whether any layer is visually lossless is the reader's
+   call against the error table, not ours.
+4. **Time to exact**: every slice exact (t_X), and each frame's t_x as median and p95. `lossy-*`: n/a, since it has
+   no exact layer.
+5. **Per-frame decode time per layer**: decodeEnd − decodeStart from the frames' stamps, per layer and path
+   (bases and middles on dav1d-WASM, exact frames through WebCodecs). Offline as well (`time.mjs`, 1× and 4×, one
+   decoder in order): the base alone, base and middle, the whole unit, `k2`'s top and low, and HTJ2K through the
+   product's OpenJPH. Each is reported as ms a frame, and as a ratio to `k2` (single-layer AV1) and to HTJ2K.
+6. **Total decode time**: the sum of a fill's per-frame decode times, and the decoders' CPU ms (the rig's
+   `cpuMs`).
+7. **Total fill time**: issue to the last exact frame drawn, and to the last byte; the fill's wire bytes ÷ `k2`'s.
+
+Part 2's model is set against the measured t_P and t_X in each cell, as in 6.
+
+**Tables, one per metric, ready to present.** Rows are the series (the ultrasound rows **pending**) × link × CPU,
+and columns are the variants. `lossy-*` appears only in tables 1, 2, 3 and 5, where it is fair; elsewhere its
+column reads n/a. Each table
+has a one-line headline: the 20 Mbit/s and `none` rows at 1× and 4×. Under each table: n per cell, the A/A
+resolution, `VOID`s dropped, frames exact / checked, and the host's saturation where a cell reached it. Each table
+goes into `lab/av1/delivery/scalable/tool/README.md` and its reading into a part 11 here. A one-page summary of the
+seven headlines is the presentation's first slide; nothing on it may be absent from a table.
+
+**11 · The SVC metrics, first sitting (2026-11-02 to 11-03), read** ([`svc-results.md`](../../lab/av1/delivery/scalable/tool/svc-results.md),
+how: [`lab/av1/delivery/scalable/tool`](../../lab/av1/delivery/scalable/tool/README.md) §SVC metrics). 10 run as written on the
+three DBT volumes, `none` and `r20000`, 1× and 4×, the 13 variants it names, 10 whole rounds (1 560 visits, 636 `VOID`),
+one Firefox round. **Pending:** the ultrasound rows, 5 and 50 Mbit/s, loss and jitter (later sittings), and the orders,
+jump and settle outside 10.
+
+* **The host saturates on `none`, at the relay**: exact fills arrive at 40–58 MB/s and the relay's self-timing breaks
+  the rig's bound on most of them, so 3–13 of 60 full fills a variant were kept. The `none` rows measure that relay,
+  and nothing past it is claimed. At 20 Mbit/s every exact fill stayed link-bound at 1× and 4×.
+* **What the preview buys, at 20 Mbit/s (1× · 4×):** a first picture at 0.07–0.10 · 0.11–0.16 s against HTJ2K's
+  0.73–1.39 s; every slice with a base at 0.24–0.78 s, 0.009–0.018 of HTJ2K's t_X (27.8–44.1 s); 86–97 % of slices
+  pictured on a 15 slices/s scroll against 0 % with HTJ2K's prefix. A full-size middle reaches every slice at 1.9–5.0 ·
+  4.4–11.0 s, too late for a scroll at 15 slices/s at 4× (0–29 %).
+* **What it costs:** the alone base and the predicted two-layer top keep t_X at 0.988–1.012× and the fill's bytes at
+  0.989–1.007× the shipped payload's. Three layers sent layer-major carry each middle twice: 1.040–1.170× the bytes and
+  t_X with `p3-m10`, up to 1.044× with `p3-m20`, the most on the 10-bit `dbts_b1`. The lossy layers' error is tabled
+  per frame (bases 38–41 dB upscaled, middles 44–50 dB; 30–66 % of pixels move a display level through each series'
+  window), and whether any is visually lossless is the reader's call.
+* **Exactness:** 77 000/77 000 exact frames; 63 000 bases and 28 000 middles as native dav1d; nothing late, no stray,
+  no stall-flush. Every check failed under its mutation except `stallMs` back to 2 000 ms, which never fired on these
+  volumes (no unit went 2 s without its frame), so this run does not show what the 10 000 ms bound protects. Firefox
+  157.0.1: predicted tops 250/250 exact through dav1d-WASM (8's S3 holds there for these streams); the alone
+  variants' split payloads 14/100, the rest failed by name, none wrong — 8's S9, now measured.
+* **The rule (5), on its cells that ran:** not decided, since t_P at 5 Mbit/s and its other cells are pending. Every
+  clause it can decide passes for `a2-q20`, `a2-q40`, `p2-q20` and `p2-q40` on all three volumes. `p3-m10` fails the
+  bytes clause on all three and so cannot pass. `p3-m20` and `p3-m30` fail it on `dbts_b1` only. Part 6's verdict
+  stands. *Superseded below.*
+* **The rule (5), on every cell measured (2026-11-05)** ([`svc-rule.md`](../../lab/av1/delivery/scalable/tool/svc-rule.md)):
+  the cells are 5, 20 and 50 Mbit/s and 20 Mbit/s with ±20 ms jitter, at 1× and 4×, on the three DBT volumes.
+  * **Interesting, by `p2-q20` and `p2-q40`**, the predicted two-layer tops. Each passes every clause on `dbts_a1`
+    and `dbts_c1`: frames exact, t_P 0.002–0.018 of HTJ2K's, more slices pictured at 15 slices/s than prefix-first,
+    t_X 0.988–1.070× and bytes 0.989–0.994× the shipped payload's. Both fail t_X on `dbts_b1` at 50 Mbit/s 4×
+    (1.20–1.23×).
+  * **The alone `a2-*` fail** on `dbts_a1` and `dbts_b1`, on t_X at 50 Mbit/s 4× (1.115–1.218×), where decode, not
+    the link, sets the last exact frame. So part 6's "all four shapes … pass" no longer holds for them.
+  * **`p3-*` fail on all three volumes.**
+  * **Not final.** The 2 % loss cells have not run, and 5 Mbit/s has 3 of its 10 rounds. A fail by both `p2-*`
+    shapes on `dbts_a1` or `dbts_c1` in any of those cells would reverse the verdict.
+  * Predicted tops pass, so the change is to the stored representation, and is structural.
 
 ## Exactness risks and how they're checked
 
@@ -1472,10 +1980,61 @@ libaom fault of §Prior evidence reproduces, and **3.15.1 has it too**: with def
 at 10 and 12 bits came back wrong on 1–8 of 16 frames (|Δ| ≤ 2 at 10 bits, ≤ 11 at 12), never on a
 keyframe, identically from dav1d and aomdec. It goes with the alt-ref frames: with
 `--auto-alt-ref=0` every cell — grey 8/10/12 as 4:0:0 and RGB 8 as 4:4:4, intra and inter, both
-versions, two presets — is exact. libaom 3.15.1 is pinned. SVT-AV1 v4.2.0 codes 4:2:0 at 8 and 10
+versions, two presets — is exact. libaom 3.15.1 is pinned.
+
+**It is known upstream, and open:** AOM issue [387472912](https://aomedia.issues.chromium.org/issues/387472912),
+"Output differs from 10-bit input when --lossless=1" (Assigned, P3; "Still happens with aom v3.13.2", comment #9,
+2026-03-24). It is bisected there to "Skip_mode improvement" (`21d45ae5`, 2023-06-13), and partly reverting that
+commit's high-bit-depth SSE makes the test pass (comment #6). Why that fits every one of our cells (*derived*):
+* a skip-mode block codes no residual (`if ( skip_mode ) skip = 1`, AV1 spec §5.11.18), yet the frame stays
+  `CodedLossless`, which tests only the quantiser (§5.9.2): the block is exact only if its prediction is;
+* libaom shifts a skip-mode block's SSE right by (bit depth − 8)·2 bits, rounding (`rdopt.c:1850`), so an SSE ≤ 7
+  at 10 bits and ≤ 127 at 12 costs as exact: |Δ| ≤ 2 and ≤ 11, the maxima measured; no shift at 8 bits;
+* libaom turns skip mode off when every reference is in the past and it looks ahead (`encodeframe.c:1688`): every
+  inter frame with alt-ref off.
+
+The last two rest on libaom 3.15.1's source alone. The issue has neither 12 bits nor the alt-ref switch; a comment
+adding them is drafted in the pull request that added this paragraph, not posted. libaom's own lossless tests code
+8-bit sources only (`test/lossless_test.cc:104-157`, source).
+
+SVT-AV1 v4.2.0 codes 4:2:0 at 8 and 10
 bits only, and its 10-bit inter stays inexact under every setting tried; rav1e 0.7.1 has no lossless
 mode. 12-bit 4:4:4 behaves alike on 3.8.2; 3.15.1's `aomenc` cannot encode it at all. Every lossless-bytes
 encode of the public series (queue rows SIZE, DATA) re-checks exactness on real content.
+
+**The pin against 3.15.2 and 3.15.3 (read 2026-10-31; nothing built or run).** 3.15.1 is tag commit `44d0a577`.
+Two releases followed, both fixes only, per the [CHANGELOG at v3.15.3](https://aomedia.googlesource.com/aom/+/refs/tags/v3.15.3/CHANGELOG):
+
+| release | CHANGELOG item, verbatim | its commits ([v3.15.1..v3.15.2](https://aomedia.googlesource.com/aom/+log/v3.15.1..v3.15.2), [v3.15.2..v3.15.3](https://aomedia.googlesource.com/aom/+log/v3.15.2..v3.15.3)) | on the product's path |
+| --- | --- | --- | --- |
+| 3.15.2, 2026-10-06 | "Bug 42302352: A larger frame is forced to be a key frame." | `b2717946` (real-time, "g_lag_in_frames == 0 and g_pass == AOM_RC_ONE_PASS", a forced maximum frame size), `d080fa23` (`GOOD_QUALITY` upscaling) | no: only when a frame grows past the last coded size; a series' frames share one size *(derived)* |
+| | "Bug 555350218: libaom encoder allows frame width/height to be different from max frame width/height when reduced_still_picture_header is 1." | `1dfb7a15`: `bitstream.c` now reports an error where it wrote a non-conforming size | no: an error where there was an invalid stream; equal sizes write as before *(derived)* |
+| | "Bug oss-fuzz:559019046: … Bad-cast to PixelLevelGradientInfo…" | `6258cbce` ("In very rare cases, the work thread data needs to be re-allocated"), `23236152` (test) | memory safety in threaded encodes; the ingest runs `--threads=1` *(derived)* |
+| | "Bug oss-fuzz:566951534: Integer-overflow in linsolve_wiener." | `ab7db409`, Wiener loop restoration in `pickrst.c` | no: the [AV1 spec](https://aomediacodec.github.io/av1-spec/) §Loop restoration params syntax: "if ( AllLossless \|\| allow_intrabc \|\| !enable_restoration ) { FrameRestorationType[0] = RESTORE_NONE" |
+| | "Bug 568044446: Fix stale search_site_config in IntraBC motion search. Fix y_stride_src in init_motion_estimation()." | `51c3d8cf`, `af52815f` ("lookahead->buf[0], which can hold a stale stride from an earlier slot") | **the one on it**: IntraBC is a screen-content intra tool and the product codes `--tune-content=screen`; but the ingest runs one `aomenc` per frame (queue row INGEST1), so no earlier slot exists *(derived)*; the bug itself is not public (*unverified*) |
+| | (none) | `fa6b080f` "Simplify ref_yv12[2] in av1_joint_motion_search()" | no: compound inter search |
+| 3.15.3, 2026-10-20 | "Bug oss-fuzz:572842743: Integer-overflow in av1_choose_var_based_partitioning." | `e803b78e` (`int64_t` sums; "I only fixed the symptom"), `da53e539`, `b141d9c4` (its test "requires 12-bit support") | not at `good` 6 or cpu0: variance partitioning is set only for `--allintra` ≥ 7 and real time (source, last resort: `av1/encoder/speed_features.c:567–571, 2014, 2134` at v3.15.2) — **it is on the `allintra` 7 projections' and row 15's 12-bit paths**, where bytes could move *(derived)* |
+
+Every changed file is under `av1/encoder/`, `av1/av1_cx_iface.c`, `test/`, `CHANGELOG` or `CMakeLists.txt`: **`aomdec` and the
+decoder are untouched**, and no commit names lossless, monochrome, alt-ref or the temporal filter (high bit depth only 3.15.3's test).
+Every 3.15.2 fix is a cherry-pick whose original is an ancestor of `4cea455c`, the head row VERSIONS found writing
+3.15.1's bytes on all 22 breast and control cells (§Encoding) — so 3.15.2 is expected to write the same bytes *(derived)*.
+
+The alt-ref fault above is [AOM issue 387472912](https://issues.chromium.org/issues/387472912), "Output differs from
+10-bit input when --lossless=1", filed 2025-01-03 against `v3.11.0-161`, last modified 2026-03-25, **assigned, not
+fixed** (status read from the tracker's public data, *derived*). Its one change is
+[Gerrit 209441](https://aomedia-review.googlesource.com/c/aom/+/209441), "Fix lossless, use full precision in
+tx_search" (2026-03-25, `tx_search.c` only), **open and unmerged**; its reviewer: "I don't think AV1_XFORM_QUANT_FP is do
+any better than AV1_XFORM_QUANT_B." Neither release touches `tx_search.c`, and main (`d55e6b33`, 2026-10-30) still calls
+`AV1_XFORM_QUANT_B` unconditionally there (source, last resort: `av1/encoder/tx_search.c:1198`). `--auto-alt-ref=0` stays required.
+
+**Not re-pinned.** Neither release changes the decoder, the lossless path or the alt-ref fault; the one fix on the
+product's path cannot arise one frame per run. A re-pin for the encoder's fuzz fixes would go straight to 3.15.3 and
+must first re-run: the client's golden payloads (`ingest/coded-frames/make_golden.py`, compared by the gate), row
+VERSIONS' 22 cells (`lab/av1/tools/newer/aom_bytes.py`) against the new pin, row TOOL's synthetic matrix
+([`lab/av1`](../../lab/av1/README.md) §The cells, the only inter cells), and, for 3.15.3, the `allintra` 7 bytes
+(the projections of rows 14 and 33, DBTSCALE) and row 15's 12-bit layers. Byte-identical there, every other byte and exactness result carries
+over unchanged; decode, transport and HTJ2K results need nothing in either case, and row ENC's times stay 3.15.1's.
 
 **Which decoder for which frame.** WebCodecs' `VideoDecoder` is native (on Chromium without an
 AV1 hardware decoder it is dav1d in the browser process) and dav1d compiled to WASM runs everywhere.
@@ -1671,6 +2230,225 @@ layers on the wire — are not repeated.
 * **The order of layers on the wire** needs no AV1 parsing beyond the OBU header's `spatial_id`;
   that is the bases-first proposal's input (queue row SVCORDER), not a measurement of its own.
 
+## The optimal-quality view: state, harvest and the owner's questions
+
+Moved verbatim from the codecs line's file ([`../lines/codecs.md`](../lines/codecs.md)) on 2026-11-20; each item is
+as of the date it gives. The line's file keeps what is in flight and owed. Read *§AV1 harvest* as §The harvest of
+2026-11-10 here, and *decision 0.n* as question n of §The owner's questions of the harvest.
+
+### State
+
+**Fixtures.** Every AV1 timing rests on three EA1141 breast tomosynthesis volumes, `dbts_a1`, `dbts_b1`, `dbts_c1`
+(systems A and C 12-bit, B 10-bit), on one 4-core cloud host, headless, software decode, no GPU or phone. The quality
+results cover 19 DBT volumes, all from the one EA1141 dataset (no second vendor or dataset), and two TRUS sweeps. σ is
+quoted with its estimator: Immerkær's (the noise rule's) reads A and C 10–18 and B 3.4–5.7 by frame; the profiles
+run's Haar MAD read 13–18 and 4.4–6.7, and the two differ by 1.08–1.44×, not a constant. No breast ultrasound cine or
+ABUS exists among the fixtures ([`../FIXTURES.md`](../FIXTURES.md)); nothing below speaks for them.
+
+* **Design chosen (2026-11-09):** every viewer sees the series' **optimal quality**, an AV1 view meant to be visually
+  lossless; a reader's explicit request fetches the **exact** HTJ2K frame whole. Its build is
+  [`codecs.md`](../lines/codecs.md#optimal-quality) §Optimal quality. "Visually lossless" is still a metric's candidate, not a reader's
+  finding (§AV1 harvest (1)).
+* **Measured, Q 8, G 1, on the three volumes:** the view is 0.07–0.22 of HTJ2K's bytes. That is Q 8's figure, not
+  the noise rule's: at the rule's Q the view is 0.10–0.28 and view plus exact frame 1.10–1.28× (*derived*, audit F7).
+  Decode: §AV1 harvest (1) has what the audit left of "1.05–2.04 HTJ2K frames"; AV1 saves bytes, not decode time, at
+  Q 8 at 1× on this host.
+* **Decode in the product's own unit, measured 2026-11-12** ([`../av1/audit-protocols.md`](../av1/audit-protocols.md)
+  §C measured): in Hp, the product's HTJ2K decode plus the XXH3 check (what a Lossless request runs), the view through
+  WebCodecs decodes in 1.24 (`dbts_a1`), 1.74 (`dbts_b1`), 1.36 (`dbts_c1`) Hp at Q 8, G 1, 1×, and in 1.72, 1.29,
+  1.53 Hp at the rule's Q (6, 11, 7); dav1d-WASM in 1.9–2.9 Hp. On a host capped to one slowed core it stays above
+  1 Hp (1.16–1.58); WebCodecs under one HTJ2K frame on a slow device is not shown. One 4-core host, software
+  WebCodecs, three DBT volumes, the middle 16 frames.
+* **The noise anchor, measured 2026-11-12** (`../av1/audit-protocols.md` §B, §A measured): the estimator resolves the
+  worst frame to δ 0.1–5.5 % by volume, so the anchor is a band [Q_lo, Q_hi], one Q wide on 4 of 19 volumes and up to
+  ≥ 8 on 10-bit ones; at the rule's Q the view keeps 29–50 % of the fine-band noise's amplitude (ν), less at the anchor.
+* **Depth and decode route:** WebCodecs decodes the OQ view; dav1d-WASM is a fallback only. D ≤ 10 is coded at its
+  own depth; D > 10 by the depth cut to 10 bits, because no engine is shown to give 12-bit AV1 video through
+  WebCodecs' `VideoDecoder` ([`../av1/webcodecs-profiles.md`](../av1/webcodecs-profiles.md)). The cut's cost at Q 8
+  is not measured in-window (§AV1 harvest (1)).
+* **Out of the top, not discarded:** a two-layer SVC preview; lossless AV1 as the exact form.
+* **Discarded:** a layered three-layer carrier; preview and view as quality layers of one stream; top-first; HTJ2K
+  resolution ladder and quality layers; lossless G > 1; a lossy top plus low stream; key parsing in place of
+  WebCodecs' flush (tag `archive/av1-keyparse`); LCEVC.
+* **Encoder settings** (ENCODER-SETTINGS, 2026-11-10, theory only, [`../av1/encoder-settings.md`](../av1/encoder-settings.md)):
+  every flag of every AV1 and HTJ2K invocation, quoted from libaom 3.15.1, the AV1 spec and OpenJPH 0.31.0. *G saves
+  almost nothing at Q 8 on DBT* holds for low-delay libaom only: lag 0 also switches off the temporal filter, TPL and
+  keyframe filtering; q is pinned; speed 6 prunes inter. Most other OQ flags restate libaom's defaults. The SVC and
+  residual studies ran other configurations (real time; libaom's defaults with lookahead), so their bytes do not
+  compare with the OQ view's.
+
+### The study branches
+
+**Inputs, one line each** (state 2026-11-10; *measured* = encoded or timed, *derived* = arithmetic on committed rows,
+*theory* = sources and reasoning only):
+
+| input | PR | state | kind | pointer |
+| --- | --- | --- | --- | --- |
+| noise point | #317 → `av1-quality-metrics` | done: P1 and P3 hold on 10 of 10 held-out cells (5 DBT series), worst frame 0.888–0.969; σ on every frame; DBT only. Its top Verdict still reads "held-out test owed" | measured | `claude/av1-noise-point:docs/av1/noise-point.md` §Noise-point protocol, measured |
+| window and Q | #323 → `av1-quality-metrics` | done: e_N ÷ σ is the same at every window width; one display level needs Q 1–2 (12-bit) or Q 4 (10-bit) | derived (presets measured in the rows) | `claude/av1-window-q:docs/av1/window-q.md` §Verdict |
+| VL metrics | #325 → `av1-quality-metrics` | done: no metric is validated against readers on DBT, 10–12-bit video or AV1; only a flicker test establishes VL | theory (sources) | `claude/av1-vl-metrics:docs/av1/vl-metrics.md` §4 |
+| noise ratio | #332 → `av1-noise-point` | done as theory; its model-observer protocol (§5) not run | theory, derived | `claude/av1-noise-ratio:docs/av1/noise-ratio.md` §Verdict, §5 |
+| encoder settings | #331 → `main` | done: every flag sourced; lag 0 switches off the temporal filter, TPL and keyframe filtering | theory | `claude/av1-encoder-settings:docs/av1/encoder-settings.md` §2b, §9 |
+| quality audit | #329 → `main` | done: 13 findings, 5 change a verdict (F1, F2, F4, F6, F7) | derived | `claude/av1-audit-quality:docs/av1/audit-quality.md` §Findings |
+| decode audit | #334 → `main` | done: 20 findings, 6 change a verdict (1–4, 6; 2 at coarse rungs) | derived, code read | `claude/av1-audit-decode:docs/av1/audit-decode.md` §Findings |
+| groups | #326 → `av1-quality-metrics` | shard 1 measured (`dbts_b1` slices 9–40 and three lossy-sourced clips, 151 cells); shard 2 (`dbts_a1`, `dbts_c1`, TRUS) owed, so §7's verdict is not reached | measured | `claude/av1-groups:docs/av1/groups.md` §Groups, measured |
+
+### The harvest of 2026-11-10
+
+Docs only: the eight inputs above, read to their verdicts. Fixtures for every line below unless it names fewer: the
+three timed DBT volumes, one host; quality readings on 19 EA1141 DBT volumes; no breast ultrasound cine.
+
+**(1) What changes a claim the demo makes.**
+
+* **Q 8 as the VL candidate on DBT.** Qualified, not overturned.
+  * The noise rule's Q on the timed volumes is not Q 8 everywhere: `dbts_a1` Q 4; `dbts_b1` Q 12 (G 1) · Q 8 (G 16);
+    `dbts_c1` Q 8 (G 1) · Q 4 (G 16) (*measured*, noise point §P4).
+  * On `dbts_a1`, Q 8's worst frame is 1.0107 of σ: it fails the strict anchor (bar 1.00) and passes the noise
+    rule's own bar of 1.03 (*derived*, audit F1). The line uses both bars; at 1.03 every 12-bit volume sits at Q 8 and
+    the 10-bit ones move to Q 12–16.
+  * e_N ≤ σ also passes a coding that deletes the fine-band noise: deleting it outright reads e_N = σ (*derived*,
+    audit F4). The noise-ratio theory adds that at the rule's Q the encoder removes noise rather than adding error, and
+    that removal may cost faint calcifications (*derived* from a model, untested; its §5 P3).
+  * No metric has been validated against readers on DBT (*theory*, VL metrics). "Also for diagnosis" rests on a
+    proxy until a flicker test runs.
+* **The bytes in `optimal-quality.md`.** The Q 8 measurements stand as Q 8's. The design's headline "0.07–0.22 of
+  HTJ2K" is not the rule's Q on any timed volume at G 1 but `dbts_c1`; at the rule's Q it is 0.10–0.28 (*derived*,
+  audit F7). G 8 and G 16 at Q 8 save −1.2 to +0.2 %; that is an equal-Q reading below a 2.4–4.2× byte cliff, and at
+  Q 12 G 16 ÷ G 1 is 0.77–0.94 (*derived*, audit F2).
+* **WebCodecs as the route.** The route stands; two speed claims fall.
+  * The only evidence that WebCodecs decodes under one HTJ2K frame (0.81–0.97 at 4×) comes from a throttle that caps
+    each thread, not the cores; a slow device's speed is unmeasured, not favourable (*code read*, decode audit 1).
+  * "1.05–2.04 HTJ2K frames" carries a discarded JS pass on the lossy clock and spans three rungs. At Q 8 only
+    `dbts_a1` and `dbts_c1` have cells, both the top-10-bit stream: about 1.55–1.81 with the pass removed
+    (*derived*, decode audit 2, 13). `dbts_b1` has no Q 8 cell there.
+  * The exact ask's "1.01–1.03 HTJ2K frames" and the view's ratio divide by different HTJ2K units, on two Chromium
+    versions; the unit the product ships is timed nowhere (decode audit, §The HTJ2K frame is not one unit).
+  * Withdrawn: the former state line's "1.9–4.7 HTJ2K frames through dav1d-WASM". It times the 12-bit stored stream,
+    not the top-10-bit view WebCodecs decodes, on a dav1d-WASM build without assembly or threads (decode audit 10,
+    13); it is no figure for the fallback's cost on the view.
+  * Groups shard 1 timed `dbts_b1` O G 1 at Q 8 through WebCodecs at a mean 97 ms a frame on one host at 1×
+    (*measured*); no ratio to an HTJ2K frame is taken there.
+* **The depth cut's cost.** "About 0.3 dB and 6–7 % fewer bytes at equal Q" is the top-10 study's one Q 8 row, on
+  all-sample PSNR, which counts the air (`dbts_b1` Q 8: 52.05 dB all-sample against 47.43 in-window); its arms ran
+  at Q 12–40 (audit F12). Banding (CAMBI) was not run (F10), and λ scales differently at 10 and 12 bits (F9). The cut's
+  in-window cost at Q 8 is unmeasured; it stays justified by the decode route alone.
+
+**(2) Corrections in other documents**, applied in place 2026-11-20 on `claude/unified` (row CORRECTIONS-APPLY,
+`claude/av1-corrections-apply`), every row below, the κ row as two names in `docs/glossary.md`. *Corrected
+2026-11-20:* this read "owed in other documents (not edited here; each is its owner branch's to make, in place)".
+The x\* row took B0's values (§The audits' protocols, measured), not 4.8 ± 0.15:
+
+| result | doc (branch) | correction | from |
+| --- | --- | --- | --- |
+| noise rule's top Verdict | `claude/av1-noise-point:docs/av1/noise-point.md` §Verdict (#317) | the held-out test is done; the bar is 1.03, not 1.005 / 1.000; quote x\* as 4.8 ± 0.15 | audit F5 |
+| x\* at G > 1 | same | recompute x\* once over G 1 and G 16 frames, per stream depth; the separate G > 1 x\* makes G 16 cost 2.2–3.0× G 1 on `dbts_b1`, `dbts_c1` | audit F6, F9 |
+| noise anchor per series | `claude/av1-quality-metrics:lab/av1/metrics/README.md` §5 | state one bar and re-read the anchors under it; "G 16 gains" as equal-Q readings | audit F1, F2 |
+| "never higher than Q 8" | `claude/av1-window-q:docs/av1/window-q.md` §Verdict (#323) | the anchor is Q 12 on 3 of 5 B volumes, and integer-Q arms hold at Q 9 and Q 12–13; the sweep's grey-level-independent error is an assumption the tiles contradict (r 0.58–0.90) | audit F11 |
+| reduced-depth banding | `claude/av1-preview-depth:lab/av1/metrics/preview-depth.md` | the σ 1.9–2.4 attribution of the two failing B volumes marked *unverified* | audit F10, F13 |
+| top-10 cost | `claude/av1-top10-why:lab/av1/profiles/top10.md` | its "equal quality" is all-sample PSNR at Q 12–40 | audit F12 |
+| G saving at Q 8 | `claude/oq-ingest:docs/av1/payload-format.md` §Optimal quality | "at Q 8, 1.2 % fewer bytes" is an equal-Q reading; refuse or label Q 0 (lossless by the AV1 specification) | audit F2; encoder settings §2b |
+| profiles decode | `claude/av1-quality-profiles:lab/av1/profiles/README.md` §Profiles decode | the 4× throttle without `cores`; `back()` on the lossy clock; a fresh `VideoDecoder` per jump; Chromium version per row | decode audit 1, 2, 7, 12, 13 |
+| residual apart | `claude/av1-residual-apart:lab/av1/delivery/residual/README.md` | 0.97–1.00 divides by an HTJ2K arm with a JS pass; aligned, 1.3–1.6 | decode audit 4 |
+| carriers, SNR, SVC | `claude/av1-profile-carriers:docs/av1/profile-carriers.md`, `claude/av1-snr-preview:docs/av1/snr-preview.md`, SVC results (`claude/av1-svc-preview`) | the package's HTJ2K is not the product's; SNR's `two` slower than `sep` is the JS add (a tie); C3 on `dbts_b1` from asks 4–8 | decode audit 6, 15–17, 19 |
+| decode notes | `claude/av1-unified-mainbase:docs/decode/README.md` | which HTJ2K unit each ratio uses; stale −7 to −20 % and "fixtures are synthetic" lines; merge-free S against R | decode audit 18, 20 |
+| κ | `docs/glossary.md` (whichever branch merges second of `claude/av1-groups`, `claude/av1-noise-ratio`) | κ names two things: groups' share of a band's noise removed, noise ratio's error–noise correlation; one gets a new name | this harvest |
+
+**(3) Do the low-delay settings confound the G results?** Partly, and less than the settings alone suggest.
+
+* *Theory* (encoder settings §2b): `--lag-in-frames=0` switches off libaom's temporal filter, its alt-ref frames,
+  TPL and keyframe filtering. `--min-q = --max-q` removes the finer q libaom gives an alt-ref, and `--cpu-used=6`
+  prunes inter search. So "G saves almost nothing at Q 8" is a finding about low-delay libaom at speed 6 with a
+  pinned q.
+* *Measured* (groups shard 1, `dbts_b1` slices 9–40 only):
+  * At equal in-window PSNR over the VL interval, the filtered alt-ref arms save 4.9–6.3 % of O G 1's bytes and O G 16
+    saves 2.5 %, against a method resolution ε of 0.76 %.
+  * At the noise anchor they save nothing. They cross e_N ÷ σ = 1 between Q 8 and Q 10, so their point is Q 8 at
+    9.4–10.5 MB against O G 1's Q 12 at 7.05 MB: the filter spends the noise the anchor keeps.
+  * They decode unevenly: the slowest frame is 3.4–5.2× the median (0.52–0.63 s on dav1d-WASM).
+  * No arm is recommended over O G 1, so G 1 stays on this volume.
+  * The noise swap places the cause in the slices' own noise: a shared noise pattern lets G 16 save 69–77 % at
+    Q 4–12; a shuffled one changes nothing.
+* *Not yet known:* systems A and C (shard 2 owed), and alt-ref with q free and objective delta-q (encoder settings
+  T1). Also open: the alt-ref filter's strength (T2), a speed ladder past Q 8 (T3), and the in-loop filters' decode
+  cost (T4).
+* The confound is real in mechanism and small in bytes on the one volume measured. It decides nothing about G until
+  the owner says whether a temporally denoised view still counts as the OQ view (§Open, decision 4).
+
+### The owner's questions of the harvest
+
+0. **The owner's decisions this harvest needs** (yes or no; each says what it changes):
+   1. *One bar of 1.03 for the noise anchor?* Yes: every 12-bit timed volume reads Q 8 and 10-bit DBT moves to Q 12–16
+      (0.04–0.10 of HTJ2K), on the plateau where audit F4 says the noise may be gone. No (bar 1.00): `dbts_a1`, `a2`
+      move to Q 4 (0.27–0.28).
+   2. *Keep Q 8 hard-coded for the demo, labelled a candidate not confirmed by readers?* Yes: the demo stands.
+      No: code the rule's Q per (series, G), with bytes 0.10–0.28.
+   3. *Quote the design's bytes at the rule's Q (0.10–0.28) instead of Q 8 (0.07–0.22)?* Yes changes the headline in
+      this file and in `optimal-quality.md`.
+   4. *May the OQ view be temporally denoised (alt-ref, keyframe filtering)?* Yes: G and alt-ref become levers
+      (−5 to −6 % at equal PSNR on `dbts_b1`), and the noise rule needs a new definition. No: lag 0 stays, and
+      G 1 stays for DBT.
+   5. *Run groups shard 2 (`dbts_a1`, `dbts_c1`, TRUS; about 4.3 h on one 4-core host)?* Yes: §7's verdict for DBT
+      becomes reachable.
+   6. *Run the zero-encode re-reads first?* That is anchors under one bar, x\* over G 1 + G 16 per depth, and
+      σ_out ÷ σ on existing cells (audit F1, F4, F6, F9), and the six alt-ref cells read by `cell.measure` (F3). Yes
+      settles the Q and G numbers without encoding.
+   7. *Hold WebCodecs speed claims until the throttle is re-run with `cores` 1 and 2 and the lossy clock is fixed?*
+      Yes: no "WebCodecs under one HTJ2K frame" claim until then (decode audit 1, 2).
+   8. *Run the noise-ratio protocol (κ measured, model observer on calcifications) before any reader study?*
+      Yes: it tests the removal worry cheaply first.
+   9. *Stop describing the view as "also for diagnosis" until readers confirm VL?* Yes changes the design statement
+      above and the demo's wording.
+   10. *Ask the owner branches in (2) to make their corrections?* Yes: a session per branch, docs only.
+
+### Groups at equal quality, the settings shard
+
+*Settings amendment, shard S1 (2026-11-10, `claude/av1-groups-settings`, `docs/av1/groups.md` §Settings shard 1):
+on `dbts_b1` every lookahead arm, the unfiltered alt-ref too, costs 11–25 % at the noise anchor, O G 8–32 saves
+4.2–4.4 % but decodes ~20 % slower on WebCodecs, so nothing is recommended and G 1, lag 0 stay; S2 (A, C cut) owed.*
+
+### The audits' protocols, measured
+
+**The audits' corrections and protocols** (row AV1-CORRECT, 2026-11-11; measured since decisions 0.6 and 0.7
+were written): every entry of [`../av1/corrections.md`](../av1/corrections.md) applied in place 2026-11-20
+(CORRECTIONS-APPLY);
+[`../av1/audit-protocols.md`](../av1/audit-protocols.md) pre-registers A (noise kept, ν, QA F4), B (one bar at the
+estimator's resolution, integer Q, QA F1, F2) and C (decode on the product's HTJ2K unit, core-capped, decode audit
+1, 2, 13) for a session that did not write them.
+B0 measured (row MEASURE-1, `claude/audit-measure`, 2026-11-11): QA F1's table reproduced; over all 19 volumes x\*
+is 4.7584 at G 1 (not 4.9293), 4.6359 pooled and at G > 1, 4.8024 for 12-bit streams; no reading overshoots an
+anchor. B and A measured (2026-11-12, 352 cells, amendments 1 and 2): s_split ≤ 0.25 % (B-1 holds); the injected
+bias b runs −3.8 to +5.5 % by volume (B-2 refuted), so δ is 0.1–5.5 %; the anchor is unresolved on 15 of 19 volumes
+(B-3 refuted on the wide side), Q_hi − Q_lo up to ≥ 8 on 10-bit (B-4 refuted); G 16 ÷ G 1 at equal worst frame is
+0.954–0.986 on 12-bit and 0.855–0.907 on 10-bit (B-5 holds). Both x\* stay, with δ beside them. ν falls with Q
+(A1), sits at 0.286–0.495 at the rule's Q (A2 refuted at the top, `dbt10_ea1141`), is not one curve of x (A3
+refuted), and Q_ν costs 1.16–1.92× the rule's bytes (A4 refuted on 3). Owed to the owner: quote the anchor as
+[Q_lo, Q_hi] with ν beside (decision 0.1), and "keep at least half" (Q_ν) as an option. C measured (2026-11-12,
+15 rounds, demo tip `18d2d1ff`, Chromium 153, amendment 1): on the product's HTJ2K path Hp (decode plus XXH3,
+19.8–57.1 ms a frame at 1×) as the unit, the view through WebCodecs at 1× decodes in 1.24–1.74 Hp at Q 8 and
+1.29–1.72 at the rule's Q; under 4× it falls to 0.68–1.12 with four or two slowed cores and rises back to
+1.16–1.58 with one (C4, C5 hold; C1–C3 not refuted, bands missed). The decision rule does not claim "under one
+HTJ2K frame on a slow device": a phone is owed.
+
+### The owner's decisions (the codecs line)
+
+* 2026-10-12: XXH3 replaces SHA-256; DBT in scope. 2026-10-13: GPU decoding not pursued for now.
+* 2026-10-10: frames of 12 bits or fewer are filled, deeper ones fit plus tiles; never a reduced-resolution preview.
+* 2026-10-24: tiles delayed, not closed; AV1 types without open data parked until a dataset exists.
+* 2026-10-26: no end-to-end G > 1 build. 2026-10-30: AV1 scope = cine-like series (one consecutive dimension), breast
+  first, ≤ 12 bits; late frames appended only.
+* 2026-11-02: hardware decode only through WebCodecs; VVC parked.
+* 2026-11-04: no per-browser-version defaults; every decision states its fixtures' limits.
+* 2026-11-05: full depth on the client; one noise point per candidate; lossless AV1 and SVC kept outside the top.
+* 2026-11-06: a preview, if any, is the small full-size stream only; reduced-resolution previews not considered now.
+* 2026-11-09: optimal quality plus the exact HTJ2K frame on request; the residual dropped. G fixed per modality by
+  measurement (no adaptive detector); Q per series by the noise rule; the PCS chooses both, and our side handles any
+  Q, G and depth. Splitting the optimal-quality picture's decoded samples into top and low streams: discarded (it needs a second
+  encode, a lossy top cannot be completed by low bits, and what the screen shows could no longer be controlled).
+* 2026-11-10: the browser decodes the OQ view through WebCodecs; dav1d only as a fallback when there is no choice.
+  D ≤ 10 at its own depth, the depth cut only for D > 10; no reduced-depth (8-bit) preview. Every encoder setting
+  used must be known, sourced and backed by theory before its results count; results are audited for confounds of
+  that kind (the low-delay settings without lookahead or alt-ref frames, used in every G result so far).
+
 ## Where it wins
 
 * **Bytes, once the samples are represented for it** — the two low bits apart, RCT on colour: under HTJ2K on every
@@ -1703,4 +2481,21 @@ Open for the owner, one a line; the owner tracks them in [`queue.md`](queue.md) 
 * The mixed decode as the client's choice (queue row MIXDEC; §Samples over 12 bits).
 * Sound sources for breast ultrasound stills and cine, ABUS and angiography (the provenance audit, queue row
   DATAGUARD), without which their frame groups get no decision (§Frame groups).
+* Role-based quality profiles: the operating point, against what binds it and what no source settles
+  ([`visually-lossless.md`](visually-lossless.md) §3).
 * The two further 10-bit series the prior-gap check named, not CC BY or CC0 (§Prior evidence, not reproduced here).
+
+## Paths kept in history only
+
+The pre-`mainbase` AV1 lineage (`claude/av1-unified`, `claude/av1`, `claude/wip-dockerread`,
+`claude/wip-213-INTERSLICE`, `claude/av1-mainbase`) is joined to this history by `-s ours` merges (call M1 of
+`docs/queue-merge-2026-11-15.md` on `claude/work-ledger`): its content lives here in its later form, and the paths it
+held that this tree does not stay in history, not restored. The largest, `client/conformance/av1` (160 files), is
+named nowhere here; most `lab/av1` paths moved in the lab's reorganisation (`lab/av1/svcshape` is
+`lab/av1/delivery/scalable/shape`). `claude/av1-mainbase` at `1348bc06b3` holds every one of them (`claude/av1`'s are
+a subset): 556 paths with no path on this tree at the merge.
+
+```bash
+git ls-tree -r --name-only 1348bc06b3 | sort > /tmp/old; git ls-tree -r --name-only HEAD | sort | comm -23 /tmp/old -
+git restore --source=1348bc06b3 -- client/conformance/av1   # recovery, one path at a time
+```

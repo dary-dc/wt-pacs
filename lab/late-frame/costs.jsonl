@@ -1,0 +1,40 @@
+{"kind": "htj2k", "n": 0, "k": 1, "round": 0, "encode": {"cpu_s": 0.012363999999877251, "wall_s": 0.013872704000277736}}
+{"kind": "av1-intra", "n": 0, "k": 1, "round": 0, "encode": {"cpu_s": 0.49791200000009894, "wall_s": 0.5139327169999888}}
+{"kind": "regroup", "n": 2000, "k": 10, "round": 0, "decode": {"cpu_s": 1.4797889999999825, "wall_s": 1.5396911600000749}, "encode": {"cpu_s": 10.295105000000262, "wall_s": 10.414019726999868}, "frames_decoded": 30, "frames_encoded": 40}
+{"kind": "regroup", "n": 262, "k": 1, "round": 0, "decode": {"cpu_s": 1.429171999999653, "wall_s": 1.4935104409996711}, "encode": {"cpu_s": 7.545800999999983, "wall_s": 7.628490746999887}, "frames_decoded": 30, "frames_encoded": 31}
+{"kind": "regroup", "n": 262, "k": 10, "round": 0, "decode": {"cpu_s": 1.400819000000297, "wall_s": 1.42446631599978}, "encode": {"cpu_s": 10.542212000000006, "wall_s": 10.673037099000794}, "frames_decoded": 30, "frames_encoded": 40}
+{"kind": "regroup", "n": 2000, "k": 1, "round": 0, "decode": {"cpu_s": 1.5033200000000875, "wall_s": 1.5323408900003415}, "encode": {"cpu_s": 7.29521899999969, "wall_s": 7.361716315000194}, "frames_decoded": 30, "frames_encoded": 31}
+{"kind": "av1-intra", "n": 0, "k": 10, "round": 0, "encode": {"cpu_s": 4.26979300000005, "wall_s": 4.32011759299985}}
+{"kind": "htj2k", "n": 0, "k": 10, "round": 0, "encode": {"cpu_s": 0.0862449999999626, "wall_s": 0.09448644499934744}}
+{"kind": "av1-intra", "n": 0, "k": 1, "round": 1, "encode": {"cpu_s": 0.5948179999999752, "wall_s": 0.6097135049994904}}
+{"kind": "regroup", "n": 262, "k": 1, "round": 1, "decode": {"cpu_s": 1.5575680000002308, "wall_s": 1.5854543939994983}, "encode": {"cpu_s": 7.737201999999911, "wall_s": 7.841833710999708}, "frames_decoded": 30, "frames_encoded": 31}
+{"kind": "htj2k", "n": 0, "k": 1, "round": 1, "encode": {"cpu_s": 0.011089000000083615, "wall_s": 0.014836936999927275}}
+{"kind": "regroup", "n": 2000, "k": 1, "round": 1, "decode": {"cpu_s": 1.704464999999857, "wall_s": 1.7431686670006457}, "encode": {"cpu_s": 8.117697999999962, "wall_s": 8.194618885000637}, "frames_decoded": 30, "frames_encoded": 31}
+{"kind": "regroup", "n": 2000, "k": 10, "round": 1, "decode": {"cpu_s": 1.3343880000001604, "wall_s": 1.3543978890002109}, "encode": {"cpu_s": 9.874507999999878, "wall_s": 10.015267820999725}, "frames_decoded": 30, "frames_encoded": 40}
+{"kind": "htj2k", "n": 0, "k": 10, "round": 1, "encode": {"cpu_s": 0.07930100000010043, "wall_s": 0.09161628799756727}}
+{"kind": "regroup", "n": 262, "k": 10, "round": 1, "decode": {"cpu_s": 1.3940200000000686, "wall_s": 1.4091393559992866}, "encode": {"cpu_s": 9.643951000000072, "wall_s": 9.727847885000301}, "frames_decoded": 30, "frames_encoded": 40}
+{"kind": "av1-intra", "n": 0, "k": 10, "round": 1, "encode": {"cpu_s": 4.716179999999724, "wall_s": 4.766349718999663}}
+{"kind": "regroup", "n": 262, "k": 1, "round": 2, "decode": {"cpu_s": 1.345643000000166, "wall_s": 1.3751776740000423}, "encode": {"cpu_s": 7.510315999999989, "wall_s": 7.598273932000666}, "frames_decoded": 30, "frames_encoded": 31}
+{"kind": "regroup", "n": 2000, "k": 1, "round": 2, "decode": {"cpu_s": 1.4964930000001573, "wall_s": 1.5195817539997734}, "encode": {"cpu_s": 7.181756000000007, "wall_s": 7.24091662399951}, "frames_decoded": 30, "frames_encoded": 31}
+{"kind": "av1-intra", "n": 0, "k": 1, "round": 2, "encode": {"cpu_s": 0.49865399999964666, "wall_s": 0.506590996000341}}
+{"kind": "htj2k", "n": 0, "k": 10, "round": 2, "encode": {"cpu_s": 0.08864200000010669, "wall_s": 0.09911698400082969}}
+{"kind": "htj2k", "n": 0, "k": 1, "round": 2, "encode": {"cpu_s": 0.01165600000001632, "wall_s": 0.015659966000384884}}
+{"kind": "av1-intra", "n": 0, "k": 10, "round": 2, "encode": {"cpu_s": 4.4612070000000585, "wall_s": 4.524898184999984}}
+{"kind": "regroup", "n": 2000, "k": 10, "round": 2, "decode": {"cpu_s": 1.471932999999808, "wall_s": 1.5143640890000825}, "encode": {"cpu_s": 9.756976000000009, "wall_s": 9.901878714000304}, "frames_decoded": 30, "frames_encoded": 40}
+{"kind": "regroup", "n": 262, "k": 10, "round": 2, "decode": {"cpu_s": 1.3842329999999379, "wall_s": 1.4239575940000577}, "encode": {"cpu_s": 10.027253000000314, "wall_s": 10.16710453900032}, "frames_decoded": 30, "frames_encoded": 40}
+{"kind": "regroup", "n": 2000, "k": 1, "round": 3, "decode": {"cpu_s": 1.3658989999997289, "wall_s": 1.4170218619992738}, "encode": {"cpu_s": 8.154876000000002, "wall_s": 8.257864929999414}, "frames_decoded": 30, "frames_encoded": 31}
+{"kind": "htj2k", "n": 0, "k": 10, "round": 3, "encode": {"cpu_s": 0.08556699999996908, "wall_s": 0.10164015400096105}}
+{"kind": "regroup", "n": 262, "k": 1, "round": 3, "decode": {"cpu_s": 1.3726000000000909, "wall_s": 1.388511828999981}, "encode": {"cpu_s": 7.846495000000175, "wall_s": 7.939680344000408}, "frames_decoded": 30, "frames_encoded": 31}
+{"kind": "av1-intra", "n": 0, "k": 10, "round": 3, "encode": {"cpu_s": 4.840739999999812, "wall_s": 4.87282086399955}}
+{"kind": "av1-intra", "n": 0, "k": 1, "round": 3, "encode": {"cpu_s": 0.5443720000001804, "wall_s": 0.5511914410008103}}
+{"kind": "regroup", "n": 262, "k": 10, "round": 3, "decode": {"cpu_s": 1.5365260000000944, "wall_s": 1.563051070000256}, "encode": {"cpu_s": 11.148849999999754, "wall_s": 11.237814580000304}, "frames_decoded": 30, "frames_encoded": 40}
+{"kind": "htj2k", "n": 0, "k": 1, "round": 3, "encode": {"cpu_s": 0.008303000000012162, "wall_s": 0.009951588000149059}}
+{"kind": "regroup", "n": 2000, "k": 10, "round": 3, "decode": {"cpu_s": 1.4930450000001656, "wall_s": 1.542642428000363}, "encode": {"cpu_s": 9.916285999999786, "wall_s": 10.051082846999634}, "frames_decoded": 30, "frames_encoded": 40}
+{"kind": "htj2k", "n": 0, "k": 10, "round": 4, "encode": {"cpu_s": 0.08924000000007482, "wall_s": 0.10046162300022843}}
+{"kind": "av1-intra", "n": 0, "k": 10, "round": 4, "encode": {"cpu_s": 4.967283999999836, "wall_s": 5.044637230999797}}
+{"kind": "regroup", "n": 2000, "k": 1, "round": 4, "decode": {"cpu_s": 1.4193180000002599, "wall_s": 1.452102561999709}, "encode": {"cpu_s": 7.460798999999838, "wall_s": 7.5308165149999695}, "frames_decoded": 30, "frames_encoded": 31}
+{"kind": "regroup", "n": 262, "k": 10, "round": 4, "decode": {"cpu_s": 1.4000140000001124, "wall_s": 1.4334037630005696}, "encode": {"cpu_s": 10.026144999999985, "wall_s": 10.224473410999963}, "frames_decoded": 30, "frames_encoded": 40}
+{"kind": "regroup", "n": 262, "k": 1, "round": 4, "decode": {"cpu_s": 1.575740000000053, "wall_s": 1.6134817820002354}, "encode": {"cpu_s": 7.672496999999794, "wall_s": 7.733861850999347}, "frames_decoded": 30, "frames_encoded": 31}
+{"kind": "regroup", "n": 2000, "k": 10, "round": 4, "decode": {"cpu_s": 1.4248439999998936, "wall_s": 1.479796045000512}, "encode": {"cpu_s": 9.507171000000255, "wall_s": 9.575074522999785}, "frames_decoded": 30, "frames_encoded": 40}
+{"kind": "av1-intra", "n": 0, "k": 1, "round": 4, "encode": {"cpu_s": 0.5993500000000154, "wall_s": 0.6238492679995034}}
+{"kind": "htj2k", "n": 0, "k": 1, "round": 4, "encode": {"cpu_s": 0.009304000000213364, "wall_s": 0.014744531000360439}}

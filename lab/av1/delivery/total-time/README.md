@@ -92,7 +92,7 @@ HTJ2K and the adopted optimized payload (`k2`: k = 2, WebCodecs), made with row 
 | order | the page | useful |
 | --- | --- | --- |
 | `seq` | `fill(0 … N−1)`, as today | — |
-| `prio` | `requestExactFrame` for each useful frame, most needed first, then the same fill | tomosynthesis: the centre slice ⌊N/2⌋ and two either side; mammograms: the MLO pair (2, 3) |
+| `prio` | `requestFrame` for each useful frame, most needed first, then the same fill | tomosynthesis: the centre slice ⌊N/2⌋ and two either side; mammograms: the MLO pair (2, 3) |
 
 *Centre* is the first useful frame on the page, *useful* the last of them, both from the fill's issue.
 The downloader takes asks before the fill and serves a fill as contiguous runs, lowest first
@@ -150,7 +150,7 @@ way — iid on a fixed rate; on `lte-good` its Gilbert–Elliott bursts of 3.5 p
 place of its 0.01 % — and `j<ms>` is ± that jitter each way, `--jitter-mode ordered` (one radio leg:
 nothing overtaken); the relay's tally of server → client packets lost is kept a visit (`s2c`) and read
 1.00–1.10 %, 2.04–2.13 %, 5.03–5.21 % a cell. A visit fills frames 0–3 (`--fill`), then once they are on the
-page asks frames 4–7 one at a time (`--asks-after`), each timed from `requestExactFrame` to its pixels;
+page asks frames 4–7 one at a time (`--asks-after`), each timed from `requestFrame` to its pixels;
 every frame of both hashed against its truth. `--mutate sample` and `--mutate truth` each turned both
 variants to 0 of 12 exact (`--fill 8 --asks-after 4`, `l1` on 50 Mbit). The server's controller is its default, `cubic-restart`. The reading is in
 [`docs/av1/README.md`](../../../../docs/av1/README.md) §Under loss and jitter.
@@ -308,7 +308,12 @@ same decoders (`?opts=`), and `--origin navigation` times both pages from naviga
 harness's protocol (`hello`, the result's shape, each frame's SHA-256) through `lab/viewer/levers.js`, not its own code:
 `run.mjs --frames lab/.av1-work/from-dicom --sets ct_nlst --variants htj2k,viewer,av1,av1viewer --rounds 12
 --origin navigation`. A row's first frame is the viewer's first exact frame on screen. The reading is in
-[`docs/ARCHITECTURE.md`](../../../../docs/ARCHITECTURE.md) §The viewer.
+[`docs/ARCHITECTURE.md`](../../../../docs/ARCHITECTURE.md) §The viewer. A viewer variant with `"view": "worker"` opens
+the page with `?view=worker`, its frames held and painted in the view worker; two viewer variants that differ in
+`view` alone are interleaved like any others, which is how [`docs/client/evidence/page-out-of-pixel-path.md`](../../../../docs/client/evidence/page-out-of-pixel-path.md)
+§7 runs. Each frame's SHA-256 is then taken in the view worker, where the frame is. `"pixels": "transfer"` on a variant
+transfers each frame from its decoder in place of sharing it, the lever of
+[`transferred-buffer-per-frame.md`](../../../../docs/client/evidence/transferred-buffer-per-frame.md).
 
 
 **Row DECODEPACE** sets the downloader's `followQueue` lab flag against today's pool on the delivered OpenJPH

@@ -1,0 +1,19 @@
+[package]
+name = "sender"
+version = "0.1.0"
+edition = "2021"
+description = "Builds the PCS's packages from the exam tree and sends them: docs/adr/pcs-transfer.md §15"
+
+[dependencies]
+anyhow = { workspace = true }
+carrier = { path = ".." }
+clap = { version = "4", features = ["derive"] }
+tar = { version = "0.4", default-features = false }
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+zstd = "0.13"
+
+[dev-dependencies]
+rcgen = "0.13"
+rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std"] }
+tokio = { workspace = true }
+tokio-rustls = { version = "0.26", default-features = false, features = ["logging"] }

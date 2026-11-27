@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SNR preview</title>
+<script src="/lab/.av1-build/out/simd-op.js"></script>
+<script type="module">
+  import { block, prepare } from "./snr.js";
+  const get = async (p) => {
+    const res = await fetch(`/${p}`);
+    if (!res.ok) throw new Error(`${p}: ${res.status}`);
+    return new Uint8Array(await res.arrayBuffer());
+  };
+  globalThis.run = async ({ work, set, g, v, r, mutate, arms }) =>
+    block({ dav1d: globalThis.Dav1dModule }, await prepare(get, work, set, g, v, r, mutate), r, mutate, arms);
+  globalThis.ready = true;
+</script>

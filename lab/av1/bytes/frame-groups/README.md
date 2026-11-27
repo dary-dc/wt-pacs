@@ -64,6 +64,8 @@ system B 10-bit (an 8-bit top, a 2-bit low). **Scan arc**: system B records 14.3
 positioner scan arc, with a primary increment of 1.03–1.09°; systems A and C record 0.0 for the arc and the
 increment, which is no arc, so theirs is **not recorded**. **No series records a projection count.**
 
+**Reproduced 2026-10-30**, locally from the pinned data (`lab/av1/data.json`, SHA-256-checked) and tools (a 2026-10-19 build of `ingest/tools.sh`, reported byte-identical to `lab/av1/tools/tools.sh`; no committed `ingest/tools.sh` is, so *unverified*; its outputs are not committed): `dbts_a1`, `dbts_b1`, `dbts_c1`, libaom `good` 6, alt-ref off, G ∈ {1, 2, 4, 8, 16}, and HTJ2K: 15 of 15 cells equal to the tables below after rounding (worst difference +0.004 points), 240 of 240 AV1 and 48 of 48 HTJ2K frames exact, `mutate.py` caught both mutations; alt-ref on, `dbts_a1`'s 10-bit top at G = 8: 5 of 16 frames exact, `aomdec` and dav1d agreeing on every sample. Not re-run: cpu0, SVT-AV1, ρ, the plain representation, browser timing.
+
 ### ρ (§2)
 
 Median [10th–90th percentile] over blocks and pairs. **The floor is 0.059**: independent noise gives that at the best
@@ -147,7 +149,8 @@ preset 0 at G = 16, is 0.985 of HTJ2K's bytes, 5 % over libaom's intra at either
 ### Decode cost of an ask (§4)
 
 Headless Chromium 141.0.7390.37 (playwright 1.56.1, Node 22.22.0), the product's `decoder.js` worker, one ask at a
-time; the 16-slice runs of `dbts_a1`, `dbts_b1`, `dbts_c1` at `good` 6; 1× and 4× CPU throttle, each a fresh browser
+time; the 16-slice runs of `dbts_a1`, `dbts_b1`, `dbts_c1` at `good` 6; 1× and 4× CPU throttle
+(`lab/scripts/cpu_throttle.mjs`, [`docs/decode/README.md`](../../../../docs/decode/README.md) §A slow CPU, emulated), each a fresh browser
 every round, 10 rounds in a Williams order (`lab/order.mjs`), variants and sets rotating inside. **Mean ask, ms**: the
 median over rounds of each round's mean over the run's asks, [range], n = 10; every one of 5 760 frames exact.
 
@@ -177,7 +180,7 @@ numbers.
 | --- | --- | --- |
 | P1 | **did not hold** for A and C, not refuted | system medians A 0.112, B 0.215, C 0.117: none above 0.6 or below 0.1, but A and C are under the predicted 0.2 (the floor is 0.059) |
 | P2 | **held** | largest gain on any series, `good` 6: +1.51 % (`dbts_b3`, G16); cpu0: +0.13 % (`dbts_c1`, G16); none ≥ 5 % |
-| P3 | **did not hold** | Spearman(gain, ρ) over 15 series +0.46 (14 gains are 0), and +0.11 on the best G > 1's own gain: under 0.6, and at ≥ 6 series no relation on the second. Scan arc: recorded by system B alone (14.35–15.19°), Spearman(arc, ρ) −0.10 over its 5 series; across systems not testable |
+| P3 | **did not hold** | Spearman(gain, ρ) over 15 series +0.46 (14 gains are 0; *recomputed 2026-10-24 from this table, ties at average rank: +0.43*), and +0.11 on the best G > 1's own gain: under 0.6, and at ≥ 6 series no relation on the second. Scan arc: recorded by system B alone (14.35–15.19°), Spearman(arc, ρ) −0.10 over its 5 series; across systems not testable |
 | P4 | **not refuted**; its 80 % clause failed where there was a gain | best G ≥ 8 over G4: at most +0.39 points (`good` 6, `dbts_b3`) and +0.45 (cpu0, `dbts_b1`), under 0.5; on the two series with any gain G2 or G4 holds 75 % (`dbts_b3`, G4) and 54 % (cpu0 `dbts_c1`, G4) of it |
 | P5 | **held** | the low stream's inter is never smaller than its intra: at best −0.06 % (cpu0 `dbts_c1`), −0.19 % (`good` 6 `dbts_b1`); with alt-ref on −2.55 % or worse; SVT preset 0 `dbts_b1` +0.13 %, under 0.5 % |
 | P6 | **refuted** (system B; A and C inexact) | alt-ref on beats off by +1.23 to +6.84 points on 9 of 10 exact cells (`dbts_b4` G16 +6.84) |
@@ -185,6 +188,10 @@ numbers.
 | P8–P10 | **not testable here** | no sound breast ultrasound cine, ABUS or contrast angiography run |
 
 ### The rule (§5)
+
+*Corrected 2026-10-30:* the 20 % and 0.80 thresholds below were registered to fix the reading before the data; the
+owner rules they are not findings. The verdict as numbers and costs is
+[`docs/av1/frame-groups.md`](../../../../docs/av1/frame-groups.md) §1, §3.
 
 * **DBT: G = 1.** No sound series meets the first test — the best gain at `good` 6 is +1.51 % against the 20 % it
   needs — nor the third (every mean ask at 4× is over its bound); the second, ≤ 0.80 of HTJ2K's bytes, is met only

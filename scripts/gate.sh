@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Before pushing, fail-fast. What it needs: README.md §Prerequisites.
-#   scripts/gate.sh [--quick] [--no-browser]   --quick skips the two absence checks
+#   scripts/gate.sh [--quick] [--no-browser]   --quick skips the decoders' rebuild and the absence checks; no docker skips the rebuild by name
 # CARGO_TARGET_DIR is respected; the server absence check builds a default-feature release.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -38,19 +38,16 @@ PYTHON="${PYTHON:-python3}"
 numpy=0
 "$PYTHON" -c "import numpy" 2>/dev/null && numpy=1
 
-step "prerequisites: built clients newer than their sources; playwright, Chromium and the decoder vendor"
+step "prerequisites: the committed builds are their pins; the WASM client newer than its sources; playwright, Chromium and the decoder vendor"
 source client/contract/browser_env.sh
 require_transport_wasm
 built=client/decode/wasm/built
-if [[ -f "$built/THIRD_PARTY_NOTICES" ]]; then
-  stale="$(find client/decode/wasm/build client/decode/wasm/openjph client/decode/wasm/dav1d/dav1d_wrap.c client/decode/wasm/xxh3 -newer "$built/THIRD_PARTY_NOTICES" \
-    -type f ! -path '*/.cache/*' ! -name manifest.sha256 ! -name README.md -print -quit)"
-  [[ -z "$stale" ]] || { echo "stale $built: $stale is newer; client/decode/wasm/build/build.sh" >&2; exit 2; }
-  (cd "$built" && sha256sum -c --quiet ../build/manifest.sha256) \
-    || { echo "$built is not the build client/decode/wasm/build/manifest.sha256 pins; client/decode/wasm/build/build.sh" >&2; exit 2; }
-else
-  skip "the decoder builds and their manifest check — no $built (client/decode/wasm/build/build.sh, docker)"
-fi
+# The committed builds are the deploy (deploy/README.md §Run it): their bytes, every file and no other, are the pins'.
+(cd "$built" && sha256sum -c --quiet ../build/manifest.sha256 \
+  && diff <(cut -d' ' -f3- ../build/manifest.sha256) <(find . -type f ! -path './.work/*' | sed 's#^\./##' | LC_ALL=C sort)) \
+  || { echo "$built is not what client/decode/wasm/build/manifest.sha256 pins" >&2; exit 2; }
+(cd client/transport/ts && sha256sum -c --quiet manifest.sha256) \
+  || { echo "client/transport/ts/dist/session.js is not what client/transport/ts/manifest.sha256 pins" >&2; exit 2; }
 if [[ $quick -eq 0 ]]; then
   for tool in nm strings; do
     command -v "$tool" >/dev/null || { echo "missing $tool (binutils): the absence checks read the built artifacts" >&2; exit 2; }
@@ -64,8 +61,9 @@ fi
 step "repo: comment budget"
 run 1 scripts/comment_budget.sh
 
-step "repo: every doc link, anchor, backticked path and cited archive tag resolves"
+step "repo: every doc link, anchor, backticked path and cited archive tag resolves, the docs/ pages' links included"
 run 1 python3 scripts/check_links.py
+run 1 python3 scripts/check_links_test.py
 
 step "repo: no personal path in a tracked file"
 run 1 scripts/check_personal_paths.sh
@@ -79,20 +77,50 @@ run 1 bash -c 'for p in lab/disk-access-bench/arms/*.patch; do git apply --check
 step "deploy: the server's seccomp profile is Docker's pinned default plus io_uring, nothing else"
 run 1 bash deploy/seccomp-uring.sh --check
 
+step "deploy: the server's THIRD_PARTY_NOTICES, written again from Cargo.lock, is the one committed"
+run 1 "$PYTHON" deploy/server_notices.py --check
+
+step "deploy: every module the web image's files name is in it"
+run 1 sh deploy/web-files_test.sh
+
+step "scripts: README §Demo's pair starter serves the pair whole and stops with it"
+run 1 bash scripts/demo-pair_test.sh
+
 step "client: build bundles + unit tests"
 run 1 bash client/transport/ts/build.sh
+run 1 bash -c 'cd client/transport/ts && sha256sum -c --quiet manifest.sha256 && echo "session.js rebuilt to its pin" \
+  || { echo "the rebuilt dist/session.js is not its pin: commit it and sha256sum dist/session.js >manifest.sha256"; exit 1; }'
 run 1 node client/transport/ts/test/run.mjs
+run 1 bash client/transport/ts/product_test.sh
 run 1 bash lab/client-telemetry/build.sh
 run 1 node lab/client-telemetry/test/run.mjs
 run 1 node lab/client-telemetry/test/session.mjs
 run 1 node client/decode/htj2k.test.mjs
+run 1 node client/decode/decoder.test.mjs
 run 1 node client/decode/wasm-glue.test.mjs
 run 1 node client/decode/xxh3.test.mjs
 run 1 node client/transport/downloader.test.mjs
 run 1 node client/transport/consumer.test.mjs
+run 1 node client/view/store-worker.test.mjs
 run 2 node client/decode/av1.test.mjs
 run 1 python3 server/dev-server.test.py
+run 1 bash server/scripts/gen_dev_cert_test.sh
 run 1 node client/paint/voi.test.mjs
+run 1 node client/view/controller.test.mjs
+run 1 node client/view/window.test.mjs
+run 1 node client/viewer/pair.test.mjs
+run 1 node client/viewer/pair-source.test.mjs
+run 1 node client/viewer/screen.test.mjs
+run 1 node client/viewer/slider.test.mjs
+run 1 node client/view/depth-cut.test.mjs
+run 1 node client/view/view.test.mjs
+run 1 node client/view/view-worker.test.mjs
+run 1 node client/view/cache.test.mjs
+run 1 node client/view/store-worker.test.mjs
+run 1 node client/view/clock.test.mjs
+run 1 node lab/frame-clock/arms.test.mjs
+run 1 node lab/frame-clock/measure.test.mjs
+run 1 node lab/viewer/start-summary.test.mjs
 
 step "client: worker-safe (no artifact reaches for window)"
 run 1 bash client/scripts/check_worker_safe.sh
@@ -106,10 +134,16 @@ run 2 node client/contract/run.mjs
 if [[ $browser -eq 1 ]]; then
   step "client: the downloader in headless Chromium, over each client — the clauses through it, and its dispatch order and per-decoder bound"
   run 12 bash client/contract/run_browser.sh
-  step "client: the viewer's page check — a complete, exact, drawn page (headless Chromium)"
-  run 9 bash client/viewer/run_check.sh
+  step "client: the viewer's page check — a complete, exact, drawn page, and the view worker's cache across tabs (headless Chromium)"
+  run 20 bash client/viewer/run_check.sh
+  step "lab: the frame clock's seven arms wired end to end in the view worker, a second each (headless Chromium, nothing timed)"
+  run 1 node lab/frame-clock/check.mjs
+  step "client: a depth cut's 10-bit codes decode through WebCodecs, a group from its keyframe on, as dav1d's; a 12-bit stored form tried there first (headless Chromium)"
+  run 1 node client/decode/depth-cut.browser.mjs
   step "client: a crafted link to the viewer refused where lab/ is not served (headless Chromium)"
   run 1 node client/viewer/crafted.mjs
+  step "client: the paint's fence settle waits for a heavy draw, the read as reference (SwiftShader)"
+  run 6 node client/paint/settle-check.mjs
   step "client: the painter at 1:1 against its CPU reference (SwiftShader, ~3 s)"
   if [[ $numpy -eq 1 ]]; then
     run 1 env PYTHON="$PYTHON" node client/paint/check.mjs --zoom1
@@ -155,32 +189,98 @@ else
   skip "DICOM to .sbnd needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
 fi
 
+step "ingest to page: a breast ultrasound clip, its colour form and a DBT volume through the DICOM ingest, served, every frame exact in the page and the view worker (headless Chromium)"
+data="${DATA:-$ROOT/lab/av1/data}"
+if [[ $browser -eq 1 && -f "$INGEST_BUILD/payload/libdecode.so" && -d "$INGEST_BUILD/openjph" ]] \
+  && [[ -d "$data/usb_cine" && -d "$data/usb_cine_rgb" && -d "$data/dbts_a1" ]] && "$PYTHON" -c "import numpy, pydicom, xxhash" 2>/dev/null; then
+  run 1 env DATA="$data" PYTHON="$PYTHON" bash scripts/stacks_end_to_end.sh
+else
+  skip "the stacks end to end need the fetched usb_cine, usb_cine_rgb and dbts_a1 (OUT=\$DATA lab/av1/fetch_data.sh, docs/FIXTURES.md §Stacks end to end), ingest/tools.sh's build and the browser"
+fi
+
+step "ingest: optimal quality — its metadata and pairing, every frame from its keyframe, close and not exact, at G 1, 8 and 16; the product's value matrix and pair, known gaps named"
+if [[ -f "$INGEST_BUILD/payload/libdecode.so" && -x "$INGEST_BUILD/aom-3.15.1/bin/aomenc" ]] \
+  && "$PYTHON" -c "import numpy, xxhash" 2>/dev/null; then
+  run 1 "$PYTHON" ingest/coded-frames/lossy_test.py "$INGEST_BUILD"
+  run 1 "$PYTHON" ingest/coded-frames/pair_contract_test.py "$INGEST_BUILD"
+else
+  skip "optimal quality's test needs ingest/tools.sh's build (INGEST_BUILD=...) and PYTHON=... with ingest/requirements.txt"
+fi
+
+step "client: the native core's decode — every committed frame digest, through ingest/tools.sh's dav1d and OpenJPH — and its view module's want, store, credits and hand-over"
+if [[ -f "$INGEST_BUILD/payload/libdecode.so" ]]; then
+  run 1 cargo test -p native-client --features decode --quiet -- decode:: view::
+else
+  skip "the native decode needs ingest/tools.sh's build (INGEST_BUILD=...)"
+fi
+
 step "lab: the variant order and its predecessor split"
 run 1 node lab/order.test.mjs
+
+step "perf: each arm of the nightly's campaign, and the value a round it judges"
+run 1 node scripts/perf_campaign.test.mjs
+
+step "lab: the viewer's levers — a fill's time and reads, steps on demand, the sawtooth trace, Experiment 2's rule over rows"
+run 1 node lab/viewer/levers.test.mjs
+run 1 node lab/phone/beacon.test.mjs
+run 1 sh lab/phone/read-path_test.sh
+run 1 "$PYTHON" lab/phone/link_test.py
+run 1 "$PYTHON" lab/phone/fill_test.py
+run 1 node lab/viewer/trace.test.mjs
 
 step "lab: the device kit's plan, bundle reader, collector and server start; the prebuilt recipe's server stage is the Containerfile's"
 run 1 node lab/devices/plan.test.mjs
 run 1 python3 lab/devices/collector_test.py
 run 1 sh deploy/server_start_test.sh
 
+step "lab: the rigs' Firefox driver reads Marionette's framing; with FIREFOX_PATH, a worker starts 300 workers under it"
+run 1 env NODE_PATH="$(npm root -g)" node lab/opfs-cache/browser.test.mjs
+
 step "lab: the AV1 fetch refuses a lossy source its set does not mark"
 run 1 python3 lab/av1/provenance_test.py
+
+step "lab: row 258's verdict rule"
+run 1 python3 lab/scripts/exec_gap_summary_test.py
 
 step "server: tests, default features"
 run 1 cargo test -p series-server --quiet -- --nocapture
 step "server: tests, telemetry feature"
 run 1 cargo test -p series-server --features telemetry --quiet -- --nocapture
+step "client: the native core over raw QUIC, against the server and a WebTransport client"
+run 1 cargo test -p native-client --quiet
+step "client: the native painter's tests, and its 1:1 cells against the browser suite's CPU reference (wgpu on Mesa lavapipe)"
+lvp="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json 2>/dev/null | head -1 || true)"
+if [[ $numpy -eq 1 && -n "$lvp" ]]; then
+  run 1 env VK_ICD_FILENAMES="$lvp" cargo test -p native-client --features paint --lib --quiet paint::
+  run 1 env PYTHON="$PYTHON" VK_ICD_FILENAMES="$lvp" node client/paint/native.mjs --zoom1
+else
+  skip "the native painter check needs numpy (PYTHON=...) and Mesa lavapipe (mesa-vulkan-drivers)"
+fi
+step "client: the native window under Xvfb with every paint thread, each paint read back from its surface against the CPU reference"
+if [[ -n "$lvp" && -f "$INGEST_BUILD/payload/libdecode.so" ]] && command -v Xvfb >/dev/null && command -v xdotool >/dev/null; then
+  run 1 env VK_ICD_FILENAMES="$lvp" node client/paint/window.mjs
+else
+  skip "the native window check needs Mesa lavapipe, ingest/tools.sh's build, Xvfb and xdotool"
+fi
 step "server: compiles without io_uring (the pool path alone)"
 run 1 cargo check -p series-server --no-default-features --all-targets --quiet
 step "server: compiles with cert-compression"
 run 1 cargo check -p series-server --features cert-compression --all-targets --quiet
-step "common, ingest and tools: wire, envelope, series bundle, pack-series and check-fastpath"
-run 1 cargo test -p fod -p frame-envelope -p series-bundle -p pack-series -p check-fastpath --quiet
+step "carrier: the resumable upload, mutual TLS, refusals, and the PCS's script through a proxy that cuts and stalls"
+run 1 cargo test -p carrier --quiet
+step "sender: the package build from an exam tree, and the sender through the carrier and the PCS's script"
+run 1 cargo test -p sender --quiet
+step "carrier: the same upload over the experimental HTTP/3 listener"
+run 1 cargo test -p carrier --features quic --quiet
+step "common, ingest and tools: wire, envelope, reads from disk, series bundle, study DB, pack-series, check-fastpath and pacs-verify"
+run 1 cargo test -p fod -p frame-envelope -p from-disk -p series-bundle -p study-db -p pack-series -p check-fastpath -p pacs-verify --quiet
+step "ingest: the PACS receiver — every step, refusal and crash point (docs/adr/pacs-receiver.md)"
+run 1 cargo test -p pacs-receiver --quiet -- --nocapture
 step "tools: pack-series packs the smoke bundle again to the same bytes"
 run 1 bash -c 'd="$(mktemp -d)" && trap "rm -rf $d" EXIT && cargo run --quiet -p pack-series -- --metadata fixtures/us_cine_smoke/metadata.json \
   --frames fixtures/us_cine_smoke/frames --output "$d/x.sbnd" >/dev/null && cmp "$d/x.sbnd" fixtures/us_cine_smoke/us_cine_smoke.sbnd && echo "same bytes"'
-step "lab: the six lab crates' tests (their variants are part of the API)"
-run 1 cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench -p cc-classify -p server-telemetry --quiet
+step "lab: the seven lab crates' tests (their variants are part of the API)"
+run 1 cargo test -p window-harness -p disk-access-bench -p telemetry-bench -p container-bench -p cc-classify -p server-telemetry -p metadata-store --quiet
 step "lab: the Go and h3 clients compile"
 if command -v go >/dev/null; then
   run 1 bash -c "(cd lab/other-clients/go && go build -o /dev/null .) && (cd lab/page-open/h3-host && go build -o /dev/null .)"
@@ -188,10 +288,10 @@ else
   skip "the lab's Go clients (lab/other-clients/go, lab/page-open/h3-host) — no go"
 fi
 run 1 cargo check --locked --quiet --manifest-path lab/other-clients/h3/Cargo.toml
-step "lab: the server's lab features — the frame cache compiles, cubic-classify's and the lab levers' wiring holds"
+step "lab: the server's lab features — the frame cache compiles, cubic-classify's wiring holds, the lab levers' tests pass"
 run 1 cargo check -p series-server --features lab-frame-cache --all-targets --quiet
 run 1 cargo test -p series-server --features lab-classify --quiet -- classify
-run 1 cargo test -p series-server --features lab-levers --quiet -- held stalled lab_lever
+run 1 cargo test -p series-server --features lab-levers --quiet
 
 step "perf: counts, not clocks — the client's asks, the server's disk reads and the bytes, against scripts/perf_counts.baseline"
 if command -v strace >/dev/null; then
@@ -208,19 +308,26 @@ fi
 step "deploy: the web host's nginx answers as dev-server.py, and serves the page's files alone"
 if ! command -v nginx >/dev/null; then
   skip "the web host's check (deploy/check_equivalence.sh --local) — no nginx"
-elif [[ ! -f "$built/THIRD_PARTY_NOTICES" ]]; then
-  skip "the web host's check (deploy/check_equivalence.sh --local) — no decoder builds (deploy/README.md §Run it)"
 else
   run 1 bash deploy/check_equivalence.sh --local
 fi
 
 if [[ $quick -eq 0 ]]; then
+  step "client: the decoders rebuilt from their pins are the committed bytes (docker, ~3 min)"
+  if ! command -v docker >/dev/null; then
+    skip "the decoders' rebuild — no docker: the committed builds were checked against their manifests alone"
+  else
+    run 1 bash -c 'out=client/decode/wasm/build/.rebuilt && rm -rf "$out" && OUT="$PWD/$out" bash client/decode/wasm/build/build.sh \
+      && diff -r --exclude=.work "$out" '"$built"' && rm -rf "$out" && echo "rebuilt to the committed bytes"'
+  fi
   step "client: absence check (default bundle carries no telemetry)"
   run 1 bash client/scripts/check_telemetry_absent.sh
   step "server: absence check (default release binary carries no Tap and no lab controller)"
   run 1 bash server/scripts/check_telemetry_absent.sh
+  step "absence check (the images and the default build carry no lab code)"
+  run 1 bash scripts/check_lab_absent.sh
 else
-  skip "the two absence checks (--quick)"
+  skip "the decoders' rebuild and the three absence checks (--quick): the committed builds were checked against their manifests alone"
 fi
 [[ $browser -eq 1 ]] || skip "every browser step (--no-browser)"
 

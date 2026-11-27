@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AV1 RESIDAPART</title>
+<script type="module">
+  globalThis.arm = (o) => new Promise((resolve) => {
+    const w = new Worker("./apart.js", { type: "module" });
+    w.onmessage = (e) => { w.terminate(); resolve(e.data); };
+    w.postMessage(o);
+  });
+  globalThis.ready = true;
+</script>
