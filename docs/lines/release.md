@@ -157,6 +157,12 @@ small enough that every open item has an owner and a next step.
    gate workflow caches the three sets, fetching them on a miss, so CI runs the step; the served bundle's own digests,
    not the metadata beside it, are held to the pin (the same-length swap now fails); the US object's limit named.
    Owed: US-END-TO-END-FIX-REVIEW.
+   UNIFIED-SYNC-1127 (2026-11-27, amendment 28 rule 1): nothing newly eligible for `claude/unified`, which stays
+   `b86f69ee3` (438: code conflict in `client/view/controller.js`, `client/viewer/viewer.js`; 420: VL-READS' commits
+   unreviewed; the rest as 1124 left them). `claude/unified` merged `--no-ff` into `claude/eval-release` at
+   `fe3cecb76`, conflict in this file only (both entries kept); `scripts/gate.sh` full on it, OK in 713 s, skipping
+   the pair's invariants, the native painter and window, the stacks end to end, the viewer's cross-codec arm and
+   Firefox, and the web host's check (one 4-core cloud container: no writer, lavapipe, fetched fixtures, GL or nginx).
 
 ## Unification (the owner, 2026-11-09)
 
